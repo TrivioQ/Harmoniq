@@ -13,6 +13,8 @@ export const promoteCommand = new Command('promote')
     if (parentOpts.json) {
       console.log(JSON.stringify({ success: true }));
     } else {
-      console.log(`Successfully promoted ${options.module} version ${options.versionId} to ${options.targetEnv}`);
+      console.log(
+        `Successfully promoted ${options.module} version ${options.versionId} to ${options.targetEnv}`
+      );
     }
   });

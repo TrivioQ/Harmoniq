@@ -12,7 +12,7 @@ export class GCSStorageAdapter implements IStorage {
       credentials: {
         client_email: clientEmail,
         private_key: privateKey.replace(/\\n/g, '\n'), // Handle escaped newlines
-      }
+      },
     });
   }
 
@@ -24,7 +24,7 @@ export class GCSStorageAdapter implements IStorage {
         version: 'v4',
         action: 'write',
         expires: Date.now() + 60 * 60 * 1000, // 1 hour
-        contentType
+        contentType,
       });
     return url;
   }
@@ -49,8 +49,8 @@ export class GCSStorageAdapter implements IStorage {
   async delete(key: string): Promise<void> {
     try {
       await this.storage.bucket(this.bucket).file(key).delete();
-    } catch (err: any) {
-      if (err.code !== 404) {
+    } catch (err: unknown) {
+      if ((err as { code?: number })?.code !== 404) {
         throw err;
       }
     }

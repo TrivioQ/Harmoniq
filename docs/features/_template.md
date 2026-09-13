@@ -16,8 +16,8 @@
 
 <!-- Reference the canonical requirement IDs. Link to the relevant section in requirements.md -->
 
-| ID | Requirement | Status |
-|----|-------------|--------|
+| ID        | Requirement | Status                                |
+| --------- | ----------- | ------------------------------------- |
 | `AREA-01` | Description | ✅ Done / 🔄 In Progress / 📋 Planned |
 
 See [`docs/requirements.md §N`](../requirements.md) for the full specification.
@@ -47,13 +47,17 @@ None.
 **Refs:** <!-- requirement IDs, e.g. AREA-01, ADR-003 -->
 
 #### What changed
+
 <!-- Bullet list of specific changes made in this iteration -->
+
 -
 
 #### Why
+
 <!-- Motivation, context, or gap that triggered this change -->
 
 #### Testing
+
 <!-- How was this verified? unit / integration / E2E / docs-only -->
 
 ---

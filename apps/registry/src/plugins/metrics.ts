@@ -14,11 +14,11 @@ declare module 'fastify' {
   }
 }
 
-const metricsPlugin: FastifyPluginAsync = async (fastify, options) => {
+const metricsPlugin: FastifyPluginAsync = async (fastify, _options) => {
   const exporter = new PrometheusExporter({ preventServerStart: true });
-  
+
   const meterProvider = new MeterProvider({
-    readers: [exporter]
+    readers: [exporter],
   });
   metrics.setGlobalMeterProvider(meterProvider);
 
@@ -39,9 +39,9 @@ const metricsPlugin: FastifyPluginAsync = async (fastify, options) => {
   fastify.decorate('metricMeters', {
     manifestCacheHits,
     manifestCacheMisses,
-    deployCount
+    deployCount,
   });
-  
+
   fastify.get('/metrics', async (request, reply) => {
     // The PrometheusExporter exposes a request handler for http.Server.
     // We can directly pass the raw node req and res objects.
@@ -53,5 +53,5 @@ const metricsPlugin: FastifyPluginAsync = async (fastify, options) => {
 };
 
 export default fp(metricsPlugin, {
-  name: 'app-metrics'
+  name: 'app-metrics',
 });

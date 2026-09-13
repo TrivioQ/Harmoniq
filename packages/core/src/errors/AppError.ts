@@ -3,7 +3,12 @@ export class AppError extends Error {
   public readonly statusCode: number;
   public readonly metadata?: Record<string, unknown>;
 
-  constructor(code: string, message: string, statusCode: number = 500, metadata?: Record<string, unknown>) {
+  constructor(
+    code: string,
+    message: string,
+    statusCode: number = 500,
+    metadata?: Record<string, unknown>
+  ) {
     super(message);
     this.name = this.constructor.name;
     this.code = code;

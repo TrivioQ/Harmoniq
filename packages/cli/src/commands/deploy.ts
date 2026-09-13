@@ -24,18 +24,21 @@ export const deployCommand = new Command('deploy')
       version: options.versionId,
       url: options.url,
       integrity: options.integrity,
-      dryRun: options.dryRun || false
+      dryRun: options.dryRun || false,
     };
 
     try {
-      const res = await fetch(`${registryUrl}/api/workspaces/${options.workspace}/modules/${options.module}/deploy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(payload)
-      });
+      const res = await fetch(
+        `${registryUrl}/api/workspaces/${options.workspace}/modules/${options.module}/deploy`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -47,7 +50,9 @@ export const deployCommand = new Command('deploy')
       if (parentOpts.json) {
         console.log(JSON.stringify(data));
       } else {
-        console.log(`Successfully deployed ${options.module} version ${options.versionId} to ${options.env}`);
+        console.log(
+          `Successfully deployed ${options.module} version ${options.versionId} to ${options.env}`
+        );
       }
     } catch (e) {
       console.error('Network error during deploy', e);

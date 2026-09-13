@@ -19,12 +19,26 @@ export type ReportOptions = {
   error?: Error;
 };
 
+export type ManifestModule = {
+  id?: string;
+  url: string;
+  integrity?: string;
+};
+
+export type ManifestData = {
+  version?: string;
+  modules?: Record<string, ManifestModule>;
+  [key: string]: unknown;
+};
+
+export type EventListener = (...args: unknown[]) => void;
+
 export class HarmoniqClient {
   private options: HarmoniqClientOptions;
-  private manifest: any = null;
+  private manifest: ManifestData | null = null;
   private etag: string | null = null;
   private isPolling = false;
-  private listeners: Record<string, Function[]> = {};
+  private listeners: Record<string, EventListener[]> = {};
   private variant?: string;
 
   constructor(options: HarmoniqClientOptions) {
@@ -57,7 +71,7 @@ export class HarmoniqClient {
       if (response.ok) {
         this.manifest = await response.json();
         this.etag = response.headers.get('ETag');
-        
+
         const variant = response.headers.get('X-Harmoniq-Variant');
         if (variant) {
           this.variant = variant;
@@ -99,7 +113,7 @@ export class HarmoniqClient {
   public getModuleEntry(name: string): ModuleEntry | null {
     const mod = this.manifest?.modules?.[name];
     if (!mod) return null;
-    return { url: mod.url, integrity: mod.integrity };
+    return { url: mod.url, integrity: mod.integrity || '' };
   }
 
   public getScriptTag(name: string): string | null {
@@ -111,9 +125,9 @@ export class HarmoniqClient {
   public async reportModuleLoad(name: string, options: ReportOptions): Promise<void> {
     const { registryUrl, workspaceSlug, environment, apiKey } = this.options;
     const moduleId = this.manifest?.modules?.[name]?.id || name; // Fallback to name if ID not in manifest
-    
+
     const url = `${registryUrl}/api/modules/${moduleId}/health`;
-    
+
     const payload = {
       workspaceSlug,
       environment,
@@ -130,7 +144,7 @@ export class HarmoniqClient {
       await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
     } catch (error) {
       console.error('HarmoniqClient: Failed to report module load health.', error);
@@ -138,27 +152,34 @@ export class HarmoniqClient {
   }
 
   public getVariant(): string {
-    return (this as any).variant || 'stable';
+    return this.variant || 'stable';
   }
 
-  public async reportModuleError(name: string, options: { error: string; variant: string }): Promise<void> {
-    await this.reportModuleLoad(name, { success: false, error: new Error(options.error), variant: options.variant });
+  public async reportModuleError(
+    name: string,
+    options: { error: string; variant: string }
+  ): Promise<void> {
+    await this.reportModuleLoad(name, {
+      success: false,
+      error: new Error(options.error),
+      variant: options.variant,
+    });
   }
 
-  public on(event: string, callback: Function) {
+  public on(event: string, callback: EventListener) {
     if (!this.listeners[event]) this.listeners[event] = [];
     this.listeners[event].push(callback);
   }
 
-  public off(event: string, callback: Function) {
+  public off(event: string, callback: EventListener) {
     if (this.listeners[event]) {
-      this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+      this.listeners[event] = this.listeners[event].filter((cb) => cb !== callback);
     }
   }
 
-  private emit(event: string, ...args: any[]) {
+  private emit(event: string, ...args: unknown[]) {
     if (this.listeners[event]) {
-      this.listeners[event].forEach(cb => cb(...args));
+      this.listeners[event].forEach((cb) => cb(...args));
     }
   }
 }

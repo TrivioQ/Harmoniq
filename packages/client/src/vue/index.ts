@@ -20,7 +20,9 @@ export const createHarmoniq = (options: HarmoniqClientOptions) => {
 export const useHarmoniqClient = (): HarmoniqClient => {
   const client = inject<HarmoniqClient>(HARMONIQ_CLIENT_KEY);
   if (!client) {
-    throw new Error('useHarmoniqClient must be used within a Vue component that has the Harmoniq plugin installed');
+    throw new Error(
+      'useHarmoniqClient must be used within a Vue component that has the Harmoniq plugin installed'
+    );
   }
   return client;
 };
@@ -57,12 +59,16 @@ export const useHarmoniq = (moduleName: string) => {
         error.value = err;
         client.reportModuleError(moduleName, { error: err.message, variant: client.getVariant() });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorObj = err instanceof Error ? err : new Error(String(err));
       url.value = null;
       integrity.value = null;
       loading.value = false;
-      error.value = err;
-      client.reportModuleError(moduleName, { error: err.message, variant: client.getVariant() });
+      error.value = errorObj;
+      client.reportModuleError(moduleName, {
+        error: errorObj.message,
+        variant: client.getVariant(),
+      });
     }
   };
 

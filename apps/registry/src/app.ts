@@ -17,12 +17,15 @@ import swaggerUi from '@fastify/swagger-ui';
 
 export async function buildApp() {
   const app = Fastify({
-    logger: process.env.NODE_ENV === 'production' ? true : {
-      transport: {
-        target: 'pino-pretty',
-        options: { colorize: true }
-      }
-    },
+    logger:
+      process.env.NODE_ENV === 'production'
+        ? true
+        : {
+            transport: {
+              target: 'pino-pretty',
+              options: { colorize: true },
+            },
+          },
   });
 
   // Register security plugins
@@ -32,7 +35,7 @@ export async function buildApp() {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:"],
+        imgSrc: ["'self'", 'data:'],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: [],
       },
@@ -41,11 +44,11 @@ export async function buildApp() {
   await app.register(cors, {
     origin: '*', // Customize this based on env later
   });
-  
+
   await app.register(rateLimit, {
     max: 1000,
     timeWindow: '1 minute',
-    global: false // We will apply it explicitly to write endpoints
+    global: false, // We will apply it explicitly to write endpoints
   });
 
   await app.register(swagger, {
@@ -89,7 +92,7 @@ export async function buildApp() {
     return { status: 'ok' };
   });
 
-  app.get('/ready', async (request, reply) => {
+  app.get('/ready', async (_request, reply) => {
     try {
       await app.container.db.$queryRaw`SELECT 1`;
       // Check cache by setting/getting a temp key
@@ -97,7 +100,7 @@ export async function buildApp() {
       const val = await app.container.cache.get('ping');
       if (val !== 'pong') throw new Error('Cache failed');
       return { status: 'ok' };
-    } catch (err) {
+    } catch {
       reply.code(503).send({ status: 'error', message: 'Dependencies not ready' });
     }
   });

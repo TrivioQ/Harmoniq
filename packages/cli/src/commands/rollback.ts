@@ -12,6 +12,8 @@ export const rollbackCommand = new Command('rollback')
     if (parentOpts.json) {
       console.log(JSON.stringify({ success: true }));
     } else {
-      console.log(`Successfully rolled back ${options.module} to version ${options.versionId} in ${options.env}`);
+      console.log(
+        `Successfully rolled back ${options.module} to version ${options.versionId} in ${options.env}`
+      );
     }
   });

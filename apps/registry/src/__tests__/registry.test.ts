@@ -17,7 +17,7 @@ describe('Registry Endpoints', () => {
   it('should return health ok', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/health'
+      url: '/health',
     });
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.payload)).toEqual({ status: 'ok' });
@@ -26,14 +26,14 @@ describe('Registry Endpoints', () => {
   it('should return manifest for seeded acme-corp', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: '/api/manifest/acme-corp/consumer-portal/production'
+      url: '/api/manifest/acme-corp/consumer-portal/production',
     });
-    
+
     // Might be 200 or 404 depending on if DB is seeded in the test environment,
-    // but in our current setup, the main dev DB is used. 
+    // but in our current setup, the main dev DB is used.
     // Usually tests use a separate DB. We will just check it doesn't crash 500.
     expect([200, 404]).toContain(response.statusCode);
-    
+
     if (response.statusCode === 200) {
       const payload = JSON.parse(response.payload);
       expect(payload.schemaVersion).toBe(2);
@@ -48,8 +48,8 @@ describe('Registry Endpoints', () => {
       payload: {
         url: 'https://example.com/remoteEntry.js',
         version: '1.0.0',
-        integrity: 'sha256-abc'
-      }
+        integrity: 'sha256-abc',
+      },
     });
 
     expect(response.statusCode).toBe(401);

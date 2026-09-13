@@ -23,20 +23,24 @@ describe('Performance: Manifest Endpoint', () => {
 
     // Prime the cache
     const cacheKey = `manifest:acme-corp:web-dashboard:production`;
-    await app.container.cache.set(cacheKey, JSON.stringify({
-      url: 'http://localhost/remoteEntry.js',
-      integrity: 'sha256-123'
-    }));
+    await app.container.cache.set(
+      cacheKey,
+      JSON.stringify({
+        url: 'http://localhost/remoteEntry.js',
+        integrity: 'sha256-123',
+      })
+    );
 
     // Prime the route
     await fetch(url);
-    
-    const runAutocannon = (opts: any) => new Promise<any>((resolve, reject) => {
-      autocannon(opts, (err, res) => {
-        if (err) reject(err);
-        else resolve(res);
+
+    const runAutocannon = (opts: autocannon.Options) =>
+      new Promise<autocannon.Result>((resolve, reject) => {
+        autocannon(opts, (err, res) => {
+          if (err) reject(err);
+          else resolve(res);
+        });
       });
-    });
 
     const result = await runAutocannon({
       url,

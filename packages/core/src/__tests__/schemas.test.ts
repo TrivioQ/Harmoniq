@@ -5,7 +5,10 @@ import { ApprovalPolicySchema, ApprovalPolicyDto } from '../schemas/ApprovalPoli
 import { CreateOrganizationSchema, CreateOrganizationDto } from '../schemas/OrganizationSchema';
 import { ApprovalDecisionSchema, ApprovalBypassSchema } from '../schemas/ApprovalDecisionSchema';
 import { InstanceConfigSchema, InstanceConfigDto } from '../schemas/InstanceConfigSchema';
-import { WorkspaceStorageConfigSchema, WorkspaceStorageConfigDto } from '../schemas/WorkspaceStorageConfigSchema';
+import {
+  WorkspaceStorageConfigSchema,
+  WorkspaceStorageConfigDto,
+} from '../schemas/WorkspaceStorageConfigSchema';
 
 describe('Zod Schemas', () => {
   it('should validate a valid DeployRequest', () => {
@@ -75,6 +78,14 @@ describe('Zod Schemas', () => {
       expect(() => CreateOrganizationSchema.parse(validData)).not.toThrow();
     });
 
+    it('should validate an ApprovalDecision', () => {
+      const validData = {
+        decision: 'approved' as const,
+        comments: 'Looks good to deploy',
+      };
+      expect(() => ApprovalDecisionSchema.parse(validData)).not.toThrow();
+    });
+
     it('should validate an ApprovalBypass with long enough justification', () => {
       const validData = {
         bypassJustification: 'This is a long enough justification for emergency bypass',
@@ -87,6 +98,24 @@ describe('Zod Schemas', () => {
         bypassJustification: 'Too short',
       };
       expect(() => ApprovalBypassSchema.parse(invalidData)).toThrow();
+    });
+
+    it('should validate an InstanceConfig', () => {
+      const validData: InstanceConfigDto = {
+        key: 'system_settings',
+        value: { setupCompleted: true, instanceName: 'Harmoniq Hub' },
+      };
+      expect(() => InstanceConfigSchema.parse(validData)).not.toThrow();
+    });
+
+    it('should validate a WorkspaceStorageConfig', () => {
+      const validData: WorkspaceStorageConfigDto = {
+        provider: 'S3',
+        bucket: 'my-bucket',
+        region: 'us-east-1',
+        credentials: { accessKeyId: 'key', secretAccessKey: 'secret' },
+      };
+      expect(() => WorkspaceStorageConfigSchema.parse(validData)).not.toThrow();
     });
   });
 });

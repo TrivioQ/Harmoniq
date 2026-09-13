@@ -7,12 +7,10 @@ export default async function SettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">{t('title')}</h2>
-          <p className="text-muted-foreground mt-2">
-            {t('description')}
-          </p>
+          <p className="text-muted-foreground mt-2">{t('description')}</p>
         </div>
       </div>
-      
+
       <div className="rounded-xl border bg-card text-card-foreground shadow-sm p-6">
         <h3 className="font-semibold mb-4">{t('apiKeys')}</h3>
         <p className="text-sm text-muted-foreground mb-4">{t('apiKeysDescription')}</p>

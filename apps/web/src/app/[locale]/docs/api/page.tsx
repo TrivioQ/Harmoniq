@@ -10,8 +10,8 @@ export default function ApiDocsPage() {
       <ApiReferenceReact
         configuration={{
           spec: {
-            url: process.env.NEXT_PUBLIC_REGISTRY_URL 
-              ? `${process.env.NEXT_PUBLIC_REGISTRY_URL}/api-docs/json` 
+            url: process.env.NEXT_PUBLIC_REGISTRY_URL
+              ? `${process.env.NEXT_PUBLIC_REGISTRY_URL}/api-docs/json`
               : 'http://localhost:3002/api-docs/json',
           },
         }}

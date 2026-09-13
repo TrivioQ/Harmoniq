@@ -17,10 +17,10 @@ export default async function WorkspaceSelector() {
   const workspaces = await db.workspace.findMany({
     where: {
       WorkspaceMembers: {
-        some: { userId: session.userId }
-      }
+        some: { userId: session.userId },
+      },
     },
-    orderBy: { name: 'asc' }
+    orderBy: { name: 'asc' },
   });
 
   return (
@@ -28,9 +28,7 @@ export default async function WorkspaceSelector() {
       <div className="w-full max-w-2xl space-y-8">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">{t('title')}</h1>
-          <p className="text-muted-foreground mt-2">
-            {t('description')}
-          </p>
+          <p className="text-muted-foreground mt-2">{t('description')}</p>
         </div>
 
         <div className="grid gap-4">

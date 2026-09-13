@@ -13,7 +13,7 @@ export interface ModuleState {
 }
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class HarmoniqService {
   private client: HarmoniqClient;
@@ -54,16 +54,31 @@ export class HarmoniqService {
       await this.client.init();
       const entry = this.client.getModuleEntry(moduleName);
       if (entry) {
-        subject.next({ url: entry.url, integrity: entry.integrity || null, loading: false, error: null });
-        this.client.reportModuleLoad(moduleName, { success: true, variant: this.client.getVariant() });
+        subject.next({
+          url: entry.url,
+          integrity: entry.integrity || null,
+          loading: false,
+          error: null,
+        });
+        this.client.reportModuleLoad(moduleName, {
+          success: true,
+          variant: this.client.getVariant(),
+        });
       } else {
         const err = new Error(`Module ${moduleName} not found in manifest`);
         subject.next({ url: null, integrity: null, loading: false, error: err });
-        this.client.reportModuleError(moduleName, { error: err.message, variant: this.client.getVariant() });
+        this.client.reportModuleError(moduleName, {
+          error: err.message,
+          variant: this.client.getVariant(),
+        });
       }
-    } catch (err: any) {
-      subject.next({ url: null, integrity: null, loading: false, error: err });
-      this.client.reportModuleError(moduleName, { error: err.message, variant: this.client.getVariant() });
+    } catch (err: unknown) {
+      const errorObj = err instanceof Error ? err : new Error(String(err));
+      subject.next({ url: null, integrity: null, loading: false, error: errorObj });
+      this.client.reportModuleError(moduleName, {
+        error: errorObj.message,
+        variant: this.client.getVariant(),
+      });
     }
   }
 }

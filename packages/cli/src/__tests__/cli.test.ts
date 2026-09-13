@@ -21,33 +21,41 @@ describe('CLI Commands', () => {
 
   it('deploy command executes successfully', async () => {
     server.listen();
-    
+
     // Simulate commander program
     const program = new Command();
     program.addCommand(deployCommand);
-    
+
     // Configure program with the expected options
     program.option('--registry-url <url>', 'Registry URL');
     program.option('--api-key <key>', 'Harmoniq API Key');
     program.option('--json', 'JSON output');
-    
+
     // Default mock values
     program.setOptionValue('registryUrl', 'http://registry.test');
     program.setOptionValue('apiKey', 'test-key');
     program.setOptionValue('json', true);
 
     await program.parseAsync([
-      'node', 'test', 'deploy',
-      '--workspace', 'acme',
-      '--module', 'header',
-      '--env', 'prod',
-      '--url', 'http://cdn.com/test.js',
-      '--version-id', '1.0.0',
-      '--integrity', 'sha384-xyz'
+      'node',
+      'test',
+      'deploy',
+      '--workspace',
+      'acme',
+      '--module',
+      'header',
+      '--env',
+      'prod',
+      '--url',
+      'http://cdn.com/test.js',
+      '--version-id',
+      '1.0.0',
+      '--integrity',
+      'sha384-xyz',
     ]);
 
     expect(console.log).toHaveBeenCalledWith(JSON.stringify({ success: true }));
-    
+
     server.close();
   });
 });

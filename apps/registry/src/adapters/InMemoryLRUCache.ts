@@ -29,13 +29,13 @@ export class InMemoryLRUCache implements ICache {
     // Simple brute-force pattern matching for LRU cache (not ideal for huge caches, but this is a fallback)
     const regex = new RegExp(`^${pattern.replace(/\*/g, '.*')}$`);
     const keysToDelete: string[] = [];
-    
+
     for (const key of this.cache.keys()) {
       if (regex.test(key)) {
         keysToDelete.push(key);
       }
     }
-    
+
     for (const key of keysToDelete) {
       this.cache.delete(key);
     }

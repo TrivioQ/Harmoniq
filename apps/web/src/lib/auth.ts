@@ -1,6 +1,5 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
 
 const secretKey = process.env.JWT_SECRET || 'super-secret-key-for-development-only';
 const key = new TextEncoder().encode(secretKey);
@@ -10,7 +9,7 @@ export interface SessionPayload extends JWTPayload {
   email: string;
 }
 
-export async function encrypt(payload: any) {
+export async function encrypt(payload: JWTPayload) {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -38,7 +37,7 @@ export async function createSession(userId: string, email: string) {
     sameSite: 'lax',
     path: '/',
   });
-  
+
   cookieStore.set('refresh', refreshToken, {
     expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
     httpOnly: true,
@@ -51,10 +50,10 @@ export async function createSession(userId: string, email: string) {
 export async function getSession() {
   const session = (await cookies()).get('session')?.value;
   if (!session) return null;
-  
+
   try {
     return await decrypt(session);
-  } catch (error) {
+  } catch {
     return null;
   }
 }

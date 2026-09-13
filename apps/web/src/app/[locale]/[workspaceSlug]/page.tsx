@@ -15,10 +15,10 @@ export default async function WorkspaceOverview(props: {
       HostApps: {
         include: {
           RemoteModules: true,
-          Environments: true
-        }
-      }
-    }
+          Environments: true,
+        },
+      },
+    },
   });
 
   if (!workspace) return null;
@@ -34,7 +34,7 @@ export default async function WorkspaceOverview(props: {
           {t('description', { workspaceName: workspace.name })}
         </p>
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-xl border bg-card text-card-foreground shadow-sm p-6">
           <div className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -42,7 +42,7 @@ export default async function WorkspaceOverview(props: {
           </div>
           <div className="text-2xl font-bold">{hostAppCount}</div>
         </div>
-        
+
         <div className="rounded-xl border bg-card text-card-foreground shadow-sm p-6">
           <div className="flex flex-row items-center justify-between space-y-0 pb-2">
             <h3 className="tracking-tight text-sm font-medium">{t('remoteModules')}</h3>
@@ -57,7 +57,7 @@ export default async function WorkspaceOverview(props: {
           <div className="text-2xl font-bold text-green-600">{t('healthy')}</div>
         </div>
       </div>
-      
+
       <div className="rounded-xl border bg-card text-card-foreground shadow-sm mt-8">
         <div className="flex flex-col space-y-1.5 p-6 border-b">
           <h3 className="font-semibold leading-none tracking-tight">{t('recentActivity')}</h3>

@@ -12,21 +12,25 @@ declare module 'fastify' {
   }
 
   interface FastifyInstance {
-    verifyApiKey: (scopes?: string[]) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    verifyApiKey: (
+      scopes?: string[]
+    ) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 
-const authPlugin: FastifyPluginAsync = async (fastify, options) => {
+const authPlugin: FastifyPluginAsync = async (fastify, _options) => {
   fastify.decorate('verifyApiKey', function (requiredScopes?: string[]) {
     return async function (request: FastifyRequest, reply: FastifyReply) {
       const authHeader = request.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Missing or invalid Authorization header' } });
+        reply.code(401).send({
+          error: { code: 'UNAUTHORIZED', message: 'Missing or invalid Authorization header' },
+        });
         return;
       }
 
       const token = authHeader.substring(7);
-      
+
       // In a real implementation, we would extract the ID prefix from the token,
       // e.g. hq_abc123_xyz, to look up the DB record instead of scanning all keys.
       // Assuming token is just the secret part for this mock, or we use a hashed lookup.
@@ -37,15 +41,17 @@ const authPlugin: FastifyPluginAsync = async (fastify, options) => {
         reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Invalid token format' } });
         return;
       }
-      
+
       const [keyId, secret] = parts;
-      
+
       const apiKeyRecord = await fastify.container.db.apiKey.findUnique({
-        where: { id: keyId }
+        where: { id: keyId },
       });
 
       if (!apiKeyRecord || apiKeyRecord.revokedAt) {
-        reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Invalid or revoked API key' } });
+        reply
+          .code(401)
+          .send({ error: { code: 'UNAUTHORIZED', message: 'Invalid or revoked API key' } });
         return;
       }
 
@@ -58,7 +64,7 @@ const authPlugin: FastifyPluginAsync = async (fastify, options) => {
 
       // Check scopes
       if (requiredScopes && requiredScopes.length > 0) {
-        const hasScope = requiredScopes.every(scope => apiKeyRecord.scopes.includes(scope));
+        const hasScope = requiredScopes.every((scope) => apiKeyRecord.scopes.includes(scope));
         if (!hasScope) {
           reply.code(403).send({ error: { code: 'FORBIDDEN', message: 'Insufficient scopes' } });
           return;
@@ -77,5 +83,5 @@ const authPlugin: FastifyPluginAsync = async (fastify, options) => {
 
 export default fp(authPlugin, {
   name: 'auth-middleware',
-  dependencies: ['app-container']
+  dependencies: ['app-container'],
 });

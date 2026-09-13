@@ -9,12 +9,12 @@ vi.mock('@aws-sdk/client-s3', () => {
     PutObjectCommand: class {},
     GetObjectCommand: class {},
     HeadObjectCommand: class {},
-    DeleteObjectCommand: class {}
+    DeleteObjectCommand: class {},
   };
 });
 vi.mock('@aws-sdk/s3-request-presigner', () => {
   return {
-    getSignedUrl: vi.fn().mockResolvedValue('https://s3.mock/url')
+    getSignedUrl: vi.fn().mockResolvedValue('https://s3.mock/url'),
   };
 });
 
@@ -27,11 +27,11 @@ vi.mock('@google-cloud/storage', () => {
           file: () => ({
             getSignedUrl: vi.fn().mockResolvedValue(['https://gcs.mock/url']),
             exists: vi.fn().mockResolvedValue([true]),
-            delete: vi.fn().mockResolvedValue(true)
-          })
+            delete: vi.fn().mockResolvedValue(true),
+          }),
         };
       }
-    }
+    },
   };
 });
 
@@ -43,7 +43,12 @@ describe('Storage Adapters', () => {
   });
 
   it('GCSStorageAdapter should return an upload URL', async () => {
-    const gcs = new GCSStorageAdapter('test-project', 'client@test.iam.gserviceaccount.com', '-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n', 'test-bucket');
+    const gcs = new GCSStorageAdapter(
+      'test-project',
+      'client@test.iam.gserviceaccount.com',
+      '-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n',
+      'test-bucket'
+    );
     const url = await gcs.getUploadUrl('test-key.js', 'application/javascript');
     expect(url).toBe('https://gcs.mock/url');
   });

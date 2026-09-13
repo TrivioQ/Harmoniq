@@ -1,21 +1,33 @@
 import { IStorage } from './IStorage';
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export class S3StorageAdapter implements IStorage {
   private client: S3Client;
   private bucket: string;
 
-  constructor(region: string, bucket: string, accessKeyId: string, secretAccessKey: string, endpoint?: string) {
+  constructor(
+    region: string,
+    bucket: string,
+    accessKeyId: string,
+    secretAccessKey: string,
+    endpoint?: string
+  ) {
     this.bucket = bucket;
     this.client = new S3Client({
       region,
       endpoint,
       credentials: {
         accessKeyId,
-        secretAccessKey
+        secretAccessKey,
       },
-      forcePathStyle: !!endpoint // Often required for MinIO/custom endpoints
+      forcePathStyle: !!endpoint, // Often required for MinIO/custom endpoints
     });
   }
 
@@ -23,7 +35,7 @@ export class S3StorageAdapter implements IStorage {
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
-      ContentType: contentType
+      ContentType: contentType,
     });
     return getSignedUrl(this.client, command, { expiresIn: 3600 });
   }
@@ -31,7 +43,7 @@ export class S3StorageAdapter implements IStorage {
   async getDownloadUrl(key: string): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,
-      Key: key
+      Key: key,
     });
     return getSignedUrl(this.client, command, { expiresIn: 3600 });
   }
@@ -40,12 +52,12 @@ export class S3StorageAdapter implements IStorage {
     try {
       const command = new HeadObjectCommand({
         Bucket: this.bucket,
-        Key: key
+        Key: key,
       });
       await this.client.send(command);
       return true;
-    } catch (err: any) {
-      if (err.name === 'NotFound') {
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name === 'NotFound') {
         return false;
       }
       throw err;
@@ -55,7 +67,7 @@ export class S3StorageAdapter implements IStorage {
   async delete(key: string): Promise<void> {
     const command = new DeleteObjectCommand({
       Bucket: this.bucket,
-      Key: key
+      Key: key,
     });
     await this.client.send(command);
   }

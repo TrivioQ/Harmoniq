@@ -32,11 +32,11 @@ export class RedisCache implements ICache {
     // We can use the SCAN command to find keys matching the pattern and delete them
     // pattern should be a redis pattern like "manifest:*"
     let cursor = '0';
-    
+
     do {
       const [nextCursor, keys] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
       cursor = nextCursor;
-      
+
       if (keys.length > 0) {
         await this.redis.del(...keys);
       }

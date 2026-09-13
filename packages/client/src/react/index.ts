@@ -59,18 +59,30 @@ export const useRemoteModule = (moduleName: string): UseRemoteModuleResult => {
         const entry = client.getModuleEntry(moduleName);
         if (mounted) {
           if (entry) {
-            setState({ url: entry.url, integrity: entry.integrity || null, loading: false, error: null });
+            setState({
+              url: entry.url,
+              integrity: entry.integrity || null,
+              loading: false,
+              error: null,
+            });
             client.reportModuleLoad(moduleName, { success: true, variant: client.getVariant() });
           } else {
             const err = new Error(`Module ${moduleName} not found in manifest`);
             setState({ url: null, integrity: null, loading: false, error: err });
-            client.reportModuleError(moduleName, { error: err.message, variant: client.getVariant() });
+            client.reportModuleError(moduleName, {
+              error: err.message,
+              variant: client.getVariant(),
+            });
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (mounted) {
-          setState({ url: null, integrity: null, loading: false, error: err });
-          client.reportModuleError(moduleName, { error: err.message, variant: client.getVariant() });
+          const error = err instanceof Error ? err : new Error(String(err));
+          setState({ url: null, integrity: null, loading: false, error });
+          client.reportModuleError(moduleName, {
+            error: error.message,
+            variant: client.getVariant(),
+          });
         }
       }
     };

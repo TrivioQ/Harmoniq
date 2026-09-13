@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
-import { handleWebhookDelivery, WebhookJobData } from '../../jobs/webhooks';
+import { handleWebhookDelivery, WebhookJobData, WebhookBoss } from '../../jobs/webhooks';
 import { ConsoleLogger } from '../../adapters/ConsoleLogger';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
@@ -35,15 +35,15 @@ describe('Webhook Jobs', () => {
           active: true,
           paused: false,
           maxRetries: 3,
-          backoffCeilingMs: 300000
-        })
+          backoffCeilingMs: 300000,
+        }),
       },
       webhookDelivery: {
-        create: vi.fn().mockResolvedValue({})
+        create: vi.fn().mockResolvedValue({}),
       },
       webhookDeadLetter: {
-        create: vi.fn()
-      }
+        create: vi.fn(),
+      },
     };
 
     const job = {
@@ -53,20 +53,22 @@ describe('Webhook Jobs', () => {
         event: 'module.deployed',
         payload: { module: 'test', version: '1.0.0' },
         attempt: 0,
-        firstAttemptAt: new Date().toISOString()
-      } as WebhookJobData
+        firstAttemptAt: new Date().toISOString(),
+      } as WebhookJobData,
     };
 
-    const boss = { send: vi.fn() };
+    const boss = { send: vi.fn() } as unknown as WebhookBoss;
 
     await handleWebhookDelivery(job, db, logger, boss);
 
     expect(receivedSignature).toBeTruthy();
-    expect(db.webhookDelivery.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        success: true
+    expect(db.webhookDelivery.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          success: true,
+        }),
       })
-    }));
+    );
     expect(boss.send).not.toHaveBeenCalled();
     expect(db.webhookDeadLetter.create).not.toHaveBeenCalled();
   });
@@ -87,15 +89,15 @@ describe('Webhook Jobs', () => {
           active: true,
           paused: false,
           maxRetries: 3,
-          backoffCeilingMs: 300000
-        })
+          backoffCeilingMs: 300000,
+        }),
       },
       webhookDelivery: {
-        create: vi.fn().mockResolvedValue({})
+        create: vi.fn().mockResolvedValue({}),
       },
       webhookDeadLetter: {
-        create: vi.fn()
-      }
+        create: vi.fn(),
+      },
     };
 
     const job = {
@@ -105,22 +107,28 @@ describe('Webhook Jobs', () => {
         event: 'module.deployed',
         payload: { module: 'test', version: '1.0.0' },
         attempt: 0,
-        firstAttemptAt: new Date().toISOString()
-      } as WebhookJobData
+        firstAttemptAt: new Date().toISOString(),
+      } as WebhookJobData,
     };
 
-    const boss = { send: vi.fn() };
+    const boss = { send: vi.fn() } as unknown as WebhookBoss;
 
     await handleWebhookDelivery(job, db, logger, boss);
 
-    expect(db.webhookDelivery.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        success: false
+    expect(db.webhookDelivery.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          success: false,
+        }),
       })
-    }));
-    expect(boss.send).toHaveBeenCalledWith('webhook.deliver', expect.objectContaining({
-      attempt: 1
-    }), expect.any(Object));
+    );
+    expect(boss.send).toHaveBeenCalledWith(
+      'webhook.deliver',
+      expect.objectContaining({
+        attempt: 1,
+      }),
+      expect.any(Object)
+    );
     expect(db.webhookDeadLetter.create).not.toHaveBeenCalled();
   });
 
@@ -140,15 +148,15 @@ describe('Webhook Jobs', () => {
           active: true,
           paused: false,
           maxRetries: 2,
-          backoffCeilingMs: 300000
-        })
+          backoffCeilingMs: 300000,
+        }),
       },
       webhookDelivery: {
-        create: vi.fn().mockResolvedValue({})
+        create: vi.fn().mockResolvedValue({}),
       },
       webhookDeadLetter: {
-        create: vi.fn().mockResolvedValue({})
-      }
+        create: vi.fn().mockResolvedValue({}),
+      },
     };
 
     const job = {
@@ -158,24 +166,28 @@ describe('Webhook Jobs', () => {
         event: 'module.deployed',
         payload: { module: 'test', version: '1.0.0' },
         attempt: 2, // Reached max retries
-        firstAttemptAt: new Date().toISOString()
-      } as WebhookJobData
+        firstAttemptAt: new Date().toISOString(),
+      } as WebhookJobData,
     };
 
-    const boss = { send: vi.fn() };
+    const boss = { send: vi.fn() } as unknown as WebhookBoss;
 
     await handleWebhookDelivery(job, db, logger, boss);
 
-    expect(db.webhookDelivery.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        success: false
+    expect(db.webhookDelivery.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          success: false,
+        }),
       })
-    }));
-    expect(db.webhookDeadLetter.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        totalAttempts: 2
+    );
+    expect(db.webhookDeadLetter.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          totalAttempts: 2,
+        }),
       })
-    }));
+    );
     expect(boss.send).not.toHaveBeenCalled();
   });
 });

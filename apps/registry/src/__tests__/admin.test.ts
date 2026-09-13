@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import buildApp from '../app';
+import { buildApp } from '../app';
 import { FastifyInstance } from 'fastify';
 
 describe('Admin Routes', () => {
@@ -8,9 +8,9 @@ describe('Admin Routes', () => {
   beforeAll(async () => {
     process.env.HARMONIQ_SETUP_TOKEN = 'test-token-123';
     process.env.CACHE_ADAPTER = 'memory';
-    app = buildApp();
+    app = await buildApp();
     await app.ready();
-    
+
     // Clear out existing admin if any
     await app.container.db.instanceAdmin.deleteMany();
     await app.container.db.user.deleteMany();
@@ -29,8 +29,8 @@ describe('Admin Routes', () => {
       payload: {
         setupToken: 'test-token-123',
         email: 'admin@harmoniq.local',
-        name: 'System Admin'
-      }
+        name: 'System Admin',
+      },
     });
 
     expect(res.statusCode).toBe(200);
@@ -46,8 +46,8 @@ describe('Admin Routes', () => {
       url: '/api/admin/setup',
       payload: {
         setupToken: 'test-token-123',
-        email: 'admin2@harmoniq.local'
-      }
+        email: 'admin2@harmoniq.local',
+      },
     });
 
     expect(res.statusCode).toBe(400);
@@ -59,8 +59,8 @@ describe('Admin Routes', () => {
       url: '/api/admin/setup',
       payload: {
         setupToken: 'wrong-token',
-        email: 'admin3@harmoniq.local'
-      }
+        email: 'admin3@harmoniq.local',
+      },
     });
 
     expect(res.statusCode).toBe(403);
@@ -71,8 +71,8 @@ describe('Admin Routes', () => {
       method: 'GET',
       url: '/api/admin/health',
       headers: {
-        Authorization: `Bearer ${adminToken}`
-      }
+        Authorization: `Bearer ${adminToken}`,
+      },
     });
 
     expect(res.statusCode).toBe(200);

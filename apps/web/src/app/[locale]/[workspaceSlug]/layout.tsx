@@ -16,7 +16,7 @@ export default async function WorkspaceLayout(props: {
   if (!session) redirect('/auth/login');
 
   const workspace = await db.workspace.findUnique({
-    where: { slug: params.workspaceSlug }
+    where: { slug: params.workspaceSlug },
   });
 
   if (!workspace) {
@@ -35,16 +35,25 @@ export default async function WorkspaceLayout(props: {
             <span className="font-medium text-sm">{workspace.name}</span>
           </div>
           <nav className="flex items-center gap-6 text-sm font-medium">
-            <Link href={`/${workspace.slug}`} className="hover:text-primary">{t('overview')}</Link>
-            <Link href={`/${workspace.slug}/modules`} className="hover:text-primary">{t('modules')}</Link>
-            <Link href={`/${workspace.slug}/environments`} className="hover:text-primary">{t('environments')}</Link>
-            <Link href={`/${workspace.slug}/settings`} className="hover:text-primary text-muted-foreground">{t('settings')}</Link>
+            <Link href={`/${workspace.slug}`} className="hover:text-primary">
+              {t('overview')}
+            </Link>
+            <Link href={`/${workspace.slug}/modules`} className="hover:text-primary">
+              {t('modules')}
+            </Link>
+            <Link href={`/${workspace.slug}/environments`} className="hover:text-primary">
+              {t('environments')}
+            </Link>
+            <Link
+              href={`/${workspace.slug}/settings`}
+              className="hover:text-primary text-muted-foreground"
+            >
+              {t('settings')}
+            </Link>
           </nav>
         </div>
       </header>
-      <main className="flex-1 bg-muted/20">
-        {props.children}
-      </main>
+      <main className="flex-1 bg-muted/20">{props.children}</main>
     </div>
   );
 }

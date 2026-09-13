@@ -1,17 +1,17 @@
-import { describe, it, expect, vi, beforeEach, afterAll, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, afterAll, afterEach, beforeAll } from 'vitest';
 import { HarmoniqClient } from '../index';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 
 const mockManifest = {
-  version: "1.0",
+  version: '1.0',
   modules: {
-    "header": {
-      id: "mod_1",
-      url: "https://cdn.example.com/header.js",
-      integrity: "sha384-xyz"
-    }
-  }
+    header: {
+      id: 'mod_1',
+      url: 'https://cdn.example.com/header.js',
+      integrity: 'sha384-xyz',
+    },
+  },
 };
 
 const server = setupServer(
@@ -23,9 +23,9 @@ const server = setupServer(
 
     return HttpResponse.json(mockManifest, {
       headers: {
-        'ETag': 'W/"mock-etag"',
-        'X-Harmoniq-Variant': 'canary'
-      }
+        ETag: 'W/"mock-etag"',
+        'X-Harmoniq-Variant': 'canary',
+      },
     });
   }),
   http.post('http://registry.test/api/modules/mod_1/health', () => {
@@ -46,12 +46,12 @@ describe('HarmoniqClient', () => {
       registryUrl: 'http://registry.test',
       workspaceSlug: 'acme',
       hostApp: 'portal',
-      environment: 'prod'
+      environment: 'prod',
     });
 
     const updateSpy = vi.fn();
     const variantSpy = vi.fn();
-    
+
     client.on('manifestUpdate', updateSpy);
     client.on('variantAssigned', variantSpy);
 
@@ -59,7 +59,7 @@ describe('HarmoniqClient', () => {
 
     expect(updateSpy).toHaveBeenCalledWith(mockManifest);
     expect(variantSpy).toHaveBeenCalledWith('canary');
-    
+
     expect(client.getModuleUrl('header')).toBe('https://cdn.example.com/header.js');
     expect(client.getScriptTag('header')).toContain('integrity="sha384-xyz"');
   });
@@ -69,7 +69,7 @@ describe('HarmoniqClient', () => {
       registryUrl: 'http://registry.test',
       workspaceSlug: 'acme',
       hostApp: 'portal',
-      environment: 'prod'
+      environment: 'prod',
     });
 
     await client.init();
@@ -83,7 +83,7 @@ describe('HarmoniqClient', () => {
     );
 
     // Call fetch again directly (simulating polling)
-    await (client as any).fetchManifest();
+    await (client as unknown as { fetchManifest: () => Promise<void> }).fetchManifest();
 
     // Still has old manifest
     expect(client.getModuleUrl('header')).toBe('https://cdn.example.com/header.js');
@@ -94,9 +94,9 @@ describe('HarmoniqClient', () => {
       registryUrl: 'http://registry.test',
       workspaceSlug: 'acme',
       hostApp: 'portal',
-      environment: 'prod'
+      environment: 'prod',
     });
-    
+
     await client.init();
 
     // Call report

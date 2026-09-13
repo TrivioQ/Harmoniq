@@ -33,6 +33,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Create `docs/features/` directory for per-feature docs (with change history)
 
 ### Deliverables
+
 - Runnable monorepo: `pnpm install` succeeds
 - `pnpm run docker:up` starts Postgres + Redis
 - Linting and type-check pass
@@ -89,6 +90,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Write unit test suite for `@harmoniq/db` Prisma middleware and RLS policy hooks
 
 ### Deliverables
+
 - `pnpm db:migrate` applies schema with RLS enabled
 - `pnpm db:seed` populates demo data
 - All port interfaces exported from `@harmoniq/core`
@@ -103,6 +105,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 ### App: `apps/registry`
 
 #### Infrastructure Setup
+
 - [ ] Initialize Fastify app with `fastify-plugin` architecture
 - [ ] Register plugins: `@fastify/cors`, `@fastify/helmet`, `@fastify/rate-limit`
 - [ ] Set up OTel instrumentation: `@opentelemetry/sdk-node`, `@opentelemetry/auto-instrumentations-node`
@@ -115,6 +118,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Wire dependency injection: service container that resolves adapters from env config
 
 #### Manifest Endpoint
+
 - [ ] `GET /api/manifest/:workspaceSlug/:hostAppSlug/:env` (HST-01 — canonical)
   - Validate workspace slug, hostApp slug, env exist
   - Check `ICache` for cached manifest
@@ -136,12 +140,14 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] `GET /api/modules/:moduleId/health` — 5-min rolling aggregation (HLT-02)
 
 #### Auth Middleware
+
 - [ ] API key extraction from `Authorization: Bearer hq_...` header
 - [ ] Argon2id hash verification against DB
 - [ ] Scope enforcement middleware (decorates route with required scope)
 - [ ] Rate limiting on auth routes: 10 req/min per IP
 
 #### Deploy & Version Management Routes
+
 - [ ] `POST /api/workspaces/:workspaceSlug/modules/:moduleId/deploy`
   - Support `dryRun: true` mode — validate only, no commit (VAL-02)
   - Validate `DeployRequestSchema` (includes `dependencies`, `exposes`)
@@ -169,16 +175,19 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Module RBAC middleware: enforce module ownership on deploy/rollback/promote/canary (RBAC-02)
 
 #### Health & Metrics
+
 - [ ] `GET /health` — always 200
 - [ ] `GET /ready` — check DB connection + cache connection; 503 on failure
 - [ ] `GET /metrics` — Prometheus text format
 
 #### Test Suite
+
 - [ ] Integration test suite for manifest endpoints (`GET /api/manifest/...`), ETag caching (304), stale fallback, and canary assignments
 - [ ] Integration test suite for deploy, rollback, promote, and canary management API endpoints
 - [ ] Unit & integration test suite for auth middleware (API key argon2id validation, scopes, rate limiting) and env freeze / RBAC middleware
 
 ### Deliverables
+
 - Registry serving manifests with ETag support
 - Cache hit path under 50ms (benchmark with `autocannon`)
 - All routes returning correct 304 on unchanged manifests
@@ -193,6 +202,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 ### App: `apps/web`
 
 #### Foundation
+
 - [ ] Initialize Next.js app (App Router, TypeScript strict mode)
 - [ ] Install: `tailwindcss`, `@shadcn/ui`, `lucide-react`
 - [ ] Configure Tailwind with custom Harmoniq design tokens
@@ -201,6 +211,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Set up route groups: `(auth)`, `(dashboard)`
 
 #### Authentication Flow
+
 - [ ] `GET /auth/login` — OAuth provider selection page
 - [ ] `GET /auth/[provider]/callback` — exchange code, create session
   - Plug in `OAuthPlugin` adapter (GitHub or Google based on env config)
@@ -212,6 +223,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Edge middleware: verify JWT on all `(dashboard)` routes; redirect to `/auth/login` on failure
 
 #### Dashboard Pages
+
 - [ ] **Workspace Selector** (`/`) — list user's workspaces, create new workspace
 - [ ] **Overview** (`/[workspaceSlug]/`) — active modules count, recent deploys, environment status
 - [ ] **Modules** (`/[workspaceSlug]/modules`) — list all modules with active versions per env + health sparklines (HLT-04)
@@ -235,10 +247,12 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] **Workspace Settings** (`/[workspaceSlug]/settings`) — storage config, retention policy, danger zone
 
 #### Test Suite
+
 - [ ] Unit & component test suite for authentication hooks, Edge middleware, and JWT validation
 - [ ] Integration test suite for dashboard UI components, forms, and API route handlers
 
 ### Deliverables
+
 - Fully navigable dashboard
 - Auth flow with GitHub OAuth (Google optional at this phase)
 - All CRUD operations functional
@@ -293,6 +307,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Build: distributed as `npx harmoniq`
 
 ### Deliverables
+
 - `npm install @harmoniq/client` works
 - `npx harmoniq deploy ...` works end-to-end against a running registry
 - 100% of client public API and CLI commands covered by unit & integration tests
@@ -309,22 +324,26 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Define job types: `gc.softDelete`, `gc.hardDelete`, `gc.orphanScan`, `webhook.deliver`
 
 #### GC Jobs
+
 - [ ] `gc.softDelete` (daily cron) — soft-delete `inactive` `ModuleVersion` + `ManifestSnapshot` records older than `retentionDays`
 - [ ] `gc.hardDelete` (weekly cron) — hard-delete soft-deleted records, purge `IStorage`
 - [ ] `gc.orphanScan` (weekly cron) — flag storage objects with no DB record
 - [ ] `gc.healthEventPurge` (daily cron) — hard-delete `ModuleHealthEvent` records older than 24h
 
 #### Webhook Delivery
+
 - [ ] `webhook.deliver` job: configurable retries (WHK-03), exponential backoff up to `backoffCeilingMs` (WHK-06)
 - [ ] On retry exhaustion: write `WebhookDeadLetter` record (WHK-07)
 - [ ] `POST /api/webhooks/deliveries/:deliveryId/retry` — re-enqueue dead-lettered delivery (WHK-09)
 
 #### Alert & Staged Rollout Jobs
+
 - [ ] `alert.evaluate` (60s cron) — evaluate all enabled `AlertRule` conditions against health metrics (ALT-05)
 - [ ] `rollout.advance` (scheduled) — advance staged rollout bands automatically (STG-02)
 - [ ] `alert.auto_rollback` — triggered by failed alert condition during staged rollout (STG-04)
 
 ### Deliverables
+
 - GC jobs registered and running on schedule
 - Webhook delivery with signing and retry logging
 - GC integration tests (with test DB, verify soft-delete and hard-delete)
@@ -336,6 +355,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 **Goal**: Production readiness — security, performance, and documentation.
 
 ### Security Hardening
+
 - [ ] Dependency audit: `pnpm audit` — resolve all high/critical
 - [ ] Add `helmet` CSP headers to both apps
 - [ ] Add `@fastify/rate-limit` to all write endpoints
@@ -344,10 +364,12 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Pen-test: verify RLS prevents cross-tenant access with integration tests
 
 ### SSO — OIDC Plugin
+
 - [ ] Implement `OIDCPlugin`: auth code + PKCE flow, JWKS token validation, silent refresh (SSO-01 to SSO-08)
 - [ ] Dashboard: OIDC configuration UI, domain allowlist, claim-to-role mapping (SSO-03, SSO-07)
 
 ### SSO — SAML 2.0 Plugin
+
 - [ ] Implement `SAMLPlugin` using `node-saml`: SP-initiated + IdP-initiated flows (SSO-09)
 - [ ] ACS endpoint `POST /auth/saml/:workspaceSlug/acs` (SSO-10)
 - [ ] SP Metadata endpoint `GET /auth/saml/:workspaceSlug/metadata` (SSO-11)
@@ -363,17 +385,20 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Group-to-role mapping (SSO-23)
 
 ### Performance
+
 - [ ] Benchmark manifest endpoint with `autocannon`: verify p99 < 50ms on cache hit
 - [ ] Profile and optimize DB queries (add indexes if needed)
 - [ ] Enable HTTP/2 on registry
 
 ### Observability
+
 - [ ] OTel traces on all critical paths: manifest fetch, deploy, rollback, GC jobs
 - [ ] Add custom metrics: `harmoniq.manifest.cache_hits`, `harmoniq.manifest.cache_misses`, `harmoniq.deploy.count`
 - [ ] Wire Prometheus `/metrics` to Grafana dashboard (example `docker/grafana/`)
 - [ ] Structured logging: all logs include `workspaceId`, `requestId`, `duration`
 
 ### Documentation
+
 - [ ] `README.md`: quick-start guide with Docker Compose (5-minute setup)
 - [ ] `docs/self-hosting.md`: full self-hosting guide (env vars, Docker, reverse proxy)
 - [ ] `docs/sdk.md`: `@harmoniq/client` usage guide
@@ -383,6 +408,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] OpenAPI spec: auto-generated and committed to `docs/openapi.json`
 
 ### Final Checklist
+
 - [ ] All phases' integration tests passing in CI
 - [ ] `pnpm run docker:up` → 5-minute demo working end-to-end
 - [ ] Apache 2.0 license headers on all source files
@@ -396,23 +422,28 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 **Goal**: Cross-stack adoption, community enablement, and operational polish.
 
 ### Framework Adapters
+
 - [ ] `@harmoniq/client/react` — `<HarmoniqProvider>` + `useRemoteModule()` hook (ADP-02)
 - [ ] `@harmoniq/client/angular` — `HarmoniqService` injectable (ADP-03)
 - [ ] `@harmoniq/client/vue` — `useHarmoniq()` composable (ADP-04)
 
 ### OpenAPI & Community Clients
+
 - [ ] Auto-generate `docs/openapi.json` from `@fastify/swagger` (OAS-01)
 - [ ] Embed Scalar API Explorer at `/docs/api` (OAS-04)
 - [ ] Community-track: `harmoniq-go` + `harmoniq-python` thin clients from OpenAPI spec (OAS-03)
 
 ### Local Dev Mode
+
 - [ ] `pnpm run dev:local` — in-memory registry, no Docker, no Postgres (DX-02)
 - [ ] `?pretty=true` on manifest endpoint for development (DX-03)
 
 ### Kubernetes Helm Chart (community target)
+
 - [ ] `charts/harmoniq/` — Helm chart with configurable replica count, ingress, secrets
 
 ### Deliverables
+
 - Framework adapters published and documented
 - OpenAPI spec committed and Scalar UI live
 - `pnpm run dev:local` works end-to-end
@@ -420,11 +451,13 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 ### 7.4 Instance Admin UI (INST-01–18)
 
 #### Database
+
 - [ ] Add `InstanceConfig` model: `key` (unique), `value` (Json, encrypted at rest), `updatedAt`, `updatedBy`
 - [ ] Add `InstanceAdmin` model: `userId` (unique FK), `grantedBy`, `createdAt`, `revokedAt`
 - [ ] Prisma migration: instance tables (NOT RLS-scoped — instance-wide)
 
 #### Registry — Admin API
+
 - [ ] Admin auth middleware: extract session, verify `InstanceAdmin` record is active. Reject all `/admin/*` routes for non-admin sessions — even workspace `owner` (INST-06)
 - [ ] `GET /admin/api/health` — DB ping, Redis ping, storage adapter ping, `pg-boss` queue depth, active job count (INST-08)
 - [ ] `GET /admin/api/workspaces` — all workspaces with usage metrics
@@ -443,6 +476,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Emit `AuditEvent` (`action: 'instance.config_updated'`, key only, no plaintext value) on every config change (INST-18)
 
 #### Dashboard — Admin Panel Pages
+
 - [ ] `/admin/setup` — 4-step first-boot wizard: account → connectivity → storage → OAuth (INST-03)
 - [ ] `/admin/health` — system health indicators with live-refresh
 - [ ] `/admin/workspaces` — workspace list with usage, suspend/unsuspend/delete actions
@@ -455,6 +489,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Admin nav sidebar: entirely separate from workspace nav; appears only for `InstanceAdmin` sessions
 
 #### Test Suite
+
 - [ ] Unit tests: admin auth middleware (verify non-admin workspace sessions are rejected, including `owner` role)
 - [ ] Unit tests: config hot-reload (mock `InstanceConfig` update, verify in-memory snapshot refreshes)
 - [ ] Integration tests: setup wizard flow (token consumption, duplicate call rejected, first admin created)
@@ -465,10 +500,12 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 ### 7.5 Bring-Your-Own-Bucket Storage (BYOB-01–14)
 
 #### Database
+
 - [ ] Add `WorkspaceStorageConfig` model: `workspaceId` (unique FK), `provider`, `bucket`, `region`, `credentialsEncrypted` (Json), `cdnPrefix?`, `pathPrefix?`, `lastVerifiedAt?`, `createdAt`, `updatedAt`
 - [ ] Prisma migration: `WorkspaceStorageConfig` table with RLS
 
 #### Registry — Storage Adapter Resolution
+
 - [ ] Implement storage adapter resolver: check `WorkspaceStorageConfig` first → fall back to `InstanceConfig["storage.adapter"]` → fall back to `STORAGE_ADAPTER` env var (BYOB-07 + INST-16)
 - [ ] Implement `S3StorageAdapter`, `GCSStorageAdapter`, `AzureBlobStorageAdapter` implementing the `IStorage` port interface
 - [ ] Canary verification utility: write a 1-byte probe object, read it back, delete it. Return `{ success, latencyMs, error? }` (BYOB-04)
@@ -481,12 +518,14 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] CLI warning: compare `--url` against `WorkspaceStorageConfig.cdnPrefix`; emit `warning` to stderr if prefix mismatch (BYOB-10)
 
 #### Dashboard — Workspace Storage Settings Page
+
 - [ ] `Workspace Settings → Storage` page: BYOB provider selector, credential form (S3/GCS/Azure fields), CDN prefix, path prefix
 - [ ] Test Connection button (BYOB-05): calls `/storage/test`, displays latency or error message
 - [ ] Migration advisory banner shown when BYOB is first enabled (BYOB-12)
 - [ ] Plan gate: storage page shows upgrade prompt for `hobby` plan (BYOB-01)
 
 #### Test Suite
+
 - [ ] Unit tests: storage adapter resolver (BYOB config present, absent, instance config fallback, env var fallback)
 - [ ] Unit tests: canary verification utility (success path, write failure, read failure, delete failure)
 - [ ] Unit tests: fail-closed behavior — BYOB adapter 503, verify NO fallback to instance storage (BYOB-09)
@@ -497,39 +536,39 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ## Technology Decisions Summary
 
-| Concern | Choice | Rationale |
-|---------|--------|-----------|
-| Package manager | pnpm v9+ | Workspace support, speed, strictness |
-| Monorepo orchestration | Turborepo | Incremental builds, remote cache |
-| Dashboard framework | Next.js (App Router) | RSC, Edge middleware, Vercel-deployable |
-| Registry framework | Fastify | High throughput, JSON serialization speed |
-| UI components | Shadcn UI + Tailwind CSS | Unstyled primitives, full ownership |
-| Database | PostgreSQL | Relational integrity, RLS, pg-boss |
-| ORM | Prisma | Type-safe, migration management |
-| Job queue | pg-boss | No extra infrastructure (uses Postgres) |
-| Cache | Redis (ICache) | High-throughput manifest serving |
-| JWT | jose | Edge Runtime compatible |
-| API key hashing | argon2id | OWASP recommended, memory-hard |
-| Observability | OpenTelemetry | Vendor-neutral, standard |
-| Testing | Vitest | Fast, ESM-native, workspace-aware |
-| Build | tsup | Fast, dual ESM/CJS output |
-| Changelog | Changesets | Multi-package, automated |
+| Concern                | Choice                   | Rationale                                 |
+| ---------------------- | ------------------------ | ----------------------------------------- |
+| Package manager        | pnpm v9+                 | Workspace support, speed, strictness      |
+| Monorepo orchestration | Turborepo                | Incremental builds, remote cache          |
+| Dashboard framework    | Next.js (App Router)     | RSC, Edge middleware, Vercel-deployable   |
+| Registry framework     | Fastify                  | High throughput, JSON serialization speed |
+| UI components          | Shadcn UI + Tailwind CSS | Unstyled primitives, full ownership       |
+| Database               | PostgreSQL               | Relational integrity, RLS, pg-boss        |
+| ORM                    | Prisma                   | Type-safe, migration management           |
+| Job queue              | pg-boss                  | No extra infrastructure (uses Postgres)   |
+| Cache                  | Redis (ICache)           | High-throughput manifest serving          |
+| JWT                    | jose                     | Edge Runtime compatible                   |
+| API key hashing        | argon2id                 | OWASP recommended, memory-hard            |
+| Observability          | OpenTelemetry            | Vendor-neutral, standard                  |
+| Testing                | Vitest                   | Fast, ESM-native, workspace-aware         |
+| Build                  | tsup                     | Fast, dual ESM/CJS output                 |
+| Changelog              | Changesets               | Multi-package, automated                  |
 
 ---
 
 ## Milestone Timeline (Estimate)
 
-| Phase | Estimated Duration | Cumulative |
-|-------|--------------------|------------|
-| Phase 0 — Bootstrap | 1 week | Week 1 |
-| Phase 1 — DB & Core | 1.5 weeks | Week 2–3 |
-| Phase 2 — Registry Core | 2 weeks | Week 5 |
-| Phase 3 — Dashboard | 3 weeks | Week 8 |
-| Phase 4 — SDK & CLI | 2 weeks | Week 10 |
-| Phase 5 — GC & Webhooks | 1.5 weeks | Week 12 |
-| Phase 6 — Hardening + SSO | 3 weeks | Week 15 |
-| Phase 7 — Scale & Community | 2 weeks | Week 17 |
-| Phase 8 — Enterprise Governance | 3 weeks | Week 20 |
+| Phase                           | Estimated Duration | Cumulative |
+| ------------------------------- | ------------------ | ---------- |
+| Phase 0 — Bootstrap             | 1 week             | Week 1     |
+| Phase 1 — DB & Core             | 1.5 weeks          | Week 2–3   |
+| Phase 2 — Registry Core         | 2 weeks            | Week 5     |
+| Phase 3 — Dashboard             | 3 weeks            | Week 8     |
+| Phase 4 — SDK & CLI             | 2 weeks            | Week 10    |
+| Phase 5 — GC & Webhooks         | 1.5 weeks          | Week 12    |
+| Phase 6 — Hardening + SSO       | 3 weeks            | Week 15    |
+| Phase 7 — Scale & Community     | 2 weeks            | Week 17    |
+| Phase 8 — Enterprise Governance | 3 weeks            | Week 20    |
 
 ---
 
@@ -540,6 +579,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 ### 8.1 Change Approval Workflows (APR-01–18)
 
 #### Database
+
 - [ ] Add `ApprovalPolicy` model: `workspaceId`, `environmentId`, `requiredApprovers`, `eligibleRoles`, `requireChangeTicket`, `ticketUrlPattern`, `expiryHours`
 - [ ] Add `DeploymentRequest` model: `workspaceId`, `moduleId`, `environmentId`, `type`, `requestedBy`, `payload` (Json), `status`, `changeTicketId`, `changeTicketUrl`, `expiresAt`, `resolvedAt`, `resolvedBy`, `bypassJustification`
 - [ ] Add `DeploymentApproval` model: `deploymentRequestId`, `approverId`, `decision`, `comment`, `decidedAt`
@@ -547,6 +587,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Prisma migration: approval tables
 
 #### Registry — Approval Gate Middleware
+
 - [ ] Approval gate middleware: check `ApprovalPolicy` for the target environment on every deploy/rollback/promote/canary route
 - [ ] If policy exists: create `DeploymentRequest` (`pending_approval`), return `202 Accepted` with `{ requestId, approvalUrl }`
 - [ ] If no policy: proceed as before (immediate execution)
@@ -557,17 +598,20 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Emit webhook event `deploy.approval_requested` to all configured endpoints on request creation
 
 #### Registry — Approval Policy CRUD
+
 - [ ] `POST /api/workspaces/:slug/environments/:envId/approval-policy` — create/update policy
 - [ ] `DELETE /api/workspaces/:slug/environments/:envId/approval-policy` — remove policy (immediate deploys restored)
 - [ ] `GET /api/workspaces/:slug/approvals?status=pending` — list pending requests for the authenticated user
 
 #### Dashboard
+
 - [ ] **Pending Approvals** page (`/[workspaceSlug]/approvals`) — queue of all requests awaiting the current user's decision, with Approve / Reject buttons and comment field (APR-16)
 - [ ] Approval policy editor in `Workspace Settings → Deployments` — required approvers, eligible roles, change ticket toggle, expiry window (APR-02)
 - [ ] Deployment history: display full approval chain (requestor, approvers, timestamps, bypass flag) (APR-18)
 - [ ] `⚠️ BYPASSED` visual indicator in audit log and deployment history (APR-12)
 
 #### Test Suite
+
 - [ ] Unit tests: approval gate middleware (policy detection, self-approval rejection, threshold logic)
 - [ ] Integration tests: full approval lifecycle (request → approve → execute), rejection flow, emergency bypass, expiry
 - [ ] Integration tests: change ticket enforcement, APR-15 eligibility enforcement
@@ -577,6 +621,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 ### 8.2 Organization Hierarchy (ORG-01–15)
 
 #### Database
+
 - [ ] Add `Organization` model: `id`, `slug`, `name`, `plan`, `oidcConfig` (encrypted Json), `samlConfig` (encrypted Json), `createdAt`, `deletedAt`
 - [ ] Add `OrganizationMember` model: `organizationId`, `userId`, `role` (`org_admin | org_member`), `createdAt`
 - [ ] Add `organizationId` nullable FK to `Workspace` model
@@ -584,6 +629,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Prisma migration: organization tables
 
 #### Registry — Organization Endpoints
+
 - [ ] `POST /api/orgs` — create organization
 - [ ] `GET /api/orgs/:orgSlug` — org details
 - [ ] `GET /api/orgs/:orgSlug/workspaces` — list all workspaces
@@ -594,10 +640,12 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] `WorkspaceConfig` SSO resolution: check workspace-level SSO first; fall back to org-level SSO if workspace has no override
 
 #### Registry — Cross-Workspace Module Sharing
+
 - [ ] `POST /api/workspaces/:slug/modules/:moduleId/publish-org` — publish module as org-shared (ORG-10)
 - [ ] Manifest builder: include org-shared modules from other workspaces in the org, tagged with `shared: true` (ORG-11)
 
 #### Dashboard
+
 - [ ] **Organization home** page (`/orgs/:orgSlug`) — all workspaces with aggregate health, recent deploys, cross-workspace audit log (ORG-14)
 - [ ] **Org Module Catalog** (`/orgs/:orgSlug/catalog`) — searchable, filterable by team, module, env (ORG-12)
 - [ ] **Org SSO Settings** — configure SAML/OIDC once, applies to all workspaces (ORG-05)
@@ -605,6 +653,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Existing `/:workspaceSlug` routes remain fully backward-compatible (ORG-15)
 
 #### Test Suite
+
 - [ ] Unit tests: org SSO fallback resolution logic, org module catalog query
 - [ ] Integration tests: org creation, workspace-to-org association, cross-workspace audit log, org-shared module manifest inclusion
 - [ ] Integration tests: org-level SAML flow end-to-end
@@ -614,6 +663,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 ### 8.3 GitOps / Infrastructure as Code (IaC-01–14)
 
 #### Terraform Provider (`harmoniq-terraform-provider` — separate Go repo)
+
 - [ ] Scaffold provider using `hashicorp/terraform-plugin-framework`
 - [ ] Implement resource: `harmoniq_workspace` (CRUD + import)
 - [ ] Implement resource: `harmoniq_environment` (CRUD + import + `approval_policy` nested block)
@@ -628,6 +678,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Unit tests: each resource CRUD using `hashicorp/terraform-plugin-testing`
 
 #### GitHub Actions (`harmoniq-deploy-action` — separate repo)
+
 - [ ] Composite action `harmoniq-dev/deploy-action@v1`: wraps `harmoniq deploy` CLI (IaC-05)
 - [ ] Inputs: `api-key`, `registry-url`, `workspace`, `module`, `environment`, `url`, `version`, `integrity`, `dry-run` (IaC-06)
 - [ ] Outputs: `version-id`, `manifest-url`, `deployed-at` (IaC-07)
@@ -635,21 +686,25 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] Published to GitHub Marketplace
 
 #### CLI — Harmoniq-as-Code Commands
+
 - [ ] `harmoniq plan` — parse `harmoniq.yaml`, diff against registry API, output structured change plan (IaC-10)
 - [ ] `harmoniq apply` — execute plan: create/update/delete registry resources to match `harmoniq.yaml` (IaC-11)
 - [ ] `harmoniq import` — call registry API, generate `harmoniq.yaml` from current state (IaC-12)
 - [ ] `harmoniq.yaml` JSON Schema published to `schemastore.org` for IDE autocompletion
 
 #### GitLab CI (`harmoniq-ci` — separate repo)
+
 - [ ] GitLab CI component wrapping the CLI (IaC-13)
 - [ ] Published to GitLab CI Catalog
 
 #### Test Suite
+
 - [ ] Unit tests: `harmoniq plan` diff logic (additions, modifications, deletions, no-ops)
 - [ ] Integration tests: `harmoniq apply` idempotency (apply twice = no changes on second run)
 - [ ] Integration tests: `harmoniq import` round-trip (import → plan → no changes)
 
 ### Deliverables
+
 - Approval workflows blocking production deploys in regulated envs
 - Organization hierarchy live with cross-workspace audit and SSO inheritance
 - Terraform provider published to registry.terraform.io

@@ -15,7 +15,7 @@ declare module 'fastify' {
   }
 }
 
-const adminAuthPlugin: FastifyPluginAsync = async (fastify, options) => {
+const adminAuthPlugin: FastifyPluginAsync = async (fastify, _options) => {
   // Register the JWT plugin
   await fastify.register(fastifyJwt, {
     secret: process.env.JWT_SECRET || 'changeme',
@@ -25,24 +25,28 @@ const adminAuthPlugin: FastifyPluginAsync = async (fastify, options) => {
     try {
       await request.jwtVerify();
       const decoded = request.user as { id: string; email: string };
-      
+
       const adminRecord = await fastify.container.db.instanceAdmin.findUnique({
         where: { userId: decoded.id },
       });
 
       if (!adminRecord || adminRecord.revokedAt) {
-        reply.code(403).send({ error: { code: 'FORBIDDEN', message: 'Not an active Instance Admin' } });
+        reply
+          .code(403)
+          .send({ error: { code: 'FORBIDDEN', message: 'Not an active Instance Admin' } });
         return;
       }
 
       request.adminUser = decoded;
-    } catch (err) {
-      reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Missing or invalid token' } });
+    } catch {
+      reply
+        .code(401)
+        .send({ error: { code: 'UNAUTHORIZED', message: 'Missing or invalid token' } });
     }
   });
 };
 
 export default fp(adminAuthPlugin, {
   name: 'admin-auth-middleware',
-  dependencies: ['app-container']
+  dependencies: ['app-container'],
 });

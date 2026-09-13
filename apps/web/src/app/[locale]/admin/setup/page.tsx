@@ -15,20 +15,23 @@ export default function AdminSetupPage() {
     e.preventDefault();
     setStatus('loading');
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/admin/setup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/admin/setup`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        }
+      );
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || t('errorSetup'));
 
       localStorage.setItem('harmoniq_admin_token', data.token);
       setStatus('success');
       setTimeout(() => router.push('/admin'), 1500);
-    } catch (err: any) {
-      setErrorMessage(err.message);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : String(err));
       setStatus('error');
     }
   };
@@ -76,9 +79,7 @@ export default function AdminSetupPage() {
         </div>
 
         {status === 'error' && (
-          <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md">
-            {errorMessage}
-          </div>
+          <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md">{errorMessage}</div>
         )}
 
         {status === 'success' && (

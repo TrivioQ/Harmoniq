@@ -23,7 +23,7 @@ const client = new HarmoniqClient({
   registryUrl: 'https://registry.your-harmoniq.com',
   workspace: 'acme-corp',
   hostApp: 'web-dashboard',
-  environment: 'production'
+  environment: 'production',
 });
 ```
 
@@ -43,7 +43,7 @@ To minimize latency during runtime, you can configure the client to prefetch all
 ```typescript
 const client = new HarmoniqClient({
   // ... config
-  prefetchModules: ['auth-module', 'nav-module']
+  prefetchModules: ['auth-module', 'nav-module'],
 });
 
 await client.prefetch();
@@ -57,7 +57,7 @@ If the registry is unreachable or offline, the SDK supports graceful fallbacks i
 const client = new HarmoniqClient({
   // ... config
   fallbacks: {
-    'auth-module': 'https://fallback.cdn.com/auth/remoteEntry.js'
-  }
+    'auth-module': 'https://fallback.cdn.com/auth/remoteEntry.js',
+  },
 });
 ```

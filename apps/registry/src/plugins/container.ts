@@ -6,7 +6,7 @@ import { PinoLogger } from '../adapters/PinoLogger';
 import { RedisCache } from '../adapters/RedisCache';
 import { InMemoryLRUCache } from '../adapters/InMemoryLRUCache';
 import { PrismaClient } from '@prisma/client';
-import PgBoss from 'pg-boss';
+import { PgBoss } from 'pg-boss';
 
 export interface AppContainer {
   cache: ICache;
@@ -21,7 +21,7 @@ declare module 'fastify' {
   }
 }
 
-const containerPlugin: FastifyPluginAsync = async (fastify, options) => {
+const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
   const logger = new PinoLogger({ service: 'registry' });
 
   // Resolve Cache
@@ -41,7 +41,7 @@ const containerPlugin: FastifyPluginAsync = async (fastify, options) => {
   let boss: PgBoss | null = null;
   if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
     boss = new PgBoss(process.env.DATABASE_URL);
-    boss.on('error', (err) => logger.error('pg-boss error', err));
+    boss.on('error', (err: unknown) => logger.error('pg-boss error', err as Error));
     await boss.start();
     logger.info('pg-boss started');
   }
@@ -50,9 +50,9 @@ const containerPlugin: FastifyPluginAsync = async (fastify, options) => {
     cache,
     logger,
     db,
-    boss
+    boss,
   });
-  
+
   fastify.addHook('onClose', async (instance) => {
     if (instance.container.boss) {
       await instance.container.boss.stop();
@@ -62,5 +62,5 @@ const containerPlugin: FastifyPluginAsync = async (fastify, options) => {
 };
 
 export default fp(containerPlugin, {
-  name: 'app-container'
+  name: 'app-container',
 });

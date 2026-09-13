@@ -1,8 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
 
-const adminRoutes: FastifyPluginAsync = async (fastify, options) => {
+const adminRoutes: FastifyPluginAsync = async (fastify, _options) => {
   fastify.post<{
-    Body: { setupToken: string, email: string, name?: string }
+    Body: { setupToken: string; email: string; name?: string };
   }>('/api/admin/setup', async (request, reply) => {
     const { setupToken, email, name } = request.body;
 
@@ -14,7 +14,9 @@ const adminRoutes: FastifyPluginAsync = async (fastify, options) => {
 
     const existingAdmin = await fastify.container.db.instanceAdmin.findFirst();
     if (existingAdmin) {
-      reply.code(400).send({ error: { code: 'BAD_REQUEST', message: 'Instance already initialized' } });
+      reply
+        .code(400)
+        .send({ error: { code: 'BAD_REQUEST', message: 'Instance already initialized' } });
       return;
     }
 
@@ -25,7 +27,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify, options) => {
           data: {
             email,
             name: name || 'Admin',
-          }
+          },
         });
       }
 
@@ -34,7 +36,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify, options) => {
           userId: user.id,
           grantedBy: 'system',
         },
-        include: { user: true }
+        include: { user: true },
       });
     });
 
@@ -47,39 +49,47 @@ const adminRoutes: FastifyPluginAsync = async (fastify, options) => {
     });
   });
 
-  fastify.get('/api/admin/health', {
-    preHandler: [fastify.verifyAdmin]
-  }, async (request, reply) => {
-    // Collect some basic metrics
-    const workspacesCount = await fastify.container.db.workspace.count();
-    const modulesCount = await fastify.container.db.remoteModule.count();
-    const usersCount = await fastify.container.db.user.count();
+  fastify.get(
+    '/api/admin/health',
+    {
+      preHandler: [fastify.verifyAdmin],
+    },
+    async (request, reply) => {
+      // Collect some basic metrics
+      const workspacesCount = await fastify.container.db.workspace.count();
+      const modulesCount = await fastify.container.db.remoteModule.count();
+      const usersCount = await fastify.container.db.user.count();
 
-    reply.send({
-      status: 'ok',
-      version: '1.0.0',
-      stats: {
-        workspaces: workspacesCount,
-        modules: modulesCount,
-        users: usersCount,
-      }
-    });
-  });
+      reply.send({
+        status: 'ok',
+        version: '1.0.0',
+        stats: {
+          workspaces: workspacesCount,
+          modules: modulesCount,
+          users: usersCount,
+        },
+      });
+    }
+  );
 
-  fastify.get('/api/admin/workspaces', {
-    preHandler: [fastify.verifyAdmin]
-  }, async (request, reply) => {
-    const workspaces = await fastify.container.db.workspace.findMany({
-      include: {
-        _count: {
-          select: { RemoteModules: true, WorkspaceMembers: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+  fastify.get(
+    '/api/admin/workspaces',
+    {
+      preHandler: [fastify.verifyAdmin],
+    },
+    async (request, reply) => {
+      const workspaces = await fastify.container.db.workspace.findMany({
+        include: {
+          _count: {
+            select: { RemoteModules: true, WorkspaceMembers: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
 
-    reply.send(workspaces);
-  });
+      reply.send(workspaces);
+    }
+  );
 };
 
 export default adminRoutes;

@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
+import { PrismaClient } from '@prisma/client';
+import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 
-export async function handleSoftDelete(db: any, logger: any) {
+export async function handleSoftDelete(db: PrismaClient, logger: ILogger) {
   logger.info('Running gc.softDelete job');
   try {
     const thirtyDaysAgo = new Date();
@@ -11,11 +13,11 @@ export async function handleSoftDelete(db: any, logger: any) {
       where: {
         status: 'inactive',
         deletedAt: null,
-        deployedAt: { lt: thirtyDaysAgo }
+        deployedAt: { lt: thirtyDaysAgo },
       },
       data: {
-        deletedAt: new Date()
-      }
+        deletedAt: new Date(),
+      },
     });
     logger.info(`Soft deleted ${versions.count} module versions`);
 
@@ -23,21 +25,20 @@ export async function handleSoftDelete(db: any, logger: any) {
     const snapshots = await db.manifestSnapshot.updateMany({
       where: {
         deletedAt: null,
-        createdAt: { lt: thirtyDaysAgo }
+        createdAt: { lt: thirtyDaysAgo },
       },
       data: {
-        deletedAt: new Date()
-      }
+        deletedAt: new Date(),
+      },
     });
     logger.info(`Soft deleted ${snapshots.count} manifest snapshots`);
-
   } catch (err) {
     logger.error('Failed to run gc.softDelete', err as Error);
     throw err;
   }
 }
 
-export async function handleHardDelete(db: any, logger: any) {
+export async function handleHardDelete(db: PrismaClient, logger: ILogger) {
   logger.info('Running gc.hardDelete job');
   try {
     const sevenDaysAgo = new Date();
@@ -45,25 +46,24 @@ export async function handleHardDelete(db: any, logger: any) {
 
     const versions = await db.moduleVersion.deleteMany({
       where: {
-        deletedAt: { not: null, lt: sevenDaysAgo }
-      }
+        deletedAt: { not: null, lt: sevenDaysAgo },
+      },
     });
     logger.info(`Hard deleted ${versions.count} module versions`);
 
     const snapshots = await db.manifestSnapshot.deleteMany({
       where: {
-        deletedAt: { not: null, lt: sevenDaysAgo }
-      }
+        deletedAt: { not: null, lt: sevenDaysAgo },
+      },
     });
     logger.info(`Hard deleted ${snapshots.count} manifest snapshots`);
-
   } catch (err) {
     logger.error('Failed to run gc.hardDelete', err as Error);
     throw err;
   }
 }
 
-export async function handleHealthEventPurge(db: any, logger: any) {
+export async function handleHealthEventPurge(db: PrismaClient, logger: ILogger) {
   logger.info('Running gc.healthEventPurge job');
   try {
     const oneDayAgo = new Date();
@@ -71,8 +71,8 @@ export async function handleHealthEventPurge(db: any, logger: any) {
 
     const events = await db.moduleHealthEvent.deleteMany({
       where: {
-        reportedAt: { lt: oneDayAgo }
-      }
+        reportedAt: { lt: oneDayAgo },
+      },
     });
     logger.info(`Purged ${events.count} health events`);
   } catch (err) {

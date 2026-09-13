@@ -14,7 +14,7 @@ export const createPrismaClient = () => {
     // The requirement says:
     // "Write Prisma middleware to inject SET LOCAL app.current_workspace_id on each query"
     // Wait, prisma middleware was deprecated in v5 in favor of Client Extensions.
-    
+
     // If we use Prisma client extension for RLS:
     return next(params);
   });
@@ -30,7 +30,7 @@ export const getTenantClient = (prisma: PrismaClient, workspaceId: string) => {
         async $allOperations({ args, query }) {
           const [, result] = await prisma.$transaction([
             prisma.$executeRaw`SELECT set_config('app.current_workspace_id', ${workspaceId}, true)`,
-            query(args)
+            query(args),
           ]);
           return result;
         },

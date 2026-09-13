@@ -5,9 +5,8 @@ import { useTranslations } from 'next-intl';
 
 export default function WorkspaceStoragePage({ params }: { params: { slug: string } }) {
   const t = useTranslations('WorkspaceStoragePage');
-  const [storageConfig, setStorageConfig] = useState<any>(null);
   const [provider, setProvider] = useState<'LOCAL' | 'S3' | 'GCS'>('LOCAL');
-  const [config, setConfig] = useState<any>({});
+  const [config, setConfig] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
@@ -15,15 +14,17 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
     const fetchConfig = async () => {
       try {
         const token = localStorage.getItem('harmoniq_admin_token');
-        const res = await fetch(`${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/workspaces/${params.slug}/storage`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/workspaces/${params.slug}/storage`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
         if (res.ok) {
           const data = await res.json();
           if (data.storageConfig) {
-            setStorageConfig(data.storageConfig);
             setProvider(data.storageConfig.provider);
-            setConfig(data.storageConfig.config);
+            setConfig(data.storageConfig.config || {});
           }
         }
       } catch (err) {
@@ -38,23 +39,26 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
     setStatus('loading');
     try {
       const token = localStorage.getItem('harmoniq_admin_token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/workspaces/${params.slug}/storage`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ provider, config })
-      });
-      
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/workspaces/${params.slug}/storage`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ provider, config }),
+        }
+      );
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error?.message || t('errorUpdate'));
 
       setStatus('success');
       setMessage(t('successUpdate'));
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus('error');
-      setMessage(err.message);
+      setMessage(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -65,14 +69,16 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">{t('title', { slug: params.slug })}</h1>
-      
+
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700">{t('storageProvider')}</label>
+            <label className="block text-sm font-medium text-gray-700">
+              {t('storageProvider')}
+            </label>
             <select
               value={provider}
-              onChange={(e) => setProvider(e.target.value as any)}
+              onChange={(e) => setProvider(e.target.value as 'LOCAL' | 'S3' | 'GCS')}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border py-2 px-3"
             >
               <option value="LOCAL">{t('local')}</option>
@@ -103,7 +109,9 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">{t('accessKeyId')}</label>
+                <label className="block text-sm font-medium text-gray-700">
+                  {t('accessKeyId')}
+                </label>
                 <input
                   type="text"
                   value={config.accessKeyId || ''}
@@ -112,7 +120,9 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">{t('secretAccessKey')}</label>
+                <label className="block text-sm font-medium text-gray-700">
+                  {t('secretAccessKey')}
+                </label>
                 <input
                   type="password"
                   value={config.secretAccessKey || ''}
@@ -144,7 +154,9 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">{t('clientEmail')}</label>
+                <label className="block text-sm font-medium text-gray-700">
+                  {t('clientEmail')}
+                </label>
                 <input
                   type="text"
                   value={config.clientEmail || ''}
@@ -165,8 +177,12 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
             </div>
           )}
 
-          {status === 'error' && <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md">{message}</div>}
-          {status === 'success' && <div className="p-3 bg-green-50 text-green-700 text-sm rounded-md">{message}</div>}
+          {status === 'error' && (
+            <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md">{message}</div>
+          )}
+          {status === 'success' && (
+            <div className="p-3 bg-green-50 text-green-700 text-sm rounded-md">{message}</div>
+          )}
 
           <div className="flex justify-end">
             <button

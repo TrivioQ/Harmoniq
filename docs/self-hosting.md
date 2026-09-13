@@ -11,22 +11,22 @@ Harmoniq is designed to be easily self-hostable within your own infrastructure. 
 
 ### Registry API (`apps/registry`)
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Secret key used to sign Auth tokens |
-| `PORT` | Port for the API to listen on (default 3001) |
-| `NODE_ENV` | Should be `production` |
-| `CACHE_ADAPTER` | `memory` or `redis` |
-| `REDIS_URL` | (Optional) Required if `CACHE_ADAPTER=redis` |
+| Variable        | Description                                  |
+| --------------- | -------------------------------------------- |
+| `DATABASE_URL`  | PostgreSQL connection string                 |
+| `JWT_SECRET`    | Secret key used to sign Auth tokens          |
+| `PORT`          | Port for the API to listen on (default 3001) |
+| `NODE_ENV`      | Should be `production`                       |
+| `CACHE_ADAPTER` | `memory` or `redis`                          |
+| `REDIS_URL`     | (Optional) Required if `CACHE_ADAPTER=redis` |
 
 ### Web Dashboard (`apps/web`)
 
-| Variable | Description |
-|---|---|
-| `NEXT_PUBLIC_REGISTRY_URL` | Public URL pointing to your deployed Registry |
-| `NEXTAUTH_URL` | Public URL pointing to this dashboard |
-| `NEXTAUTH_SECRET` | Secret for encrypting NextAuth session cookies |
+| Variable                   | Description                                    |
+| -------------------------- | ---------------------------------------------- |
+| `NEXT_PUBLIC_REGISTRY_URL` | Public URL pointing to your deployed Registry  |
+| `NEXTAUTH_URL`             | Public URL pointing to this dashboard          |
+| `NEXTAUTH_SECRET`          | Secret for encrypting NextAuth session cookies |
 
 ## Docker Compose Setup
 
@@ -43,7 +43,7 @@ services:
       POSTGRES_PASSWORD: supersecretpassword
       POSTGRES_DB: harmoniq
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -58,7 +58,7 @@ services:
       NODE_ENV: production
       CACHE_ADAPTER: memory
     ports:
-      - "3001:3001"
+      - '3001:3001'
     depends_on:
       - db
 
@@ -71,7 +71,7 @@ services:
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: generate_a_secure_random_string
     ports:
-      - "3000:3000"
+      - '3000:3000'
     depends_on:
       - registry
 

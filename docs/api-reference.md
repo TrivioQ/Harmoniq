@@ -12,18 +12,21 @@
 Write endpoints require an API key with the appropriate scope. Read endpoints (manifest fetch) are public.
 
 **Header format**:
+
 ```
 Authorization: Bearer hq_<base62-encoded-32-bytes>
 ```
 
 **Scopes**:
-| Scope | Description |
-|-------|-------------|
-| `manifest:read` | Read manifests (also public without a key) |
-| `deploy:write` | Deploy, rollback, canary operations |
-| `admin` | Key management, member management, settings |
+
+| Scope           | Description                                 |
+| --------------- | ------------------------------------------- |
+| `manifest:read` | Read manifests (also public without a key)  |
+| `deploy:write`  | Deploy, rollback, canary operations         |
+| `admin`         | Key management, member management, settings |
 
 **Error response (401)**:
+
 ```json
 {
   "error": {
@@ -45,12 +48,14 @@ Fetch the active manifest for a workspace environment.
 **Auth**: None (public)
 
 **Headers (optional)**:
+
 ```
 If-None-Match: "sha256-abc123"
 X-Harmoniq-User-Id: user-123        # for canary sticky assignment
 ```
 
 **Response 200**:
+
 ```json
 {
   "schemaVersion": 1,
@@ -75,6 +80,7 @@ X-Harmoniq-User-Id: user-123        # for canary sticky assignment
 ```
 
 **Response headers**:
+
 ```
 ETag: "sha256-abc123"
 Cache-Control: no-cache
@@ -84,6 +90,7 @@ X-Harmoniq-Stale: true   # only present when serving stale cache due to DB failu
 **Response 304**: Empty body; ETag matches `If-None-Match`.
 
 **Response 404**:
+
 ```json
 { "error": { "code": "WORKSPACE_NOT_FOUND", "message": "Workspace 'acme-corp' not found" } }
 ```
@@ -97,6 +104,7 @@ Fetch the canary manifest for a workspace environment. Returns the canary varian
 **Auth**: None (public)
 
 **Headers**:
+
 ```
 X-Harmoniq-User-Id: user-123    # Used for deterministic canary assignment
 ```
@@ -104,6 +112,7 @@ X-Harmoniq-User-Id: user-123    # Used for deterministic canary assignment
 **Response**: Same schema as standard manifest. Canary modules will have `"status": "canary"` in the `metadata` field.
 
 **Cookie set on response** (if no `X-Harmoniq-User-Id` provided):
+
 ```
 Set-Cookie: harmoniq_canary=<uuid>; Path=/; Max-Age=2592000; SameSite=Lax
 ```
@@ -119,6 +128,7 @@ Deploy a new version of a module to an environment.
 **Auth**: `deploy:write`
 
 **Request body**:
+
 ```json
 {
   "environmentSlug": "production",
@@ -133,6 +143,7 @@ Deploy a new version of a module to an environment.
 ```
 
 **Response 201**:
+
 ```json
 {
   "id": "clx123",
@@ -153,6 +164,7 @@ Roll back a module to a specific previous version.
 **Auth**: `deploy:write`
 
 **Request body**:
+
 ```json
 {
   "versionId": "clx001",
@@ -161,6 +173,7 @@ Roll back a module to a specific previous version.
 ```
 
 **Response 200**:
+
 ```json
 {
   "rolledBackTo": { "id": "clx001", "version": "1.1.0" },
@@ -177,6 +190,7 @@ Configure a canary release.
 **Auth**: `deploy:write`
 
 **Request body**:
+
 ```json
 {
   "versionId": "clx123",
@@ -186,6 +200,7 @@ Configure a canary release.
 ```
 
 **Response 200**:
+
 ```json
 {
   "id": "clx123",
@@ -203,6 +218,7 @@ Promote the current canary version to `active`.
 **Auth**: `deploy:write`
 
 **Request body**:
+
 ```json
 {
   "environmentSlug": "production"
@@ -210,6 +226,7 @@ Promote the current canary version to `active`.
 ```
 
 **Response 200**:
+
 ```json
 {
   "promoted": { "id": "clx123", "version": "1.2.3", "status": "active" }
@@ -227,6 +244,7 @@ List all remote modules in a workspace.
 **Auth**: `manifest:read`
 
 **Response 200**:
+
 ```json
 {
   "modules": [
@@ -253,12 +271,14 @@ List all versions of a module (deployment history).
 **Auth**: `manifest:read`
 
 **Query params**:
+
 - `environment`: filter by environment slug
 - `status`: filter by `active | inactive | canary`
 - `limit`: default 50, max 200
 - `cursor`: pagination cursor
 
 **Response 200**:
+
 ```json
 {
   "versions": [
@@ -288,6 +308,7 @@ Liveness check. Always returns 200 if the process is running.
 **Auth**: None
 
 **Response 200**:
+
 ```json
 { "status": "ok", "timestamp": "2026-09-13T00:00:00Z" }
 ```
@@ -301,6 +322,7 @@ Readiness check. Verifies DB and cache connectivity.
 **Auth**: None
 
 **Response 200**:
+
 ```json
 {
   "status": "ready",
@@ -312,6 +334,7 @@ Readiness check. Verifies DB and cache connectivity.
 ```
 
 **Response 503**:
+
 ```json
 {
   "status": "unavailable",
@@ -331,6 +354,7 @@ Prometheus-compatible metrics.
 **Auth**: None (consider restricting to internal network in production)
 
 **Response 200**: Prometheus text format
+
 ```
 # HELP harmoniq_manifest_requests_total Total manifest requests
 # TYPE harmoniq_manifest_requests_total counter
@@ -342,16 +366,16 @@ harmoniq_manifest_requests_total{workspace="acme-corp",env="production",cache="h
 
 ## Error Codes Reference
 
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `UNAUTHORIZED` | 401 | Missing or invalid API key |
-| `FORBIDDEN` | 403 | Valid key, insufficient scope |
-| `WORKSPACE_NOT_FOUND` | 404 | Workspace slug not found |
-| `MODULE_NOT_FOUND` | 404 | Module ID not found |
-| `VERSION_NOT_FOUND` | 404 | Version ID not found |
-| `ENVIRONMENT_NOT_FOUND` | 404 | Environment slug not found |
-| `VALIDATION_ERROR` | 422 | Request body failed Zod validation |
-| `CONFLICT` | 409 | Duplicate version already exists |
-| `RATE_LIMITED` | 429 | Too many requests (auth endpoints: 10/min) |
-| `INTERNAL_ERROR` | 500 | Unexpected server error |
-| `SERVICE_UNAVAILABLE` | 503 | Registry degraded (DB/cache down) |
+| Code                    | HTTP Status | Description                                |
+| ----------------------- | ----------- | ------------------------------------------ |
+| `UNAUTHORIZED`          | 401         | Missing or invalid API key                 |
+| `FORBIDDEN`             | 403         | Valid key, insufficient scope              |
+| `WORKSPACE_NOT_FOUND`   | 404         | Workspace slug not found                   |
+| `MODULE_NOT_FOUND`      | 404         | Module ID not found                        |
+| `VERSION_NOT_FOUND`     | 404         | Version ID not found                       |
+| `ENVIRONMENT_NOT_FOUND` | 404         | Environment slug not found                 |
+| `VALIDATION_ERROR`      | 422         | Request body failed Zod validation         |
+| `CONFLICT`              | 409         | Duplicate version already exists           |
+| `RATE_LIMITED`          | 429         | Too many requests (auth endpoints: 10/min) |
+| `INTERNAL_ERROR`        | 500         | Unexpected server error                    |
+| `SERVICE_UNAVAILABLE`   | 503         | Registry degraded (DB/cache down)          |

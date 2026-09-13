@@ -15,7 +15,11 @@ program
   .description('Harmoniq CLI for CI/CD deployments and validation')
   .version('1.0.0')
   .option('--json', 'output in JSON format for machines', false)
-  .option('--registry-url <url>', 'Registry URL', process.env.HARMONIQ_REGISTRY_URL || 'http://localhost:3000')
+  .option(
+    '--registry-url <url>',
+    'Registry URL',
+    process.env.HARMONIQ_REGISTRY_URL || 'http://localhost:3000'
+  )
   .option('--api-key <key>', 'Harmoniq API Key', process.env.HARMONIQ_API_KEY)
   .option('--profile <name>', 'Workspace profile name', 'default');
 

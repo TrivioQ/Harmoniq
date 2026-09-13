@@ -29,10 +29,10 @@ yarn add
 
 This project uses **two complementary documentation systems**. They are NOT interchangeable:
 
-| System | Location | Purpose | Audience |
-|--------|----------|---------|----------|
-| **Feature Docs** | `docs/features/<slug>.md` | Narrative context: why a feature exists, design decisions, requirement traceability, change history | Team + AI agents |
-| **Changesets** | `.changeset/` | Semver versioning and package release notes | Package consumers / npm |
+| System           | Location                  | Purpose                                                                                             | Audience                |
+| ---------------- | ------------------------- | --------------------------------------------------------------------------------------------------- | ----------------------- |
+| **Feature Docs** | `docs/features/<slug>.md` | Narrative context: why a feature exists, design decisions, requirement traceability, change history | Team + AI agents        |
+| **Changesets**   | `.changeset/`             | Semver versioning and package release notes                                                         | Package consumers / npm |
 
 ### Feature Docs (`docs/features/`)
 
@@ -42,6 +42,7 @@ This project uses **two complementary documentation systems**. They are NOT inte
 > Feature doc updates are required when preparing a change **for merging into the codebase**. They are NOT required for local edits, draft work, or intermediate task work.
 
 #### What counts as "substantive"?
+
 - Any new feature, bug fix, refactor, performance improvement, or security fix
 - Any change to a public API (SDK, CLI, REST endpoints, manifest schema)
 - Any database migration
@@ -49,6 +50,7 @@ This project uses **two complementary documentation systems**. They are NOT inte
 - Any change to a port interface (`ICache`, `IStorage`, `ILogger`, `OAuthPlugin`)
 
 #### What does NOT require a feature doc update?
+
 - Fixing a typo in a comment
 - Reformatting code (Prettier run)
 - Updating `pnpm-lock.yaml` only (e.g., from a `pnpm install`)
@@ -57,24 +59,33 @@ This project uses **two complementary documentation systems**. They are NOT inte
 #### How to update / create a feature doc
 
 **Updating an existing feature (most common):**
+
 1. Open `docs/features/<relevant-slug>.md`
 2. Prepend a new dated section to the **Change History** block (newest entry at the top):
    ```markdown
    ### YYYY-MM-DD — <Short Description>
+
    **Type:** feature | bugfix | refactor | performance | security | docs
    **PR / Branch:** <link>
    **Refs:** <requirement IDs, e.g. MAN-04, ADR-006>
+
    #### What changed
+
    - ...
+
    #### Why
+
    ...
+
    #### Testing
+
    ...
    ```
 3. Update the **Requirements** table status column if applicable
 4. Commit the feature doc update alongside your code changes
 
 **Creating a new feature doc:**
+
 1. Copy `docs/features/_template.md`
 2. Name it `docs/features/<short-kebab-slug>.md`
 3. Fill in all sections: Overview, Requirements, Architecture Notes, Breaking Changes
@@ -110,22 +121,25 @@ All commits MUST follow **Conventional Commits**:
 ```
 
 ### Types
-| Type | Use for |
-|------|---------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `perf` | Performance improvement |
+
+| Type       | Use for                              |
+| ---------- | ------------------------------------ |
+| `feat`     | New feature                          |
+| `fix`      | Bug fix                              |
+| `perf`     | Performance improvement              |
 | `refactor` | Code restructure, no behavior change |
-| `security` | Security fix or hardening |
-| `docs` | Documentation only |
-| `chore` | Tooling, dependencies, config |
-| `test` | Adding or fixing tests |
-| `ci` | CI/CD changes |
+| `security` | Security fix or hardening            |
+| `docs`     | Documentation only                   |
+| `chore`    | Tooling, dependencies, config        |
+| `test`     | Adding or fixing tests               |
+| `ci`       | CI/CD changes                        |
 
 ### Scopes
+
 Use the package or app name: `registry`, `web`, `client`, `cli`, `db`, `core`, `docker`, `docs`
 
 ### Examples
+
 ```
 feat(registry): add ETag support on manifest endpoint (MAN-04)
 fix(db): correct RLS policy for ModuleVersion table
@@ -140,12 +154,14 @@ chore(root): configure Turborepo pipeline for test task
 ## 4. Code Standards
 
 ### TypeScript
+
 - `strict: true` in all `tsconfig.json` files — no exceptions.
 - No `any` types. Use `unknown` and narrow it, or use proper generics.
 - All public functions and class methods MUST have JSDoc comments.
 - All exported types MUST be explicitly declared (no implicit `any` exports).
 
 ### API Design
+
 - All request bodies MUST be validated with a `zod` schema before processing.
 - All error responses MUST follow the standard error envelope:
   ```json
@@ -154,6 +170,7 @@ chore(root): configure Turborepo pipeline for test task
 - HTTP status codes MUST be semantically correct (no 200 for errors).
 
 ### Database
+
 - Never use `prisma db push` in any environment.
 - All schema changes require a Prisma migration file.
 - Every new table that is tenant-scoped MUST have:
@@ -163,6 +180,7 @@ chore(root): configure Turborepo pipeline for test task
 - GC-eligible tables MUST have a `deletedAt DateTime?` column.
 
 ### Port Interfaces
+
 - New adapters MUST implement the full port interface — no partial implementations.
 - Adapters MUST be independently testable with mock data.
 - Adapters MUST be registered in the service container (`apps/registry/src/container.ts`).
@@ -203,4 +221,3 @@ When an AI agent (Antigravity, Copilot, etc.) makes code changes to this reposit
 6. **Follow port interfaces**: When implementing new adapters, implement the full `ICache`, `IStorage`, `ILogger`, or `OAuthPlugin` interface from `@harmoniq/core`.
 7. **Update implementation plan**: When completing a task from `docs/implementation-plan.md`, mark the corresponding checkbox as done (`[x]`).
 8. **Write test cases for all features**: Every new feature or feature modification MUST include comprehensive test cases (unit, integration, or E2E as applicable) before completing the task.
-

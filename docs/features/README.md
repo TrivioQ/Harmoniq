@@ -4,12 +4,12 @@ This directory contains **one Markdown file per product feature**. Each file ser
 
 ## Why feature docs instead of date-stamped changelogs?
 
-| Date-stamped `docs/changelog/` | Feature-based `docs/features/` |
-|---|---|
-| "What changed on 2026-09-13?" | "What is enterprise governance and how has it evolved?" |
-| Context scattered across many files | Single file per feature — easy to read and update |
-| AI agents must piece together history | One file gives complete context |
-| Grows indefinitely | Files grow in-place; history is inside each file |
+| Date-stamped `docs/changelog/`        | Feature-based `docs/features/`                          |
+| ------------------------------------- | ------------------------------------------------------- |
+| "What changed on 2026-09-13?"         | "What is enterprise governance and how has it evolved?" |
+| Context scattered across many files   | Single file per feature — easy to read and update       |
+| AI agents must piece together history | One file gives complete context                         |
+| Grows indefinitely                    | Files grow in-place; history is inside each file        |
 
 **Release versioning and semver** are handled by [Changesets](../.changeset/) — that is separate from this directory.
 

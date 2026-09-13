@@ -11,10 +11,12 @@ export class PinoLogger implements ILogger {
       const isProduction = process.env.NODE_ENV === 'production';
       this.logger = pino({
         level: process.env.LOG_LEVEL || 'info',
-        transport: !isProduction ? {
-          target: 'pino-pretty',
-          options: { colorize: true }
-        } : undefined,
+        transport: !isProduction
+          ? {
+              target: 'pino-pretty',
+              options: { colorize: true },
+            }
+          : undefined,
         base: baseBindings || {},
       });
     }
@@ -37,7 +39,7 @@ export class PinoLogger implements ILogger {
   }
 
   error(message: string, error?: Error, meta?: Record<string, unknown>): void {
-    const logObj: any = { ...meta };
+    const logObj: Record<string, unknown> = { ...meta };
     if (error) {
       logObj.err = error;
     }
