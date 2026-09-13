@@ -1,0 +1,28 @@
+{
+  "name": "@harmoniq/cli",
+  "version": "1.0.0",
+  "bin": {
+    "harmoniq": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm",
+    "dev": "tsup src/index.ts --format esm --watch",
+    "lint": "eslint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "ora": "^8.0.1"
+  },
+  "devDependencies": {
+    "@harmoniq/tsconfig": "workspace:*",
+    "@types/node": "^20.12.7",
+    "eslint": "^9.10.0",
+    "tsup": "^8.3.0",
+    "typescript": "^7.0.2",
+    "vitest": "^2.1.0",
+    "msw": "^2.4.0",
+    "@mswjs/interceptors": "^0.36.1"
+  }
+}

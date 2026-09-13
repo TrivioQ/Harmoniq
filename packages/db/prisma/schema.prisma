@@ -1,0 +1,479 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  name                String?
+  avatarUrl           String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  WorkspaceMembers    WorkspaceMember[]
+  ApiKeys             ApiKey[]
+  RefreshTokens       RefreshToken[]
+  OrganizationMembers OrganizationMember[]
+  InstanceAdmin       InstanceAdmin?
+}
+
+model Workspace {
+  id                     String                  @id @default(cuid())
+  slug                   String                  @unique
+  name                   String
+  organizationId         String?
+  retentionDays          Int                     @default(90)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  organization           Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  WorkspaceMembers       WorkspaceMember[]
+  HostApps               HostApp[]
+  RemoteModules          RemoteModule[]
+  ModuleVersions         ModuleVersion[]
+  ApiKeys                ApiKey[]
+  WebhookEndpoints       WebhookEndpoint[]
+  WebhookDeliveries      WebhookDelivery[]
+  AuditEvents            AuditEvent[]
+  WorkspaceConfig        WorkspaceConfig?
+  WorkspaceStorageConfig WorkspaceStorageConfig?
+  ModuleOwnerships       ModuleOwnership[]
+  AlertRules             AlertRule[]
+  ManifestSnapshots      ManifestSnapshot[]
+  WebhookDeadLetters     WebhookDeadLetter[]
+  ModuleHealthEvents     ModuleHealthEvent[]
+  ScimAuditEvents        ScimAuditEvent[]
+  ApprovalPolicies       ApprovalPolicy[]
+  DeploymentRequests     DeploymentRequest[]
+}
+
+enum Role {
+  owner
+  admin
+  developer
+  viewer
+}
+
+model WorkspaceMember {
+  id               String            @id @default(cuid())
+  workspaceId      String
+  userId           String
+  role             Role
+  invitedAt        DateTime          @default(now())
+  joinedAt         DateTime?
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ModuleOwnerships ModuleOwnership[]
+
+  @@unique([workspaceId, userId])
+}
+
+model HostApp {
+  id                String             @id @default(cuid())
+  workspaceId       String
+  name              String
+  slug              String
+  description       String?
+  createdAt         DateTime           @default(now())
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  Environments      Environment[]
+  RemoteModules     RemoteModule[]
+  ManifestSnapshots ManifestSnapshot[]
+
+  @@unique([workspaceId, slug])
+}
+
+model Environment {
+  id                 String              @id @default(cuid())
+  hostAppId          String
+  name               String
+  slug               String
+  isDefault          Boolean             @default(false)
+  frozenAt           DateTime?
+  frozenBy           String?
+  freezeReason       String?
+  freezeUntil        DateTime?
+  hostApp            HostApp             @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
+  ModuleVersions     ModuleVersion[]
+  ManifestSnapshots  ManifestSnapshot[]
+  ModuleHealthEvents ModuleHealthEvent[]
+
+  @@unique([hostAppId, slug])
+}
+
+model RemoteModule {
+  id                 String              @id @default(cuid())
+  workspaceId        String
+  hostAppId          String
+  name               String
+  slug               String
+  description        String?
+  createdAt          DateTime            @default(now())
+  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hostApp            HostApp             @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
+  ModuleVersions     ModuleVersion[]
+  ModuleOwnerships   ModuleOwnership[]
+  ModuleHealthEvents ModuleHealthEvent[]
+
+  @@unique([hostAppId, slug])
+  @@index([workspaceId, slug])
+}
+
+enum ModuleVersionStatus {
+  active
+  inactive
+  canary
+  orphaned
+}
+
+enum ActorType {
+  user
+  apiKey
+}
+
+model ModuleVersion {
+  id               String              @id @default(cuid())
+  workspaceId      String
+  remoteModuleId   String
+  environmentId    String
+  version          String
+  url              String
+  integrity        String
+  storagePath      String?
+  status           ModuleVersionStatus
+  trafficPercent   Int?
+  deployedBy       String
+  deployedByType   ActorType
+  commitSha        String?
+  metadata         Json?
+  dependencies     Json?
+  exposes          Json?
+  promotedFromId   String?
+  promotedFromEnv  String?
+  rolloutSchedule  Json?
+  currentBandIndex Int?
+  deployedAt       DateTime            @default(now())
+  deletedAt        DateTime?
+  workspace        Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  remoteModule     RemoteModule        @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
+  environment      Environment         @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  promotedFrom     ModuleVersion?      @relation("PromotedFrom", fields: [promotedFromId], references: [id])
+  PromotedTo       ModuleVersion[]     @relation("PromotedFrom")
+
+  @@index([workspaceId, remoteModuleId, environmentId, status])
+  @@index([deletedAt])
+}
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  name           String
+  keyHash        String
+  prefix         String
+  scopes         String[]
+  moduleIds      String[]
+  expiresAt      DateTime?
+  gracePeriodEnd DateTime?
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  createdBy      String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator        User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WebhookEndpoint {
+  id               String              @id @default(cuid())
+  workspaceId      String
+  url              String
+  events           String[]
+  secret           String
+  active           Boolean             @default(true)
+  maxRetries       Int                 @default(5)
+  backoffCeilingMs Int                 @default(300000)
+  paused           Boolean             @default(false)
+  createdAt        DateTime            @default(now())
+  workspace        Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  WebhookDeliveries WebhookDelivery[]
+  WebhookDeadLetters WebhookDeadLetter[]
+}
+
+model WebhookDelivery {
+  id                String          @id @default(cuid())
+  webhookEndpointId String
+  workspaceId       String
+  event             String
+  payload           Json
+  statusCode        Int?
+  attempt           Int
+  durationMs        Int?
+  success           Boolean
+  createdAt         DateTime        @default(now())
+  webhookEndpoint   WebhookEndpoint @relation(fields: [webhookEndpointId], references: [id], onDelete: Cascade)
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model WebhookDeadLetter {
+  id                String          @id @default(cuid())
+  workspaceId       String
+  webhookEndpointId String
+  event             String
+  payload           Json
+  finalStatusCode   Int?
+  finalResponseBody String?
+  totalAttempts     Int
+  firstAttemptAt    DateTime
+  exhaustedAt       DateTime
+  retriedAt         DateTime?
+  resolvedAt        DateTime?
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  webhookEndpoint   WebhookEndpoint @relation(fields: [webhookEndpointId], references: [id], onDelete: Cascade)
+}
+
+model AuditEvent {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  actorId      String
+  actorType    ActorType
+  action       String
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  ip           String?
+  createdAt    DateTime  @default(now())
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([workspaceId, actorId])
+  @@index([workspaceId, action])
+}
+
+model WorkspaceConfig {
+  id              String   @id @default(cuid())
+  workspaceId     String   @unique
+  oauthProvider   String   @default("github")
+  oauthConfig     Json?
+  storageProvider String   @default("local")
+  storageConfig   Json?
+  logProvider     String   @default("console")
+  logConfig       Json?
+  oidcConfig      Json?
+  samlConfig      Json?
+  forceSso        Boolean  @default(false)
+  trustedDomains  String[]
+  defaultSsoRole  String   @default("viewer")
+  scimEnabled     Boolean  @default(false)
+  scimTokenHash   String?
+  plan            String   @default("hobby")
+  updatedAt       DateTime @updatedAt
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model ModuleOwnership {
+  id                String          @id @default(cuid())
+  workspaceId       String
+  remoteModuleId    String
+  workspaceMemberId String
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  remoteModule      RemoteModule    @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
+  workspaceMember   WorkspaceMember @relation(fields: [workspaceMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([remoteModuleId, workspaceMemberId])
+}
+
+model AlertRule {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  remoteModuleId String?
+  environmentId  String?
+  condition      String
+  threshold      Float
+  action         String
+  actionConfig   Json
+  enabled        Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model ManifestSnapshot {
+  id            String      @id @default(cuid())
+  workspaceId   String
+  hostAppId     String
+  environmentId String
+  manifestJson  Json
+  etag          String
+  auditEventId  String
+  createdAt     DateTime    @default(now())
+  deletedAt     DateTime?
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hostApp       HostApp     @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
+  environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, hostAppId, environmentId, createdAt(sort: Desc)])
+}
+
+model ModuleHealthEvent {
+  id             String       @id @default(cuid())
+  workspaceId    String
+  remoteModuleId String
+  environmentId  String
+  variant        String
+  success        Boolean
+  loadMs         Int?
+  errorMessage   String?
+  clientVersion  String?
+  reportedAt     DateTime     @default(now())
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  remoteModule   RemoteModule @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
+  environment    Environment  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, remoteModuleId, environmentId, reportedAt])
+}
+
+model ScimAuditEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  operation   String
+  scimUserId  String
+  payload     Json
+  statusCode  Int
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+}
+
+model ApprovalPolicy {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  environmentId       String
+  requiredApprovers   Int       @default(1)
+  eligibleRoles       String[]
+  requireChangeTicket Boolean   @default(false)
+  ticketUrlPattern    String?
+  expiryHours         Int       @default(24)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, environmentId])
+  @@index([workspaceId])
+}
+
+model DeploymentRequest {
+  id                  String               @id @default(cuid())
+  workspaceId         String
+  moduleId            String
+  environmentId       String
+  type                String
+  requestedBy         String
+  payload             Json
+  status              String
+  changeTicketId      String?
+  changeTicketUrl     String?
+  expiresAt           DateTime
+  resolvedAt          DateTime?
+  resolvedBy          String?
+  bypassJustification String?
+  createdAt           DateTime             @default(now())
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  DeploymentApprovals DeploymentApproval[]
+
+  @@index([workspaceId])
+}
+
+model DeploymentApproval {
+  id                  String            @id @default(cuid())
+  deploymentRequestId String
+  approverId          String
+  decision            String
+  comment             String?
+  decidedAt           DateTime          @default(now())
+  deploymentRequest   DeploymentRequest @relation(fields: [deploymentRequestId], references: [id], onDelete: Cascade)
+}
+
+model Organization {
+  id         String               @id @default(cuid())
+  slug       String               @unique
+  name       String
+  plan       String               @default("hobby")
+  oidcConfig Json?
+  samlConfig Json?
+  createdAt  DateTime             @default(now())
+  deletedAt  DateTime?
+  Workspaces Workspace[]
+  Members    OrganizationMember[]
+  OrgApiKeys OrgApiKey[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model OrgApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  keyHash        String
+  name           String
+  workspaceScope String[]
+  moduleScope    String[]
+  createdAt      DateTime     @default(now())
+  revokedAt      DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model InstanceConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String
+}
+
+model InstanceAdmin {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  grantedBy String
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WorkspaceStorageConfig {
+  id                   String    @id @default(cuid())
+  workspaceId          String    @unique
+  provider             String
+  bucket               String
+  region               String
+  credentialsEncrypted Json
+  cdnPrefix            String?
+  pathPrefix           String?
+  lastVerifiedAt       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}

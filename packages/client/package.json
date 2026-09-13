@@ -1,0 +1,57 @@
+{
+  "name": "@harmoniq/client",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "require": "./dist/react/index.js",
+      "import": "./dist/react/index.mjs"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "require": "./dist/vue/index.js",
+      "import": "./dist/vue/index.mjs"
+    },
+    "./angular": {
+      "types": "./dist/angular/index.d.ts",
+      "require": "./dist/angular/index.js",
+      "import": "./dist/angular/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/react/index.ts src/vue/index.ts src/angular/index.ts --format cjs,esm && tsc --emitDeclarationOnly --outDir dist",
+    "dev": "tsup src/index.ts src/react/index.ts src/vue/index.ts src/angular/index.ts --format cjs,esm --watch",
+    "lint": "eslint",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@angular/core": "^22.1.6",
+    "@harmoniq/core": "workspace:*",
+    "@harmoniq/tsconfig": "workspace:*",
+    "@mswjs/interceptors": "^0.36.1",
+    "@types/node": "^20.12.7",
+    "@types/react": "^19",
+    "eslint": "^9.10.0",
+    "msw": "^2.4.0",
+    "react": "19.2.8",
+    "rxjs": "^7.8.2",
+    "tsup": "^8.3.0",
+    "typescript": "^7.0.2",
+    "vitest": "^2.1.0",
+    "vue": "^3.5.42"
+  },
+  "peerDependencies": {
+    "@angular/core": "^22.1.6",
+    "react": "19.2.8",
+    "rxjs": "^7.8.2",
+    "vue": "^3.5.42"
+  }
+}

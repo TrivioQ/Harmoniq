@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "harmoniq.fullname" . }}-registry
+  labels:
+    app.kubernetes.io/name: {{ include "harmoniq.name" . }}-registry
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "harmoniq.name" . }}-registry
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "harmoniq.name" . }}-registry
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}-registry
+          image: "{{ .Values.image.registry }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: DATABASE_URL
+              value: {{ .Values.env.DATABASE_URL }}
+            - name: REDIS_URL
+              value: {{ .Values.env.REDIS_URL }}
+            - name: JWT_SECRET
+              value: {{ .Values.env.JWT_SECRET }}
+            - name: CACHE_ADAPTER
+              value: {{ .Values.env.CACHE_ADAPTER }}
+          ports:
+            - name: http
+              containerPort: 3002
+              protocol: TCP

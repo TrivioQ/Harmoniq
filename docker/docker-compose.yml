@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: harmoniq_postgres
+    environment:
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  redis:
+    image: redis:7-alpine
+    container_name: harmoniq_redis
+    ports:
+      - "6380:6379"
+
+  # The registry and web services will be configured to point to these
+  # during Phase 2 and 3.
+
+volumes:
+  postgres_data:

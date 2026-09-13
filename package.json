@@ -1,0 +1,37 @@
+{
+  "name": "harmoniq",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Harmoniq - Micro Frontend Control Plane",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:local": "CACHE_ADAPTER=memory STORAGE_ADAPTER=local turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "docker:up": "docker compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker compose -f docker/docker-compose.yml down",
+    "db:migrate": "pnpm --filter @harmoniq/db db:migrate",
+    "db:seed": "pnpm --filter @harmoniq/db db:seed",
+    "db:studio": "pnpm --filter @harmoniq/db db:studio",
+    "changeset": "changeset",
+    "version": "changeset version"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@harmoniq/tsconfig": "workspace:^",
+    "@types/node": "^20.12.7",
+    "eslint": "^9.0.0",
+    "prettier": "^3.2.5",
+    "turbo": "^2.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^1.5.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
