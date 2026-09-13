@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 type Stats = {
   workspaces: number;
@@ -9,6 +10,7 @@ type Stats = {
 };
 
 export default function AdminDashboardPage() {
+  const t = useTranslations('AdminDashboardPage');
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState('');
 
@@ -23,7 +25,7 @@ export default function AdminDashboardPage() {
           const data = await res.json();
           setStats(data.stats);
         } else {
-          setError('Failed to fetch stats. You may not be authenticated as an admin.');
+          setError(t('errorFetch'));
         }
       } catch (err: any) {
         setError(err.message);
@@ -34,21 +36,21 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Instance Overview</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
       {error && <div className="p-4 bg-red-50 text-red-700 rounded-md">{error}</div>}
       
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500">Total Workspaces</h3>
+            <h3 className="text-sm font-medium text-gray-500">{t('totalWorkspaces')}</h3>
             <p className="mt-2 text-3xl font-bold text-gray-900">{stats.workspaces}</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500">Total Modules</h3>
+            <h3 className="text-sm font-medium text-gray-500">{t('totalModules')}</h3>
             <p className="mt-2 text-3xl font-bold text-gray-900">{stats.modules}</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500">Total Users</h3>
+            <h3 className="text-sm font-medium text-gray-500">{t('totalUsers')}</h3>
             <p className="mt-2 text-3xl font-bold text-gray-900">{stats.users}</p>
           </div>
         </div>

@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
+import { useTranslations } from 'next-intl';
 
 export default function AdminWorkspacesPage() {
+  const t = useTranslations('AdminWorkspacesPage');
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [error, setError] = useState('');
 
@@ -18,7 +20,7 @@ export default function AdminWorkspacesPage() {
           const data = await res.json();
           setWorkspaces(data);
         } else {
-          setError('Failed to fetch workspaces.');
+          setError(t('errorFetch'));
         }
       } catch (err: any) {
         setError(err.message);
@@ -29,17 +31,17 @@ export default function AdminWorkspacesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Workspaces</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
       {error && <div className="p-4 bg-red-50 text-red-700 rounded-md">{error}</div>}
       
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modules</th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('name')}</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('slug')}</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('modules')}</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('actions')}</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -50,7 +52,7 @@ export default function AdminWorkspacesPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{ws._count?.RemoteModules || 0}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <Link href={`/admin/workspaces/${ws.slug}`} className="text-indigo-600 hover:text-indigo-900">
-                    Manage Storage
+                    {t('manageStorage')}
                   </Link>
                 </td>
               </tr>

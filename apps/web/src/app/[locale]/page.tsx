@@ -1,12 +1,14 @@
 import { PrismaClient } from '@harmoniq/db';
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
+import { getTranslations } from 'next-intl/server';
 
 const db = new PrismaClient();
 
 export default async function WorkspaceSelector() {
+  const t = await getTranslations('WorkspaceSelector');
   const session = await getSession();
   if (!session) {
     redirect('/auth/login');
@@ -25,9 +27,9 @@ export default async function WorkspaceSelector() {
     <div className="flex flex-col min-h-screen items-center p-6 md:p-24 bg-muted/30">
       <div className="w-full max-w-2xl space-y-8">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Select a Workspace</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">{t('title')}</h1>
           <p className="text-muted-foreground mt-2">
-            Choose a workspace to view modules and deployments.
+            {t('description')}
           </p>
         </div>
 
@@ -42,8 +44,8 @@ export default async function WorkspaceSelector() {
           ))}
           {workspaces.length === 0 && (
             <div className="p-8 border border-dashed rounded-xl text-center">
-              <p className="text-muted-foreground mb-4">No workspaces found.</p>
-              <Button>Create Workspace</Button>
+              <p className="text-muted-foreground mb-4">{t('noWorkspaces')}</p>
+              <Button>{t('createWorkspace')}</Button>
             </div>
           )}
         </div>

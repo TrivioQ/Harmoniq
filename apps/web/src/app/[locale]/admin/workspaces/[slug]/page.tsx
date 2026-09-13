@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 export default function WorkspaceStoragePage({ params }: { params: { slug: string } }) {
+  const t = useTranslations('WorkspaceStoragePage');
   const [storageConfig, setStorageConfig] = useState<any>(null);
   const [provider, setProvider] = useState<'LOCAL' | 'S3' | 'GCS'>('LOCAL');
   const [config, setConfig] = useState<any>({});
@@ -46,10 +48,10 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
       });
       
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || 'Failed to update storage');
+      if (!res.ok) throw new Error(data.error?.message || t('errorUpdate'));
 
       setStatus('success');
-      setMessage('Storage config updated successfully.');
+      setMessage(t('successUpdate'));
     } catch (err: any) {
       setStatus('error');
       setMessage(err.message);
@@ -62,27 +64,27 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Storage Configuration: {params.slug}</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t('title', { slug: params.slug })}</h1>
       
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Storage Provider</label>
+            <label className="block text-sm font-medium text-gray-700">{t('storageProvider')}</label>
             <select
               value={provider}
               onChange={(e) => setProvider(e.target.value as any)}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border py-2 px-3"
             >
-              <option value="LOCAL">Local File System (Default)</option>
-              <option value="S3">Amazon S3 / Compatible</option>
-              <option value="GCS">Google Cloud Storage</option>
+              <option value="LOCAL">{t('local')}</option>
+              <option value="S3">{t('s3')}</option>
+              <option value="GCS">{t('gcs')}</option>
             </select>
           </div>
 
           {provider === 'S3' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Region</label>
+                <label className="block text-sm font-medium text-gray-700">{t('region')}</label>
                 <input
                   type="text"
                   value={config.region || ''}
@@ -92,7 +94,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Bucket Name</label>
+                <label className="block text-sm font-medium text-gray-700">{t('bucketName')}</label>
                 <input
                   type="text"
                   value={config.bucket || ''}
@@ -101,7 +103,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Access Key ID</label>
+                <label className="block text-sm font-medium text-gray-700">{t('accessKeyId')}</label>
                 <input
                   type="text"
                   value={config.accessKeyId || ''}
@@ -110,7 +112,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Secret Access Key</label>
+                <label className="block text-sm font-medium text-gray-700">{t('secretAccessKey')}</label>
                 <input
                   type="password"
                   value={config.secretAccessKey || ''}
@@ -124,7 +126,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
           {provider === 'GCS' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Project ID</label>
+                <label className="block text-sm font-medium text-gray-700">{t('projectId')}</label>
                 <input
                   type="text"
                   value={config.projectId || ''}
@@ -133,7 +135,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Bucket Name</label>
+                <label className="block text-sm font-medium text-gray-700">{t('bucketName')}</label>
                 <input
                   type="text"
                   value={config.bucket || ''}
@@ -142,7 +144,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Client Email</label>
+                <label className="block text-sm font-medium text-gray-700">{t('clientEmail')}</label>
                 <input
                   type="text"
                   value={config.clientEmail || ''}
@@ -151,7 +153,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Private Key</label>
+                <label className="block text-sm font-medium text-gray-700">{t('privateKey')}</label>
                 <textarea
                   value={config.privateKey || ''}
                   onChange={(e) => handleConfigChange('privateKey', e.target.value)}
@@ -172,7 +174,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
               disabled={status === 'loading'}
               className="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
             >
-              {status === 'loading' ? 'Saving...' : 'Save Configuration'}
+              {status === 'loading' ? t('saving') : t('saveConfiguration')}
             </button>
           </div>
         </form>

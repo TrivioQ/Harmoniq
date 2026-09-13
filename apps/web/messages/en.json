@@ -1,0 +1,106 @@
+{
+  "Dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to Harmoniq"
+  },
+  "WorkspaceSelector": {
+    "title": "Select a Workspace",
+    "description": "Choose a workspace to view modules and deployments.",
+    "noWorkspaces": "No workspaces found.",
+    "createWorkspace": "Create Workspace"
+  },
+  "WorkspaceLayout": {
+    "overview": "Overview",
+    "modules": "Modules",
+    "environments": "Environments",
+    "settings": "Settings"
+  },
+  "WorkspaceOverview": {
+    "title": "Overview",
+    "description": "At-a-glance metrics for the {workspaceName} workspace.",
+    "hostApps": "Host Applications",
+    "remoteModules": "Remote Modules",
+    "healthStatus": "Health Status",
+    "healthy": "Healthy",
+    "recentActivity": "Recent Activity",
+    "noActivity": "No recent deployment activity."
+  },
+  "ModulesPage": {
+    "title": "Modules",
+    "description": "Manage your Micro Frontends.",
+    "hostedOn": "Hosted on {hostAppName}",
+    "noModules": "No modules deployed yet."
+  },
+  "EnvironmentsPage": {
+    "title": "Environments",
+    "description": "View and manage deployment environments.",
+    "hostApp": "Host App: {hostAppName}",
+    "default": "Default",
+    "noEnvironments": "No environments configured yet."
+  },
+  "SettingsPage": {
+    "title": "Settings",
+    "description": "Manage workspace configuration and API keys.",
+    "apiKeys": "API Keys",
+    "apiKeysDescription": "API keys allow other services to authenticate with this workspace.",
+    "generateKey": "Generate New Key"
+  },
+  "LoginPage": {
+    "title": "Sign in to Harmoniq",
+    "description": "Welcome back. Please sign in to your account.",
+    "continueWithGithub": "Continue with GitHub",
+    "or": "Or",
+    "continueWithSaml": "Continue with SAML SSO"
+  },
+  "AdminDashboardPage": {
+    "errorFetch": "Failed to fetch stats. You may not be authenticated as an admin.",
+    "title": "Instance Overview",
+    "totalWorkspaces": "Total Workspaces",
+    "totalModules": "Total Modules",
+    "totalUsers": "Total Users"
+  },
+  "AdminLayout": {
+    "title": "Harmoniq Admin",
+    "dashboard": "Dashboard",
+    "workspaces": "Workspaces",
+    "exitAdmin": "← Exit Admin"
+  },
+  "AdminSetupPage": {
+    "errorSetup": "Failed to setup admin",
+    "title": "Initialize Instance",
+    "description": "Create the first Instance Administrator",
+    "setupToken": "Setup Token",
+    "emailAddress": "Email Address",
+    "name": "Name",
+    "successMessage": "Successfully initialized! Redirecting...",
+    "initializing": "Initializing...",
+    "initialize": "Initialize Instance"
+  },
+  "AdminWorkspacesPage": {
+    "title": "Workspaces",
+    "errorFetch": "Failed to fetch workspaces.",
+    "name": "Name",
+    "slug": "Slug",
+    "modules": "Modules",
+    "actions": "Actions",
+    "manageStorage": "Manage Storage"
+  },
+  "WorkspaceStoragePage": {
+    "errorUpdate": "Failed to update storage",
+    "successUpdate": "Storage config updated successfully.",
+    "title": "Storage Configuration: {slug}",
+    "storageProvider": "Storage Provider",
+    "local": "Local File System (Default)",
+    "s3": "Amazon S3 / Compatible",
+    "gcs": "Google Cloud Storage",
+    "region": "Region",
+    "bucketName": "Bucket Name",
+    "accessKeyId": "Access Key ID",
+    "secretAccessKey": "Secret Access Key",
+    "projectId": "Project ID",
+    "clientEmail": "Client Email",
+    "privateKey": "Private Key",
+    "saving": "Saving...",
+    "saveConfiguration": "Save Configuration"
+  }
+}

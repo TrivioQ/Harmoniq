@@ -1,0 +1,106 @@
+{
+  "Dashboard": {
+    "title": "Tablero",
+    "welcome": "Bienvenido a Harmoniq"
+  },
+  "WorkspaceSelector": {
+    "title": "Seleccione un espacio de trabajo",
+    "description": "Elija un espacio de trabajo para ver módulos y despliegues.",
+    "noWorkspaces": "No se encontraron espacios de trabajo.",
+    "createWorkspace": "Crear espacio de trabajo"
+  },
+  "WorkspaceLayout": {
+    "overview": "Resumen",
+    "modules": "Módulos",
+    "environments": "Entornos",
+    "settings": "Configuración"
+  },
+  "WorkspaceOverview": {
+    "title": "Resumen",
+    "description": "Métricas de un vistazo para el espacio de trabajo {workspaceName}.",
+    "hostApps": "Aplicaciones anfitrionas",
+    "remoteModules": "Módulos remotos",
+    "healthStatus": "Estado de salud",
+    "healthy": "Saludable",
+    "recentActivity": "Actividad reciente",
+    "noActivity": "No hay actividad de despliegue reciente."
+  },
+  "ModulesPage": {
+    "title": "Módulos",
+    "description": "Gestione sus Micro Frontends.",
+    "hostedOn": "Alojado en {hostAppName}",
+    "noModules": "Aún no se han desplegado módulos."
+  },
+  "EnvironmentsPage": {
+    "title": "Entornos",
+    "description": "Vea y gestione los entornos de despliegue.",
+    "hostApp": "Aplicación anfitriona: {hostAppName}",
+    "default": "Por defecto",
+    "noEnvironments": "Aún no hay entornos configurados."
+  },
+  "SettingsPage": {
+    "title": "Configuración",
+    "description": "Gestione la configuración del espacio de trabajo y las claves API.",
+    "apiKeys": "Claves API",
+    "apiKeysDescription": "Las claves API permiten que otros servicios se autentiquen con este espacio de trabajo.",
+    "generateKey": "Generar nueva clave"
+  },
+  "LoginPage": {
+    "title": "Iniciar sesión en Harmoniq",
+    "description": "Bienvenido de nuevo. Por favor, inicie sesión en su cuenta.",
+    "continueWithGithub": "Continuar con GitHub",
+    "or": "O",
+    "continueWithSaml": "Continuar con SAML SSO"
+  },
+  "AdminDashboardPage": {
+    "errorFetch": "No se pudieron obtener las estadísticas. Es posible que no esté autenticado como administrador.",
+    "title": "Resumen de la instancia",
+    "totalWorkspaces": "Total de espacios de trabajo",
+    "totalModules": "Total de módulos",
+    "totalUsers": "Total de usuarios"
+  },
+  "AdminLayout": {
+    "title": "Administrador de Harmoniq",
+    "dashboard": "Tablero",
+    "workspaces": "Espacios de trabajo",
+    "exitAdmin": "← Salir del administrador"
+  },
+  "AdminSetupPage": {
+    "errorSetup": "Error al configurar el administrador",
+    "title": "Inicializar instancia",
+    "description": "Crear el primer administrador de instancia",
+    "setupToken": "Token de configuración",
+    "emailAddress": "Correo electrónico",
+    "name": "Nombre",
+    "successMessage": "¡Inicializado exitosamente! Redirigiendo...",
+    "initializing": "Inicializando...",
+    "initialize": "Inicializar instancia"
+  },
+  "AdminWorkspacesPage": {
+    "title": "Espacios de trabajo",
+    "errorFetch": "No se pudieron obtener los espacios de trabajo.",
+    "name": "Nombre",
+    "slug": "Slug",
+    "modules": "Módulos",
+    "actions": "Acciones",
+    "manageStorage": "Gestionar almacenamiento"
+  },
+  "WorkspaceStoragePage": {
+    "errorUpdate": "No se pudo actualizar el almacenamiento",
+    "successUpdate": "Configuración de almacenamiento actualizada exitosamente.",
+    "title": "Configuración de almacenamiento: {slug}",
+    "storageProvider": "Proveedor de almacenamiento",
+    "local": "Sistema de archivos local (predeterminado)",
+    "s3": "Amazon S3 / Compatible",
+    "gcs": "Google Cloud Storage",
+    "region": "Región",
+    "bucketName": "Nombre del bucket",
+    "accessKeyId": "ID de clave de acceso",
+    "secretAccessKey": "Clave de acceso secreta",
+    "projectId": "ID del proyecto",
+    "clientEmail": "Correo electrónico del cliente",
+    "privateKey": "Clave privada",
+    "saving": "Guardando...",
+    "saveConfiguration": "Guardar configuración"
+  }
+}

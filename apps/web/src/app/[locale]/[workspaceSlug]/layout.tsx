@@ -1,7 +1,8 @@
 import { PrismaClient } from '@harmoniq/db';
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+import { Link } from '@/i18n/routing';
+import { getTranslations } from 'next-intl/server';
 
 const db = new PrismaClient();
 
@@ -9,6 +10,7 @@ export default async function WorkspaceLayout(props: {
   children: React.ReactNode;
   params: Promise<{ workspaceSlug: string }>;
 }) {
+  const t = await getTranslations('WorkspaceLayout');
   const params = await props.params;
   const session = await getSession();
   if (!session) redirect('/auth/login');
@@ -33,10 +35,10 @@ export default async function WorkspaceLayout(props: {
             <span className="font-medium text-sm">{workspace.name}</span>
           </div>
           <nav className="flex items-center gap-6 text-sm font-medium">
-            <Link href={`/${workspace.slug}`} className="hover:text-primary">Overview</Link>
-            <Link href={`/${workspace.slug}/modules`} className="hover:text-primary">Modules</Link>
-            <Link href={`/${workspace.slug}/environments`} className="hover:text-primary">Environments</Link>
-            <Link href={`/${workspace.slug}/settings`} className="hover:text-primary text-muted-foreground">Settings</Link>
+            <Link href={`/${workspace.slug}`} className="hover:text-primary">{t('overview')}</Link>
+            <Link href={`/${workspace.slug}/modules`} className="hover:text-primary">{t('modules')}</Link>
+            <Link href={`/${workspace.slug}/environments`} className="hover:text-primary">{t('environments')}</Link>
+            <Link href={`/${workspace.slug}/settings`} className="hover:text-primary text-muted-foreground">{t('settings')}</Link>
           </nav>
         </div>
       </header>
