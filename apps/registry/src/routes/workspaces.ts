@@ -1,4 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
+import { Prisma } from '@prisma/client';
 
 const workspaceRoutes: FastifyPluginAsync = async (fastify, options) => {
   fastify.get<{ Params: { slug: string } }>('/api/workspaces/:slug/storage', {
@@ -24,12 +25,19 @@ const workspaceRoutes: FastifyPluginAsync = async (fastify, options) => {
 
   fastify.post<{
     Params: { slug: string },
-    Body: { provider: 'S3' | 'GCS' | 'LOCAL', config: any }
+    Body: {
+      provider: string;
+      bucket: string;
+      region: string;
+      credentialsEncrypted: Record<string, unknown>;
+      cdnPrefix?: string;
+      pathPrefix?: string;
+    }
   }>('/api/workspaces/:slug/storage', {
     preHandler: [fastify.verifyAdmin]
   }, async (request, reply) => {
     const { slug } = request.params;
-    const { provider, config } = request.body;
+    const { provider, bucket, region, credentialsEncrypted, cdnPrefix, pathPrefix } = request.body;
     
     const workspace = await fastify.container.db.workspace.findUnique({
       where: { slug }
@@ -40,10 +48,19 @@ const workspaceRoutes: FastifyPluginAsync = async (fastify, options) => {
       return;
     }
 
+    const payload = {
+      provider,
+      bucket,
+      region,
+      credentialsEncrypted: credentialsEncrypted as Prisma.InputJsonValue,
+      cdnPrefix,
+      pathPrefix,
+    };
+
     const updated = await fastify.container.db.workspaceStorageConfig.upsert({
       where: { workspaceId: workspace.id },
-      update: { provider, config },
-      create: { workspaceId: workspace.id, provider, config }
+      update: payload,
+      create: { workspaceId: workspace.id, ...payload }
     });
 
     reply.send({ message: 'Storage config updated', storageConfig: updated });
