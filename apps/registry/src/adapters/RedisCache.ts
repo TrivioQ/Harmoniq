@@ -42,4 +42,8 @@ export class RedisCache implements ICache {
       }
     } while (cursor !== '0');
   }
+
+  async close(): Promise<void> {
+    await this.redis.quit();
+  }
 }

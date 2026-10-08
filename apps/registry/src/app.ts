@@ -3,8 +3,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import containerPlugin from './plugins/container';
-import authPlugin from './plugins/auth';
-import adminAuthPlugin from './plugins/adminAuth';
+import authenticatePlugin from './plugins/authenticate';
 import manifestRoutes from './routes/manifest';
 import deployRoutes from './routes/deploy';
 import webhookRoutes from './routes/webhooks';
@@ -14,8 +13,18 @@ import jobsPlugin from './plugins/jobs';
 import metricsPlugin from './plugins/metrics';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import { Config, loadConfig } from './config';
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    config: Config;
+  }
+}
 
 export async function buildApp() {
+  // Throws ConfigError on unsafe production configuration (missing/default secrets).
+  const config = loadConfig();
+
   const app = Fastify({
     logger:
       process.env.NODE_ENV === 'production'
@@ -27,6 +36,8 @@ export async function buildApp() {
             },
           },
   });
+
+  app.decorate('config', config);
 
   // Register security plugins
   await app.register(helmet, {
@@ -41,8 +52,21 @@ export async function buildApp() {
       },
     },
   });
+  // Public reads (manifests are fetched by host apps on any origin) allow `*` without
+  // credentials. Everything else — writes, admin, workspace APIs — only the dashboard.
   await app.register(cors, {
-    origin: '*', // Customize this based on env later
+    delegator: (req, callback) => {
+      const method = (req.headers['access-control-request-method'] as string) || req.method;
+      const isPublicRead =
+        (method === 'GET' || method === 'HEAD') &&
+        /^\/(api\/manifest|api\/importmap|health|ready|docs)(\/|$|\?)/.test(req.url ?? '');
+      callback(
+        null,
+        isPublicRead
+          ? { origin: '*', credentials: false }
+          : { origin: config.webOrigin, credentials: true }
+      );
+    },
   });
 
   await app.register(rateLimit, {
@@ -76,8 +100,7 @@ export async function buildApp() {
   // Register local plugins
   await app.register(metricsPlugin);
   await app.register(containerPlugin);
-  await app.register(authPlugin);
-  await app.register(adminAuthPlugin);
+  await app.register(authenticatePlugin);
   await app.register(jobsPlugin);
 
   // Register routes
@@ -94,7 +117,10 @@ export async function buildApp() {
 
   app.get('/ready', async (_request, reply) => {
     try {
-      await app.container.db.$queryRaw`SELECT 1`;
+      await Promise.all([
+        app.container.db.$queryRaw`SELECT 1`,
+        app.container.systemDb.$queryRaw`SELECT 1`,
+      ]);
       // Check cache by setting/getting a temp key
       await app.container.cache.set('ping', 'pong', 5);
       const val = await app.container.cache.get('ping');

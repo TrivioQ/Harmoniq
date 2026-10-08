@@ -11,12 +11,18 @@ describe('Admin Routes', () => {
     app = await buildApp();
     await app.ready();
 
-    // Clear out existing admin if any
-    await app.container.db.instanceAdmin.deleteMany();
-    await app.container.db.user.deleteMany();
+    // Setup is one-time per instance: reset only the marker, not other tests' data.
+    await app.container.systemDb.instanceConfig.deleteMany({ where: { key: 'setup.completed' } });
+    await app.container.systemDb.user.deleteMany({
+      where: { email: { in: ['admin@harmoniq.local', 'admin2@harmoniq.local'] } },
+    });
   });
 
   afterAll(async () => {
+    await app.container.systemDb.instanceConfig.deleteMany({ where: { key: 'setup.completed' } });
+    await app.container.systemDb.user.deleteMany({
+      where: { email: { in: ['admin@harmoniq.local', 'admin2@harmoniq.local'] } },
+    });
     await app.close();
   });
 

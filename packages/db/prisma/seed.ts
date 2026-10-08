@@ -1,6 +1,11 @@
 import { PrismaClient, Role, ActorType, ModuleVersionStatus } from '@prisma/client';
 
-const prisma = new PrismaClient();
+// Seeding is an administrative task: use the schema owner, which is not subject to RLS.
+const prisma = new PrismaClient(
+  process.env.SYSTEM_DATABASE_URL
+    ? { datasources: { db: { url: process.env.SYSTEM_DATABASE_URL } } }
+    : undefined
+);
 
 async function main() {
   // Clear existing

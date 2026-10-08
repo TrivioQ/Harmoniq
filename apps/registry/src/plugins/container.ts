@@ -6,12 +6,17 @@ import { PinoLogger } from '../adapters/PinoLogger';
 import { RedisCache } from '../adapters/RedisCache';
 import { InMemoryLRUCache } from '../adapters/InMemoryLRUCache';
 import { PrismaClient } from '@prisma/client';
+import { createDbClients, withTenant, TenantTx } from '@harmoniq/db';
 import { PgBoss } from 'pg-boss';
 
 export interface AppContainer {
   cache: ICache;
   logger: ILogger;
+  /** Tenant role, subject to RLS. Use through `withTenant`; bare queries return no rows. */
   db: PrismaClient;
+  /** Schema owner, bypasses RLS. Tenant resolution, jobs and instance admin only. */
+  systemDb: PrismaClient;
+  withTenant: <T>(workspaceId: string, fn: (tx: TenantTx) => Promise<T>) => Promise<T>;
   boss: PgBoss | null;
 }
 
@@ -26,8 +31,8 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
 
   // Resolve Cache
   let cache: ICache;
-  if (process.env.CACHE_ADAPTER === 'redis' && process.env.REDIS_URL) {
-    cache = new RedisCache(process.env.REDIS_URL);
+  if (fastify.config.cacheAdapter === 'redis' && fastify.config.redisUrl) {
+    cache = new RedisCache(fastify.config.redisUrl);
     logger.info('Using RedisCache adapter');
   } else {
     cache = new InMemoryLRUCache();
@@ -35,12 +40,13 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
   }
 
   // Database
-  const db = new PrismaClient();
+  const { db, systemDb } = createDbClients();
 
   // PgBoss
   let boss: PgBoss | null = null;
-  if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
-    boss = new PgBoss(process.env.DATABASE_URL);
+  // pg-boss manages its own schema, so it needs the owner role rather than the tenant role.
+  if (process.env.SYSTEM_DATABASE_URL && process.env.NODE_ENV !== 'test') {
+    boss = new PgBoss(process.env.SYSTEM_DATABASE_URL);
     boss.on('error', (err: unknown) => logger.error('pg-boss error', err as Error));
     await boss.start();
     logger.info('pg-boss started');
@@ -50,6 +56,8 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     cache,
     logger,
     db,
+    systemDb,
+    withTenant: (workspaceId, fn) => withTenant(db, workspaceId, fn),
     boss,
   });
 
@@ -57,7 +65,11 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     if (instance.container.boss) {
       await instance.container.boss.stop();
     }
-    await instance.container.db.$disconnect();
+    await Promise.all([
+      instance.container.db.$disconnect(),
+      instance.container.systemDb.$disconnect(),
+      instance.container.cache.close?.(),
+    ]);
   });
 };
 

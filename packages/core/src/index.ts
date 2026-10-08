@@ -11,3 +11,4 @@ export * from './schemas/RollbackRequestSchema';
 export * from './schemas/CanaryConfigSchema';
 export * from './schemas/ApiKeyCreateSchema';
 export * from './schemas/WebhookEventSchema';
+export * from './schemas/WorkspaceStorageConfigSchema';

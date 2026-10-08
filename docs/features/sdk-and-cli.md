@@ -27,6 +27,25 @@ None.
 
 ## Change History
 
+### 2026-10-08 — Unimplemented CLI commands fail instead of faking success
+
+**Type:** bug fix
+**PR / Branch:** feat/m0-safety-foundations
+**Refs:** PRO-04, VAL-01; product-analysis §3.8
+
+#### What changed
+
+- `rollback`, `promote`, `validate`, `login` and `whoami` previously printed success and exited 0 without calling the registry. They now print "not implemented yet. Nothing was changed." and exit 1 until real implementations land (M1.5).
+- Default `--registry-url` is `http://localhost:4000` (was the dashboard port).
+
+#### Why
+
+A CI pipeline or incident runbook relying on `harmoniq rollback` would believe a rollback happened when it did not.
+
+#### Testing
+
+`cli.test.ts` asserts each command exits 1 and never logs success.
+
 ### 2026-09-13 — Initial Implementation
 
 **Type:** feature

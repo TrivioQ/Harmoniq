@@ -7,7 +7,7 @@ set -e
 
 echo "Generating SDKs from OpenAPI spec..."
 
-SPEC_URL="http://localhost:3002/api-docs/json"
+SPEC_URL="http://localhost:4000/docs/json"
 OUTPUT_DIR="packages/sdks"
 
 mkdir -p $OUTPUT_DIR

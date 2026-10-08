@@ -1,8 +1,6 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import { cookies } from 'next/headers';
-
-const secretKey = process.env.JWT_SECRET || 'super-secret-key-for-development-only';
-const key = new TextEncoder().encode(secretKey);
+import { getJwtKey } from './env';
 
 export interface SessionPayload extends JWTPayload {
   userId: string;
@@ -14,11 +12,11 @@ export async function encrypt(payload: JWTPayload) {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('15m')
-    .sign(key);
+    .sign(getJwtKey());
 }
 
 export async function decrypt(input: string): Promise<SessionPayload> {
-  const { payload } = await jwtVerify(input, key, {
+  const { payload } = await jwtVerify(input, getJwtKey(), {
     algorithms: ['HS256'],
   });
   return payload as SessionPayload;

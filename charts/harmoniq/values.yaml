@@ -8,7 +8,7 @@ image:
 
 service:
   type: ClusterIP
-  registryPort: 3002
+  registryPort: 4000
   webPort: 3000
 
 ingress:
@@ -22,10 +22,18 @@ ingress:
           pathType: ImplementationSpecific
 
 env:
-  DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/harmoniq?schema=public"
   REDIS_URL: "redis://redis:6379"
-  JWT_SECRET: "changeme"
   CACHE_ADAPTER: "redis"
+  NODE_ENV: "production"
+
+# Sensitive values. Either set them here (rendered into a Secret) or point
+# `existingSecret` at a Secret with keys DATABASE_URL, JWT_SECRET, HARMONIQ_ENCRYPTION_KEY.
+# The chart refuses to render if they are missing; the registry refuses to start on defaults.
+secrets:
+  existingSecret: ""
+  databaseUrl: ""
+  jwtSecret: ""
+  encryptionKey: ""
 
 postgres:
   enabled: true

@@ -1,8 +1,6 @@
 import { Command } from 'commander';
+import { notImplemented } from '../lib/notImplemented';
 
 export const loginCommand = new Command('login')
   .description('Login to Harmoniq Registry')
-  .action(async () => {
-    // In a real CLI, we would prompt or read from stdin, then write to ~/.harmoniq/config.json
-    console.log('Login successful');
-  });
+  .action(() => notImplemented('login'));

@@ -1,0 +1,36 @@
+import { SignJWT, jwtVerify } from 'jose';
+
+// Shared with apps/web: both verify the same access tokens.
+export const SESSION_AUDIENCE = 'harmoniq-session';
+export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+
+export interface AccessTokenClaims {
+  userId: string;
+  email: string;
+}
+
+function key(secret: string): Uint8Array {
+  return new TextEncoder().encode(secret);
+}
+
+export async function signAccessToken(claims: AccessTokenClaims, secret: string): Promise<string> {
+  return new SignJWT({ email: claims.email })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(claims.userId)
+    .setAudience(SESSION_AUDIENCE)
+    .setIssuedAt()
+    .setExpirationTime(`${ACCESS_TOKEN_TTL_SECONDS}s`)
+    .sign(key(secret));
+}
+
+/** Throws on invalid signature, wrong audience, or expiry. */
+export async function verifyAccessToken(token: string, secret: string): Promise<AccessTokenClaims> {
+  const { payload } = await jwtVerify(token, key(secret), {
+    algorithms: ['HS256'],
+    audience: SESSION_AUDIENCE,
+  });
+  if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') {
+    throw new Error('Malformed access token');
+  }
+  return { userId: payload.sub, email: payload.email };
+}

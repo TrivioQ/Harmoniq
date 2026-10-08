@@ -16,7 +16,7 @@ export default function AdminSetupPage() {
     setStatus('loading');
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/admin/setup`,
+        `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:4000'}/api/admin/setup`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

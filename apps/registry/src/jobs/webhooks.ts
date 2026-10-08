@@ -147,7 +147,7 @@ export async function handleWebhookDelivery(
 
 export async function registerWebhookJobs(fastify: FastifyInstance) {
   const boss = fastify.container.boss;
-  const db = fastify.container.db;
+  const db = fastify.container.systemDb; // cross-tenant background work
   const logger = fastify.container.logger;
 
   if (!boss) return;

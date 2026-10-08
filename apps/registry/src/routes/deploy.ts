@@ -1,7 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { DeployRequestSchema } from '@harmoniq/core/dist/schemas/DeployRequestSchema';
-import { S3StorageAdapter } from '../adapters/storage/S3StorageAdapter';
-import { GCSStorageAdapter } from '../adapters/storage/GCSStorageAdapter';
+import { createWorkspaceStorage } from '../adapters/storage/createStorage';
+import { canAccessModule } from '../plugins/authenticate';
 
 const deployRoutes: FastifyPluginAsync = async (fastify, _options) => {
   fastify.post<{
@@ -10,25 +10,31 @@ const deployRoutes: FastifyPluginAsync = async (fastify, _options) => {
   }>(
     '/api/workspaces/:workspaceSlug/modules/:moduleId/upload-url',
     {
-      preHandler: fastify.verifyApiKey(['module:write']),
+      preHandler: fastify.requireWorkspace('module:deploy'),
     },
     async (request, reply) => {
-      const { workspaceSlug, moduleId } = request.params;
-      const { contentType, extension } = request.body;
+      const { moduleId } = request.params;
+      const { contentType, extension } = request.body ?? {};
+      const workspace = request.workspace!;
 
-      const workspace = await fastify.container.db.workspace.findUnique({
-        where: { slug: workspaceSlug },
-      });
-
-      if (!workspace) {
+      if (!canAccessModule(request.principal, moduleId)) {
         return reply
-          .code(404)
-          .send({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } });
+          .code(403)
+          .send({ error: { code: 'FORBIDDEN', message: 'API key is not scoped to this module' } });
       }
 
-      const config = await fastify.container.db.workspaceStorageConfig.findUnique({
-        where: { workspaceId: workspace.id },
-      });
+      const [module, config] = await fastify.container.withTenant(
+        workspace.id,
+        async (tx) =>
+          [
+            await tx.remoteModule.findFirst({ where: { id: moduleId } }),
+            await tx.workspaceStorageConfig.findUnique({ where: { workspaceId: workspace.id } }),
+          ] as const
+      );
+
+      if (!module) {
+        return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Module not found' } });
+      }
 
       if (!config) {
         return reply.code(400).send({
@@ -36,32 +42,11 @@ const deployRoutes: FastifyPluginAsync = async (fastify, _options) => {
         });
       }
 
-      const key = `modules/${moduleId}/${Date.now()}.${extension || 'js'}`;
-      let url = '';
-
-      if (config.provider === 'S3') {
-        const creds = config.credentialsEncrypted as Record<string, string>;
-        const s3 = new S3StorageAdapter(
-          config.region,
-          config.bucket,
-          creds?.accessKeyId || '',
-          creds?.secretAccessKey || ''
-        );
-        url = await s3.getUploadUrl(key, contentType || 'application/javascript');
-      } else if (config.provider === 'GCS') {
-        const creds = config.credentialsEncrypted as Record<string, string>;
-        const gcs = new GCSStorageAdapter(
-          creds?.projectId || '',
-          creds?.clientEmail || '',
-          creds?.privateKey || '',
-          config.bucket
-        );
-        url = await gcs.getUploadUrl(key, contentType || 'application/javascript');
-      } else {
-        return reply
-          .code(400)
-          .send({ error: { code: 'BAD_REQUEST', message: 'Unsupported storage provider' } });
-      }
+      // `extension` becomes part of an object key: allow only a short alphanumeric suffix.
+      const safeExtension = /^[a-z0-9]{1,8}$/i.test(extension ?? '') ? extension : 'js';
+      const key = `modules/${module.id}/${Date.now()}.${safeExtension}`;
+      const storage = createWorkspaceStorage(config, fastify.config.encryptionKey);
+      const url = await storage.getUploadUrl(key, contentType || 'application/javascript');
 
       reply.send({ uploadUrl: url, key });
     }
@@ -73,10 +58,17 @@ const deployRoutes: FastifyPluginAsync = async (fastify, _options) => {
     '/api/workspaces/:workspaceSlug/modules/:moduleId/deploy',
     {
       config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
-      preHandler: fastify.verifyApiKey(['module:write']),
+      preHandler: fastify.requireWorkspace('module:deploy'),
     },
     async (request, reply) => {
       const { workspaceSlug, moduleId } = request.params;
+      const workspace = request.workspace!;
+
+      if (!canAccessModule(request.principal, moduleId)) {
+        return reply
+          .code(403)
+          .send({ error: { code: 'FORBIDDEN', message: 'API key is not scoped to this module' } });
+      }
 
       // Parse the body
       const parseResult = DeployRequestSchema.safeParse(request.body);
@@ -88,24 +80,16 @@ const deployRoutes: FastifyPluginAsync = async (fastify, _options) => {
       }
       const data = parseResult.data;
 
-      // Check workspace & module
-      const workspace = await fastify.container.db.workspace.findUnique({
-        where: { slug: workspaceSlug },
-      });
-
-      if (!workspace) {
-        reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } });
-        return;
-      }
-
-      const module = await fastify.container.db.remoteModule.findFirst({
-        where: { id: moduleId, workspaceId: workspace.id },
-        include: {
-          hostApp: {
-            include: { Environments: true },
+      const module = await fastify.container.withTenant(workspace.id, (tx) =>
+        tx.remoteModule.findFirst({
+          where: { id: moduleId },
+          include: {
+            hostApp: {
+              include: { Environments: true },
+            },
           },
-        },
-      });
+        })
+      );
 
       if (!module) {
         reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Module not found' } });
@@ -126,7 +110,7 @@ const deployRoutes: FastifyPluginAsync = async (fastify, _options) => {
         return;
       }
 
-      const newVersion = await fastify.container.db.$transaction(async (tx) => {
+      const newVersion = await fastify.container.withTenant(workspace.id, async (tx) => {
         // Invalidate existing active versions for this env
         await tx.moduleVersion.updateMany({
           where: {
@@ -147,8 +131,8 @@ const deployRoutes: FastifyPluginAsync = async (fastify, _options) => {
             url: data.url,
             integrity: data.integrity,
             status: 'active',
-            deployedBy: request.apiKey?.id || 'system',
-            deployedByType: 'apiKey',
+            deployedBy: request.principal!.id,
+            deployedByType: request.principal!.type,
           },
         });
       });
@@ -159,14 +143,11 @@ const deployRoutes: FastifyPluginAsync = async (fastify, _options) => {
 
       // Dispatch webhooks
       if (fastify.container.boss) {
-        const endpoints = await fastify.container.db.webhookEndpoint.findMany({
-          where: {
-            workspaceId: workspace.id,
-            active: true,
-            paused: false,
-            events: { has: 'module.deployed' },
-          },
-        });
+        const endpoints = await fastify.container.withTenant(workspace.id, (tx) =>
+          tx.webhookEndpoint.findMany({
+            where: { active: true, paused: false, events: { has: 'module.deployed' } },
+          })
+        );
 
         for (const endpoint of endpoints) {
           await fastify.container.boss.send('webhook.deliver', {

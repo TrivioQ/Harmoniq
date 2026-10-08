@@ -30,8 +30,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify, _options) => {
       // 2. Cache miss -> DB Query
       fastify.metricMeters.manifestCacheMisses.add(1);
 
-      // Find workspace
-      const workspace = await fastify.container.db.workspace.findUnique({
+      // Resolve the tenant (system role); everything after runs RLS-scoped.
+      const workspace = await fastify.container.systemDb.workspace.findUnique({
         where: { slug: workspaceSlug },
         include: {
           HostApps: {
@@ -58,16 +58,17 @@ const manifestRoutes: FastifyPluginAsync = async (fastify, _options) => {
       const environment = hostApp.Environments[0];
 
       // Get active module versions
-      const activeVersions = await fastify.container.db.moduleVersion.findMany({
-        where: {
-          workspaceId: workspace.id,
-          environmentId: environment.id,
-          status: 'active',
-        },
-        include: {
-          remoteModule: true,
-        },
-      });
+      const activeVersions = await fastify.container.withTenant(workspace.id, (tx) =>
+        tx.moduleVersion.findMany({
+          where: {
+            environmentId: environment.id,
+            status: 'active',
+          },
+          include: {
+            remoteModule: true,
+          },
+        })
+      );
 
       // Build manifest JSON
       const manifest = {

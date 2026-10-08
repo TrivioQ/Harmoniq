@@ -18,7 +18,7 @@ program
   .option(
     '--registry-url <url>',
     'Registry URL',
-    process.env.HARMONIQ_REGISTRY_URL || 'http://localhost:3000'
+    process.env.HARMONIQ_REGISTRY_URL || 'http://localhost:4000'
   )
   .option('--api-key <key>', 'Harmoniq API Key', process.env.HARMONIQ_API_KEY)
   .option('--profile <name>', 'Workspace profile name', 'default');

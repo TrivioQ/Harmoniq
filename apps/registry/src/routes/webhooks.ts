@@ -7,11 +7,12 @@ const webhookRoutes: FastifyPluginAsync = async (fastify, _options) => {
     '/api/workspaces/:workspaceSlug/webhooks/dead-letters/:deadLetterId/retry',
     {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
-      preHandler: fastify.verifyApiKey(['module:write']),
+      preHandler: fastify.requireWorkspace('workspace:admin'),
     },
     async (request, reply) => {
-      const { workspaceSlug, deadLetterId } = request.params;
-      const { db, boss } = fastify.container;
+      const { deadLetterId } = request.params;
+      const { withTenant, boss } = fastify.container;
+      const workspace = request.workspace!;
 
       if (!boss) {
         reply
@@ -20,21 +21,9 @@ const webhookRoutes: FastifyPluginAsync = async (fastify, _options) => {
         return;
       }
 
-      const workspace = await db.workspace.findUnique({
-        where: { slug: workspaceSlug },
-      });
-
-      if (!workspace) {
-        reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } });
-        return;
-      }
-
-      const deadLetter = await db.webhookDeadLetter.findFirst({
-        where: {
-          id: deadLetterId,
-          workspaceId: workspace.id,
-        },
-      });
+      const deadLetter = await withTenant(workspace.id, (tx) =>
+        tx.webhookDeadLetter.findFirst({ where: { id: deadLetterId } })
+      );
 
       if (!deadLetter) {
         reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Dead letter not found' } });
@@ -52,13 +41,12 @@ const webhookRoutes: FastifyPluginAsync = async (fastify, _options) => {
       });
 
       // Mark dead letter as resolved
-      await db.webhookDeadLetter.update({
-        where: { id: deadLetter.id },
-        data: {
-          resolvedAt: new Date(),
-          retriedAt: new Date(),
-        },
-      });
+      await withTenant(workspace.id, (tx) =>
+        tx.webhookDeadLetter.update({
+          where: { id: deadLetter.id },
+          data: { resolvedAt: new Date(), retriedAt: new Date() },
+        })
+      );
 
       reply.code(200).send({ message: 'Dead letter re-enqueued for delivery' });
     }

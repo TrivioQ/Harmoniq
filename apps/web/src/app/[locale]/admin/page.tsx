@@ -19,7 +19,7 @@ export default function AdminDashboardPage() {
       try {
         const token = localStorage.getItem('harmoniq_admin_token');
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/admin/health`,
+          `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:4000'}/api/admin/health`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }

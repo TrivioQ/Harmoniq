@@ -15,7 +15,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
       try {
         const token = localStorage.getItem('harmoniq_admin_token');
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/workspaces/${params.slug}/storage`,
+          `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:4000'}/api/workspaces/${params.slug}/storage`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -40,7 +40,7 @@ export default function WorkspaceStoragePage({ params }: { params: { slug: strin
     try {
       const token = localStorage.getItem('harmoniq_admin_token');
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/workspaces/${params.slug}/storage`,
+        `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:4000'}/api/workspaces/${params.slug}/storage`,
         {
           method: 'POST',
           headers: {

@@ -3,8 +3,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Runtime tenant role (harmoniq_app): always subject to Row-Level Security.
+  url       = env("DATABASE_URL")
+  // Schema owner (harmoniq): used by `prisma migrate` and by systemDb at runtime.
+  directUrl = env("SYSTEM_DATABASE_URL")
 }
 
 model User {

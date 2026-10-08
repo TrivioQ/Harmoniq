@@ -17,6 +17,7 @@ Harmoniq is an open-source, self-hostable **Micro Frontend Control Plane** that 
 ## 📦 How to Use
 
 ### Prerequisites
+
 - [Node.js](https://nodejs.org/) (>= 20)
 - [pnpm](https://pnpm.io/) (>= 9)
 - [Docker](https://www.docker.com/) (for local database & services)
@@ -24,25 +25,36 @@ Harmoniq is an open-source, self-hostable **Micro Frontend Control Plane** that 
 ### Quick Start
 
 1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/your-org/harmoniq.git
    cd harmoniq
    ```
 
 2. **Install dependencies:**
+
    > **Note:** This project strictly uses `pnpm`.
+
    ```bash
    pnpm install
    ```
 
-3. **Start local infrastructure (Database, Redis, etc.):**
+3. **Configure environment and start local infrastructure (Database, Redis, etc.):**
+
    ```bash
+   cp .env.example .env
+   cp .env.example packages/db/.env
    pnpm run docker:up
    ```
 
+   > **Upgrading an existing dev database?** Volumes created before the owner/app role
+   > split need a one-time, non-destructive ownership change:
+   > `docker exec -i harmoniq_postgres psql -U postgres -d harmoniq < docker/upgrade-roles.sql`
+
 4. **Run database migrations and seed data:**
+
    ```bash
-   pnpm run db:migrate
+   pnpm run db:deploy
    pnpm run db:seed
    ```
 
@@ -50,7 +62,7 @@ Harmoniq is an open-source, self-hostable **Micro Frontend Control Plane** that 
    ```bash
    pnpm run dev:local
    ```
-   The Next.js dashboard will be accessible at `http://localhost:3000` and the Registry API at `http://localhost:3001`.
+   The Next.js dashboard will be accessible at `http://localhost:3000` and the Registry API at `http://localhost:4000`.
 
 ## 📚 Documentation
 
@@ -67,6 +79,7 @@ Detailed documentation is available in the [`docs/`](./docs) directory:
 ### For Contributors
 
 Please refer to the following guides before contributing:
+
 - **[Implementation Plan](./docs/implementation-plan.md)**: Phased build plan with task checklists.
 - **[Agent & Contributor Rules](./.agents/AGENTS.md)**: Mandatory rules for code standards, documentation, and tooling.
 - **[Feature Docs](./docs/features/)**: Per-feature documentation with design context and change history.

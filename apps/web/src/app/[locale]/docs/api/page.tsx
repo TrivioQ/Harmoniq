@@ -11,8 +11,8 @@ export default function ApiDocsPage() {
         configuration={{
           spec: {
             url: process.env.NEXT_PUBLIC_REGISTRY_URL
-              ? `${process.env.NEXT_PUBLIC_REGISTRY_URL}/api-docs/json`
-              : 'http://localhost:3002/api-docs/json',
+              ? `${process.env.NEXT_PUBLIC_REGISTRY_URL}/docs/json`
+              : 'http://localhost:4000/docs/json',
           },
         }}
       />

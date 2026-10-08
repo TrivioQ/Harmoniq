@@ -22,7 +22,9 @@
     "db:studio": "pnpm --filter @harmoniq/db db:studio",
     "changeset": "changeset",
     "version": "changeset version",
-    "prepare": "husky"
+    "prepare": "husky",
+    "changelog:check": "bash scripts/changelog-check.sh",
+    "db:deploy": "pnpm --filter @harmoniq/db db:deploy"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",

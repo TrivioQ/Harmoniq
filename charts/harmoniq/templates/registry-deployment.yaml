@@ -18,16 +18,17 @@ spec:
         - name: {{ .Chart.Name }}-registry
           image: "{{ .Values.image.registry }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.existingSecret | default (include "harmoniq.fullname" .) }}
           env:
-            - name: DATABASE_URL
-              value: {{ .Values.env.DATABASE_URL }}
             - name: REDIS_URL
-              value: {{ .Values.env.REDIS_URL }}
-            - name: JWT_SECRET
-              value: {{ .Values.env.JWT_SECRET }}
+              value: {{ .Values.env.REDIS_URL | quote }}
             - name: CACHE_ADAPTER
-              value: {{ .Values.env.CACHE_ADAPTER }}
+              value: {{ .Values.env.CACHE_ADAPTER | quote }}
+            - name: NODE_ENV
+              value: {{ .Values.env.NODE_ENV | quote }}
           ports:
             - name: http
-              containerPort: 3002
+              containerPort: 4000
               protocol: TCP

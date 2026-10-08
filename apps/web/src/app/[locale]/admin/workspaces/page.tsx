@@ -22,7 +22,7 @@ export default function AdminWorkspacesPage() {
       try {
         const token = localStorage.getItem('harmoniq_admin_token');
         const res = await fetch(
-          `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/admin/workspaces`,
+          `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:4000'}/api/admin/workspaces`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }

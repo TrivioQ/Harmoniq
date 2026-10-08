@@ -1,5 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { deployCommand } from '../commands/deploy';
+import { rollbackCommand } from '../commands/rollback';
+import { promoteCommand } from '../commands/promote';
+import { validateCommand } from '../commands/validate';
+import { loginCommand } from '../commands/login';
+import { whoamiCommand } from '../commands/whoami';
 import { Command } from 'commander';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
@@ -11,6 +16,10 @@ const server = setupServer(
 );
 
 describe('CLI Commands', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -57,5 +66,45 @@ describe('CLI Commands', () => {
     expect(console.log).toHaveBeenCalledWith(JSON.stringify({ success: true }));
 
     server.close();
+  });
+
+  // Unimplemented commands must never report success (product-analysis §3.8).
+  it.each([
+    ['rollback', ['--workspace', 'a', '--module', 'm', '--env', 'prod', '--version-id', 'v']],
+    [
+      'promote',
+      [
+        '--workspace',
+        'a',
+        '--module',
+        'm',
+        '--source-env',
+        's',
+        '--target-env',
+        'p',
+        '--version-id',
+        'v',
+      ],
+    ],
+    ['validate', ['--url', 'https://cdn.example.com/x.js', '--integrity', 'sha384-x']],
+    ['login', []],
+    ['whoami', []],
+  ])('%s exits non-zero without claiming success', async (name, args) => {
+    const program = new Command();
+    for (const command of [
+      rollbackCommand,
+      promoteCommand,
+      validateCommand,
+      loginCommand,
+      whoamiCommand,
+    ]) {
+      program.addCommand(command);
+    }
+
+    await expect(program.parseAsync(['node', 'test', name, ...args])).rejects.toThrow(
+      'Process exited with code 1'
+    );
+    expect(console.log).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('not implemented'));
   });
 });
