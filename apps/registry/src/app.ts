@@ -106,7 +106,19 @@ export async function buildApp() {
       callback(
         null,
         isPublicRead
-          ? { origin: '*', credentials: false }
+          ? {
+              origin: '*',
+              credentials: false,
+              // Without these, browsers hide them from cross-origin reads (no 304 polling).
+              exposedHeaders: [
+                'ETag',
+                'X-Harmoniq-Variant',
+                'X-Harmoniq-Cohort-Id',
+                'X-Harmoniq-Stale',
+              ],
+              // Preflights caused by X-Harmoniq-User-Id (canary assignment).
+              maxAge: 600,
+            }
           : { origin: config.webOrigin, credentials: true }
       );
     },

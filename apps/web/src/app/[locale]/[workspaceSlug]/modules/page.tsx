@@ -42,6 +42,14 @@ export default async function ModulesPage(props: { params: Promise<{ workspaceSl
                       {env.name} {env.frozen && '🔒'}
                     </dt>
                     <dd className="font-mono">{env.active?.version ?? '—'}</dd>
+                    {env.canary && (
+                      <dd className="text-xs text-amber-700">
+                        {t('canaryBadge', {
+                          version: env.canary.version,
+                          percent: env.canary.trafficPercent ?? 0,
+                        })}
+                      </dd>
+                    )}
                   </div>
                 ))}
               </dl>

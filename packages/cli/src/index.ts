@@ -5,6 +5,7 @@ import { loginCommand } from './commands/login';
 import { whoamiCommand } from './commands/whoami';
 import { deployCommand } from './commands/deploy';
 import { promoteCommand } from './commands/promote';
+import { canaryCommand } from './commands/canary';
 import { rollbackCommand } from './commands/rollback';
 import { validateCommand } from './commands/validate';
 import { manifestCommand } from './commands/manifest';
@@ -26,16 +27,30 @@ export function buildProgram() {
     .addCommand(deployCommand)
     .addCommand(promoteCommand)
     .addCommand(rollbackCommand)
+    .addCommand(canaryCommand)
     .addCommand(validateCommand)
     .addCommand(manifestCommand)
     .addCommand(doctorCommand);
+}
+
+/**
+ * Subcommands are module-level singletons and commander keeps parsed option values on
+ * them, so a second `run()` in one process would inherit options from the first.
+ */
+function resetOptions(command: Command) {
+  for (const option of command.options) {
+    command.setOptionValueWithSource(option.attributeName(), option.defaultValue, 'default');
+  }
+  command.commands.forEach(resetOptions);
 }
 
 /** Runs the CLI and returns the exit code (see EXIT) instead of exiting, for tests. */
 export async function run(argv: string[]): Promise<number> {
   process.exitCode = undefined;
   try {
-    await buildProgram().parseAsync(argv);
+    const program = buildProgram();
+    resetOptions(program);
+    await program.parseAsync(argv);
     return Number(process.exitCode ?? EXIT.ok);
   } catch (err) {
     if (err instanceof CliError) {

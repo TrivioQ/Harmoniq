@@ -46,18 +46,30 @@ harmoniq deploy \
   --file dist/remoteEntry.js
 ```
 
-| Flag               | Description                                                     |
-| ------------------ | --------------------------------------------------------------- |
-| `--module`         | Module slug or id (required)                                    |
-| `--env`            | Target environment (required)                                   |
-| `--release`        | Version string (required)                                       |
-| `--url`            | Public URL of the bundle (required)                             |
-| `--integrity`      | SRI hash, e.g. `sha384-…`                                       |
-| `--file`           | Local copy of the bundle; computes `--integrity` (sha384)       |
-| `--commit`         | Commit SHA; defaults to `GITHUB_SHA` / `CI_COMMIT_SHA`          |
-| `--meta key=value` | Metadata, repeatable                                            |
-| `--validate`       | Fetch the URL and check the integrity locally before deploying  |
-| `--dry-run`        | Validate on the registry and show the projected manifest change |
+| Flag                 | Description                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `--module`           | Module slug or id (required)                                                         |
+| `--env`              | Target environment (required)                                                        |
+| `--release`          | Version string (required)                                                            |
+| `--url`              | Public URL of the bundle (required)                                                  |
+| `--integrity`        | SRI hash, e.g. `sha384-…`                                                            |
+| `--file`             | Local copy of the bundle; computes `--integrity` (sha384)                            |
+| `--commit`           | Commit SHA; defaults to `GITHUB_SHA` / `CI_COMMIT_SHA`                               |
+| `--meta key=value`   | Metadata, repeatable                                                                 |
+| `--validate`         | Fetch the URL and check the integrity locally before deploying                       |
+| `--dry-run`          | Validate on the registry and show the projected manifest change                      |
+| `--canary <percent>` | Deploy as a canary for this share of users (1–99); the active version keeps the rest |
+
+### `harmoniq canary`
+
+```bash
+harmoniq deploy --module checkout --env production --release 1.3.0 --url … --file … --canary 10
+harmoniq canary set-traffic 50 --module checkout --env production   # ramp up
+harmoniq canary promote --module checkout --env production          # 1.3.0 for everyone
+harmoniq canary abort --module checkout --env production --reason "error rate up"
+```
+
+`set-traffic --version-id <id>` makes an earlier version of the module the canary. All three fail with exit code 4 in a frozen environment.
 
 ### `harmoniq promote`
 

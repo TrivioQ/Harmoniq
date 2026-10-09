@@ -48,6 +48,8 @@ export interface Version {
   url: string;
   integrity: string;
   status: 'active' | 'inactive' | 'canary' | 'orphaned';
+  /** Share of users on this version while it is the canary (1–99). */
+  trafficPercent: number | null;
   deployedBy: string;
   deployedByType: 'user' | 'apiKey';
   deployedAt: string;
@@ -61,7 +63,13 @@ export interface ModuleSummary {
   slug: string;
   description: string | null;
   hostApp: { slug: string; name: string };
-  environments: Array<{ slug: string; name: string; frozen: boolean; active: Version | null }>;
+  environments: Array<{
+    slug: string;
+    name: string;
+    frozen: boolean;
+    active: Version | null;
+    canary: Version | null;
+  }>;
 }
 
 export interface ModuleDetail {

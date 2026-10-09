@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import type { TenantTx } from '@harmoniq/db';
 import type { Manifest, Module } from '@harmoniq/core/dist/schemas/ManifestSchema';
+import type { CanaryInfo } from './canary';
 
 export interface ManifestTarget {
   workspaceSlug: string;
@@ -11,6 +12,11 @@ export interface ManifestTarget {
 export interface BuiltManifest {
   manifest: Manifest;
   etag: string;
+  /**
+   * Canaries running in the environment (not part of the public manifest). Cached with
+   * the stable manifest so the manifest route can assign variants without the database.
+   */
+  canaries?: { workspaceId: string; running: CanaryInfo[] };
 }
 
 /** JSON with sorted keys, so equal content always hashes to the same ETag. */
@@ -26,7 +32,8 @@ function canonicalJson(value: unknown): string {
 }
 
 /**
- * Builds the manifest for one host app environment from its active versions.
+ * Builds the manifest for one host app environment: the stable variant from its active
+ * versions, or, with `canaryModuleIds`, the variant where those modules run their canary.
  *
  * The ETag hashes the content only (not `generatedAt`), so every replica produces the
  * same ETag for the same state and clients revalidate correctly across replicas.
@@ -34,13 +41,24 @@ function canonicalJson(value: unknown): string {
 export async function buildManifest(
   tx: TenantTx,
   target: ManifestTarget,
-  opts: { variant?: 'stable' | 'canary'; cohortId?: string; generatedAt?: Date } = {}
+  opts: { canaryModuleIds?: string[]; generatedAt?: Date } = {}
 ): Promise<BuiltManifest> {
-  const versions = await tx.moduleVersion.findMany({
-    where: { environmentId: target.environment.id, status: 'active', deletedAt: null },
+  const all = await tx.moduleVersion.findMany({
+    where: {
+      environmentId: target.environment.id,
+      status: { in: ['active', 'canary'] },
+      deletedAt: null,
+    },
     include: { remoteModule: true },
     orderBy: { remoteModule: { slug: 'asc' } },
   });
+  const canaryVersions = all.filter((v) => v.status === 'canary');
+  const useCanary = new Set(
+    (opts.canaryModuleIds ?? []).filter((id) => canaryVersions.some((c) => c.remoteModuleId === id))
+  );
+  const versions = all.filter((v) =>
+    v.status === 'canary' ? useCanary.has(v.remoteModuleId) : !useCanary.has(v.remoteModuleId)
+  );
 
   const modules: Module[] = versions.map((v) => ({
     name: v.remoteModule.slug,
@@ -56,6 +74,7 @@ export async function buildManifest(
       deployedAt: v.deployedAt.toISOString(),
       ...(v.commitSha && { commitSha: v.commitSha }),
       ...(v.promotedFromEnv && { promotedFrom: v.promotedFromEnv }),
+      ...(v.status === 'canary' && { canary: true }),
     },
   }));
 
@@ -64,8 +83,9 @@ export async function buildManifest(
     workspaceSlug: target.workspaceSlug,
     hostApp: { slug: target.hostApp.slug, name: target.hostApp.name },
     environment: target.environment.slug,
-    variant: opts.variant ?? 'stable',
-    cohortId: opts.cohortId ?? 'stable',
+    variant: useCanary.size ? ('canary' as const) : ('stable' as const),
+    // Per-user cohort ids are set on the response; cached variants are shared by cohorts.
+    cohortId: useCanary.size ? 'canary' : 'stable',
     modules,
   };
   const etag = `sha256-${createHash('sha256').update(canonicalJson(content)).digest('base64url')}`;
@@ -81,5 +101,22 @@ export async function buildManifest(
     )?.createdAt ??
     new Date(0);
 
-  return { manifest: { ...content, generatedAt: generatedAt.toISOString(), etag }, etag };
+  const canaries = canaryVersions.length
+    ? {
+        workspaceId: canaryVersions[0].workspaceId,
+        running: canaryVersions.map((c) => ({
+          moduleId: c.remoteModuleId,
+          module: c.remoteModule.slug,
+          versionId: c.id,
+          version: c.version,
+          trafficPercent: c.trafficPercent ?? 0,
+        })),
+      }
+    : undefined;
+
+  return {
+    manifest: { ...content, generatedAt: generatedAt.toISOString(), etag },
+    etag,
+    ...(canaries && { canaries }),
+  };
 }

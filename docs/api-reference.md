@@ -89,7 +89,8 @@ Returns the manifest for one host app environment. No authentication. Rate limit
 - `ETag` header and `If-None-Match` → `304 Not Modified`. The ETag depends only on content, so it is identical across registry replicas.
 - If the database is unavailable, the last-known-good manifest is served with `X-Harmoniq-Stale: true`.
 - `?pretty=true` pretty-prints outside production.
-- Headers `X-Harmoniq-Variant` / `X-Harmoniq-Cohort-Id` (always `stable` until canary releases land).
+- Headers `X-Harmoniq-Variant` and `X-Harmoniq-Cohort-Id`. Cross-origin reads can see them and `ETag` (`Access-Control-Expose-Headers`).
+- **Canary assignment** (CAN-02): send `X-Harmoniq-User-Id: <opaque user id>` (or a `harmoniq_canary` cookie on same-site setups). The registry hashes it into a `cohortId` and, for each module with a running canary, puts the user in the canary when their bucket for that module is below its traffic percentage. Assignment is sticky, and raising the traffic keeps existing canary users there. Canary responses have `variant: "canary"`, `metadata.canary: true` on the canary modules, `Cache-Control: private, no-cache`, and `Vary: X-Harmoniq-User-Id, Cookie`. Without a user id the response is the stable variant. Published (CDN) copies and import maps are always stable.
 
 ### `GET /api/importmap/:workspaceSlug/:hostAppSlug/:env`
 
@@ -162,7 +163,19 @@ Creates an active version in that environment (the previous one becomes inactive
 { "environment": "production", "previous": true }
 ```
 
-Exactly one of `previous: true`, `version: "1.2.2"` or `versionId`. Emits `rollback.executed`.
+Exactly one of `previous: true`, `version: "1.2.2"` or `versionId`. Emits `rollback.executed`. A running canary is left alone.
+
+### Canary releases — `module:deploy`
+
+Start one by deploying with `"canary": { "trafficPercent": 10 }`: the new version runs next to the active one (which must exist, else `409`) and replaces any running canary. A deploy without `canary` ends a running canary (recorded as `endedCanary` in the audit event).
+
+| Endpoint                                            | Body                                          | Effect                                                                                    | Webhook                             |
+| --------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------- |
+| `PUT /api/workspaces/:ws/modules/:moduleRef/canary` | `{ environment, trafficPercent, versionId? }` | Change the traffic (1–99); with `versionId`, make that earlier version the canary instead | `canary.updated` / `canary.started` |
+| `POST …/canary/promote`                             | `{ environment, reason? }`                    | The canary becomes the active version for everyone                                        | `canary.promoted`                   |
+| `POST …/canary/abort`                               | `{ environment, reason? }`                    | Everyone goes back to the active version; the canary becomes inactive                     | `canary.rolled_back`                |
+
+All three return the version, `manifestEtag` and `snapshotId`, are audited (`canary.update`, `canary.start`, `canary.promote`, `canary.abort`) and return `423` in a frozen environment. `GET /api/workspaces/:ws/modules` lists each environment's `canary` next to `active`.
 
 ### `POST /api/workspaces/:ws/modules/:moduleRef/promote` — `module:deploy`
 
@@ -226,7 +239,7 @@ Slugs: lowercase letters, digits and inner hyphens.
 | `GET /api/workspaces/:ws/webhooks/dead-letters`            | Exhausted deliveries                                                     |
 | `POST /api/workspaces/:ws/webhooks/dead-letters/:id/retry` | Re-enqueue                                                               |
 
-Events: `manifest.updated`, `deploy.success`, `rollback.executed`, `module.promoted`, `env.frozen`, `env.unfrozen` (and later `canary.*`, `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
+Events: `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollback.executed`, `module.promoted`, `canary.started`, `canary.updated`, `canary.promoted`, `canary.rolled_back`, `env.frozen`, `env.unfrozen` (and later `canary.auto_rolled_back`, `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
 
 ## Sign-in (used by the dashboard)
 
@@ -244,10 +257,8 @@ Events: `manifest.updated`, `deploy.success`, `rollback.executed`, `module.promo
 
 ## Planned
 
-| Endpoint                                                                        | Milestone |
-| ------------------------------------------------------------------------------- | --------- |
-| `GET /api/importmap/:ws/:hostApp/:env`, Native Federation manifest              | M2.3      |
-| Canary: `PUT …/modules/:moduleRef/canary`, `…/canary/promote`, `…/canary/abort` | M3.1      |
-| Health ingest and aggregation                                                   | M3.2      |
-| Alert rules                                                                     | M3.4      |
-| Approvals, organizations, SSO, SCIM, GitOps `apply`                             | M4        |
+| Endpoint                                            | Milestone |
+| --------------------------------------------------- | --------- |
+| Health ingest and aggregation                       | M3.2      |
+| Alert rules                                         | M3.4      |
+| Approvals, organizations, SSO, SCIM, GitOps `apply` | M4        |

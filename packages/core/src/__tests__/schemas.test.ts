@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DeployRequestSchema as DeploySchema } from '../schemas/DeployRequestSchema';
-import { CanaryConfigSchema as CanarySchema } from '../schemas/CanaryConfigSchema';
+import { SetCanaryRequestSchema } from '../schemas/CanaryRequestSchema';
 import { ApprovalPolicySchema, ApprovalPolicyDto } from '../schemas/ApprovalPolicySchema';
 import { CreateOrganizationSchema, CreateOrganizationDto } from '../schemas/OrganizationSchema';
 import { ApprovalDecisionSchema, ApprovalBypassSchema } from '../schemas/ApprovalDecisionSchema';
@@ -37,22 +37,21 @@ describe('Zod Schemas', () => {
     expect(() => DeploySchema.parse(invalidData)).toThrow();
   });
 
-  it('should validate a valid CanaryConfig', () => {
-    const validData = {
-      trafficPercentage: 50,
-      targetVersionId: 'clx0000000000000000000001',
-      stableVersionId: 'clx0000000000000000000002',
-    };
-    expect(() => CanarySchema.parse(validData)).not.toThrow();
-  });
-
-  it('should fail CanaryConfig with invalid percentage', () => {
-    const invalidData = {
-      trafficPercentage: 150, // > 100
-      targetVersionId: 'clx0000000000000000000001',
-      stableVersionId: 'clx0000000000000000000002',
-    };
-    expect(() => CanarySchema.parse(invalidData)).toThrow();
+  it('accepts canary traffic between 1 and 99 only', () => {
+    const ok = { environment: 'production', trafficPercent: 10 };
+    expect(() => SetCanaryRequestSchema.parse(ok)).not.toThrow();
+    for (const trafficPercent of [0, 100, 12.5]) {
+      expect(() => SetCanaryRequestSchema.parse({ ...ok, trafficPercent })).toThrow();
+    }
+    expect(() =>
+      DeploySchema.parse({
+        environment: 'production',
+        url: 'https://cdn.example.com/a.js',
+        version: '1.0.0',
+        integrity: 'sha384-abc',
+        canary: { trafficPercent: 100 },
+      })
+    ).toThrow();
   });
 
   describe('Phase 8 Zod Schemas', () => {

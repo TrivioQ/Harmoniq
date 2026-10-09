@@ -4,10 +4,12 @@ import { toFederationManifest, toImportMap } from '@harmoniq/core/dist/manifest/
 import { BuiltManifest, buildManifest } from '../services/manifestBuilder';
 import { manifestJsonSchema } from '../services/manifestJsonSchema';
 import { lastKnownGoodKey, manifestKey } from '../services/cacheKeys';
+import { assignCanaries, cohortIdFor, userKeyFrom, variantKey } from '../services/canary';
 import { MANIFEST_CACHE_TTL_SECONDS } from '../services/manifestMutation';
 
 type CanonicalParams = { workspaceSlug: string; hostAppSlug: string; env: string };
 type LegacyParams = { workspaceSlug: string; env: string };
+type Resolved = { built: BuiltManifest; stale: boolean; cohortId?: string };
 
 /** `If-None-Match` may hold several, possibly weak, quoted ETags. */
 function etagMatches(header: string | undefined, etag: string): boolean {
@@ -42,13 +44,20 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   function send(
     request: FastifyRequest<{ Querystring: { pretty?: string } }>,
     reply: FastifyReply,
-    built: BuiltManifest,
-    stale = false
+    resolved: Resolved
   ) {
+    const { built, stale, cohortId } = resolved;
+    // CAN-07: the per-user cohort replaces the shared placeholder of a cached variant.
+    const manifest = cohortId ? { ...built.manifest, cohortId } : built.manifest;
     reply.header('ETag', `"${built.etag}"`);
-    reply.header('Cache-Control', 'no-cache');
-    reply.header('X-Harmoniq-Variant', built.manifest.variant);
-    reply.header('X-Harmoniq-Cohort-Id', built.manifest.cohortId);
+    // CAN-03: a canary variant is per user and must not be stored by shared caches.
+    reply.header('Cache-Control', manifest.variant === 'canary' ? 'private, no-cache' : 'no-cache');
+    if (built.canaries) {
+      const vary = reply.getHeader('vary');
+      reply.header('Vary', [vary, 'X-Harmoniq-User-Id, Cookie'].filter(Boolean).join(', '));
+    }
+    reply.header('X-Harmoniq-Variant', manifest.variant);
+    reply.header('X-Harmoniq-Cohort-Id', manifest.cohortId);
     if (stale) reply.header('X-Harmoniq-Stale', 'true');
 
     if (etagMatches(request.headers['if-none-match'], built.etag)) {
@@ -56,13 +65,18 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     }
     // DX-03: human-readable output for local debugging only.
     if (!isProduction && request.query.pretty === 'true') {
-      return reply.type('application/json').send(JSON.stringify(built.manifest, null, 2));
+      return reply.type('application/json').send(JSON.stringify(manifest, null, 2));
     }
-    return reply.send(built.manifest);
+    return reply.send(manifest);
   }
 
   /** Resolves the tenant and builds from the database (cache miss). */
-  async function load(workspaceSlug: string, hostAppSlug: string | null, envSlug: string) {
+  async function load(
+    workspaceSlug: string,
+    hostAppSlug: string | null,
+    envSlug: string,
+    canaryModuleIds?: string[]
+  ) {
     const workspace = await systemDb.workspace.findUnique({
       where: { slug: workspaceSlug },
       include: {
@@ -85,7 +99,7 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const built = await withTenant(workspace.id, (tx) =>
-      buildManifest(tx, { workspaceSlug, hostApp, environment })
+      buildManifest(tx, { workspaceSlug, hostApp, environment }, { canaryModuleIds })
     );
     return { built, hostAppSlug: hostApp.slug };
   }
@@ -94,11 +108,11 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
    * The current manifest: cache first (keyed only by URL slugs, so a hit never touches
    * the database), rebuilt on a miss, last-known-good when the database fails (MAN-06).
    */
-  async function resolve(
+  async function resolveStable(
     workspaceSlug: string,
     hostAppSlug: string | null,
     envSlug: string
-  ): Promise<{ built: BuiltManifest; stale: boolean }> {
+  ): Promise<Resolved> {
     if (hostAppSlug) {
       const cached = await cache.get(manifestKey(workspaceSlug, hostAppSlug, envSlug));
       if (cached) {
@@ -127,6 +141,46 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     }
   }
 
+  /**
+   * CAN-02: the variant for this user. The stable manifest (cached) lists the running
+   * canaries; the user's cohort decides which of them apply, and each combination is
+   * built once and cached under its own key. Users without a key get the stable variant.
+   */
+  async function resolve(
+    request: FastifyRequest,
+    workspaceSlug: string,
+    hostAppSlug: string | null,
+    envSlug: string
+  ): Promise<Resolved> {
+    const stable = await resolveStable(workspaceSlug, hostAppSlug, envSlug);
+    const canaries = stable.built.canaries;
+    const userKey = userKeyFrom(request.headers);
+    if (!canaries || !userKey) return stable;
+
+    const cohortId = cohortIdFor(canaries.workspaceId, userKey);
+    const assigned = assignCanaries(canaries.running, cohortId);
+    if (!assigned.length || stable.stale) return { ...stable, cohortId };
+
+    const host = stable.built.manifest.hostApp.slug;
+    const key = manifestKey(workspaceSlug, host, envSlug, variantKey(assigned));
+    const cached = await cache.get(key);
+    if (cached) return { built: JSON.parse(cached) as BuiltManifest, stale: false, cohortId };
+    try {
+      const { built } = await load(
+        workspaceSlug,
+        host,
+        envSlug,
+        assigned.map((c) => c.moduleId)
+      );
+      await cache.set(key, JSON.stringify(built), MANIFEST_CACHE_TTL_SECONDS);
+      return { built, stale: false, cohortId };
+    } catch (err) {
+      // Stable beats broken: canary users fall back to the stable variant.
+      logger.error('Canary variant build failed; serving stable', err as Error);
+      return { ...stable, cohortId };
+    }
+  }
+
   async function serve(
     request: FastifyRequest<{ Querystring: { pretty?: string } }>,
     reply: FastifyReply,
@@ -134,8 +188,7 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     hostAppSlug: string | null,
     envSlug: string
   ) {
-    const { built, stale } = await resolve(workspaceSlug, hostAppSlug, envSlug);
-    return send(request, reply, built, stale);
+    return send(request, reply, await resolve(request, workspaceSlug, hostAppSlug, envSlug));
   }
 
   /** Derived formats (import map, federation manifest) share the manifest's caching. */
@@ -147,7 +200,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     toBody: (manifest: BuiltManifest['manifest']) => unknown
   ) {
     const { workspaceSlug, hostAppSlug, env } = request.params;
-    const { built, stale } = await resolve(workspaceSlug, hostAppSlug, env);
+    // Import maps are loaded by the browser itself (no user header): always stable.
+    const { built, stale } = await resolveStable(workspaceSlug, hostAppSlug, env);
     // Derived from the manifest ETag: changes exactly when the manifest does (IMP-04).
     const etag = `${built.etag}.${format}`;
     reply.header('ETag', `"${etag}"`);

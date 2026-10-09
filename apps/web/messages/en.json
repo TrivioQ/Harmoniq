@@ -42,7 +42,8 @@
     "hostApp": "Host app",
     "name": "Name",
     "namePlaceholder": "Checkout",
-    "slug": "Slug"
+    "slug": "Slug",
+    "canaryBadge": "canary {version} · {percent}%"
   },
   "EnvironmentsPage": {
     "title": "Environments",
@@ -174,7 +175,10 @@
     "webhookPaused": "Webhook paused.",
     "webhookResumed": "Webhook resumed.",
     "webhookDeleted": "Webhook deleted.",
-    "deadLetterRetried": "Delivery queued for retry."
+    "deadLetterRetried": "Delivery queued for retry.",
+    "canaryTraffic": "{version} now serves {percent}% of users.",
+    "canaryPromoted": "{version} is now active for everyone.",
+    "canaryAborted": "Canary {version} stopped; everyone is back on the active version."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -223,7 +227,18 @@
     "rollback": "Roll back",
     "rollingBack": "Rolling back…",
     "rollbackConfirm": "Make {version} the active version in {environment}?",
-    "noVersions": "Nothing deployed to this environment yet."
+    "noVersions": "Nothing deployed to this environment yet.",
+    "canaryTitle": "Canary",
+    "canaryRunning": "{version} serves {percent}% of users; the rest get {active}.",
+    "canaryTraffic": "Traffic %",
+    "canaryUpdate": "Update",
+    "canaryPromote": "Promote to everyone",
+    "canaryPromoteConfirm": "Make {version} the active version for all users in {environment}?",
+    "canaryAbort": "Abort",
+    "canaryAbortConfirm": "Stop canary {version}? Everyone goes back to {active}.",
+    "canaryStart": "Start canary",
+    "canaryStartConfirm": "Serve {version} to a share of users in {environment}?",
+    "canaryNone": "No canary running. Deploy one with `harmoniq deploy --canary 10`, or start an earlier version below."
   },
   "EnvironmentHistory": {
     "back": "Environments",

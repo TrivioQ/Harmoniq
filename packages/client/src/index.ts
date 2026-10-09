@@ -45,6 +45,18 @@ export interface HarmoniqClientOptions {
   /** Full control over the manifest URLs to try, in order. Overrides `cdnBaseUrl`. */
   sources?: string[];
   /**
+   * Identifies the user for canary assignment (CAN-02): the same id always gets the same
+   * variant. Sent as `X-Harmoniq-User-Id`, to the registry only. While a user key is set,
+   * the registry is asked before the CDN, whose copy is always the stable variant. Use an
+   * opaque id; the registry only ever exposes a hash of it (`cohortId`).
+   */
+  userId?: string;
+  /**
+   * Without `userId`, give anonymous visitors a random id kept in `persist` storage, so
+   * they can take part in canaries and stay in their variant across visits.
+   */
+  anonymousCanary?: boolean;
+  /**
    * Manifest bundled with the host build (e.g. `harmoniq manifest pull --out …`), used
    * when no source is reachable and nothing is cached.
    */
@@ -125,6 +137,18 @@ function isManifest(value: unknown): value is Manifest {
 }
 
 const OVERRIDES_KEY = 'harmoniq:overrides';
+const ANONYMOUS_ID_KEY = 'harmoniq:uid';
+const USER_ID_HEADER = 'X-Harmoniq-User-Id';
+/** Registry manifest URLs; only these receive the user id (CDNs may reject the header). */
+const isRegistryManifestUrl = (url: string) => url.includes('/api/manifest/');
+
+function randomId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+}
 const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
 
 function queryParams(): URLSearchParams | null {
@@ -167,7 +191,9 @@ export class HarmoniqClient {
   private consecutiveFailures = 0;
   private destroyed = false;
   private listeners = new Map<EventName, Set<Listener<never>>>();
-  private readonly sources: string[];
+  private readonly cdnSource: string | null;
+  private readonly registrySource: string;
+  private userKey: string | null;
   private readonly store: ManifestStore | null;
   private readonly storeKey: string;
   private readonly overrides: Record<string, string>;
@@ -181,15 +207,49 @@ export class HarmoniqClient {
     const { workspaceSlug: ws, hostApp } = options;
     const env = this.environment;
     const path = `${enc(ws)}/${enc(hostApp)}/${enc(env)}`;
-    const registry = `${options.registryUrl.replace(/\/$/, '')}/api/manifest/${path}`;
-    this.sources =
-      options.sources ??
-      (options.cdnBaseUrl
-        ? [`${options.cdnBaseUrl.replace(/\/$/, '')}/manifests/${path}.json`, registry]
-        : [registry]);
+    this.registrySource = `${options.registryUrl.replace(/\/$/, '')}/api/manifest/${path}`;
+    this.cdnSource = options.cdnBaseUrl
+      ? `${options.cdnBaseUrl.replace(/\/$/, '')}/manifests/${path}.json`
+      : null;
     this.store = options.persist === false ? null : (options.persist ?? defaultStore());
+    this.userKey = options.userId || (options.anonymousCanary ? this.anonymousId() : null);
     this.storeKey = `harmoniq:manifest:${ws}:${hostApp}:${env}`;
     this.overrides = options.allowOverrides ? this.loadOverrides(params) : {};
+  }
+
+  /** Manifest URLs to try, in order. */
+  private get sources(): string[] {
+    if (this.options.sources) return this.options.sources;
+    if (!this.cdnSource) return [this.registrySource];
+    // Only the registry assigns canary variants; the CDN stays the fallback.
+    return this.userKey
+      ? [this.registrySource, this.cdnSource]
+      : [this.cdnSource, this.registrySource];
+  }
+
+  /** A random id for this browser, kept across visits (`anonymousCanary`). */
+  private anonymousId(): string | null {
+    try {
+      const existing = this.store?.getItem(ANONYMOUS_ID_KEY);
+      if (existing) return existing;
+      const id = randomId();
+      this.store?.setItem(ANONYMOUS_ID_KEY, id);
+      return id;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Sets (or clears) the user for canary assignment, e.g. after sign-in, and re-fetches
+   * the manifest so the user's variant applies immediately.
+   */
+  async setUserId(userId: string | null): Promise<void> {
+    const next = userId || (this.options.anonymousCanary ? this.anonymousId() : null);
+    if (next === this.userKey) return;
+    this.userKey = next;
+    this.etags.clear(); // the cached response belonged to the previous user
+    if (this.initPromise) await this.fetchManifest().catch(() => undefined);
   }
 
   /** Developer overrides in effect (empty unless `allowOverrides`). */
@@ -346,10 +406,9 @@ export class HarmoniqClient {
     try {
       // Never sends credentials: manifests are public, and browsers must not hold API keys.
       const etag = this.etags.get(url);
-      const res = await doFetch(url, {
-        headers: etag ? { 'If-None-Match': etag } : {},
-        signal: controller.signal,
-      });
+      const headers: Record<string, string> = etag ? { 'If-None-Match': etag } : {};
+      if (this.userKey && isRegistryManifestUrl(url)) headers[USER_ID_HEADER] = this.userKey;
+      const res = await doFetch(url, { headers, signal: controller.signal });
       if (res.status === 304 && this.manifest) {
         this.markFresh();
         return true;

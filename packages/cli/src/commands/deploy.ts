@@ -4,6 +4,7 @@ import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
 import { CliError, EXIT } from '../lib/errors';
 import { resolveIntegrity } from '../lib/integrity';
 import { emit, enc } from '../lib/output';
+import { parsePercent } from './canary';
 
 const collect = (value: string, previous: string[] = []) => [...previous, value];
 
@@ -20,12 +21,17 @@ export const deployCommand = new Command('deploy')
   .option('--validate', 'Check the bundle URL and integrity locally before deploying')
   .option('--dry-run', 'Validate on the registry and show the projected change; deploy nothing')
   .option(
+    '--canary <percent>',
+    'Deploy as a canary for this share of users (1–99); the active version keeps the rest'
+  )
+  .option(
     '--preview-ttl <hours>',
     'Create --env as a preview environment (e.g. pr-123) that expires after this many hours'
   )
   .action(async (opts, command: Command) => {
     const ctx = await resolveContext(command);
     const workspace = requireWorkspace(ctx);
+    const canary = opts.canary !== undefined ? parsePercent(opts.canary) : undefined;
     const integrity = await resolveIntegrity(opts);
 
     if (opts.validate) {
@@ -60,6 +66,7 @@ export const deployCommand = new Command('deploy')
         ...(Object.keys(metadata).length && { metadata }),
         dryRun: !!opts.dryRun,
         ...(opts.previewTtl && { ephemeral: { ttlHours: Number(opts.previewTtl) } }),
+        ...(canary && { canary: { trafficPercent: canary } }),
       }
     );
 
@@ -78,7 +85,10 @@ export const deployCommand = new Command('deploy')
     emit(
       ctx,
       result,
-      `Deployed ${opts.module} ${opts.release} to ${opts.env} (manifest ${result.manifestEtag})` +
+      (canary
+        ? `Deployed ${opts.module} ${opts.release} to ${opts.env} as a canary for ${canary}% of users`
+        : `Deployed ${opts.module} ${opts.release} to ${opts.env}`) +
+        ` (manifest ${result.manifestEtag})` +
         (result.previewUrl ? `\nPreview: ${result.previewUrl}` : '')
     );
   });

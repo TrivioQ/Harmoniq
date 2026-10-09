@@ -64,3 +64,22 @@ export function deactivateActive(tx: TenantTx, moduleId: string, environmentId: 
     data: { status: 'inactive' },
   });
 }
+
+/** The running canary of a module in an environment, if any (one at most, CAN-01). */
+export function findCanary(tx: TenantTx, moduleId: string, environmentId: string) {
+  return tx.moduleVersion.findFirst({
+    where: { remoteModuleId: moduleId, environmentId, status: 'canary', deletedAt: null },
+  });
+}
+
+/** Ends any running canary (back to inactive); returns the version it ended. */
+export async function endCanary(tx: TenantTx, moduleId: string, environmentId: string) {
+  const canary = await findCanary(tx, moduleId, environmentId);
+  if (canary) {
+    await tx.moduleVersion.update({
+      where: { id: canary.id },
+      data: { status: 'inactive', trafficPercent: null },
+    });
+  }
+  return canary;
+}

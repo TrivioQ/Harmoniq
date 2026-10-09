@@ -25,32 +25,48 @@ const entry = client.getModuleEntry('checkout');
 // { url: 'https://cdn.acme.com/checkout/1.2.3/remoteEntry.js', integrity: 'sha384-…', version: '1.2.3' }
 ```
 
-| Option             | Default        | Description                                                                                             |
-| ------------------ | -------------- | ------------------------------------------------------------------------------------------------------- |
-| `cdnBaseUrl`       | —              | Read the published copy from your CDN first, the registry second (stable variant only)                  |
-| `sources`          | registry       | Explicit manifest URLs to try in order (overrides `cdnBaseUrl`)                                         |
-| `persist`          | `localStorage` | Where the last good manifest is kept across page loads; `false` disables                                |
-| `fallbackManifest` | —              | Manifest bundled with the build (`harmoniq manifest pull`), used when nothing is reachable or persisted |
-| `pollIntervalMs`   | off            | Re-fetch interval. Uses ETags, so unchanged manifests cost a 304.                                       |
-| `maxBackoffMs`     | 60000          | Cap for exponential backoff (with jitter) after failed polls                                            |
-| `timeoutMs`        | 5000           | Per-request timeout                                                                                     |
-| `fetch`            | global         | Custom fetch implementation                                                                             |
+| Option             | Default        | Description                                                                                                                              |
+| ------------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `cdnBaseUrl`       | —              | Read the published copy from your CDN first, the registry second (stable variant only)                                                   |
+| `sources`          | registry       | Explicit manifest URLs to try in order (overrides `cdnBaseUrl`)                                                                          |
+| `persist`          | `localStorage` | Where the last good manifest is kept across page loads; `false` disables                                                                 |
+| `fallbackManifest` | —              | Manifest bundled with the build (`harmoniq manifest pull`), used when nothing is reachable or persisted                                  |
+| `pollIntervalMs`   | off            | Re-fetch interval. Uses ETags, so unchanged manifests cost a 304.                                                                        |
+| `maxBackoffMs`     | 60000          | Cap for exponential backoff (with jitter) after failed polls                                                                             |
+| `timeoutMs`        | 5000           | Per-request timeout                                                                                                                      |
+| `fetch`            | global         | Custom fetch implementation                                                                                                              |
+| `userId`           | —              | Opaque user id for canary assignment, sent as `X-Harmoniq-User-Id` to the registry only. While set, the registry is asked before the CDN |
+| `anonymousCanary`  | `false`        | Without `userId`, give each browser a random id kept in `persist` storage so anonymous visitors take part in canaries                    |
 
-| Method                           | Returns                                                                                      |
-| -------------------------------- | -------------------------------------------------------------------------------------------- |
-| `init()`                         | Loads the manifest and starts polling. Rejects if the first load fails; call again to retry. |
-| `getManifest()`                  | The full manifest (`schemaVersion: 2`) or `null`                                             |
-| `getModuleEntry(name)`           | `{ url, integrity, version }` or `null`                                                      |
-| `getModule(name)`                | The full module entry, including `dependencies`, `exposes`, `metadata`                       |
-| `getScriptTag(name)`             | `<script type="module" … integrity crossorigin>` with escaped attributes                     |
-| `getVariant()` / `getCohortId()` | Canary assignment (always `stable` until canary releases land)                               |
-| `getError()`                     | Error from the last failed fetch, or `null`                                                  |
-| `on(event, fn)`                  | Subscribe; returns an unsubscribe function                                                   |
-| `destroy()`                      | Stop polling and remove listeners                                                            |
+| Method                           | Returns                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------- |
+| `init()`                         | Loads the manifest and starts polling. Rejects if the first load fails; call again to retry.  |
+| `getManifest()`                  | The full manifest (`schemaVersion: 2`) or `null`                                              |
+| `getModuleEntry(name)`           | `{ url, integrity, version }` or `null`                                                       |
+| `getModule(name)`                | The full module entry, including `dependencies`, `exposes`, `metadata`                        |
+| `getScriptTag(name)`             | `<script type="module" … integrity crossorigin>` with escaped attributes                      |
+| `getVariant()` / `getCohortId()` | Canary assignment: `stable` or `canary`, and the opaque cohort id (safe to send to analytics) |
+| `setUserId(id \| null)`          | Change the user (e.g. after sign-in) and re-fetch so their variant applies immediately        |
+| `getError()`                     | Error from the last failed fetch, or `null`                                                   |
+| `on(event, fn)`                  | Subscribe; returns an unsubscribe function                                                    |
+| `destroy()`                      | Stop polling and remove listeners                                                             |
 
 **Events** (`EVENTS.*`): `manifestUpdate` (only when the content changes), `variantAssigned` (first assignment and changes), `manifestStale` (serving a persisted or bundled copy), `error` (each failed fetch).
 
 **Failures**: sources are tried in order. If all fail, the last manifest stays in use (stale beats broken) and polling backs off. On a cold start with every source down, `init()` uses the persisted copy, then `fallbackManifest`, and emits `manifestStale`; `getSource()` reports `network`, `persisted` or `fallback`. `init()` rejects only when none of these exist.
+
+### Canary releases
+
+```ts
+const client = new HarmoniqClient({ ...options, cdnBaseUrl, userId: currentUser?.id });
+client.on(EVENTS.variantAssigned, ({ variant, cohortId }) =>
+  analytics.track('variant', { variant, cohortId })
+);
+// later, after sign-in:
+await client.setUserId(user.id);
+```
+
+The registry decides the variant per user and module; the CDN copy is always stable, so with a user id the registry is asked first and the CDN is the fallback. Use an opaque id: the registry never echoes it, only `cohortId`.
 
 ### Surviving a registry outage
 
@@ -151,9 +167,6 @@ const { CheckoutPage } = await loadRemote('checkout/CheckoutPage');
 
 ## Planned
 
-| Feature                                                      | Milestone |
-| ------------------------------------------------------------ | --------- |
-| CDN manifest sources, embedded fallback, persistent cache    | M2.2      |
-| Module Federation 2.0 runtime plugin (`@harmoniq/mf-plugin`) | M2.4      |
-| Local overrides for development                              | M2.6      |
-| Load-health reporting and error-tracker tagging              | M3.2–M3.3 |
+| Feature                                         | Milestone |
+| ----------------------------------------------- | --------- |
+| Load-health reporting and error-tracker tagging | M3.2–M3.3 |

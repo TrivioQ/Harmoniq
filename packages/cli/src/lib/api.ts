@@ -42,6 +42,10 @@ export class ApiClient {
     return this.request<T>('GET', path);
   }
 
+  put<T>(path: string, body: unknown) {
+    return this.request<T>('PUT', path, body);
+  }
+
   post<T>(path: string, body: unknown) {
     return this.request<T>('POST', path, body);
   }

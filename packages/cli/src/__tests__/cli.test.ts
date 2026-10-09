@@ -41,6 +41,19 @@ const server = setupServer(
       );
     }
   ),
+  http.all(
+    `${REGISTRY}/api/workspaces/acme/modules/:module/canary/:action?`,
+    async ({ request, params }) => {
+      const key = `${params.module}/canary${params.action ? `/${params.action}` : ''}:${request.method}`;
+      const body = (await request.json()) as Record<string, unknown>;
+      received[key] = { body, auth: request.headers.get('authorization') };
+      return HttpResponse.json({
+        version: '2.0.0',
+        status: params.action === 'abort' ? 'inactive' : params.action ? 'active' : 'canary',
+        trafficPercent: params.action ? null : body.trafficPercent,
+      });
+    }
+  ),
   http.get(`${REGISTRY}/api/workspaces/acme`, ({ request }) =>
     request.headers.get('authorization') === `Bearer ${KEY}`
       ? HttpResponse.json({ name: 'Acme', hostApps: [{ slug: 'portal' }] })
@@ -208,6 +221,43 @@ describe('harmoniq CLI', () => {
     expect(received['checkout/rollback'].body).toEqual({
       environment: 'production',
       version: '1.2.2',
+    });
+  });
+
+  describe('canary', () => {
+    const target = ['--module', 'checkout', '--env', 'production'];
+
+    it('deploys a canary with --canary and rejects invalid percentages', async () => {
+      const file = join(configDir, 'remoteEntry.js');
+      await writeFile(file, BUNDLE);
+      expect(await cli(...deployArgs('--file', file, '--canary', '10'))).toBe(0);
+      expect(received['checkout/deploy'].body).toMatchObject({
+        version: '2.0.0',
+        canary: { trafficPercent: 10 },
+      });
+      expect(stdout.join('\n')).toContain('as a canary for 10% of users');
+
+      received = {};
+      expect(await cli(...deployArgs('--file', file, '--canary', '100'))).toBe(2);
+      expect(received['checkout/deploy']).toBeUndefined();
+    });
+
+    it('sets traffic, promotes and aborts', async () => {
+      expect(await cli(...withKey, 'canary', 'set-traffic', '25', ...target)).toBe(0);
+      expect(received['checkout/canary:PUT'].body).toEqual({
+        environment: 'production',
+        trafficPercent: 25,
+      });
+      expect(stdout.join('\n')).toContain('25% of users');
+
+      expect(await cli(...withKey, 'canary', 'promote', ...target)).toBe(0);
+      expect(received['checkout/canary/promote:POST'].body).toEqual({ environment: 'production' });
+
+      expect(await cli(...withKey, 'canary', 'abort', ...target, '--reason', 'errors up')).toBe(0);
+      expect(received['checkout/canary/abort:POST'].body).toEqual({
+        environment: 'production',
+        reason: 'errors up',
+      });
     });
   });
 

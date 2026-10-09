@@ -4,7 +4,13 @@ import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
 import { RegistryError } from '@/lib/registry';
 import { roleAtLeast, workspaceApi } from '@/lib/workspaceApi';
-import { promoteAction, rollbackAction } from '../../actions';
+import {
+  abortCanaryAction,
+  promoteAction,
+  promoteCanaryAction,
+  rollbackAction,
+  setCanaryAction,
+} from '../../actions';
 
 const statusStyle: Record<string, string> = {
   active: 'bg-green-100 text-green-800',
@@ -32,11 +38,26 @@ export default async function ModuleDetailPage(props: {
   if (!env) notFound();
   const { versions } = await workspaceApi.versions(workspaceSlug, module.id, env.slug);
   const active = versions.find((v) => v.status === 'active');
+  const canary = versions.find((v) => v.status === 'canary');
 
   const canDeploy = roleAtLeast(workspace.role, 'developer');
   // PRO-05: promotion is offered to admins and owners.
   const canPromote = roleAtLeast(workspace.role, 'admin') && !!active;
   const promoteTargets = module.environments.filter((e) => e.slug !== env.slug);
+  const canManageCanary = canDeploy && !env.frozen;
+  const percentInput = (defaultValue: number) => (
+    <input
+      type="number"
+      name="trafficPercent"
+      min={1}
+      max={99}
+      step={1}
+      required
+      defaultValue={defaultValue}
+      aria-label={t('canaryTraffic')}
+      className="w-20 rounded-md border px-2 py-1.5 text-sm"
+    />
+  );
 
   return (
     <div className="container p-6 md:p-10 max-w-6xl space-y-6">
@@ -70,6 +91,52 @@ export default async function ModuleDetailPage(props: {
           🔒 {t('frozen', { reason: env.freezeReason ?? '' })}
         </div>
       )}
+
+      <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+        <h3 className="font-semibold">{t('canaryTitle')}</h3>
+        {canary ? (
+          <>
+            <p className="text-sm">
+              {t('canaryRunning', {
+                version: canary.version,
+                percent: canary.trafficPercent ?? 0,
+                active: active?.version ?? '—',
+              })}
+            </p>
+            {canManageCanary && (
+              <div className="flex flex-wrap items-start gap-3">
+                <ActionForm
+                  action={setCanaryAction.bind(null, workspaceSlug, module.id, env.slug, null)}
+                  submitLabel={t('canaryUpdate')}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  {percentInput(canary.trafficPercent ?? 10)}
+                </ActionForm>
+                <ActionForm
+                  action={promoteCanaryAction.bind(null, workspaceSlug, module.id, env.slug)}
+                  submitLabel={t('canaryPromote')}
+                  confirm={t('canaryPromoteConfirm', {
+                    version: canary.version,
+                    environment: env.name,
+                  })}
+                />
+                <ActionForm
+                  action={abortCanaryAction.bind(null, workspaceSlug, module.id, env.slug)}
+                  submitLabel={t('canaryAbort')}
+                  confirm={t('canaryAbortConfirm', {
+                    version: canary.version,
+                    active: active?.version ?? '—',
+                  })}
+                  variant="outline"
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('canaryNone')}</p>
+        )}
+      </section>
 
       {canPromote && promoteTargets.length > 0 && (
         <section className="rounded-xl border bg-card p-4">
@@ -120,6 +187,7 @@ export default async function ModuleDetailPage(props: {
                 <td className="px-4 py-2">
                   <span className={`rounded px-2 py-0.5 text-xs ${statusStyle[v.status] ?? ''}`}>
                     {t(`statuses.${v.status}`)}
+                    {v.status === 'canary' && ` · ${v.trafficPercent}%`}
                   </span>
                 </td>
                 <td className="px-4 py-2 whitespace-nowrap">
@@ -134,14 +202,39 @@ export default async function ModuleDetailPage(props: {
                 </td>
                 <td className="px-4 py-2 text-right">
                   {canDeploy && v.status === 'inactive' && !env.frozen && (
-                    <ActionForm
-                      action={rollbackAction.bind(null, workspaceSlug, module.id, env.slug, v.id)}
-                      submitLabel={t('rollback')}
-                      pendingLabel={t('rollingBack')}
-                      confirm={t('rollbackConfirm', { version: v.version, environment: env.name })}
-                      variant="outline"
-                      className="inline-flex flex-col items-end gap-1"
-                    />
+                    <div className="inline-flex flex-wrap justify-end gap-2">
+                      <ActionForm
+                        action={rollbackAction.bind(null, workspaceSlug, module.id, env.slug, v.id)}
+                        submitLabel={t('rollback')}
+                        pendingLabel={t('rollingBack')}
+                        confirm={t('rollbackConfirm', {
+                          version: v.version,
+                          environment: env.name,
+                        })}
+                        variant="outline"
+                        className="inline-flex flex-col items-end gap-1"
+                      />
+                      {active && (
+                        <ActionForm
+                          action={setCanaryAction.bind(
+                            null,
+                            workspaceSlug,
+                            module.id,
+                            env.slug,
+                            v.id
+                          )}
+                          submitLabel={t('canaryStart')}
+                          confirm={t('canaryStartConfirm', {
+                            version: v.version,
+                            environment: env.name,
+                          })}
+                          variant="outline"
+                          className="inline-flex items-center gap-2"
+                        >
+                          {percentInput(10)}
+                        </ActionForm>
+                      )}
+                    </div>
                   )}
                 </td>
               </tr>

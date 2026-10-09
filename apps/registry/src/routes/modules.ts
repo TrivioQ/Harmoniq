@@ -13,6 +13,10 @@ import {
   RollbackRequestSchema,
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import {
+  CanaryActionRequestSchema,
+  SetCanaryRequestSchema,
+} from '@harmoniq/core/dist/schemas/CanaryRequestSchema';
+import {
   CreateModuleSchema,
   SlugSchema,
   UpdateModuleSchema,
@@ -25,11 +29,24 @@ import { validateBundleSafely } from '../services/bundleValidator';
 import { isFrozen } from '../services/manifestMutation';
 import { buildManifest } from '../services/manifestBuilder';
 import { diffManifests } from '@harmoniq/core/dist/manifest/diff';
-import { deactivateActive, findEnvironment, resolveModule, versionDto } from '../services/modules';
+import {
+  deactivateActive,
+  endCanary,
+  findCanary,
+  findEnvironment,
+  resolveModule,
+  versionDto,
+} from '../services/modules';
 
 type ModuleParams = { workspaceSlug: string; moduleRef: string };
 
 const json = (value: unknown) => (value ?? undefined) as Prisma.InputJsonValue | undefined;
+const activeWhere = (remoteModuleId: string, environmentId: string) => ({
+  remoteModuleId,
+  environmentId,
+  status: 'active' as const,
+  deletedAt: null,
+});
 
 const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   const { withTenant, mutations } = fastify.container;
@@ -117,14 +134,16 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           description: m.description,
           hostApp: { slug: m.hostApp.slug, name: m.hostApp.name },
           environments: m.hostApp.Environments.map((env) => {
-            const active = m.ModuleVersions.find(
-              (v) => v.environmentId === env.id && v.status === 'active'
-            );
+            const current = (status: 'active' | 'canary') =>
+              m.ModuleVersions.find((v) => v.environmentId === env.id && v.status === status);
+            const active = current('active');
+            const canary = current('canary');
             return {
               slug: env.slug,
               name: env.name,
               frozen: isFrozen(env),
               active: active ? versionDto(active, env.slug) : null,
+              canary: canary ? versionDto(canary, env.slug) : null,
             };
           }),
         })),
@@ -356,7 +375,18 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
         targetFor(request, module, env),
         actor(request),
         async (tx) => {
-          await deactivateActive(tx, module.id, env.id);
+          const canary = body.canary;
+          if (
+            canary &&
+            !(await tx.moduleVersion.count({ where: activeWhere(module.id, env.id) }))
+          ) {
+            throw new ConflictError(
+              `No active version of "${module.slug}" in "${env.slug}" to run a canary against; deploy it normally first`
+            );
+          }
+          // A canary deploy replaces the running canary; a normal deploy ends it.
+          const endedCanary = await endCanary(tx, module.id, env.id);
+          if (!canary) await deactivateActive(tx, module.id, env.id);
           const version = await tx.moduleVersion.create({
             data: {
               workspaceId: workspace.id,
@@ -365,7 +395,8 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               version: body.version,
               url: body.url,
               integrity: body.integrity,
-              status: 'active',
+              status: canary ? 'canary' : 'active',
+              trafficPercent: canary?.trafficPercent,
               deployedBy: request.principal!.id,
               deployedByType: request.principal!.type,
               commitSha: body.commitSha,
@@ -386,6 +417,10 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                 environment: env.slug,
                 version: version.version,
                 url: version.url,
+                ...(canary && { canary: true, trafficPercent: canary.trafficPercent }),
+                ...(endedCanary && {
+                  endedCanary: { versionId: endedCanary.id, version: endedCanary.version },
+                }),
                 ...(validation && { validation }), // VAL-05
               },
             },
@@ -397,8 +432,22 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                   version: version.version,
                   versionId: version.id,
                   url: version.url,
+                  ...(canary && { canary: true, trafficPercent: canary.trafficPercent }),
                 },
               },
+              ...(canary
+                ? [
+                    {
+                      name: 'canary.started' as const,
+                      payload: {
+                        module: module.slug,
+                        version: version.version,
+                        versionId: version.id,
+                        trafficPercent: canary.trafficPercent,
+                      },
+                    },
+                  ]
+                : []),
             ],
           };
         }
@@ -584,6 +633,186 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       return reply
         .code(201)
         .send({ ...versionDto(result, to.slug), manifestEtag: manifest.etag, snapshotId });
+    }
+  );
+
+  // ─── Canary (CAN-01..05) ──────────────────────────────────────────────────
+
+  // Sets the traffic of the running canary, or makes an earlier version the canary.
+  fastify.put<{ Params: ModuleParams }>(
+    '/api/workspaces/:workspaceSlug/modules/:moduleRef/canary',
+    { preHandler: fastify.requireWorkspace('module:deploy') },
+    async (request) => {
+      const body = SetCanaryRequestSchema.parse(request.body);
+      const module = await loadModule(request);
+      const env = findEnvironment(module, body.environment);
+
+      const { result, manifest, snapshotId } = await mutations.run(
+        targetFor(request, module, env),
+        actor(request),
+        async (tx) => {
+          const current = await findCanary(tx, module.id, env.id);
+
+          if (!body.versionId || body.versionId === current?.id) {
+            if (!current) {
+              throw new NotFoundError(
+                `No canary of "${module.slug}" in "${env.slug}"; deploy one with a canary or pass versionId`
+              );
+            }
+            const updated = await tx.moduleVersion.update({
+              where: { id: current.id },
+              data: { trafficPercent: body.trafficPercent },
+            });
+            const change = {
+              module: module.slug,
+              version: updated.version,
+              versionId: updated.id,
+              fromTrafficPercent: current.trafficPercent,
+              trafficPercent: updated.trafficPercent,
+            };
+            return {
+              result: updated,
+              audit: {
+                action: 'canary.update',
+                resourceType: 'moduleVersion',
+                resourceId: updated.id,
+                metadata: { ...change, environment: env.slug },
+              },
+              events: [{ name: 'canary.updated', payload: change }],
+            };
+          }
+
+          const target = await tx.moduleVersion.findFirst({
+            where: {
+              id: body.versionId,
+              remoteModuleId: module.id,
+              environmentId: env.id,
+              deletedAt: null,
+            },
+          });
+          if (!target) throw new NotFoundError('Version not found in this environment');
+          if (target.status === 'active') {
+            throw new ConflictError(`${target.version} is the active version`);
+          }
+          if (!(await tx.moduleVersion.count({ where: activeWhere(module.id, env.id) }))) {
+            throw new ConflictError('No active version to run a canary against');
+          }
+          const ended = await endCanary(tx, module.id, env.id);
+          const started = await tx.moduleVersion.update({
+            where: { id: target.id },
+            data: { status: 'canary', trafficPercent: body.trafficPercent },
+          });
+          const change = {
+            module: module.slug,
+            version: started.version,
+            versionId: started.id,
+            trafficPercent: started.trafficPercent,
+          };
+          return {
+            result: started,
+            audit: {
+              action: 'canary.start',
+              resourceType: 'moduleVersion',
+              resourceId: started.id,
+              metadata: {
+                ...change,
+                environment: env.slug,
+                ...(ended && { endedCanary: { versionId: ended.id, version: ended.version } }),
+              },
+            },
+            events: [{ name: 'canary.started', payload: change }],
+          };
+        }
+      );
+      return { ...versionDto(result, env.slug), manifestEtag: manifest.etag, snapshotId };
+    }
+  );
+
+  // CAN-04: the canary becomes the active version for everyone.
+  fastify.post<{ Params: ModuleParams }>(
+    '/api/workspaces/:workspaceSlug/modules/:moduleRef/canary/promote',
+    { preHandler: fastify.requireWorkspace('module:deploy') },
+    async (request) => {
+      const body = CanaryActionRequestSchema.parse(request.body);
+      const module = await loadModule(request);
+      const env = findEnvironment(module, body.environment);
+
+      const { result, manifest, snapshotId } = await mutations.run(
+        targetFor(request, module, env),
+        actor(request),
+        async (tx) => {
+          const canary = await findCanary(tx, module.id, env.id);
+          if (!canary) throw new NotFoundError(`No canary of "${module.slug}" in "${env.slug}"`);
+          const previous = await tx.moduleVersion.findFirst({
+            where: activeWhere(module.id, env.id),
+          });
+          await deactivateActive(tx, module.id, env.id);
+          const promoted = await tx.moduleVersion.update({
+            where: { id: canary.id },
+            data: { status: 'active', trafficPercent: null },
+          });
+          const change = {
+            module: module.slug,
+            version: promoted.version,
+            versionId: promoted.id,
+            fromVersion: previous?.version ?? null,
+            trafficPercent: canary.trafficPercent,
+          };
+          return {
+            result: promoted,
+            audit: {
+              action: 'canary.promote',
+              resourceType: 'moduleVersion',
+              resourceId: promoted.id,
+              metadata: {
+                ...change,
+                environment: env.slug,
+                ...(body.reason && { reason: body.reason }),
+              },
+            },
+            events: [{ name: 'canary.promoted', payload: change }],
+          };
+        }
+      );
+      return { ...versionDto(result, env.slug), manifestEtag: manifest.etag, snapshotId };
+    }
+  );
+
+  // CAN-04: everyone goes back to the active version.
+  fastify.post<{ Params: ModuleParams }>(
+    '/api/workspaces/:workspaceSlug/modules/:moduleRef/canary/abort',
+    { preHandler: fastify.requireWorkspace('module:deploy') },
+    async (request) => {
+      const body = CanaryActionRequestSchema.parse(request.body);
+      const module = await loadModule(request);
+      const env = findEnvironment(module, body.environment);
+
+      const { result, manifest, snapshotId } = await mutations.run(
+        targetFor(request, module, env),
+        actor(request),
+        async (tx) => {
+          const canary = await endCanary(tx, module.id, env.id);
+          if (!canary) throw new NotFoundError(`No canary of "${module.slug}" in "${env.slug}"`);
+          const change = {
+            module: module.slug,
+            version: canary.version,
+            versionId: canary.id,
+            trafficPercent: canary.trafficPercent,
+            ...(body.reason && { reason: body.reason }),
+          };
+          return {
+            result: { ...canary, status: 'inactive' as const, trafficPercent: null },
+            audit: {
+              action: 'canary.abort',
+              resourceType: 'moduleVersion',
+              resourceId: canary.id,
+              metadata: { ...change, environment: env.slug },
+            },
+            events: [{ name: 'canary.rolled_back', payload: change }],
+          };
+        }
+      );
+      return { ...versionDto(result, env.slug), manifestEtag: manifest.etag, snapshotId };
     }
   );
 };

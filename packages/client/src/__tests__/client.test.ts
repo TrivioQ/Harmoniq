@@ -259,6 +259,91 @@ describe('HarmoniqClient', () => {
     });
   });
 
+  describe('canary assignment (M3.1)', () => {
+    const CDN = 'https://cdn.test/manifests/acme/portal/production.json';
+    const REGISTRY = 'http://registry.test/api/manifest/acme/portal/production';
+
+    /** Records [url, headers] per request; the registry answers with a canary variant. */
+    function recording() {
+      const calls: Array<[string, Record<string, string>]> = [];
+      const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push([url, (init?.headers ?? {}) as Record<string, string>]);
+        const body = url.startsWith('http://registry.test')
+          ? manifest('2.0.0', { variant: 'canary', cohortId: 'c0ffee' })
+          : manifest('1.0.0');
+        return new Response(JSON.stringify(body), { status: 200 });
+      }) as unknown as typeof fetch;
+      return { fetchImpl, calls };
+    }
+
+    it('asks the registry first and sends the user id only there', async () => {
+      const { fetchImpl, calls } = recording();
+      const client = new HarmoniqClient({
+        ...options(fetchImpl),
+        cdnBaseUrl: 'https://cdn.test',
+        userId: 'user-42',
+      });
+      const assigned = vi.fn();
+      client.on(EVENTS.variantAssigned, assigned);
+      await client.init();
+      expect(calls).toEqual([[REGISTRY, { 'X-Harmoniq-User-Id': 'user-42' }]]);
+      expect(client.getVariant()).toBe('canary');
+      expect(client.getCohortId()).toBe('c0ffee');
+      expect(assigned).toHaveBeenCalledWith({ variant: 'canary', cohortId: 'c0ffee' });
+    });
+
+    it('falls back to the CDN (stable) without the header when the registry is down', async () => {
+      const calls: Array<[string, Record<string, string>]> = [];
+      const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push([url, (init?.headers ?? {}) as Record<string, string>]);
+        if (url === REGISTRY) throw new TypeError('Failed to fetch');
+        return new Response(JSON.stringify(manifest('1.0.0')), { status: 200 });
+      }) as unknown as typeof fetch;
+      const client = new HarmoniqClient({
+        ...options(fetchImpl),
+        cdnBaseUrl: 'https://cdn.test',
+        userId: 'user-42',
+      });
+      await client.init();
+      expect(calls[1]).toEqual([CDN, {}]);
+      expect(client.getVariant()).toBe('stable');
+    });
+
+    it('keeps an anonymous id across visits when anonymousCanary is on', async () => {
+      const data = new Map<string, string>();
+      const store = {
+        getItem: (k: string) => data.get(k) ?? null,
+        setItem: (k: string, v: string) => void data.set(k, v),
+      };
+      const ids: string[] = [];
+      for (let visit = 0; visit < 2; visit++) {
+        const { fetchImpl, calls } = recording();
+        const client = new HarmoniqClient({
+          ...options(fetchImpl),
+          persist: store,
+          anonymousCanary: true,
+        });
+        await client.init();
+        ids.push(calls[0][1]['X-Harmoniq-User-Id']);
+      }
+      expect(ids[0]).toMatch(/.{8,}/);
+      expect(ids[1]).toBe(ids[0]);
+    });
+
+    it('re-fetches with the new user after setUserId()', async () => {
+      const { fetchImpl, calls } = recording();
+      const client = new HarmoniqClient({ ...options(fetchImpl), cdnBaseUrl: 'https://cdn.test' });
+      await client.init();
+      expect(calls.map(([url]) => url)).toEqual([CDN]);
+
+      await client.setUserId('user-7');
+      expect(calls[1]).toEqual([REGISTRY, { 'X-Harmoniq-User-Id': 'user-7' }]);
+      expect(client.getVariant()).toBe('canary');
+      await client.setUserId('user-7'); // unchanged: no request
+      expect(calls).toHaveLength(2);
+    });
+  });
+
   describe('developer overrides and preview environments (M2.6)', () => {
     afterEach(() => vi.unstubAllGlobals());
 

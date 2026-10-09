@@ -72,6 +72,67 @@ export async function promoteAction(
   );
 }
 
+// ─── Canary (CAN-04/05) ─────────────────────────────────────────────────────
+
+const canaryPath = (workspace: string, moduleRef: string, action = '') =>
+  `/api/workspaces/${enc(workspace)}/modules/${enc(moduleRef)}/canary${action}`;
+
+/** Sets the running canary's traffic, or (with `versionId`) starts that version as the canary. */
+export async function setCanaryAction(
+  workspace: string,
+  moduleRef: string,
+  environment: string,
+  versionId: string | null,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const trafficPercent = Number(field(form, 'trafficPercent'));
+  return run(
+    () =>
+      authedFetch(canaryPath(workspace, moduleRef), {
+        method: 'PUT',
+        body: { environment, trafficPercent, ...(versionId && { versionId }) },
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: t('canaryTraffic', {
+        version: (r as { version: string }).version,
+        percent: trafficPercent,
+      }),
+    })
+  );
+}
+
+export async function promoteCanaryAction(
+  workspace: string,
+  moduleRef: string,
+  environment: string,
+  _prev: ActionResult
+): Promise<ActionResult> {
+  return run(
+    () => authedFetch(canaryPath(workspace, moduleRef, '/promote'), { body: { environment } }),
+    (t, r) => ({
+      status: 'success',
+      message: t('canaryPromoted', { version: (r as { version: string }).version }),
+    })
+  );
+}
+
+export async function abortCanaryAction(
+  workspace: string,
+  moduleRef: string,
+  environment: string,
+  _prev: ActionResult
+): Promise<ActionResult> {
+  return run(
+    () => authedFetch(canaryPath(workspace, moduleRef, '/abort'), { body: { environment } }),
+    (t, r) => ({
+      status: 'success',
+      message: t('canaryAborted', { version: (r as { version: string }).version }),
+    })
+  );
+}
+
 export async function createModuleAction(workspace: string, _prev: ActionResult, form: FormData) {
   return run(
     () =>
