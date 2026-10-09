@@ -190,7 +190,8 @@
     "alertDeleted": "Alert rule deleted.",
     "moduleDisabled": "Module disabled. Hosts stop loading it at their next manifest fetch.",
     "moduleEnabled": "Module enabled again.",
-    "scheduleCancelled": "Scheduled operation cancelled."
+    "scheduleCancelled": "Scheduled operation cancelled.",
+    "ownersUpdated": "Module owners updated."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -229,7 +230,9 @@
       "schedule_create": "Scheduled {name} of {module} for {environment}",
       "schedule_cancel": "Cancelled a scheduled {name} of {module}",
       "schedule_executed": "Ran a scheduled {name} of {module} in {environment}",
-      "schedule_failed": "A scheduled {name} of {module} in {environment} failed"
+      "schedule_failed": "A scheduled {name} of {module} in {environment} failed",
+      "module_owners_update": "Changed the owners of {module}",
+      "module_unauthorized_attempt": "Was refused a change to {module} (not an owner)"
     },
     "systemActor": "automatic"
   },
@@ -293,7 +296,11 @@
     "killHint": "Disabling stops hosts in {environment} from loading this module at their next manifest fetch, even if the environment is frozen. Hosts should render a fallback.",
     "killDisable": "Disable module",
     "killDisableConfirm": "Disable {module} in {environment} now?",
-    "killReason": "Reason, e.g. checkout errors after payment change"
+    "killReason": "Reason, e.g. checkout errors after payment change",
+    "ownersTitle": "Module owners",
+    "ownersNone": "none (every developer can change this module)",
+    "ownersHint": "Owners and workspace admins can deploy, roll back, promote and run canaries for this module. Without owners, every developer can.",
+    "ownersSave": "Save owners"
   },
   "EnvironmentHistory": {
     "back": "Environments",

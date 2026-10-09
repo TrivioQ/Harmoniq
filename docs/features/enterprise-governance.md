@@ -1,8 +1,8 @@
 # Feature: Enterprise-Grade Governance
 
-> **Requirement IDs:** `APR-01`–`APR-18`, `ORG-01`–`ORG-15`, `IaC-01`–`IaC-14`  
-> **Status:** `planned`  
-> **Phase:** Phase 8
+> **Requirement IDs:** `RBAC-01`–`RBAC-06`, `ENV-FRZ-03`–`04`, `APR-01`–`APR-18`, `SSO-*`, `ORG-01`–`ORG-15`, `INST-*`, `BYOB-*`, `IaC-01`–`IaC-14`  
+> **Status:** `in-progress`  
+> **Phase:** M4
 
 Covers the three enterprise procurement blockers identified in gap analysis: Change Approval Workflows, Organization Hierarchy, and GitOps / Infrastructure as Code. Targets regulated industries (SOX, PCI-DSS, HIPAA) and large enterprises with complex team structures.
 
@@ -18,15 +18,20 @@ Large enterprises operating in regulated industries require three capabilities t
 
 ## Requirements
 
-| ID                | Requirement                     | Status     |
-| ----------------- | ------------------------------- | ---------- |
-| `APR-01`–`APR-18` | Change Approval Workflows       | 📋 Planned |
-| `ORG-01`–`ORG-15` | Organization Hierarchy          | 📋 Planned |
-| `IaC-01`–`IaC-14` | GitOps / Infrastructure as Code | 📋 Planned |
+| ID                  | Requirement                               | Status         |
+| ------------------- | ----------------------------------------- | -------------- |
+| `RBAC-01`–`RBAC-06` | Module ownership and module-scoped access | ✅ Done (M4.1) |
+| `APR-01`–`APR-18`   | Change Approval Workflows                 | 📋 Planned     |
+| `ORG-01`–`ORG-15`   | Organization Hierarchy                    | 📋 Planned     |
+| `IaC-01`–`IaC-14`   | GitOps / Infrastructure as Code           | 📋 Planned     |
 
 See [`docs/requirements.md §16`](../requirements.md) for the full specification.
 
 ## Architecture Notes
+
+### Module ownership (RBAC)
+
+One check, `canWriteModule`, guards every module-changing route (deploy, upload URL, rollback, promote, canary, kill switch) and the scheduling of such operations: workspace admins and owners always pass; API keys within their `moduleIds`; developers when the module has no owners or they own it. A refusal is a `403` plus a `module.unauthorized_attempt` audit event written in its own transaction (the request's own transaction rolls back with the error). Module detail responses carry `owners` and `canWrite` so the dashboard only offers what the registry would accept. Scheduled operations run as their creator, so ownership is checked again when they run.
 
 ### §16.1 Change Approval Workflows
 
@@ -77,6 +82,21 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-09 — Module ownership (M4.1)
+
+**Type:** feature
+**PR / Branch:** feat/m4-enterprise
+**Refs:** RBAC-01 – RBAC-06
+
+#### What changed
+
+- `GET/PUT /api/workspaces/:ws/modules/:ref/owners` (admin to change); module writes restricted to owners and admins when a module has owners; refusals audited as `module.unauthorized_attempt`; `owners` and `canWrite` on module detail.
+- Dashboard: Module owners section (admins edit), actions shown according to `canWrite`; audit lines.
+
+#### Testing
+
+`moduleRbac.test.ts`: ownerless modules open to developers, admin-only owner changes, owners/admins/other developers on deploy, rollback, kill switch and scheduling, audited refusals, API-key scopes and `canWrite`. Checked in headless Chrome with an admin, an owner and a non-owner developer.
 
 ### 2026-09-13 — Implemented Phase 8 database models and Zod schemas
 

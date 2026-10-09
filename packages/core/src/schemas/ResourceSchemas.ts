@@ -67,3 +67,8 @@ export const UpdateHostAppSchema = z.object({
   /** M3.7: reject deploys that drop an exposed module the active version had. */
   strictExposes: z.boolean().optional(),
 });
+
+/** RBAC-01: replace a module's owners (workspace member ids); `[]` makes it ownerless. */
+export const SetModuleOwnersSchema = z.object({
+  memberIds: z.array(z.string().min(1)).max(100),
+});

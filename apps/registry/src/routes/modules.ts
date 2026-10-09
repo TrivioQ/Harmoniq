@@ -19,10 +19,13 @@ import {
 } from '@harmoniq/core/dist/schemas/CanaryRequestSchema';
 import {
   CreateModuleSchema,
+  SetModuleOwnersSchema,
   SlugSchema,
   UpdateModuleSchema,
 } from '@harmoniq/core/dist/schemas/ResourceSchemas';
 import { audit } from '../services/audit';
+import { canWriteModule, ownersOf } from '../services/moduleAccess';
+import { roleAllows, scopesAllow } from '../auth/permissions';
 import { advanceRollout, clearedRollout, startRollout } from '../services/rollout';
 import { GateResult, checkGate, enforceGate } from '../services/dependencyGate';
 import { isValidBundle } from '@harmoniq/core/dist/validation/bundle';
@@ -56,14 +59,48 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   const { config } = fastify;
 
   const actor = (request: FastifyRequest) => ({ principal: request.principal!, ip: request.ip });
+  /** Whether the caller has `module:deploy` at all (before module ownership). */
+  const mayDeploy = (request: FastifyRequest) => {
+    const principal = request.principal!;
+    return principal.type === 'apiKey'
+      ? scopesAllow(principal.scopes, 'module:deploy')
+      : !!request.workspaceRole && roleAllows(request.workspaceRole, 'module:deploy');
+  };
 
-  /** Resolves the module and enforces module-scoped API keys (RBAC-04). */
-  async function loadModule(request: FastifyRequest<{ Params: ModuleParams }>) {
-    const module = await withTenant(request.workspace!.id, (tx) =>
-      resolveModule(tx, request.params.moduleRef)
-    );
-    if (!canAccessModule(request.principal, module.id)) {
-      throw new ForbiddenError('API key is not scoped to this module');
+  /**
+   * Resolves the module. With `write`, enforces module ownership and module-scoped API
+   * keys (RBAC-02..04); a refusal is audited (RBAC-06) in its own transaction, so it
+   * survives the 403.
+   */
+  async function loadModule(
+    request: FastifyRequest<{ Params: ModuleParams }>,
+    opts: { write?: boolean } = {}
+  ) {
+    const workspace = request.workspace!;
+    const principal = request.principal!;
+    const { module, allowed } = await withTenant(workspace.id, async (tx) => {
+      const module = await resolveModule(tx, request.params.moduleRef);
+      const allowed = opts.write
+        ? await canWriteModule(tx, principal, request.workspaceRole, module.id)
+        : canAccessModule(principal, module.id);
+      return { module, allowed };
+    });
+    if (!allowed) {
+      if (opts.write) {
+        await withTenant(workspace.id, (tx) =>
+          audit(tx, workspace.id, actor(request), {
+            action: 'module.unauthorized_attempt',
+            resourceType: 'remoteModule',
+            resourceId: module.id,
+            metadata: { module: module.slug, method: request.method, path: request.url },
+          })
+        );
+      }
+      throw new ForbiddenError(
+        principal.type === 'apiKey'
+          ? 'API key is not scoped to this module'
+          : `Only the owners of "${module.slug}" or workspace admins can change it`
+      );
     }
     return module;
   }
@@ -168,14 +205,23 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('workspace:read') },
     async (request) => {
       const m = await loadModule(request);
-      const killed = await withTenant(request.workspace!.id, (tx) =>
-        tx.moduleEnvState.findMany({ where: { remoteModuleId: m.id, disabled: true } })
-      );
+      const { killed, owners, canWrite } = await withTenant(request.workspace!.id, async (tx) => ({
+        killed: await tx.moduleEnvState.findMany({
+          where: { remoteModuleId: m.id, disabled: true },
+        }),
+        owners: await ownersOf(tx, m.id),
+        // Lets the dashboard hide actions the registry would refuse (RBAC-02).
+        canWrite:
+          mayDeploy(request) &&
+          (await canWriteModule(tx, request.principal!, request.workspaceRole, m.id)),
+      }));
       return {
         id: m.id,
         name: m.name,
         slug: m.slug,
         description: m.description,
+        owners,
+        canWrite,
         hostApp: { slug: m.hostApp.slug, name: m.hostApp.name },
         environments: m.hostApp.Environments.map((e) => {
           const state = killed.find((k) => k.environmentId === e.id);
@@ -189,6 +235,51 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           };
         }),
       };
+    }
+  );
+
+  // RBAC-01/05: module owners. Replacing them is an admin action.
+  fastify.get<{ Params: ModuleParams }>(
+    '/api/workspaces/:workspaceSlug/modules/:moduleRef/owners',
+    { preHandler: fastify.requireWorkspace('workspace:read') },
+    async (request) => {
+      const m = await loadModule(request);
+      return { owners: await withTenant(request.workspace!.id, (tx) => ownersOf(tx, m.id)) };
+    }
+  );
+
+  fastify.put<{ Params: ModuleParams }>(
+    '/api/workspaces/:workspaceSlug/modules/:moduleRef/owners',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request) => {
+      const { memberIds } = SetModuleOwnersSchema.parse(request.body);
+      const m = await loadModule(request);
+      const workspace = request.workspace!;
+      const owners = await withTenant(workspace.id, async (tx) => {
+        const members = await tx.workspaceMember.findMany({
+          where: { id: { in: memberIds }, workspaceId: workspace.id },
+        });
+        if (members.length !== new Set(memberIds).size) {
+          throw new BadRequestError('Unknown workspace member id');
+        }
+        await tx.moduleOwnership.deleteMany({ where: { remoteModuleId: m.id } });
+        await tx.moduleOwnership.createMany({
+          data: members.map((member) => ({
+            workspaceId: workspace.id,
+            remoteModuleId: m.id,
+            workspaceMemberId: member.id,
+          })),
+        });
+        const owners = await ownersOf(tx, m.id);
+        await audit(tx, workspace.id, actor(request), {
+          action: 'module.owners_update',
+          resourceType: 'remoteModule',
+          resourceId: m.id,
+          metadata: { module: m.slug, owners: owners.map((o) => o.email) },
+        });
+        return owners;
+      });
+      return { owners };
     }
   );
 
@@ -309,7 +400,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/workspaces/:workspaceSlug/modules/:moduleRef/upload-url',
     { preHandler: fastify.requireWorkspace('module:deploy') },
     async (request) => {
-      const module = await loadModule(request);
+      const module = await loadModule(request, { write: true });
       const workspace = request.workspace!;
       const storageConfig = await withTenant(workspace.id, (tx) =>
         tx.workspaceStorageConfig.findUnique({ where: { workspaceId: workspace.id } })
@@ -338,7 +429,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const body = DeployRequestSchema.parse(request.body);
-      const module = await loadModule(request);
+      const module = await loadModule(request, { write: true });
       const workspace = request.workspace!;
       const env =
         body.ephemeral && !body.dryRun
@@ -536,7 +627,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('module:deploy') },
     async (request) => {
       const body = RollbackRequestSchema.parse(request.body);
-      const module = await loadModule(request);
+      const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
 
       const { result, manifest, snapshotId } = await mutations.run(
@@ -621,7 +712,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       if (body.fromEnvironment === body.toEnvironment) {
         throw new BadRequestError('fromEnvironment and toEnvironment must differ');
       }
-      const module = await loadModule(request);
+      const module = await loadModule(request, { write: true });
       const from = findEnvironment(module, body.fromEnvironment);
       const to = findEnvironment(module, body.toEnvironment);
       const workspace = request.workspace!;
@@ -724,7 +815,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('module:deploy') },
     async (request) => {
       const body = KillSwitchRequestSchema.parse(request.body);
-      const module = await loadModule(request);
+      const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
       const workspace = request.workspace!;
 
@@ -789,7 +880,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('module:deploy') },
     async (request) => {
       const body = SetCanaryRequestSchema.parse(request.body);
-      const module = await loadModule(request);
+      const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
 
       const { result, manifest, snapshotId } = await mutations.run(
@@ -903,7 +994,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('module:deploy') },
     async (request) => {
       const body = CanaryActionRequestSchema.parse(request.body);
-      const module = await loadModule(request);
+      const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
 
       const { result, manifest, snapshotId } = await mutations.run(
@@ -959,7 +1050,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('module:deploy') },
     async (request) => {
       const body = CanaryActionRequestSchema.parse(request.body);
-      const module = await loadModule(request);
+      const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
       const { result, manifest, snapshotId } = await advanceRollout(
         { mutations },
@@ -977,7 +1068,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('module:deploy') },
     async (request) => {
       const body = CanaryActionRequestSchema.parse(request.body);
-      const module = await loadModule(request);
+      const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
 
       const { result, manifest, snapshotId } = await mutations.run(

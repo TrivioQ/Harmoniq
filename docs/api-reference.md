@@ -220,15 +220,19 @@ Copies the exact artifact (URL, integrity, metadata) active in `fromEnvironment`
 
 ### Other module endpoints
 
-| Endpoint                                                                       | Permission | Description                                     |
-| ------------------------------------------------------------------------------ | ---------- | ----------------------------------------------- |
-| `GET /api/workspaces/:ws/modules`                                              | read       | Modules with the active version per environment |
-| `GET /api/workspaces/:ws/modules/:moduleRef`                                   | read       | Module and its environments                     |
-| `GET /api/workspaces/:ws/modules/:moduleRef/versions?environment&cursor&limit` | read       | Deployment history, newest first                |
-| `POST /api/workspaces/:ws/modules`                                             | admin      | `{ hostApp, name, slug, description? }`         |
-| `POST /api/workspaces/:ws/modules/:moduleRef/upload-url`                       | deploy     | Pre-signed upload URL in the workspace bucket   |
+| Endpoint                                                                       | Permission | Description                                                          |
+| ------------------------------------------------------------------------------ | ---------- | -------------------------------------------------------------------- |
+| `GET /api/workspaces/:ws/modules`                                              | read       | Modules with the active version per environment                      |
+| `GET /api/workspaces/:ws/modules/:moduleRef`                                   | read       | Module and its environments                                          |
+| `GET /api/workspaces/:ws/modules/:moduleRef/versions?environment&cursor&limit` | read       | Deployment history, newest first                                     |
+| `POST /api/workspaces/:ws/modules`                                             | admin      | `{ hostApp, name, slug, description? }`                              |
+| `POST /api/workspaces/:ws/modules/:moduleRef/upload-url`                       | deploy     | Pre-signed upload URL in the workspace bucket                        |
+| `GET /api/workspaces/:ws/modules/:moduleRef/owners`                            | read       | Module owners (RBAC-01)                                              |
+| `PUT /api/workspaces/:ws/modules/:moduleRef/owners`                            | admin      | `{ memberIds }` replaces the owners; `[]` makes the module ownerless |
 
 All changes to a frozen environment return `423`. Manifest reads are never blocked.
+
+**Module ownership** (RBAC-02/03): when a module has owners, only they and workspace admins/owners can deploy, roll back, promote, run canaries, use the kill switch or schedule those for it; other developers get `403` (audited as `module.unauthorized_attempt`). Modules without owners are open to every developer. `GET …/modules/:moduleRef` returns `owners` and `canWrite` for the caller.
 
 ---
 

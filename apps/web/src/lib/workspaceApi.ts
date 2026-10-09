@@ -92,6 +92,10 @@ export interface ModuleDetail {
   name: string;
   slug: string;
   description: string | null;
+  /** RBAC-01: module owners (empty: every developer may change it). */
+  owners: Array<{ memberId: string; userId: string; email: string; name: string | null }>;
+  /** Whether you may deploy, roll back or otherwise change this module. */
+  canWrite: boolean;
   hostApp: { slug: string; name: string };
   environments: Array<{
     id: string;

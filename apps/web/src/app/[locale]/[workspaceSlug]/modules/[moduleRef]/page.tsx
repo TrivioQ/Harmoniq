@@ -13,6 +13,7 @@ import {
   rollbackAction,
   setCanaryAction,
   setKillSwitchAction,
+  setModuleOwnersAction,
 } from '../../actions';
 
 const statusStyle: Record<string, string> = {
@@ -61,7 +62,10 @@ export default async function ModuleDetailPage(props: {
   const active = versions.find((v) => v.status === 'active');
   const canary = versions.find((v) => v.status === 'canary');
 
-  const canDeploy = roleAtLeast(workspace.role, 'developer');
+  // RBAC-02: the registry says whether you may change this module (owners, admins).
+  const canDeploy = module.canWrite;
+  const isAdmin = roleAtLeast(workspace.role, 'admin');
+  const members = isAdmin ? (await workspaceApi.members(workspaceSlug)).members : [];
   // PRO-05: promotion is offered to admins and owners.
   const canPromote = roleAtLeast(workspace.role, 'admin') && !!active;
   const promoteTargets = module.environments.filter((e) => e.slug !== env.slug);
@@ -307,6 +311,43 @@ export default async function ModuleDetailPage(props: {
           <p className="text-sm text-muted-foreground">{t('canaryNone')}</p>
         )}
       </section>
+
+      <details className="rounded-xl border bg-card p-4" open={module.owners.length > 0}>
+        <summary className="cursor-pointer text-sm font-medium">
+          {t('ownersTitle')}:{' '}
+          <span className="font-normal text-muted-foreground">
+            {module.owners.length
+              ? module.owners.map((o) => o.name ?? o.email).join(', ')
+              : t('ownersNone')}
+          </span>
+        </summary>
+        <p className="mt-2 text-sm text-muted-foreground">{t('ownersHint')}</p>
+        {isAdmin && (
+          <ActionForm
+            action={setModuleOwnersAction.bind(null, workspaceSlug, module.id)}
+            submitLabel={t('ownersSave')}
+            variant="outline"
+            className="mt-3 space-y-2"
+          >
+            <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              <legend className="sr-only">{t('ownersTitle')}</legend>
+              {members
+                .filter((m) => m.status === 'active')
+                .map((m) => (
+                  <label key={m.id} className="flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      name="owner"
+                      value={m.id}
+                      defaultChecked={module.owners.some((o) => o.memberId === m.id)}
+                    />
+                    {m.user.name ?? m.user.email}
+                  </label>
+                ))}
+            </fieldset>
+          </ActionForm>
+        )}
+      </details>
 
       {canPromote && promoteTargets.length > 0 && (
         <section className="rounded-xl border bg-card p-4">

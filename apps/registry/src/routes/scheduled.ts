@@ -7,7 +7,7 @@ import {
   NotFoundError,
 } from '@harmoniq/core/dist/errors/AppError';
 import { CreateScheduledOperationSchema } from '@harmoniq/core/dist/schemas/ScheduledOperationSchema';
-import { canAccessModule } from '../plugins/authenticate';
+import { canWriteModule } from '../services/moduleAccess';
 import { audit } from '../services/audit';
 import { resolveModule } from '../services/modules';
 import { environmentOf, toRequest } from '../services/scheduler';
@@ -70,8 +70,13 @@ const scheduledRoutes: FastifyPluginAsync = async (fastify) => {
 
       const created = await withTenant(workspace.id, async (tx) => {
         const module = await resolveModule(tx, spec.module);
-        if (!canAccessModule(principal, module.id)) {
-          throw new ForbiddenError('API key is not scoped to this module');
+        // The operation will need write access to the module (RBAC-02); so does scheduling it.
+        if (!(await canWriteModule(tx, principal, request.workspaceRole, module.id))) {
+          throw new ForbiddenError(
+            principal.type === 'apiKey'
+              ? 'API key is not scoped to this module'
+              : `Only the owners of "${module.slug}" or workspace admins can change it`
+          );
         }
         // Stored by id so a later slug change or a same-named module can't redirect it.
         const call = toRequest(workspace.slug, { ...spec, module: module.id });

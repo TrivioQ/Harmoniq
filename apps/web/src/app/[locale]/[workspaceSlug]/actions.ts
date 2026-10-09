@@ -442,3 +442,22 @@ export async function cancelScheduledAction(workspace: string, id: string, _prev
     (t) => ({ status: 'success', message: t('scheduleCancelled') })
   );
 }
+
+// ─── Module owners (RBAC-01) ────────────────────────────────────────────────
+
+export async function setModuleOwnersAction(
+  workspace: string,
+  moduleRef: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const memberIds = form.getAll('owner').map(String);
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/modules/${enc(moduleRef)}/owners`, {
+        method: 'PUT',
+        body: { memberIds },
+      }),
+    (t) => ({ status: 'success', message: t('ownersUpdated') })
+  );
+}

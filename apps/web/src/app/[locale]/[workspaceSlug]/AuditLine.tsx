@@ -29,6 +29,8 @@ const KNOWN = [
   'module.auto_rollback',
   'module.disable',
   'module.enable',
+  'module.owners_update',
+  'module.unauthorized_attempt',
   'schedule.create',
   'schedule.cancel',
   'schedule.executed',

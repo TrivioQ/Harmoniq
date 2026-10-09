@@ -190,7 +190,8 @@
     "alertDeleted": "Regla de alerta eliminada.",
     "moduleDisabled": "Módulo desactivado. Los hosts dejan de cargarlo en su próxima lectura del manifiesto.",
     "moduleEnabled": "Módulo activado de nuevo.",
-    "scheduleCancelled": "Operación programada cancelada."
+    "scheduleCancelled": "Operación programada cancelada.",
+    "ownersUpdated": "Responsables del módulo actualizados."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -229,7 +230,9 @@
       "schedule_create": "Programó {name} de {module} para {environment}",
       "schedule_cancel": "Canceló {name} programado de {module}",
       "schedule_executed": "Ejecutó {name} programado de {module} en {environment}",
-      "schedule_failed": "Falló {name} programado de {module} en {environment}"
+      "schedule_failed": "Falló {name} programado de {module} en {environment}",
+      "module_owners_update": "Cambió los responsables de {module}",
+      "module_unauthorized_attempt": "Se le denegó un cambio en {module} (no es responsable)"
     },
     "systemActor": "automático"
   },
@@ -293,7 +296,11 @@
     "killHint": "Al desactivarlo, los hosts de {environment} dejan de cargar este módulo en su próxima lectura del manifiesto, aunque el entorno esté congelado. Los hosts deberían mostrar una alternativa.",
     "killDisable": "Desactivar módulo",
     "killDisableConfirm": "¿Desactivar {module} en {environment} ahora?",
-    "killReason": "Motivo, p. ej. errores en el pago tras un cambio"
+    "killReason": "Motivo, p. ej. errores en el pago tras un cambio",
+    "ownersTitle": "Responsables del módulo",
+    "ownersNone": "ninguno (cualquier desarrollador puede cambiar este módulo)",
+    "ownersHint": "Los responsables y los administradores del espacio pueden desplegar, revertir, promover y usar canaries con este módulo. Sin responsables, cualquier desarrollador puede.",
+    "ownersSave": "Guardar responsables"
   },
   "EnvironmentHistory": {
     "back": "Entornos",
