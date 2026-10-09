@@ -43,6 +43,20 @@ None.
 
 ## Change History
 
+### 2026-10-09 — SDK survives registry outages (M2.2)
+
+**Type:** feature
+**PR / Branch:** feat/m2-delivery
+**Refs:** product-analysis §5.1
+
+#### What changed
+
+`@harmoniq/client` tries `sources` in order (`cdnBaseUrl` → CDN copy, then registry) with per-source ETags, persists the last good manifest (`localStorage` by default), and on a cold start with every source down uses the persisted copy or a bundled `fallbackManifest`, emitting `manifestStale`. Polling keeps retrying and switches back to the network copy when a source recovers.
+
+#### Testing
+
+5 new client tests (CDN first, registry fallback, persisted boot and recovery, bundled fallback, wrong-environment copy ignored). Verified against a running registry reading the `/static` copy.
+
 ### 2026-10-09 — Published manifests, import maps, Native Federation (M2.1, M2.3)
 
 **Type:** feature

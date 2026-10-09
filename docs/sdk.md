@@ -25,12 +25,16 @@ const entry = client.getModuleEntry('checkout');
 // { url: 'https://cdn.acme.com/checkout/1.2.3/remoteEntry.js', integrity: 'sha384-…', version: '1.2.3' }
 ```
 
-| Option           | Default | Description                                                       |
-| ---------------- | ------- | ----------------------------------------------------------------- |
-| `pollIntervalMs` | off     | Re-fetch interval. Uses ETags, so unchanged manifests cost a 304. |
-| `maxBackoffMs`   | 60000   | Cap for exponential backoff (with jitter) after failed polls      |
-| `timeoutMs`      | 5000    | Per-request timeout                                               |
-| `fetch`          | global  | Custom fetch implementation                                       |
+| Option             | Default        | Description                                                                                             |
+| ------------------ | -------------- | ------------------------------------------------------------------------------------------------------- |
+| `cdnBaseUrl`       | —              | Read the published copy from your CDN first, the registry second (stable variant only)                  |
+| `sources`          | registry       | Explicit manifest URLs to try in order (overrides `cdnBaseUrl`)                                         |
+| `persist`          | `localStorage` | Where the last good manifest is kept across page loads; `false` disables                                |
+| `fallbackManifest` | —              | Manifest bundled with the build (`harmoniq manifest pull`), used when nothing is reachable or persisted |
+| `pollIntervalMs`   | off            | Re-fetch interval. Uses ETags, so unchanged manifests cost a 304.                                       |
+| `maxBackoffMs`     | 60000          | Cap for exponential backoff (with jitter) after failed polls                                            |
+| `timeoutMs`        | 5000           | Per-request timeout                                                                                     |
+| `fetch`            | global         | Custom fetch implementation                                                                             |
 
 | Method                           | Returns                                                                                      |
 | -------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -44,9 +48,24 @@ const entry = client.getModuleEntry('checkout');
 | `on(event, fn)`                  | Subscribe; returns an unsubscribe function                                                   |
 | `destroy()`                      | Stop polling and remove listeners                                                            |
 
-**Events** (`EVENTS.*`): `manifestUpdate` (only when the content changes), `variantAssigned` (first assignment and changes), `error` (each failed fetch).
+**Events** (`EVENTS.*`): `manifestUpdate` (only when the content changes), `variantAssigned` (first assignment and changes), `manifestStale` (serving a persisted or bundled copy), `error` (each failed fetch).
 
-**Failures**: if a poll fails, the last manifest stays in use (stale beats broken) and polling backs off. Only the very first load can fail `init()`.
+**Failures**: sources are tried in order. If all fail, the last manifest stays in use (stale beats broken) and polling backs off. On a cold start with every source down, `init()` uses the persisted copy, then `fallbackManifest`, and emits `manifestStale`; `getSource()` reports `network`, `persisted` or `fallback`. `init()` rejects only when none of these exist.
+
+### Surviving a registry outage
+
+```ts
+import fallbackManifest from './harmoniq-fallback.json'; // harmoniq manifest pull --env production --out …
+
+new HarmoniqClient({
+  registryUrl: 'https://registry.acme.dev',
+  cdnBaseUrl: 'https://cdn.acme.dev', // in front of the bucket the registry publishes to
+  fallbackManifest,
+  workspaceSlug: 'acme',
+  hostApp: 'consumer-portal',
+  environment: 'production',
+});
+```
 
 ## React
 

@@ -41,6 +41,7 @@ const options = (fetchImpl: typeof fetch, pollIntervalMs?: number) => ({
   environment: 'production',
   fetch: fetchImpl,
   pollIntervalMs,
+  persist: false as const,
 });
 
 describe('HarmoniqClient', () => {
@@ -109,7 +110,7 @@ describe('HarmoniqClient', () => {
     const { fetchImpl } = fakeRegistry([new Error('offline'), manifest('1.0.0')]);
     const client = new HarmoniqClient(options(fetchImpl));
     await expect(client.init()).rejects.toThrow('offline');
-    expect(client.getError()?.message).toBe('offline');
+    expect(client.getError()?.message).toContain('offline');
     await client.init();
     expect(client.getError()).toBeNull();
     expect(client.getManifest()).not.toBeNull();
@@ -163,5 +164,98 @@ describe('HarmoniqClient', () => {
     off();
     await client.init();
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  describe('resilience (M2.2)', () => {
+    const CDN = 'https://cdn.test/manifests/acme/portal/production.json';
+    const REGISTRY = 'http://registry.test/api/manifest/acme/portal/production';
+
+    /** Routes by URL: each entry is the response for that source (Error = network failure). */
+    function routed(routes: Record<string, Manifest | number | Error>) {
+      const calls: string[] = [];
+      const fetchImpl = vi.fn(async (url: string) => {
+        calls.push(url);
+        const r = routes[url];
+        if (r instanceof Error) throw r;
+        if (typeof r === 'number') return new Response(null, { status: r });
+        return new Response(JSON.stringify(r), { status: 200 });
+      }) as unknown as typeof fetch;
+      return { fetchImpl, calls, routes };
+    }
+
+    const memoryStore = () => {
+      const data = new Map<string, string>();
+      return {
+        getItem: (k: string) => data.get(k) ?? null,
+        setItem: (k: string, v: string) => void data.set(k, v),
+        data,
+      };
+    };
+
+    it('reads the CDN copy first', async () => {
+      const { fetchImpl, calls } = routed({
+        [CDN]: manifest('1.0.0'),
+        [REGISTRY]: manifest('9.9.9'),
+      });
+      const client = new HarmoniqClient({ ...options(fetchImpl), cdnBaseUrl: 'https://cdn.test/' });
+      await client.init();
+      expect(calls).toEqual([CDN]);
+      expect(client.getModuleEntry('checkout')?.version).toBe('1.0.0');
+      expect(client.getSource()).toBe('network');
+    });
+
+    it('falls back to the registry when the CDN fails', async () => {
+      const { fetchImpl, calls } = routed({ [CDN]: 503, [REGISTRY]: manifest('1.0.0') });
+      const client = new HarmoniqClient({ ...options(fetchImpl), cdnBaseUrl: 'https://cdn.test' });
+      await client.init();
+      expect(calls).toEqual([CDN, REGISTRY]);
+      expect(client.getModuleEntry('checkout')?.version).toBe('1.0.0');
+    });
+
+    it('boots from the persisted manifest when every source is down, then recovers', async () => {
+      const store = memoryStore();
+      // A previous page load saved the manifest.
+      const first = routed({ [REGISTRY]: manifest('1.0.0') });
+      await new HarmoniqClient({ ...options(first.fetchImpl), persist: store }).init();
+
+      const offline = routed({ [REGISTRY]: new Error('offline') });
+      const client = new HarmoniqClient({ ...options(offline.fetchImpl, 1000), persist: store });
+      const stale = vi.fn();
+      client.on(EVENTS.manifestStale, stale);
+      await client.init();
+      expect(client.getSource()).toBe('persisted');
+      expect(client.getModuleEntry('checkout')?.version).toBe('1.0.0');
+      expect(stale).toHaveBeenCalledWith({ source: 'persisted', generatedAt: expect.any(String) });
+
+      offline.routes[REGISTRY] = manifest('1.1.0'); // the registry comes back
+      vi.spyOn(Math, 'random').mockReturnValue(0.5);
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(client.getSource()).toBe('network');
+      expect(client.getModuleEntry('checkout')?.version).toBe('1.1.0');
+      client.destroy();
+    });
+
+    it('uses the bundled fallback when nothing is reachable or persisted', async () => {
+      const { fetchImpl } = routed({ [REGISTRY]: new Error('offline') });
+      const client = new HarmoniqClient({
+        ...options(fetchImpl),
+        fallbackManifest: manifest('0.9.0'),
+      });
+      await client.init();
+      expect(client.getSource()).toBe('fallback');
+      expect(client.getModuleEntry('checkout')?.version).toBe('0.9.0');
+    });
+
+    it('ignores a persisted manifest for another environment', async () => {
+      const store = memoryStore();
+      store.setItem(
+        'harmoniq:manifest:acme:portal:production',
+        JSON.stringify(manifest('1.0.0', { environment: 'staging' }))
+      );
+      const { fetchImpl } = routed({ [REGISTRY]: new Error('offline') });
+      await expect(
+        new HarmoniqClient({ ...options(fetchImpl), persist: store }).init()
+      ).rejects.toThrow();
+    });
   });
 });
