@@ -33,6 +33,29 @@ This feature completes the MVP phase of the Harmoniq Registry by ensuring it is 
 
 ## Change History
 
+### 2026-10-09 — Working self-hosting: Dockerfiles, demo Compose, image CI
+
+**Type:** feature
+**PR / Branch:** feat/m1-core-loop
+**Refs:** DX-01, DX-06; product-analysis §5.9 (M1.7)
+
+#### What changed
+
+- `apps/registry/Dockerfile` (also runs migrations) and `apps/web/Dockerfile` (Next.js standalone server with `outputFileTracingRoot` at the repo root).
+- `docker/docker-compose.yml`: Postgres/Redis by default; profile `app` adds a one-shot `migrate` (migrations + optional seed), the registry and the dashboard with health-gated startup. `pnpm run docker:demo` / `docker:demo:down`.
+- Dashboard reads its public URL at runtime (`APP_URL`; `NEXT_PUBLIC_*` is inlined at build) and its security posture from `HARMONIQ_ENV`, so the production Next server can run the development demo.
+- Registry logs a first-boot hint pointing to `/admin/setup`.
+- CI builds both images on every push/PR and publishes to GHCR on `v*` tags.
+- `docs/self-hosting.md` rewritten for the actual setup (two DB roles, every env var, first boot).
+
+#### Testing
+
+Built both images and ran the demo: migrations, seed, pg-boss and jobs started; all dashboard pages rendered; `scripts/e2e-core-loop.sh` passed against the containerized registry.
+
+#### Known limitations
+
+The registry image (~1.3 GB) ships the full workspace including dev dependencies (needed for migrations and seeding); a slimmer runtime image is a follow-up.
+
 ### 2026-09-13 — Build and Lint Remediation
 
 **Type:** bugfix

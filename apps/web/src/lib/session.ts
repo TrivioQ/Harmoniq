@@ -1,6 +1,6 @@
 import { jwtVerify } from 'jose';
 import type { SessionResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
-import { getJwtKey } from './env';
+import { getJwtKey, isProductionEnv } from './env';
 
 // Sessions are issued by the registry; the dashboard only stores them in HttpOnly cookies.
 export const ACCESS_COOKIE = 'hq_session';
@@ -20,7 +20,7 @@ interface CookieWriter {
 
 const baseCookie = () => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  secure: isProductionEnv(),
   sameSite: 'lax' as const,
   path: '/',
 });

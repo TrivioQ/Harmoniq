@@ -24,7 +24,9 @@
     "version": "changeset version",
     "prepare": "husky",
     "changelog:check": "bash scripts/changelog-check.sh",
-    "db:deploy": "pnpm --filter @harmoniq/db db:deploy"
+    "db:deploy": "pnpm --filter @harmoniq/db db:deploy",
+    "docker:demo": "docker compose -f docker/docker-compose.yml --profile app up -d --build",
+    "docker:demo:down": "docker compose -f docker/docker-compose.yml --profile app down"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",

@@ -22,7 +22,15 @@ Harmoniq is an open-source, self-hostable **Micro Frontend Control Plane** that 
 - [pnpm](https://pnpm.io/) (>= 9)
 - [Docker](https://www.docker.com/) (for local database & services)
 
-### Quick Start
+### Try it with Docker
+
+```bash
+pnpm run docker:demo
+```
+
+Builds and starts everything (Postgres, Redis, registry on `:4000`, dashboard on `:3000`) with a demo workspace. Sign in at http://localhost:3000 with **Development sign-in** as `demo@harmoniq.dev`. See [Self-Hosting](./docs/self-hosting.md) for production.
+
+### Quick Start (development)
 
 1. **Clone the repository:**
 
