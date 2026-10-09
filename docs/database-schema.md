@@ -105,24 +105,25 @@ User ─────────────────── WorkspaceMember �
 
 ### `ModuleVersion`
 
-| Column           | Type        | Notes                                      |
-| ---------------- | ----------- | ------------------------------------------ |
-| `id`             | `CUID`      | Primary key                                |
-| `workspaceId`    | `CUID`      | FK → Workspace (RLS key)                   |
-| `remoteModuleId` | `CUID`      | FK → RemoteModule                          |
-| `environmentId`  | `CUID`      | FK → Environment                           |
-| `version`        | `String`    | SemVer or arbitrary tag                    |
-| `url`            | `String`    | Public CDN URL of the bundle               |
-| `integrity`      | `String`    | SHA-256 hash of the bundle                 |
-| `storagePath`    | `String?`   | Path in IStorage (null if external CDN)    |
-| `status`         | `Enum`      | `active \| inactive \| canary \| orphaned` |
-| `trafficPercent` | `Int?`      | 1–99; set when status = canary             |
-| `deployedBy`     | `String`    | User ID or API key ID                      |
-| `deployedByType` | `Enum`      | `user \| apiKey`                           |
-| `commitSha`      | `String?`   | Optional git commit reference              |
-| `metadata`       | `Json?`     | Arbitrary key-value pairs                  |
-| `deployedAt`     | `DateTime`  |                                            |
-| `deletedAt`      | `DateTime?` | Soft-delete timestamp; set by GC           |
+| Column           | Type        | Notes                                                                                     |
+| ---------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| `id`             | `CUID`      | Primary key                                                                               |
+| `workspaceId`    | `CUID`      | FK → Workspace (RLS key)                                                                  |
+| `remoteModuleId` | `CUID`      | FK → RemoteModule                                                                         |
+| `environmentId`  | `CUID`      | FK → Environment                                                                          |
+| `version`        | `String`    | SemVer or arbitrary tag                                                                   |
+| `url`            | `String`    | Public CDN URL of the bundle                                                              |
+| `integrity`      | `String`    | SHA-256 hash of the bundle                                                                |
+| `storagePath`    | `String?`   | Path in IStorage (null if external CDN)                                                   |
+| `status`         | `Enum`      | `active \| inactive \| canary \| orphaned`                                                |
+| `trafficPercent` | `Int?`      | 1–99; set when status = canary                                                            |
+| `deployedBy`     | `String`    | User ID or API key ID                                                                     |
+| `deployedByType` | `Enum`      | `user \| apiKey`                                                                          |
+| `commitSha`      | `String?`   | Optional git commit reference                                                             |
+| `metadata`       | `Json?`     | Arbitrary key-value pairs                                                                 |
+| `deployedAt`     | `DateTime`  |                                                                                           |
+| `activatedAt`    | `DateTime?` | Last time it became active; null for aborted canaries, which "rollback to previous" skips |
+| `deletedAt`      | `DateTime?` | Soft-delete timestamp; set by GC                                                          |
 
 **Indexes**: `(workspaceId, remoteModuleId, environmentId, status)`, `(deletedAt)`  
 **RLS**: enabled, policy on `workspaceId`
@@ -191,18 +192,18 @@ User ─────────────────── WorkspaceMember �
 
 ### `AuditEvent`
 
-| Column         | Type       | Notes                                |
-| -------------- | ---------- | ------------------------------------ |
-| `id`           | `CUID`     | Primary key                          |
-| `workspaceId`  | `CUID`     | FK → Workspace (RLS key)             |
-| `actorId`      | `String`   | User ID or ApiKey ID                 |
-| `actorType`    | `Enum`     | `user \| apiKey`                     |
-| `action`       | `String`   | e.g. `module.deploy`, `key.revoke`   |
-| `resourceType` | `String`   | e.g. `ModuleVersion`, `ApiKey`       |
-| `resourceId`   | `String`   | ID of the affected resource          |
-| `metadata`     | `Json?`    | Contextual data (version, env, etc.) |
-| `ip`           | `String?`  | Requester IP                         |
-| `createdAt`    | `DateTime` | Immutable                            |
+| Column         | Type       | Notes                                                   |
+| -------------- | ---------- | ------------------------------------------------------- |
+| `id`           | `CUID`     | Primary key                                             |
+| `workspaceId`  | `CUID`     | FK → Workspace (RLS key)                                |
+| `actorId`      | `String`   | User ID or ApiKey ID                                    |
+| `actorType`    | `Enum`     | `user \| apiKey \| system` (jobs such as auto-rollback) |
+| `action`       | `String`   | e.g. `module.deploy`, `key.revoke`                      |
+| `resourceType` | `String`   | e.g. `ModuleVersion`, `ApiKey`                          |
+| `resourceId`   | `String`   | ID of the affected resource                             |
+| `metadata`     | `Json?`    | Contextual data (version, env, etc.)                    |
+| `ip`           | `String?`  | Requester IP                                            |
+| `createdAt`    | `DateTime` | Immutable                                               |
 
 **RLS**: enabled, policy on `workspaceId`  
 **No soft-delete**: this table is append-only and has no `deletedAt` column.  
@@ -332,18 +333,25 @@ prisma.$use(async (params, next) => {
 
 ### `AlertRule`
 
-| Column           | Type       | Notes                                                |
-| ---------------- | ---------- | ---------------------------------------------------- |
-| `id`             | `CUID`     | Primary key                                          |
-| `workspaceId`    | `CUID`     | FK → Workspace (RLS key)                             |
-| `remoteModuleId` | `CUID?`    | Null = all modules                                   |
-| `environmentId`  | `CUID?`    | Null = all environments                              |
-| `condition`      | `String`   | e.g. `"canary_error_rate"`                           |
-| `threshold`      | `Float`    | Trigger value                                        |
-| `action`         | `String`   | `"webhook" \| "auto_rollback"`                       |
-| `actionConfig`   | `Json`     | `{ "url": "..." }` or `{ "targetVersionId": "..." }` |
-| `enabled`        | `Boolean`  | Default: true                                        |
-| `createdAt`      | `DateTime` |                                                      |
+Evaluated every minute by `alert.evaluate` (ALT-05).
+
+| Column                                                         | Type       | Notes                                                                                                                          |
+| -------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                                                           | `CUID`     | Primary key                                                                                                                    |
+| `workspaceId`                                                  | `CUID`     | FK → Workspace (RLS key)                                                                                                       |
+| `name`                                                         | `String`   |                                                                                                                                |
+| `remoteModuleId`                                               | `CUID?`    | FK → RemoteModule (cascade); required for module conditions                                                                    |
+| `environmentId`                                                | `CUID?`    | FK → Environment (cascade); required for module conditions                                                                     |
+| `condition`                                                    | `String`   | `canary_error_rate`, `canary_error_rate_delta`, `canary_load_p95ms`, `load_success_rate`, `load_p95ms`, `webhook_failure_rate` |
+| `threshold`                                                    | `Float`    | Fraction (rates) or milliseconds                                                                                               |
+| `action`                                                       | `String`   | `"webhook" \| "auto_rollback"`                                                                                                 |
+| `actionConfig`                                                 | `Json`     | Reserved                                                                                                                       |
+| `windowMinutes`, `minSamples`                                  | `Int`      | Defaults 5 and 20; no decision below `minSamples`                                                                              |
+| `cooldownMinutes`                                              | `Int`      | Default 15; minimum time between firings                                                                                       |
+| `enabled`                                                      | `Boolean`  | Default: true                                                                                                                  |
+| `state`                                                        | `String`   | `ok` or `firing`                                                                                                               |
+| `lastValue`, `lastEvaluatedAt`, `lastTriggeredAt`, `lastError` |            | Last evaluation; `lastError` explains a failed auto-rollback                                                                   |
+| `createdAt`                                                    | `DateTime` |                                                                                                                                |
 
 **RLS**: enabled, policy on `workspaceId`
 
@@ -425,7 +433,7 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 | `p50LoadMs`, `p95LoadMs`    | `Int?`     | Over successful loads    |
 
 **Unique**: `(remoteModuleId, environmentId, variant, hour)`  
-**RLS**: enabled, policy on `workspaceId`  
+**RLS**: enabled, policy on `workspaceId`
 
 ---
 

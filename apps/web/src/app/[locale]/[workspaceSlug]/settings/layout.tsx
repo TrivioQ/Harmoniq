@@ -26,6 +26,7 @@ export default async function SettingsLayout(props: {
               keys: t('apiKeys'),
               members: t('members'),
               webhooks: t('webhooks'),
+              alerts: t('alerts'),
             }}
           />
           <div className="min-w-0">{props.children}</div>

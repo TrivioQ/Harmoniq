@@ -120,6 +120,7 @@ model Environment {
   ManifestSnapshots   ManifestSnapshot[]
   ModuleHealthEvents  ModuleHealthEvent[]
   ModuleHealthRollups ModuleHealthRollup[]
+  AlertRules          AlertRule[]
 
   @@unique([hostAppId, slug])
   @@index([ephemeral, expiresAt])
@@ -141,6 +142,7 @@ model RemoteModule {
   ModuleOwnerships    ModuleOwnership[]
   ModuleHealthEvents  ModuleHealthEvent[]
   ModuleHealthRollups ModuleHealthRollup[]
+  AlertRules          AlertRule[]
 
   @@unique([hostAppId, slug])
   @@index([workspaceId, slug])
@@ -156,6 +158,8 @@ enum ModuleVersionStatus {
 enum ActorType {
   user
   apiKey
+  /// Background jobs, e.g. an alert's auto-rollback.
+  system
 }
 
 model ModuleVersion {
@@ -180,6 +184,9 @@ model ModuleVersion {
   rolloutSchedule  Json?
   currentBandIndex Int?
   deployedAt       DateTime            @default(now())
+  /// When the version last became the active one. Never set for a canary that was
+  /// aborted, so "roll back to the previous version" skips it.
+  activatedAt      DateTime?
   deletedAt        DateTime?
   workspace        Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   remoteModule     RemoteModule        @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
@@ -357,18 +364,37 @@ model ModuleOwnership {
   @@unique([remoteModuleId, workspaceMemberId])
 }
 
+/// ALT-01..05: evaluated every minute against module health (or webhook deliveries).
 model AlertRule {
-  id             String    @id @default(cuid())
-  workspaceId    String
-  remoteModuleId String?
-  environmentId  String?
-  condition      String
-  threshold      Float
-  action         String
-  actionConfig   Json
-  enabled        Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  workspaceId     String
+  name            String        @default("")
+  remoteModuleId  String?
+  environmentId   String?
+  condition       String
+  threshold       Float
+  /// `webhook` or `auto_rollback`.
+  action          String
+  actionConfig    Json
+  windowMinutes   Int           @default(5)
+  /// No decision below this many samples in the window.
+  minSamples      Int           @default(20)
+  /// Minimum time between two firings, against flapping.
+  cooldownMinutes Int           @default(15)
+  enabled         Boolean       @default(true)
+  /// `ok` or `firing`.
+  state           String        @default("ok")
+  lastValue       Float?
+  lastEvaluatedAt DateTime?
+  lastTriggeredAt DateTime?
+  /// Why the last action failed (e.g. the environment was frozen).
+  lastError       String?
+  createdAt       DateTime      @default(now())
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  remoteModule    RemoteModule? @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
+  environment     Environment?  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
 }
 
 model ManifestSnapshot {

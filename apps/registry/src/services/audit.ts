@@ -22,8 +22,8 @@ export function audit(
   return tx.auditEvent.create({
     data: {
       workspaceId,
-      // `system` actions (jobs, auto-rollback) are recorded as API-key-less service actors.
-      actorType: actor.principal.type === 'user' ? 'user' : 'apiKey',
+      // `system`: background jobs such as an alert's auto-rollback.
+      actorType: actor.principal.type,
       actorId:
         actor.principal.type === 'system' ? `system:${actor.principal.id}` : actor.principal.id,
       action: event.action,

@@ -40,6 +40,7 @@ See [`docs/requirements.md §5.4`](../requirements.md).
 - **Caching.** The cached stable manifest carries the running canaries (not part of the public body), so assignment needs no database on a cache hit. Each set of canary modules a user can get is built once and cached under `manifest:{ws}:{host}:{env}:canary-<hash of version ids>`, at most 2^n per environment; invalidation already clears every variant. The per-user `cohortId` is set on the response, and canary responses are `Cache-Control: private`.
 - **Pipeline.** Canary start, traffic changes, promote and abort run through `ManifestMutations` like every other change: freeze check (423), audit event, snapshot of the stable manifest, cache refresh, webhooks, CDN publish.
 - **Health.** Host apps post load outcomes to a public, rate-limited endpoint; only versions live in the environment are accepted, and the variant is derived from the version (a client can't mislabel canary data). Raw events (24 h) answer the 5-minute window queries; a job rolls them up hourly every 5 minutes (30 days) for sparklines. The live-version lookup is cached for 30 s per replica and re-read when a report names an unknown version, so a fresh canary's first reports aren't dropped.
+- **Alerts.** `alert.evaluate` runs every minute (pg-boss runs a schedule once across replicas). A rule needs `minSamples` in its window to decide; it fires on the `ok` → `firing` change only, respects a cooldown, and resolves when the metric recovers or the data runs out. Auto-rollback goes through `ManifestMutations` as actor `system`, so it is frozen-environment-aware, audited, snapshotted and published like any change.
 - **CDN and import maps** stay stable-only: a CDN can't vary by user, and browsers load import maps without custom headers. The SDK therefore asks the registry first whenever it has a user id, and falls back to the CDN.
 
 ### Deviation: `harmoniq_canary` cookie (CAN-02)
@@ -53,6 +54,22 @@ YES (pre-1.0): `CanaryConfigSchema` was removed from `@harmoniq/core` in favour 
 ---
 
 ## Change History
+
+### 2026-10-09 — Alerts and auto-rollback (M3.4)
+
+**Type:** feature + fix
+**PR / Branch:** feat/m3-progressive
+**Refs:** ALT-01 – ALT-05, HLT-05
+
+#### What changed
+
+- Alert rules API and dashboard page (Settings → Alerts); the `alert.evaluate` job replaces the stub. Conditions on canary error rate, canary-vs-stable delta, canary p95, overall success rate and p95, and webhook failure rate.
+- `auto_rollback` aborts the canary or rolls the module back, as `ActorType.system` (new enum value), with `module.auto_rollback` audits and `canary.auto_rolled_back` / `module.auto_rolled_back` webhooks; `alert.triggered` / `alert.resolved` events. The webhook settings page lists every event, including canary and alert events.
+- Fix: "roll back to the previous version" (manual `previous: true` and auto-rollback) could pick an aborted canary, which had never served everyone. `ModuleVersion.activatedAt` records activations; previous-version lookups require it.
+
+#### Testing
+
+`alerts.test.ts`: validation and admin-only writes; a failing canary aborted exactly once with a `system` audit, then resolved, cooldown honoured; a module-wide rollback to the last version that was active; a freeze blocking the rollback while the alert still fires. `canary.test.ts`: manual rollback never lands on an aborted canary (fails without the fix). Alerts page exercised in headless Chrome (create, list, disable, audit line).
 
 ### 2026-10-09 — Error-tracker tagging (M3.3)
 

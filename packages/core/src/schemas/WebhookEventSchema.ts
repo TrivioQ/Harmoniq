@@ -13,6 +13,9 @@ export const WebhookEventNameSchema = z.enum([
   'canary.promoted',
   'canary.rolled_back',
   'canary.auto_rolled_back',
+  'module.auto_rolled_back',
+  'alert.triggered',
+  'alert.resolved',
   'env.frozen',
   'env.unfrozen',
 ]);

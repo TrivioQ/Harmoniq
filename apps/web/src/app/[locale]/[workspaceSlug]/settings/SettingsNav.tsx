@@ -7,7 +7,7 @@ export function SettingsNav({
   labels,
 }: {
   workspaceSlug: string;
-  labels: { storage: string; keys: string; members: string; webhooks: string };
+  labels: { storage: string; keys: string; members: string; webhooks: string; alerts: string };
 }) {
   const pathname = usePathname();
   const base = `/${workspaceSlug}/settings`;
@@ -16,6 +16,7 @@ export function SettingsNav({
     [`${base}/keys`, labels.keys],
     [`${base}/members`, labels.members],
     [`${base}/webhooks`, labels.webhooks],
+    [`${base}/alerts`, labels.alerts],
   ] as const;
   return (
     <nav className="flex md:flex-col gap-1 text-sm">

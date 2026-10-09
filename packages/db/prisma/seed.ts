@@ -84,6 +84,7 @@ async function main() {
           url: 'https://cdn.example.com/checkout/1.2.3/remoteEntry.js',
           integrity: 'sha256-xyz789',
           status: ModuleVersionStatus.active,
+          activatedAt: new Date(),
           deployedBy: user.id,
           deployedByType: ActorType.user,
         },

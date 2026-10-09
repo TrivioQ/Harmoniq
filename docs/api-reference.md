@@ -163,7 +163,7 @@ Creates an active version in that environment (the previous one becomes inactive
 { "environment": "production", "previous": true }
 ```
 
-Exactly one of `previous: true`, `version: "1.2.2"` or `versionId`. Emits `rollback.executed`. A running canary is left alone.
+Exactly one of `previous: true`, `version: "1.2.2"` or `versionId`. `previous` is the most recent earlier version that was active once (never an aborted canary). Emits `rollback.executed`. A running canary is left alone.
 
 ### Canary releases — `module:deploy`
 
@@ -239,7 +239,7 @@ Slugs: lowercase letters, digits and inner hyphens.
 | `GET /api/workspaces/:ws/webhooks/dead-letters`            | Exhausted deliveries                                                     |
 | `POST /api/workspaces/:ws/webhooks/dead-letters/:id/retry` | Re-enqueue                                                               |
 
-Events: `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollback.executed`, `module.promoted`, `canary.started`, `canary.updated`, `canary.promoted`, `canary.rolled_back`, `env.frozen`, `env.unfrozen` (and later `canary.auto_rolled_back`, `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
+Events: `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollback.executed`, `module.promoted`, `canary.started`, `canary.updated`, `canary.promoted`, `canary.rolled_back`, `canary.auto_rolled_back`, `module.auto_rolled_back`, `alert.triggered`, `alert.resolved`, `env.frozen`, `env.unfrozen` (and later `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
 
 ## Sign-in (used by the dashboard)
 
@@ -270,6 +270,36 @@ HLT-02/03: the last 5 minutes. `loadSuccessRate` (0–1), `p50LoadMs`, `p95LoadM
 ### `GET /api/workspaces/:ws/health?hours=24` — read
 
 Hourly `{ hour, sampleCount, errorCount }` series per module and environment, for sparklines.
+
+## Alerts
+
+ALT-01..05. Rules are evaluated every minute; a rule fires when its metric crosses the threshold (below it for `load_success_rate`) with at least `minSamples` samples in the window, only on the change from `ok` to `firing` and not within `cooldownMinutes` of the last firing.
+
+| Endpoint                                    | Permission | Description                                                                                |
+| ------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| `GET /api/workspaces/:ws/alerts`            | read       | Rules with their state and last value                                                      |
+| `POST /api/workspaces/:ws/alerts`           | admin      | Create a rule                                                                              |
+| `PATCH /api/workspaces/:ws/alerts/:ruleId`  | admin      | `name`, `threshold`, `windowMinutes`, `minSamples`, `cooldownMinutes`, `enabled`, `action` |
+| `DELETE /api/workspaces/:ws/alerts/:ruleId` | admin      |                                                                                            |
+
+```json
+{
+  "name": "Checkout canary errors",
+  "condition": "canary_error_rate",
+  "threshold": 0.05,
+  "action": "auto_rollback",
+  "module": "checkout",
+  "environment": "production",
+  "windowMinutes": 5,
+  "minSamples": 20
+}
+```
+
+Conditions: `canary_error_rate`, `canary_error_rate_delta` (canary minus stable), `canary_load_p95ms`, `load_success_rate`, `load_p95ms` (module and environment required) and `webhook_failure_rate` (workspace-wide). Rates are fractions.
+
+Actions: `webhook` sends `alert.triggered` / `alert.resolved` to webhook endpoints subscribed to them. `auto_rollback` does that too, and first aborts the module's canary, or, for a module-wide condition without a canary, rolls it back to the previous version that was once active. It is audited as `module.auto_rollback` by actor `system:alert:<ruleId>` with the metric value (ALT-04) and emits `canary.auto_rolled_back` or `module.auto_rolled_back`. A frozen environment blocks the rollback; the alert still fires with `autoRollbackError` and the rule's `lastError` says why.
+
+`manifest_fetch_error_rate` (ALT-02) is not available: hosts don't report failed manifest fetches yet.
 
 ## Health
 

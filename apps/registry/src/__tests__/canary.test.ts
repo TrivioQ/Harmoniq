@@ -263,6 +263,20 @@ describe('Canary releases', () => {
     );
   });
 
+  it('never rolls back to an aborted canary', async () => {
+    await deploy('5.0.0');
+    await deploy('5.1.0', { canary: { trafficPercent: 10 } });
+    await api('POST', `/api/workspaces/${ws}/modules/checkout/canary/abort`, {
+      environment: 'production',
+    });
+    await deploy('6.0.0');
+    const res = await api('POST', `/api/workspaces/${ws}/modules/checkout/rollback`, {
+      environment: 'production',
+      previous: true,
+    });
+    expect(res.json().version).toBe('5.0.0');
+  });
+
   it('is blocked by a freeze', async () => {
     await deploy('4.0.0', { canary: { trafficPercent: 10 } });
     const freeze = await api(

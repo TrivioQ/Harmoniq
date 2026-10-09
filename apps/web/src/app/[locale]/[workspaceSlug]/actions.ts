@@ -340,3 +340,51 @@ export async function retryDeadLetterAction(
     (t) => ({ status: 'success', message: t('deadLetterRetried') })
   );
 }
+
+// ─── Alerts (ALT-01) ────────────────────────────────────────────────────────
+
+export async function createAlertAction(workspace: string, _prev: ActionResult, form: FormData) {
+  const number = (name: string) => Number(field(form, name));
+  const condition = field(form, 'condition');
+  const workspaceWide = condition === 'webhook_failure_rate';
+  const [module, environment] = field(form, 'target').split('|');
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/alerts`, {
+        body: {
+          name: field(form, 'name'),
+          condition,
+          threshold: number('threshold'),
+          action: field(form, 'action'),
+          ...(!workspaceWide && module && { module, environment }),
+          windowMinutes: number('windowMinutes'),
+          minSamples: number('minSamples'),
+        },
+      }),
+    (t) => ({ status: 'success', message: t('alertCreated') })
+  );
+}
+
+export async function setAlertEnabledAction(
+  workspace: string,
+  ruleId: string,
+  enabled: boolean,
+  _prev: ActionResult
+) {
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/alerts/${enc(ruleId)}`, {
+        method: 'PATCH',
+        body: { enabled },
+      }),
+    (t) => ({ status: 'success', message: t(enabled ? 'alertEnabled' : 'alertDisabled') })
+  );
+}
+
+export async function deleteAlertAction(workspace: string, ruleId: string, _prev: ActionResult) {
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/alerts/${enc(ruleId)}`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('alertDeleted') })
+  );
+}

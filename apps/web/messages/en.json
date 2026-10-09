@@ -69,7 +69,8 @@
     "storage": "Storage",
     "members": "Members",
     "webhooks": "Webhooks",
-    "adminOnly": "Only workspace admins and owners can change settings."
+    "adminOnly": "Only workspace admins and owners can change settings.",
+    "alerts": "Alerts"
   },
   "LoginPage": {
     "title": "Sign in to Harmoniq",
@@ -179,7 +180,11 @@
     "deadLetterRetried": "Delivery queued for retry.",
     "canaryTraffic": "{version} now serves {percent}% of users.",
     "canaryPromoted": "{version} is now active for everyone.",
-    "canaryAborted": "Canary {version} stopped; everyone is back on the active version."
+    "canaryAborted": "Canary {version} stopped; everyone is back on the active version.",
+    "alertCreated": "Alert rule created.",
+    "alertEnabled": "Alert rule enabled.",
+    "alertDisabled": "Alert rule disabled.",
+    "alertDeleted": "Alert rule deleted."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -202,8 +207,17 @@
       "webhook_delete": "Deleted webhook {name}",
       "workspace_create": "Created the workspace",
       "hostApp_create": "Created host app {name}",
-      "environment_create": "Created environment {name}"
-    }
+      "environment_create": "Created environment {name}",
+      "canary_start": "Started canary {module} {version} in {environment} for {percent}% of users",
+      "canary_update": "Set canary {module} {version} in {environment} to {percent}%",
+      "canary_promote": "Promoted canary {module} {version} in {environment} to everyone",
+      "canary_abort": "Aborted canary {module} {version} in {environment}",
+      "module_auto_rollback": "Rolled back {module} {version} in {environment} after alert “{rule}”",
+      "alert_create": "Created alert rule {name}",
+      "alert_update": "Updated an alert rule",
+      "alert_delete": "Deleted alert rule {name}"
+    },
+    "systemActor": "automatic"
   },
   "ModuleDetail": {
     "back": "All modules",
@@ -351,6 +365,43 @@
     "hints": {
       "ci": "Upload the build output to your CDN first; --file computes the integrity hash.",
       "importMap": "Works with plain ES modules; es-module-shims adds import map and integrity support where browsers lack it."
+    }
+  },
+  "AlertsPage": {
+    "add": "New alert rule",
+    "name": "Name",
+    "condition": "Condition",
+    "threshold": "Threshold",
+    "thresholdHint": "Rates are fractions (0.05 = 5%), times in milliseconds.",
+    "target": "Module and environment",
+    "workspaceWide": "(workspace-wide)",
+    "action": "Action",
+    "windowMinutes": "Window (minutes)",
+    "minSamples": "Minimum samples",
+    "create": "Create rule",
+    "empty": "No alert rules yet.",
+    "enable": "Enable",
+    "disable": "Disable",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this alert rule?",
+    "firing": "Firing",
+    "ok": "OK",
+    "disabled": "Disabled",
+    "lastValue": "Last value {value}",
+    "noData": "Not enough data",
+    "lastTriggered": "Last fired {when}",
+    "webhookHint": "Notifications go to webhook endpoints subscribed to alert.triggered and alert.resolved.",
+    "conditions": {
+      "canary_error_rate": "Canary error rate above",
+      "canary_error_rate_delta": "Canary error rate exceeds stable by",
+      "canary_load_p95ms": "Canary p95 load time above",
+      "load_success_rate": "Load success rate below",
+      "load_p95ms": "p95 load time above",
+      "webhook_failure_rate": "Webhook failure rate above"
+    },
+    "actions": {
+      "webhook": "Notify (webhook)",
+      "auto_rollback": "Notify and roll back automatically"
     }
   }
 }

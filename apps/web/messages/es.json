@@ -69,7 +69,8 @@
     "storage": "Almacenamiento",
     "members": "Miembros",
     "webhooks": "Webhooks",
-    "adminOnly": "Solo los administradores y propietarios pueden cambiar la configuración."
+    "adminOnly": "Solo los administradores y propietarios pueden cambiar la configuración.",
+    "alerts": "Alertas"
   },
   "LoginPage": {
     "title": "Iniciar sesión en Harmoniq",
@@ -179,7 +180,11 @@
     "deadLetterRetried": "Entrega en cola para reintentar.",
     "canaryTraffic": "{version} ahora atiende al {percent}% de los usuarios.",
     "canaryPromoted": "{version} ya está activa para todos.",
-    "canaryAborted": "Canary {version} detenido; todos vuelven a la versión activa."
+    "canaryAborted": "Canary {version} detenido; todos vuelven a la versión activa.",
+    "alertCreated": "Regla de alerta creada.",
+    "alertEnabled": "Regla de alerta activada.",
+    "alertDisabled": "Regla de alerta desactivada.",
+    "alertDeleted": "Regla de alerta eliminada."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -202,8 +207,17 @@
       "webhook_delete": "Eliminó el webhook {name}",
       "workspace_create": "Creó el espacio de trabajo",
       "hostApp_create": "Creó la aplicación anfitriona {name}",
-      "environment_create": "Creó el entorno {name}"
-    }
+      "environment_create": "Creó el entorno {name}",
+      "canary_start": "Inició el canary {module} {version} en {environment} para el {percent}% de los usuarios",
+      "canary_update": "Ajustó el canary {module} {version} en {environment} al {percent}%",
+      "canary_promote": "Promovió el canary {module} {version} en {environment} a todos",
+      "canary_abort": "Abortó el canary {module} {version} en {environment}",
+      "module_auto_rollback": "Revirtió {module} {version} en {environment} por la alerta «{rule}»",
+      "alert_create": "Creó la regla de alerta {name}",
+      "alert_update": "Actualizó una regla de alerta",
+      "alert_delete": "Eliminó la regla de alerta {name}"
+    },
+    "systemActor": "automático"
   },
   "ModuleDetail": {
     "back": "Todos los módulos",
@@ -351,6 +365,43 @@
     "hints": {
       "ci": "Sube primero el resultado del build a tu CDN; --file calcula el hash de integridad.",
       "importMap": "Funciona con módulos ES simples; es-module-shims añade soporte de import maps e integridad donde los navegadores no lo tienen."
+    }
+  },
+  "AlertsPage": {
+    "add": "Nueva regla de alerta",
+    "name": "Nombre",
+    "condition": "Condición",
+    "threshold": "Umbral",
+    "thresholdHint": "Las tasas son fracciones (0.05 = 5 %); los tiempos, milisegundos.",
+    "target": "Módulo y entorno",
+    "workspaceWide": "(todo el espacio de trabajo)",
+    "action": "Acción",
+    "windowMinutes": "Ventana (minutos)",
+    "minSamples": "Muestras mínimas",
+    "create": "Crear regla",
+    "empty": "Aún no hay reglas de alerta.",
+    "enable": "Activar",
+    "disable": "Desactivar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar esta regla de alerta?",
+    "firing": "Disparada",
+    "ok": "OK",
+    "disabled": "Desactivada",
+    "lastValue": "Último valor {value}",
+    "noData": "Datos insuficientes",
+    "lastTriggered": "Disparada {when}",
+    "webhookHint": "Las notificaciones van a los webhooks suscritos a alert.triggered y alert.resolved.",
+    "conditions": {
+      "canary_error_rate": "Tasa de error del canary por encima de",
+      "canary_error_rate_delta": "Error del canary supera al estable en",
+      "canary_load_p95ms": "p95 de carga del canary por encima de",
+      "load_success_rate": "Tasa de éxito de carga por debajo de",
+      "load_p95ms": "p95 de carga por encima de",
+      "webhook_failure_rate": "Tasa de fallos de webhooks por encima de"
+    },
+    "actions": {
+      "webhook": "Notificar (webhook)",
+      "auto_rollback": "Notificar y revertir automáticamente"
     }
   }
 }

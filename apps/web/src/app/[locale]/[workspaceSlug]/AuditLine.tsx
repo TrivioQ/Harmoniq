@@ -20,6 +20,14 @@ const KNOWN = [
   'workspace.create',
   'hostApp.create',
   'environment.create',
+  'canary.start',
+  'canary.update',
+  'canary.promote',
+  'canary.abort',
+  'module.auto_rollback',
+  'alert.create',
+  'alert.update',
+  'alert.delete',
 ] as const;
 
 /** One human-readable audit line, e.g. "Deployed checkout 1.2.3 to staging". */
@@ -27,7 +35,12 @@ export async function AuditLine({ event }: { event: AuditEvent }) {
   const t = await getTranslations('Audit');
   const m = (event.metadata ?? {}) as Record<string, string | undefined>;
   const action = KNOWN.find((a) => a === event.action);
-  const actor = event.actorType === 'apiKey' ? t('apiKeyActor') : t('userActor');
+  const actor =
+    event.actorType === 'system'
+      ? t('systemActor')
+      : event.actorType === 'apiKey'
+        ? t('apiKeyActor')
+        : t('userActor');
 
   return (
     <span>
@@ -39,6 +52,8 @@ export async function AuditLine({ event }: { event: AuditEvent }) {
             environment: m.environment ?? m.toEnvironment ?? '',
             name: m.name ?? m.slug ?? m.email ?? m.url ?? '',
             role: m.role ?? m.to ?? '',
+            percent: m.trafficPercent ?? '',
+            rule: m.ruleName ?? '',
           })
         : event.action}{' '}
       <span className="text-muted-foreground">· {actor}</span>

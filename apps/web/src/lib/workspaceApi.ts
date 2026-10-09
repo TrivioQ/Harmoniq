@@ -91,7 +91,7 @@ export interface AuditEvent {
   id: string;
   action: string;
   actorId: string;
-  actorType: 'user' | 'apiKey';
+  actorType: 'user' | 'apiKey' | 'system';
   resourceType: string;
   resourceId: string;
   metadata: Record<string, unknown> | null;
@@ -180,6 +180,25 @@ export interface ModuleHealth extends HealthStats {
   hourly: HourlyHealth[];
 }
 
+export interface AlertRuleSummary {
+  id: string;
+  name: string;
+  condition: string;
+  threshold: number;
+  action: 'webhook' | 'auto_rollback';
+  module: { id: string; slug: string } | null;
+  environment: string | null;
+  windowMinutes: number;
+  minSamples: number;
+  cooldownMinutes: number;
+  enabled: boolean;
+  state: 'ok' | 'firing';
+  lastValue: number | null;
+  lastEvaluatedAt: string | null;
+  lastTriggeredAt: string | null;
+  lastError: string | null;
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
@@ -217,6 +236,7 @@ export const workspaceApi = {
       hours: number;
       series: Array<{ moduleId: string; environment: string; hourly: HourlyHealth[] }>;
     }>(`${ws(slug)}/health?hours=24`),
+  alerts: (slug: string) => authedFetch<{ rules: AlertRuleSummary[] }>(`${ws(slug)}/alerts`),
   moduleHealth: (slug: string, ref: string, env: string) =>
     authedFetch<ModuleHealth>(`${ws(slug)}/modules/${enc(ref)}/health?environment=${enc(env)}`),
 };

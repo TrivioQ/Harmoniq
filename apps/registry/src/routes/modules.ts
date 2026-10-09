@@ -397,6 +397,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               integrity: body.integrity,
               status: canary ? 'canary' : 'active',
               trafficPercent: canary?.trafficPercent,
+              activatedAt: canary ? null : new Date(),
               deployedBy: request.principal!.id,
               deployedByType: request.principal!.type,
               commitSha: body.commitSha,
@@ -494,10 +495,12 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                   orderBy: { deployedAt: 'desc' },
                 })
               : // "previous": the most recent other version deployed before the current one.
+                // Only versions that were active once: never an aborted canary.
                 await tx.moduleVersion.findFirst({
                   where: {
                     ...scope,
                     status: 'inactive',
+                    activatedAt: { not: null },
                     ...(current && { deployedAt: { lt: current.deployedAt } }),
                   },
                   orderBy: { deployedAt: 'desc' },
@@ -513,7 +516,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           await deactivateActive(tx, module.id, env.id);
           const activated = await tx.moduleVersion.update({
             where: { id: target.id },
-            data: { status: 'active' },
+            data: { status: 'active', activatedAt: new Date() },
           });
           return {
             result: activated,
@@ -593,6 +596,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               dependencies: json(source.dependencies),
               exposes: json(source.exposes),
               status: 'active',
+              activatedAt: new Date(),
               deployedBy: request.principal!.id,
               deployedByType: request.principal!.type,
               promotedFromId: source.id,
@@ -749,7 +753,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           await deactivateActive(tx, module.id, env.id);
           const promoted = await tx.moduleVersion.update({
             where: { id: canary.id },
-            data: { status: 'active', trafficPercent: null },
+            data: { status: 'active', trafficPercent: null, activatedAt: new Date() },
           });
           const change = {
             module: module.slug,

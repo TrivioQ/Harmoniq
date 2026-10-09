@@ -1,32 +1,31 @@
 import { FastifyInstance } from 'fastify';
+import { evaluateAlerts } from '../services/alerts';
 
 export async function registerAlertJobs(fastify: FastifyInstance) {
-  const boss = fastify.container.boss;
-  const logger = fastify.container.logger;
+  const { boss, logger, systemDb, withTenant, mutations, webhooks } = fastify.container;
 
   if (!boss) return;
 
   // pg-boss 10+ requires queues to exist before schedule()/work(). Idempotent.
   await boss.createQueue('alert.evaluate');
   await boss.createQueue('rollout.advance');
-  await boss.createQueue('alert.auto_rollback');
 
-  // 1. Alert Evaluate - Every minute
+  // ALT-05: every rule, every minute. pg-boss runs a schedule once across replicas.
   await boss.schedule('alert.evaluate', '* * * * *');
   boss.work('alert.evaluate', async () => {
-    logger.info('Running alert.evaluate job - stub');
-    // Implementation deferred to full Alerting Phase
+    const { evaluated, fired } = await evaluateAlerts({
+      systemDb,
+      withTenant,
+      mutations,
+      webhooks,
+      logger,
+    });
+    if (fired) logger.info(`Alert evaluation: ${fired} of ${evaluated} rules fired`);
   });
 
-  // 2. Rollout Advance - Scheduled (no cron, invoked on demand)
+  // Rollout Advance - Scheduled (no cron, invoked on demand)
   boss.work('rollout.advance', async () => {
     logger.info('Running rollout.advance job - stub');
     // Implementation deferred to full Staged Rollout Phase
-  });
-
-  // 3. Alert Auto Rollback - Invoked on demand
-  boss.work('alert.auto_rollback', async () => {
-    logger.info('Running alert.auto_rollback job - stub');
-    // Implementation deferred to full Alerting Phase
   });
 }
