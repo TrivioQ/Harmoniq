@@ -25,6 +25,8 @@ const EnvSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string().optional(),
   HARMONIQ_DEV_LOGIN: z.string().optional(),
   HARMONIQ_VALIDATE_BUNDLES: z.string().optional(),
+  SMTP_URL: z.string().optional(),
+  MAIL_FROM: z.string().default('Harmoniq <no-reply@harmoniq.local>'),
   HARMONIQ_MANIFEST_RATE_LIMIT: z.coerce.number().int().positive().default(600),
 });
 
@@ -48,6 +50,8 @@ export interface Config {
   validateBundles: boolean;
   /** RL-01: manifest requests per minute per (workspace, client IP). */
   manifestRateLimit: number;
+  /** Outbound email. Without SMTP in production, email sign-in is unavailable. */
+  mail: { smtpUrl?: string; from: string };
 }
 
 export class ConfigError extends Error {}
@@ -109,6 +113,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         : undefined,
     devLogin,
     manifestRateLimit: e.HARMONIQ_MANIFEST_RATE_LIMIT,
+    mail: { smtpUrl: e.SMTP_URL, from: e.MAIL_FROM },
     validateBundles: e.HARMONIQ_VALIDATE_BUNDLES === '1' || e.HARMONIQ_VALIDATE_BUNDLES === 'true',
   };
 }

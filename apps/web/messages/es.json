@@ -87,8 +87,16 @@
       "email_not_verified": "Tu cuenta no tiene un correo verificado. Verifícalo con tu proveedor e inténtalo de nuevo.",
       "invalid_grant": "Se rechazó el código de inicio de sesión. Inténtalo de nuevo.",
       "provider_unavailable": "El proveedor de inicio de sesión no está disponible. Inténtalo más tarde.",
-      "dev_login_disabled": "El inicio de sesión de desarrollo no está habilitado."
-    }
+      "dev_login_disabled": "El inicio de sesión de desarrollo no está habilitado.",
+      "invalid_token": "Ese enlace no es válido, caducó o ya se usó. Solicita uno nuevo.",
+      "invalid_code": "El código es incorrecto o caducó.",
+      "other_browser": "Abre el enlace en el navegador donde lo solicitaste, o introduce el código del correo."
+    },
+    "emailLabel": "Correo",
+    "emailSubmit": "Enviarme un enlace de acceso",
+    "emailSent": "Revisa {email}: te enviamos un enlace de acceso. También puedes introducir aquí el código de 6 dígitos de ese correo.",
+    "codeLabel": "Código de acceso",
+    "codeSubmit": "Iniciar sesión"
   },
   "AdminDashboardPage": {
     "errorFetch": "No se pudieron obtener las estadísticas. Es posible que no esté autenticado como administrador.",
@@ -288,5 +296,12 @@
     "failedAfter": "falló tras {attempts} intentos (HTTP {status})",
     "retry": "Reintentar",
     "noDeadLetters": "Sin entregas fallidas."
+  },
+  "VerifyPage": {
+    "title": "Inicia sesión en Harmoniq",
+    "description": "Continúa para terminar de iniciar sesión.",
+    "continue": "Continuar",
+    "missingToken": "Esta página necesita el enlace de tu correo de acceso.",
+    "back": "Volver a iniciar sesión"
   }
 }

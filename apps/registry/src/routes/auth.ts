@@ -9,10 +9,13 @@ import {
   AuthProviderSummary,
   AuthStartRequestSchema,
   DevLoginRequestSchema,
+  EmailLoginRequestSchema,
+  EmailLoginVerifySchema,
   MeResponse,
   RefreshRequestSchema,
 } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { GitHubIdentityProvider } from '../adapters/identity/GitHubIdentityProvider';
+import { EmailIdentityProvider } from '../adapters/identity/EmailIdentityProvider';
 import { AuthService } from '../services/authService';
 
 const LOGIN_RATE_LIMIT = { rateLimit: { max: 20, timeWindow: '1 minute' } };
@@ -20,7 +23,7 @@ const REFRESH_RATE_LIMIT = { rateLimit: { max: 60, timeWindow: '1 minute' } };
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const { config } = fastify;
-  const { systemDb, logger } = fastify.container;
+  const { systemDb, logger, mailer } = fastify.container;
   const auth = new AuthService(systemDb, config.jwtSecret, logger);
 
   const redirectProviders = new Map<string, RedirectIdentityProvider>();
@@ -30,6 +33,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       new GitHubIdentityProvider(config.github.clientId, config.github.clientSecret)
     );
   }
+
+  // Email sign-in needs a way to send mail (SMTP, or the console mailer outside production).
+  const email = mailer ? new EmailIdentityProvider(systemDb, mailer) : null;
 
   const badRequest = (reply: FastifyReply, error: ZodError | string) =>
     reply.code(400).send({
@@ -65,6 +71,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       kind: p.kind,
       displayName: p.displayName,
     }));
+    if (email) providers.push({ id: email.id, kind: email.kind, displayName: email.displayName });
     if (config.devLogin) {
       providers.push({ id: 'dev', kind: 'dev', displayName: 'Development login' });
     }
@@ -124,6 +131,34 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         },
         'dev'
       );
+    });
+  }
+
+  if (email) {
+    // Always 202, whether or not an account exists (no user enumeration).
+    fastify.post(
+      '/api/auth/email/request',
+      { config: { rateLimit: { max: 20, timeWindow: '15 minutes' } } },
+      async (request, reply) => {
+        const parsed = EmailLoginRequestSchema.safeParse(request.body);
+        if (!parsed.success) return badRequest(reply, parsed.error);
+        if (!isAllowedRedirect(parsed.data.redirectUri)) {
+          return badRequest(reply, 'redirectUri must be on the dashboard origin');
+        }
+        await email.requestLogin(parsed.data);
+        return reply.code(202).send({ status: 'sent' });
+      }
+    );
+
+    fastify.post('/api/auth/email/verify', { config: LOGIN_RATE_LIMIT }, async (request, reply) => {
+      const parsed = EmailLoginVerifySchema.safeParse(request.body);
+      if (!parsed.success) return badRequest(reply, parsed.error);
+      try {
+        const info = await email.verifyLogin(parsed.data);
+        return await auth.completeLogin(info, email.id);
+      } catch (err) {
+        return identityFailure(reply, err);
+      }
     });
   }
 

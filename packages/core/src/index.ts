@@ -2,6 +2,7 @@ export * from './ports/ICache';
 export * from './ports/IStorage';
 export * from './ports/ILogger';
 export * from './ports/IdentityProvider';
+export * from './ports/IMailer';
 
 export * from './errors/AppError';
 

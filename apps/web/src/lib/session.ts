@@ -7,6 +7,8 @@ export const ACCESS_COOKIE = 'hq_session';
 export const REFRESH_COOKIE = 'hq_refresh';
 export const OAUTH_STATE_COOKIE = 'hq_oauth_state';
 export const OAUTH_VERIFIER_COOKIE = 'hq_oauth_verifier';
+/** Binds an emailed sign-in link to the browser that requested it. */
+export const EMAIL_NONCE_COOKIE = 'hq_email_nonce';
 
 // Must match apps/registry/src/auth/tokens.ts.
 const SESSION_AUDIENCE = 'harmoniq-session';
@@ -65,4 +67,12 @@ export async function isValidAccessToken(token: string | undefined): Promise<boo
   } catch {
     return false;
   }
+}
+
+export function setEmailNonceCookie(store: CookieWriter, nonce: string) {
+  store.set(EMAIL_NONCE_COOKIE, nonce, { ...baseCookie(), maxAge: 15 * 60 });
+}
+
+export function clearEmailNonceCookie(store: CookieWriter) {
+  store.set(EMAIL_NONCE_COOKIE, '', { ...baseCookie(), maxAge: 0 });
 }

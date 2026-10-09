@@ -62,3 +62,15 @@ export const MeResponseSchema = z.object({
   ),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
+
+export const EmailLoginRequestSchema = z.object({
+  email: z.string().email().max(320),
+  redirectUri: z.string().url(),
+  /** Random value also stored in a cookie of the requesting browser. */
+  nonce: base64url.min(16).max(128),
+});
+
+export const EmailLoginVerifySchema = z.union([
+  z.object({ token: base64url.min(16).max(256), nonce: base64url.min(16).max(128) }),
+  z.object({ email: z.string().email().max(320), code: z.string().regex(/^\d{6}$/) }),
+]);

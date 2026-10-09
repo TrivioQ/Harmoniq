@@ -87,8 +87,16 @@
       "email_not_verified": "Your account has no verified email address. Verify it with your provider and try again.",
       "invalid_grant": "The sign-in code was rejected. Please try again.",
       "provider_unavailable": "The sign-in provider is unavailable. Please try again later.",
-      "dev_login_disabled": "Development sign-in is not enabled."
-    }
+      "dev_login_disabled": "Development sign-in is not enabled.",
+      "invalid_token": "That sign-in link is invalid, expired or already used. Request a new one.",
+      "invalid_code": "That code is incorrect or expired.",
+      "other_browser": "Open the link in the browser where you requested it, or enter the code from the email instead."
+    },
+    "emailLabel": "Email",
+    "emailSubmit": "Email me a sign-in link",
+    "emailSent": "Check {email} for a sign-in link. You can also enter the 6-digit code from that email here.",
+    "codeLabel": "Sign-in code",
+    "codeSubmit": "Sign in"
   },
   "AdminDashboardPage": {
     "errorFetch": "Failed to fetch stats. You may not be authenticated as an admin.",
@@ -288,5 +296,12 @@
     "failedAfter": "failed after {attempts} attempts (HTTP {status})",
     "retry": "Retry",
     "noDeadLetters": "No failed deliveries."
+  },
+  "VerifyPage": {
+    "title": "Sign in to Harmoniq",
+    "description": "Continue to finish signing in.",
+    "continue": "Continue",
+    "missingToken": "This page needs the link from your sign-in email.",
+    "back": "Back to sign in"
   }
 }

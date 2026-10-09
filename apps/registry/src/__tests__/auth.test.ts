@@ -77,7 +77,11 @@ describe('Authentication', () => {
 
   it('lists configured providers', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/auth/providers' });
-    expect(res.json().providers.map((p: { id: string }) => p.id)).toEqual(['github', 'dev']);
+    expect(res.json().providers.map((p: { id: string }) => p.id)).toEqual([
+      'github',
+      'email',
+      'dev',
+    ]);
   });
 
   describe('GitHub start', () => {
@@ -260,9 +264,10 @@ describe('Authentication without optional providers', () => {
     delete process.env.GITHUB_CLIENT_ID;
     const app = await buildApp();
     await app.ready();
-    expect(
-      (await app.inject({ method: 'GET', url: '/api/auth/providers' })).json().providers
-    ).toEqual([]);
+    // Email stays available outside production (console mailer); GitHub and dev are gone.
+    const providers = (await app.inject({ method: 'GET', url: '/api/auth/providers' })).json()
+      .providers as { id: string }[];
+    expect(providers.map((p) => p.id)).toEqual(['email']);
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/dev/login',

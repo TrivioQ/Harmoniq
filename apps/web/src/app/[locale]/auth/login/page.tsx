@@ -10,6 +10,9 @@ const KNOWN_ERRORS = [
   'invalid_grant',
   'provider_unavailable',
   'dev_login_disabled',
+  'invalid_token',
+  'invalid_code',
+  'other_browser',
 ] as const;
 
 const linkButton =
@@ -24,14 +27,17 @@ async function loadProviders(): Promise<AuthProviderSummary[] | null> {
   }
 }
 
-export default async function LoginPage(props: { searchParams: Promise<{ error?: string }> }) {
+export default async function LoginPage(props: {
+  searchParams: Promise<{ error?: string; sent?: string; email?: string }>;
+}) {
   const t = await getTranslations('LoginPage');
-  const { error } = await props.searchParams;
+  const { error, sent, email: sentTo } = await props.searchParams;
   const providers = await loadProviders();
 
   const errorKey = KNOWN_ERRORS.find((e) => e === error);
   const redirectProviders = providers?.filter((p) => p.kind === 'redirect') ?? [];
   const devLogin = providers?.some((p) => p.kind === 'dev');
+  const emailLogin = providers?.some((p) => p.kind === 'email');
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/50 p-6 md:p-10">
@@ -52,6 +58,52 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
               {t('registryUnavailable')}
             </div>
           )}
+
+          {emailLogin &&
+            (sent ? (
+              <div className="space-y-3">
+                <p role="status" className="p-3 text-sm rounded-md bg-green-50 text-green-800">
+                  {t('emailSent', { email: sentTo ?? '' })}
+                </p>
+                <form action="/api/auth/email/code" method="post" className="space-y-2">
+                  <input type="hidden" name="email" value={sentTo ?? ''} />
+                  <label className="block text-sm font-medium" htmlFor="code">
+                    {t('codeLabel')}
+                  </label>
+                  <input
+                    id="code"
+                    name="code"
+                    required
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    className="block w-full rounded-md border px-3 py-2 text-sm tracking-widest font-mono"
+                  />
+                  <Button type="submit" className="w-full">
+                    {t('codeSubmit')}
+                  </Button>
+                </form>
+              </div>
+            ) : (
+              <form action="/api/auth/email/request" method="post" className="space-y-2">
+                <label className="block text-sm font-medium" htmlFor="email">
+                  {t('emailLabel')}
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className="block w-full rounded-md border px-3 py-2 text-sm"
+                />
+                <Button type="submit" className="w-full">
+                  {t('emailSubmit')}
+                </Button>
+              </form>
+            ))}
 
           {redirectProviders.map((provider) => (
             // Plain anchor: this is a full-page navigation to a route handler, not a page.

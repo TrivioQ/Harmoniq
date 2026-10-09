@@ -64,6 +64,24 @@ YES — see the change history entry below.
 
 ## Change History
 
+### 2026-10-09 — Email sign-in: magic link and one-time code
+
+**Type:** feature
+**PR / Branch:** feat/m1-core-loop
+**Refs:** product-analysis §5.11 (M1.3)
+
+#### What changed
+
+- `EmailIdentityProvider` and an `IMailer` port (`SmtpMailer` via `SMTP_URL`, `ConsoleMailer` in development). Without SMTP in production, email sign-in is not offered.
+- `POST /api/auth/email/request` always answers 202 (no account enumeration); at most 5 emails per address per 15 minutes, 20 requests per IP per 15 minutes. `POST /api/auth/email/verify` accepts `{ token, nonce }` or `{ email, code }`.
+- Tokens and codes are stored only as sha256 hashes, expire after 15 minutes, are single use (atomic claim) and codes lock after 5 wrong attempts.
+- The link is bound to the requesting browser through an HttpOnly nonce cookie (login CSRF); another device uses the code.
+- Dashboard: email form and code form on `/auth/login`; `/auth/verify` signs in only on an explicit POST, so mail scanners that prefetch links cannot consume the token.
+
+#### Testing
+
+Registry `emailAuth.test.ts` (7) and web `emailAuth.test.ts` (5). End to end against running servers: link in the requesting browser signs in; the same link in another browser is refused; the code works there; a used link fails.
+
 ### 2026-10-08 — Real sign-in: GitHub OAuth, sessions, admin panel
 
 **Type:** security fix

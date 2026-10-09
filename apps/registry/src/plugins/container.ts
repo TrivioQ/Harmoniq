@@ -10,6 +10,9 @@ import { createDbClients, withTenant, TenantTx } from '@harmoniq/db';
 import { PgBoss } from 'pg-boss';
 import { WebhookDispatcher, createWebhookDispatcher } from '../services/webhookDispatcher';
 import { ManifestMutations } from '../services/manifestMutation';
+import { IMailer } from '@harmoniq/core/dist/ports/IMailer';
+import { SmtpMailer } from '../adapters/mail/SmtpMailer';
+import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
 
 export interface AppContainer {
   cache: ICache;
@@ -23,6 +26,8 @@ export interface AppContainer {
   webhooks: WebhookDispatcher;
   /** The single path for manifest-changing operations. */
   mutations: ManifestMutations;
+  /** null when no SMTP is configured in production (email sign-in is then disabled). */
+  mailer: IMailer | null;
 }
 
 declare module 'fastify' {
@@ -60,6 +65,13 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
   const tenant: AppContainer['withTenant'] = (workspaceId, fn) => withTenant(db, workspaceId, fn);
   const webhooks = createWebhookDispatcher({ boss, logger, withTenant: tenant });
 
+  const { mail, isProduction } = fastify.config;
+  const mailer: IMailer | null = mail.smtpUrl
+    ? new SmtpMailer(mail.smtpUrl, mail.from)
+    : isProduction
+      ? null
+      : new ConsoleMailer(logger);
+
   fastify.decorate('container', {
     cache,
     logger,
@@ -69,6 +81,7 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     boss,
     webhooks,
     mutations: new ManifestMutations({ withTenant: tenant, cache, webhooks, logger }),
+    mailer,
   });
 
   fastify.addHook('onClose', async (instance) => {
