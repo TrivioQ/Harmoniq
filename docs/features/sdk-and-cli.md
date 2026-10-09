@@ -27,6 +27,30 @@ None.
 
 ## Change History
 
+### 2026-10-09 — SDK correctness: one poll loop, real events, SSR-safe React, no credentials
+
+**Type:** bug fix
+**PR / Branch:** feat/m1-core-loop
+**Refs:** CAN-09, CAN-10, SRI-01, SRI-02, ADP-01–ADP-04, DX-05; product-analysis §4.10–§4.15
+
+#### What changed
+
+- Reads the schemaVersion 2 manifest (modules array) and rejects other formats.
+- `init()` is idempotent: one shared load and a single poll loop, cleared by `destroy()` (previously every call, including every `useRemoteModule`, started another interval).
+- Exponential backoff with jitter after failed polls; last manifest kept; `error` event and `getError()`.
+- `manifestUpdate` fires only when content changes; `variantAssigned` on first assignment and changes only. Event names exported as `EVENTS` so adapters cannot drift (the React and Vue adapters listened to `manifestUpdated`, which was never emitted).
+- React: `useSyncExternalStore`, renders during SSR, `fallback` prop, `useManifest` / `useHarmoniqError`. Vue and Angular adapters rebuilt on the same model.
+- `getScriptTag` escapes attribute values.
+- Removed: the `apiKey` option (browsers must not hold keys) and `reportModuleLoad` / `reportModuleError`, which posted to an endpoint that does not exist. Health reporting returns with M3.2.
+
+#### Testing
+
+`client.test.ts` (10, fake timers: single loop, backoff schedule, ETag revalidation, events, escaping, no credentials) and `react.test.ts` (4, server rendering). Verified the built SDK against a running registry.
+
+#### Breaking changes
+
+Manifest format v2 only; `apiKey`, `reportModuleLoad`, `reportModuleError` removed; React hook results add `version`.
+
 ### 2026-10-09 — Real CLI: deploy, promote, rollback, validate, login, manifest
 
 **Type:** feature

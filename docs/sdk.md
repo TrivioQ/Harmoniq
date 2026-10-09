@@ -1,63 +1,103 @@
 # Harmoniq SDK Reference
 
-The `@harmoniq/client` SDK provides a type-safe wrapper for fetching module manifests and verifying integrations from the Harmoniq Registry.
-
-## Installation
+`@harmoniq/client` loads a host app's manifest from the registry and tells the app which URL and integrity hash to use for each remote module. It has no runtime dependencies and never sends credentials — manifests are public, and browsers must not hold API keys.
 
 ```bash
-npm install @harmoniq/client
-# or
-yarn add @harmoniq/client
-# or
 pnpm add @harmoniq/client
 ```
 
-## Initialization
+## Core client
 
-You can instantiate the `HarmoniqClient` by providing the registry endpoint and your workspace configurations.
-
-```typescript
-import { HarmoniqClient } from '@harmoniq/client';
+```ts
+import { HarmoniqClient, EVENTS } from '@harmoniq/client';
 
 const client = new HarmoniqClient({
-  registryUrl: 'https://registry.your-harmoniq.com',
-  workspace: 'acme-corp',
-  hostApp: 'web-dashboard',
+  registryUrl: 'https://registry.acme.dev',
+  workspaceSlug: 'acme',
+  hostApp: 'consumer-portal',
   environment: 'production',
-});
-```
-
-## Fetching a Manifest
-
-The primary responsibility of the SDK is to resolve the latest active deployment for a given module.
-
-```typescript
-const manifest = await client.getManifest('auth-module');
-console.log(manifest.url); // e.g. https://cdn.acme.com/auth/remoteEntry.js
-```
-
-### Pre-fetching and Hydration
-
-To minimize latency during runtime, you can configure the client to prefetch all known manifests on initialization:
-
-```typescript
-const client = new HarmoniqClient({
-  // ... config
-  prefetchModules: ['auth-module', 'nav-module'],
+  pollIntervalMs: 30_000, // optional: pick up deploys and rollbacks without a reload
 });
 
-await client.prefetch();
+await client.init(); // safe to call many times; one load, one poll loop
+
+const entry = client.getModuleEntry('checkout');
+// { url: 'https://cdn.acme.com/checkout/1.2.3/remoteEntry.js', integrity: 'sha384-…', version: '1.2.3' }
 ```
 
-## Fallbacks
+| Option           | Default | Description                                                       |
+| ---------------- | ------- | ----------------------------------------------------------------- |
+| `pollIntervalMs` | off     | Re-fetch interval. Uses ETags, so unchanged manifests cost a 304. |
+| `maxBackoffMs`   | 60000   | Cap for exponential backoff (with jitter) after failed polls      |
+| `timeoutMs`      | 5000    | Per-request timeout                                               |
+| `fetch`          | global  | Custom fetch implementation                                       |
 
-If the registry is unreachable or offline, the SDK supports graceful fallbacks if you configure default URLs:
+| Method                           | Returns                                                                                      |
+| -------------------------------- | -------------------------------------------------------------------------------------------- |
+| `init()`                         | Loads the manifest and starts polling. Rejects if the first load fails; call again to retry. |
+| `getManifest()`                  | The full manifest (`schemaVersion: 2`) or `null`                                             |
+| `getModuleEntry(name)`           | `{ url, integrity, version }` or `null`                                                      |
+| `getModule(name)`                | The full module entry, including `dependencies`, `exposes`, `metadata`                       |
+| `getScriptTag(name)`             | `<script type="module" … integrity crossorigin>` with escaped attributes                     |
+| `getVariant()` / `getCohortId()` | Canary assignment (always `stable` until canary releases land)                               |
+| `getError()`                     | Error from the last failed fetch, or `null`                                                  |
+| `on(event, fn)`                  | Subscribe; returns an unsubscribe function                                                   |
+| `destroy()`                      | Stop polling and remove listeners                                                            |
 
-```typescript
-const client = new HarmoniqClient({
-  // ... config
-  fallbacks: {
-    'auth-module': 'https://fallback.cdn.com/auth/remoteEntry.js',
-  },
-});
+**Events** (`EVENTS.*`): `manifestUpdate` (only when the content changes), `variantAssigned` (first assignment and changes), `error` (each failed fetch).
+
+**Failures**: if a poll fails, the last manifest stays in use (stale beats broken) and polling backs off. Only the very first load can fail `init()`.
+
+## React
+
+```tsx
+import { HarmoniqProvider, useRemoteModule } from '@harmoniq/client/react';
+
+<HarmoniqProvider options={options} fallback={<Spinner />}>
+  <App />
+</HarmoniqProvider>;
+
+function CheckoutSlot() {
+  const { url, integrity, loading, error } = useRemoteModule('checkout');
+  // load `url` with your module loader; re-renders when a new version is deployed
+}
 ```
+
+- Renders during SSR (the provider never returns `null`); loading starts in the browser.
+- `fallback` is shown until the first manifest loads; without it, children render immediately and hooks report `loading`.
+- Pass `client` instead of `options` to share a client with non-React code.
+- Also exported: `useManifest()`, `useHarmoniqError()`, `useHarmoniqClient()`.
+
+## Vue
+
+```ts
+import { createHarmoniq, useHarmoniq } from '@harmoniq/client/vue';
+
+app.use(createHarmoniq(options));
+
+// in setup()
+const { url, integrity, version, loading, error } = useHarmoniq('checkout');
+```
+
+## Angular
+
+```ts
+import { HARMONIQ_OPTIONS, HarmoniqService } from '@harmoniq/client/angular';
+
+providers: [{ provide: HARMONIQ_OPTIONS, useValue: options }];
+
+constructor(harmoniq: HarmoniqService) {
+  harmoniq.getModule('checkout').subscribe(({ url, integrity, loading, error }) => { … });
+}
+```
+
+`HarmoniqService.manifest$` emits every new manifest.
+
+## Planned
+
+| Feature                                                      | Milestone |
+| ------------------------------------------------------------ | --------- |
+| CDN manifest sources, embedded fallback, persistent cache    | M2.2      |
+| Module Federation 2.0 runtime plugin (`@harmoniq/mf-plugin`) | M2.4      |
+| Local overrides for development                              | M2.6      |
+| Load-health reporting and error-tracker tagging              | M3.2–M3.3 |

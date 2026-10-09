@@ -1,105 +1,110 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { HarmoniqClient } from '../index';
-import type { HarmoniqClientOptions } from '../index';
+import React, {
+  ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import { EVENTS, HarmoniqClient } from '../index';
+import type { HarmoniqClientOptions, Manifest, ModuleEntry } from '../index';
 
 const HarmoniqContext = createContext<HarmoniqClient | null>(null);
 
 export interface HarmoniqProviderProps {
-  options: HarmoniqClientOptions;
+  /** Options for a client the provider creates (and destroys on unmount). */
+  options?: HarmoniqClientOptions;
+  /** Or an existing client, e.g. one shared with non-React code. */
+  client?: HarmoniqClient;
+  /** Rendered until the first manifest has loaded. Children render immediately without it. */
+  fallback?: ReactNode;
   children: ReactNode;
 }
 
-export const HarmoniqProvider: React.FC<HarmoniqProviderProps> = ({ options, children }) => {
-  const [client, setClient] = useState<HarmoniqClient | null>(null);
+/**
+ * ADP-02. Creates the client during the first render (so SSR renders children, never
+ * `null`) and starts loading only in the browser. Option changes after mount are ignored.
+ */
+export function HarmoniqProvider({
+  options,
+  client: provided,
+  fallback,
+  children,
+}: HarmoniqProviderProps) {
+  const [client] = useState(() => {
+    if (provided) return provided;
+    if (!options) throw new Error('HarmoniqProvider needs `options` or `client`');
+    return new HarmoniqClient(options);
+  });
 
   useEffect(() => {
-    const newClient = new HarmoniqClient(options);
-    // Automatically init the manifest loading
-    newClient.init().catch(console.error);
-    setClient(newClient);
-  }, [options.registryUrl, options.workspaceSlug, options.hostApp, options.environment]);
+    client.init().catch(() => undefined); // surfaced through useHarmoniqError / useRemoteModule
+    return () => {
+      if (!provided) client.destroy();
+    };
+  }, [client, provided]);
 
-  if (!client) {
-    return null; // Or some fallback UI during init
-  }
+  const manifest = useStore(client, () => client.getManifest());
+  const content = fallback !== undefined && !manifest ? fallback : children;
+  return React.createElement(HarmoniqContext.Provider, { value: client }, content);
+}
 
-  return React.createElement(HarmoniqContext.Provider, { value: client }, children);
-};
+export function useHarmoniqClient(): HarmoniqClient {
+  const client = useContext(HarmoniqContext);
+  if (!client) throw new Error('useHarmoniqClient must be used within a HarmoniqProvider');
+  return client;
+}
 
-export const useHarmoniqClient = (): HarmoniqClient => {
-  const context = useContext(HarmoniqContext);
-  if (!context) {
-    throw new Error('useHarmoniqClient must be used within a HarmoniqProvider');
-  }
-  return context;
-};
+/** Re-renders on manifest updates and fetch errors. Server snapshot reads the same state. */
+function useStore<T>(client: HarmoniqClient, read: () => T): T {
+  return useSyncExternalStore(
+    (onChange) => {
+      const offUpdate = client.on(EVENTS.manifestUpdate, onChange);
+      const offError = client.on(EVENTS.error, onChange);
+      return () => {
+        offUpdate();
+        offError();
+      };
+    },
+    read,
+    read
+  );
+}
+
+export function useManifest(): Manifest | null {
+  const client = useHarmoniqClient();
+  return useStore(client, () => client.getManifest());
+}
+
+export function useHarmoniqError(): Error | null {
+  const client = useHarmoniqClient();
+  return useStore(client, () => client.getError());
+}
 
 export interface UseRemoteModuleResult {
   url: string | null;
   integrity: string | null;
+  version: string | null;
   loading: boolean;
   error: Error | null;
 }
 
-export const useRemoteModule = (moduleName: string): UseRemoteModuleResult => {
+/** The current entry for one module; updates when a new manifest arrives (hot swap). */
+export function useRemoteModule(moduleName: string): UseRemoteModuleResult {
+  const manifest = useManifest();
+  const fetchError = useHarmoniqError();
   const client = useHarmoniqClient();
-  const [state, setState] = useState<UseRemoteModuleResult>({
-    url: null,
-    integrity: null,
-    loading: true,
-    error: null,
-  });
 
-  useEffect(() => {
-    let mounted = true;
-
-    const load = async () => {
-      try {
-        await client.init();
-        const entry = client.getModuleEntry(moduleName);
-        if (mounted) {
-          if (entry) {
-            setState({
-              url: entry.url,
-              integrity: entry.integrity || null,
-              loading: false,
-              error: null,
-            });
-            client.reportModuleLoad(moduleName, { success: true, variant: client.getVariant() });
-          } else {
-            const err = new Error(`Module ${moduleName} not found in manifest`);
-            setState({ url: null, integrity: null, loading: false, error: err });
-            client.reportModuleError(moduleName, {
-              error: err.message,
-              variant: client.getVariant(),
-            });
-          }
-        }
-      } catch (err: unknown) {
-        if (mounted) {
-          const error = err instanceof Error ? err : new Error(String(err));
-          setState({ url: null, integrity: null, loading: false, error });
-          client.reportModuleError(moduleName, {
-            error: error.message,
-            variant: client.getVariant(),
-          });
-        }
-      }
+  const entry: ModuleEntry | null = manifest ? client.getModuleEntry(moduleName) : null;
+  if (entry) return { ...entry, loading: false, error: null };
+  if (manifest) {
+    return {
+      url: null,
+      integrity: null,
+      version: null,
+      loading: false,
+      error: new Error(`Module "${moduleName}" is not in the manifest`),
     };
-
-    load();
-
-    const handleUpdate = () => {
-      if (mounted) load();
-    };
-
-    client.on('manifestUpdated', handleUpdate);
-
-    return () => {
-      mounted = false;
-      client.off('manifestUpdated', handleUpdate);
-    };
-  }, [client, moduleName]);
-
-  return state;
-};
+  }
+  return { url: null, integrity: null, version: null, loading: !fetchError, error: fetchError };
+}
