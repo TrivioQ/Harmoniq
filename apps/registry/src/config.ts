@@ -75,8 +75,9 @@ export interface Config {
         bucket: string;
         region: string;
         endpoint?: string;
-        accessKeyId: string;
-        secretAccessKey: string;
+        /** Omit both to use the AWS default credential chain (e.g. an ECS task role). */
+        accessKeyId?: string;
+        secretAccessKey?: string;
         /** CDN/public base URL for objects in the bucket. */
         publicUrl?: string;
       };
@@ -89,10 +90,11 @@ function resolveStorage(e: z.infer<typeof EnvSchema>, isProduction: boolean): Co
   const adapter = e.STORAGE_ADAPTER ?? (isProduction ? 'none' : 'local');
   if (adapter === 'local') return { adapter, dir: e.LOCAL_STORAGE_DIR };
   if (adapter === 's3') {
-    if (!e.S3_BUCKET || !e.S3_REGION || !e.S3_ACCESS_KEY_ID || !e.S3_SECRET_ACCESS_KEY) {
-      throw new ConfigError(
-        'STORAGE_ADAPTER=s3 requires S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY'
-      );
+    if (!e.S3_BUCKET || !e.S3_REGION) {
+      throw new ConfigError('STORAGE_ADAPTER=s3 requires S3_BUCKET and S3_REGION');
+    }
+    if (!!e.S3_ACCESS_KEY_ID !== !!e.S3_SECRET_ACCESS_KEY) {
+      throw new ConfigError('Set both S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, or neither');
     }
     return {
       adapter,

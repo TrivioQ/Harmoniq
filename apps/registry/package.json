@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "lint": "eslint src",
-    "schema:generate": "tsx scripts/generate-manifest-schema.ts"
+    "schema:generate": "tsx scripts/generate-manifest-schema.ts",
+    "db:bootstrap": "tsx scripts/bootstrap-db.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",

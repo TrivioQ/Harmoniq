@@ -23,7 +23,7 @@ Harmoniq uses two Postgres roles:
 | `harmoniq`     | Schema owner: migrations, background jobs, admin | Bypasses (owner) |
 | `harmoniq_app` | All tenant-scoped requests                       | Always applies   |
 
-Create them once as a superuser (see `docker/init.sql`, with your own passwords):
+On a self-managed Postgres, create them once as a superuser (see `docker/init.sql`, with your own passwords):
 
 ```sql
 CREATE USER harmoniq WITH PASSWORD '…' CREATEDB;
@@ -31,7 +31,13 @@ CREATE USER harmoniq_app WITH PASSWORD '…';
 CREATE DATABASE harmoniq OWNER harmoniq;
 ```
 
-Then run migrations as the owner (the registry image includes the Prisma CLI):
+On a managed database (RDS, Cloud SQL, Azure) where you only have the master user, make that user the owner and let the registry create the app role from `DATABASE_URL`'s credentials. Run this **before** the first migration — otherwise an early migration creates `harmoniq_app` with a placeholder password:
+
+```bash
+docker run --rm -e DATABASE_URL=… -e SYSTEM_DATABASE_URL=… harmoniq/registry npx tsx scripts/bootstrap-db.ts
+```
+
+It is idempotent and re-applies the password, so it also rotates it. Then run migrations as the owner (the registry image includes the Prisma CLI):
 
 ```bash
 docker run --rm -e DATABASE_URL=… -e SYSTEM_DATABASE_URL=… \
@@ -52,7 +58,11 @@ Put these in `docker/.env` for Compose, or in your orchestrator's secret store:
 | `APP_URL`                                  | dashboard | Public dashboard URL; also set the registry's `WEB_ORIGIN` to it                                                                                       |
 | `WEB_ORIGIN`                               | registry  | Dashboard origin (CORS, allowed sign-in redirects)                                                                                                     |
 | `REGISTRY_URL`                             | dashboard | URL the dashboard uses to reach the registry (can be internal)                                                                                         |
-| `CACHE_ADAPTER`, `REDIS_URL`               | registry  | `redis` + URL for multiple replicas                                                                                                                    |
+| `CACHE_ADAPTER`, `REDIS_URL`               | registry  | `redis` + URL; **required with more than one replica** (the in-memory cache isn't shared, and the registry warns at startup)                           |
+| `STORAGE_ADAPTER`                          | registry  | Where published manifests go: `s3`, `local` (dev default) or `none` (production default)                                                               |
+| `S3_BUCKET`, `S3_REGION`, `S3_PUBLIC_URL`  | registry  | Bucket for published manifests and its public (CDN) base URL; `S3_ENDPOINT` for S3-compatible stores                                                   |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | registry  | Optional; omit both to use the AWS default credential chain (ECS task role, instance profile)                                                          |
+| `PUBLIC_URL`                               | registry  | Public registry URL (links in emails, `/static` URLs for local storage)                                                                                |
 | `HARMONIQ_SETUP_TOKEN`                     | registry  | One-time token for the first-boot wizard at `/admin/setup`                                                                                             |
 | `SMTP_URL`, `MAIL_FROM`                    | registry  | Email sign-in (magic link + code)                                                                                                                      |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | registry  | GitHub sign-in; callback `${APP_URL}/api/auth/callback/github`                                                                                         |
@@ -76,6 +86,10 @@ docker build -f apps/web/Dockerfile -t harmoniq/web .
 ```
 
 Both expose `/health`-style checks used by the Docker `HEALTHCHECK`. The registry also serves `GET /ready` (database and cache) for orchestrators.
+
+## AWS with Terraform
+
+[`deploy/terraform/aws`](../deploy/terraform/aws) deploys the registry and dashboard on ECS Fargate behind one ALB, with RDS Postgres, ElastiCache Redis, S3 + CloudFront for published manifests and generated secrets in Secrets Manager. See its README.
 
 ## Upgrading a development database
 

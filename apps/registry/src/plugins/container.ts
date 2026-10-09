@@ -52,6 +52,13 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
   } else {
     cache = new InMemoryLRUCache();
     logger.info('Using InMemoryLRUCache adapter');
+    if (fastify.config.isProduction) {
+      // Invalidations stay inside this process: other replicas keep serving old manifests
+      // until their cache entries expire.
+      logger.warn(
+        'In-memory cache is only correct with a single registry replica. Set CACHE_ADAPTER=redis and REDIS_URL when running more than one.'
+      );
+    }
   }
 
   // Database

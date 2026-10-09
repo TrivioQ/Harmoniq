@@ -56,3 +56,5 @@ data/
 
 # Example state
 examples/**/.demo.env
+.terraform/
+*.tfstate*

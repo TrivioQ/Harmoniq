@@ -15,18 +15,16 @@ export class S3StorageAdapter implements IStorage {
   constructor(
     region: string,
     bucket: string,
-    accessKeyId: string,
-    secretAccessKey: string,
+    accessKeyId: string | undefined,
+    secretAccessKey: string | undefined,
     endpoint?: string
   ) {
     this.bucket = bucket;
     this.client = new S3Client({
       region,
       endpoint,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
+      // Without static keys the SDK's default chain applies (env, ECS task role, IMDS).
+      credentials: accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined,
       forcePathStyle: !!endpoint, // Often required for MinIO/custom endpoints
     });
   }

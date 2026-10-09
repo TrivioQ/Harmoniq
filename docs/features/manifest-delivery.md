@@ -43,6 +43,23 @@ None.
 
 ## Change History
 
+### 2026-10-09 — Multi-replica guard and AWS deployment
+
+**Type:** infra
+**PR / Branch:** feat/m2-delivery
+**Refs:** report §5.9, DX-01
+
+#### What changed
+
+- The registry warns at startup when it runs in production with the in-memory cache, which is only correct with one replica.
+- S3 storage works without static keys (AWS default credential chain, e.g. an ECS task role); setting only one of the key pair is a config error.
+- `scripts/bootstrap-db.ts` (`pnpm --filter @harmoniq/registry db:bootstrap`) creates or re-passwords the app role from `DATABASE_URL` using the owner connection, for managed databases. It refuses to run when both URLs use the same role.
+- `deploy/terraform/aws`: ECS Fargate (registry, dashboard, one-off migrate task), ALB with host-based routing, RDS Postgres, ElastiCache Redis (TLS), private S3 bucket behind CloudFront (OAC) for published manifests, Secrets Manager.
+
+#### Testing
+
+`config.test.ts` covers keyless S3 and half key pairs. `bootstrap-db.ts` was run against the local database (create, re-password, refusal with the owner role). `terraform validate` passes (hashicorp/terraform 1.9); the module has not been applied to a live AWS account.
+
 ### 2026-10-09 — Example: import maps without a bundler
 
 **Type:** docs/example

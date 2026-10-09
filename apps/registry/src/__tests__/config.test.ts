@@ -54,3 +54,33 @@ describe('loadConfig', () => {
     ).toBe('redis');
   });
 });
+
+describe('instance storage config', () => {
+  it('accepts S3 without static keys (task role) but not half a key pair', () => {
+    expect(
+      loadConfig({ STORAGE_ADAPTER: 's3', S3_BUCKET: 'b', S3_REGION: 'eu-west-1' }).storage
+    ).toMatchObject({
+      adapter: 's3',
+      bucket: 'b',
+    });
+    expect(() =>
+      loadConfig({
+        STORAGE_ADAPTER: 's3',
+        S3_BUCKET: 'b',
+        S3_REGION: 'eu-west-1',
+        S3_ACCESS_KEY_ID: 'x',
+      })
+    ).toThrow(ConfigError);
+  });
+
+  it('defaults to local storage in development and none in production', () => {
+    expect(loadConfig({}).storage.adapter).toBe('local');
+    expect(
+      loadConfig({
+        NODE_ENV: 'production',
+        JWT_SECRET: 'x'.repeat(48),
+        HARMONIQ_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
+      }).storage.adapter
+    ).toBe('none');
+  });
+});
