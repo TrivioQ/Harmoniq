@@ -44,7 +44,8 @@
     "namePlaceholder": "Checkout",
     "slug": "Identificador",
     "canaryBadge": "canary {version} · {percent}%",
-    "healthLabel": "Cargas del módulo en {environment}, últimas 24 horas"
+    "healthLabel": "Cargas del módulo en {environment}, últimas 24 horas",
+    "disabledBadge": "desactivado"
   },
   "EnvironmentsPage": {
     "title": "Entornos",
@@ -184,7 +185,9 @@
     "alertCreated": "Regla de alerta creada.",
     "alertEnabled": "Regla de alerta activada.",
     "alertDisabled": "Regla de alerta desactivada.",
-    "alertDeleted": "Regla de alerta eliminada."
+    "alertDeleted": "Regla de alerta eliminada.",
+    "moduleDisabled": "Módulo desactivado. Los hosts dejan de cargarlo en su próxima lectura del manifiesto.",
+    "moduleEnabled": "Módulo activado de nuevo."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -217,7 +220,9 @@
       "alert_update": "Actualizó una regla de alerta",
       "alert_delete": "Eliminó la regla de alerta {name}",
       "canary_rollout_advance": "Avanzó el despliegue de {module} {version} en {environment} al {percent}%",
-      "canary_rollout_failed": "Detuvo el despliegue de {module} {version} en {environment}: falló la comprobación de salud"
+      "canary_rollout_failed": "Detuvo el despliegue de {module} {version} en {environment}: falló la comprobación de salud",
+      "module_disable": "Desactivó {module} en {environment}: {reason}",
+      "module_enable": "Activó de nuevo {module} en {environment}"
     },
     "systemActor": "automático"
   },
@@ -273,7 +278,15 @@
     "rolloutAdvance": "Avanzar ahora",
     "rolloutAdvanceConfirm": "¿Pasar al siguiente tramo sin esperar la comprobación de salud?",
     "canaryTargeting": "Siempre se sirve a usuarios con",
-    "canaryTargetingOr": "o"
+    "canaryTargetingOr": "o",
+    "killedTitle": "Desactivado por el interruptor de emergencia:",
+    "killEnable": "Activar de nuevo",
+    "killEnableConfirm": "¿Permitir de nuevo que los hosts carguen este módulo en {environment}?",
+    "killTitle": "Interruptor de emergencia",
+    "killHint": "Al desactivarlo, los hosts de {environment} dejan de cargar este módulo en su próxima lectura del manifiesto, aunque el entorno esté congelado. Los hosts deberían mostrar una alternativa.",
+    "killDisable": "Desactivar módulo",
+    "killDisableConfirm": "¿Desactivar {module} en {environment} ahora?",
+    "killReason": "Motivo, p. ej. errores en el pago tras un cambio"
   },
   "EnvironmentHistory": {
     "back": "Entornos",

@@ -10,6 +10,9 @@ export const ModuleSchema = z.object({
   dependencies: z.record(z.string()).optional(),
   exposes: z.record(z.string()).optional(),
   metadata: z.record(z.unknown()).optional(),
+  /** Kill switch (M3.6): hosts must not load this module. */
+  disabled: z.boolean().optional(),
+  disabledReason: z.string().optional(),
 });
 
 export const ManifestSchema = z.object({

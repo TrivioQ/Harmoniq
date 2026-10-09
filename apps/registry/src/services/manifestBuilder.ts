@@ -54,6 +54,14 @@ export async function buildManifest(
     orderBy: { remoteModule: { slug: 'asc' } },
   });
   const canaryVersions = all.filter((v) => v.status === 'canary');
+  const disabled = new Map(
+    (
+      await tx.moduleEnvState.findMany({
+        where: { environmentId: target.environment.id, disabled: true },
+        select: { remoteModuleId: true, reason: true },
+      })
+    ).map((d) => [d.remoteModuleId, d.reason])
+  );
   const useCanary = new Set(
     (opts.canaryModuleIds ?? []).filter((id) => canaryVersions.some((c) => c.remoteModuleId === id))
   );
@@ -77,6 +85,10 @@ export async function buildManifest(
       ...(v.promotedFromEnv && { promotedFrom: v.promotedFromEnv }),
       ...(v.status === 'canary' && { canary: true }),
     },
+    ...(disabled.has(v.remoteModuleId) && {
+      disabled: true,
+      ...(disabled.get(v.remoteModuleId) && { disabledReason: disabled.get(v.remoteModuleId)! }),
+    }),
   }));
 
   const content = {

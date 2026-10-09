@@ -45,7 +45,14 @@ export default async function ModulesPage(props: { params: Promise<{ workspaceSl
                     <dt className="text-muted-foreground">
                       {env.name} {env.frozen && '🔒'}
                     </dt>
-                    <dd className="font-mono">{env.active?.version ?? '—'}</dd>
+                    <dd className="font-mono">
+                      {env.active?.version ?? '—'}
+                      {env.disabled && (
+                        <span className="ml-1 rounded bg-red-100 px-1 text-xs text-red-800">
+                          {t('disabledBadge')}
+                        </span>
+                      )}
+                    </dd>
                     <dd>
                       <HealthSparkline
                         points={series(module.id, env.slug)}

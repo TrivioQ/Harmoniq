@@ -87,6 +87,9 @@ export interface UseRemoteModuleResult {
   version: string | null;
   loading: boolean;
   error: Error | null;
+  /** Kill switch: render a fallback instead of the module. */
+  disabled: boolean;
+  disabledReason: string | null;
 }
 
 /** The current entry for one module; updates when a new manifest arrives (hot swap). */
@@ -95,16 +98,19 @@ export function useRemoteModule(moduleName: string): UseRemoteModuleResult {
   const fetchError = useHarmoniqError();
   const client = useHarmoniqClient();
 
+  const none = { url: null, integrity: null, version: null, disabled: false, disabledReason: null };
   const entry: ModuleEntry | null = manifest ? client.getModuleEntry(moduleName) : null;
-  if (entry) return { ...entry, loading: false, error: null };
+  if (entry) return { ...none, ...entry, loading: false, error: null };
+  const killed = manifest ? client.isModuleDisabled(moduleName) : null;
+  if (killed) {
+    return { ...none, disabled: true, disabledReason: killed.reason, loading: false, error: null };
+  }
   if (manifest) {
     return {
-      url: null,
-      integrity: null,
-      version: null,
+      ...none,
       loading: false,
       error: new Error(`Module "${moduleName}" is not in the manifest`),
     };
   }
-  return { url: null, integrity: null, version: null, loading: !fetchError, error: fetchError };
+  return { ...none, loading: !fetchError, error: fetchError };
 }

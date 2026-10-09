@@ -32,16 +32,21 @@ export function useHarmoniq(moduleName: string) {
   const version = ref<string | null>(null);
   const loading = ref(true);
   const error = ref<Error | null>(null);
+  const disabled = ref(false);
+  const disabledReason = ref<string | null>(null);
 
   const sync = () => {
     const manifest = client.getManifest();
     const entry = client.getModuleEntry(moduleName);
+    const killed = client.isModuleDisabled(moduleName);
     url.value = entry?.url ?? null;
     integrity.value = entry?.integrity ?? null;
     version.value = entry?.version ?? null;
+    disabled.value = !!killed;
+    disabledReason.value = killed?.reason ?? null;
     loading.value = !manifest && !client.getError();
     error.value = manifest
-      ? entry
+      ? entry || killed
         ? null
         : new Error(`Module "${moduleName}" is not in the manifest`)
       : client.getError();
@@ -58,6 +63,8 @@ export function useHarmoniq(moduleName: string) {
   return {
     url: readonly(url),
     integrity: readonly(integrity),
+    disabled: readonly(disabled),
+    disabledReason: readonly(disabledReason),
     version: readonly(version),
     loading: readonly(loading),
     error: readonly(error),

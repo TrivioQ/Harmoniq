@@ -11,6 +11,9 @@ export interface ModuleState {
   version: string | null;
   loading: boolean;
   error: Error | null;
+  /** Kill switch: render a fallback instead of the module. */
+  disabled: boolean;
+  disabledReason: string | null;
 }
 
 /** ADP-03. One client per injector; destroyed with it. */
@@ -40,18 +43,33 @@ export class HarmoniqService implements OnDestroy {
   getModule(moduleName: string): Observable<ModuleState> {
     return combineLatest([this.manifestSubject, this.errorSubject]).pipe(
       map(([manifest, error]) => {
+        const none = {
+          url: null,
+          integrity: null,
+          version: null,
+          disabled: false,
+          disabledReason: null,
+        };
         const entry = manifest ? this.client.getModuleEntry(moduleName) : null;
-        if (entry) return { ...entry, loading: false, error: null };
+        if (entry) return { ...none, ...entry, loading: false, error: null };
+        const killed = manifest ? this.client.isModuleDisabled(moduleName) : null;
+        if (killed) {
+          return {
+            ...none,
+            disabled: true,
+            disabledReason: killed.reason,
+            loading: false,
+            error: null,
+          };
+        }
         if (manifest) {
           return {
-            url: null,
-            integrity: null,
-            version: null,
+            ...none,
             loading: false,
             error: new Error(`Module "${moduleName}" is not in the manifest`),
           };
         }
-        return { url: null, integrity: null, version: null, loading: !error, error };
+        return { ...none, loading: !error, error };
       })
     );
   }

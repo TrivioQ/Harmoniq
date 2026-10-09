@@ -54,6 +54,21 @@ const server = setupServer(
       });
     }
   ),
+  http.put(
+    `${REGISTRY}/api/workspaces/acme/modules/:module/kill-switch`,
+    async ({ request, params }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      received[`${params.module}/kill-switch`] = {
+        body,
+        auth: request.headers.get('authorization'),
+      };
+      return HttpResponse.json({
+        module: params.module,
+        environment: body.environment,
+        disabled: body.disabled,
+      });
+    }
+  ),
   http.get(`${REGISTRY}/api/workspaces/acme`, ({ request }) =>
     request.headers.get('authorization') === `Bearer ${KEY}`
       ? HttpResponse.json({ name: 'Acme', hostApps: [{ slug: 'portal' }] })
@@ -325,6 +340,22 @@ describe('harmoniq CLI', () => {
         environment: 'production',
         reason: 'errors up',
       });
+    });
+  });
+
+  it('flips the kill switch, requiring a reason to disable', async () => {
+    const target = ['--module', 'checkout', '--env', 'production'];
+    expect(await cli(...withKey, 'disable', ...target, '--reason', 'broken checkout')).toBe(0);
+    expect(received['checkout/kill-switch'].body).toEqual({
+      environment: 'production',
+      disabled: true,
+      reason: 'broken checkout',
+    });
+    expect(stdout.join('\n')).toContain('checkout is disabled in production');
+    expect(await cli(...withKey, 'enable', ...target)).toBe(0);
+    expect(received['checkout/kill-switch'].body).toEqual({
+      environment: 'production',
+      disabled: false,
     });
   });
 

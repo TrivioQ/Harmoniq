@@ -86,6 +86,15 @@ harmoniq deploy … --canary 0 --target plan=beta --target userId=qa-1,qa-2
 
 `set-traffic --version-id <id>` makes an earlier version of the module the canary. All three fail with exit code 4 in a frozen environment.
 
+### `harmoniq disable` / `harmoniq enable`
+
+Kill switch: hosts stop loading the module at their next manifest fetch. Works in frozen environments.
+
+```bash
+harmoniq disable --module checkout --env production --reason "payment errors since 14:02"
+harmoniq enable --module checkout --env production
+```
+
 ### `harmoniq promote`
 
 Copies the exact artifact (URL and integrity) running in one environment to another — production only ever runs what was tested.

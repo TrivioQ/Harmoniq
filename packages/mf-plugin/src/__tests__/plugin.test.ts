@@ -186,6 +186,37 @@ describe('harmoniqPlugin (Module Federation 2.0 runtime)', () => {
     });
   });
 
+  it('refuses disabled remotes without reporting them as failed loads', async () => {
+    const off = manifest('1.0.0');
+    off.modules[0] = { ...off.modules[0], disabled: true, disabledReason: 'broken' };
+    const urls: string[] = [];
+    const client = new HarmoniqClient({
+      registryUrl: 'http://registry.test',
+      workspaceSlug: 'acme',
+      hostApp: 'portal',
+      environment: 'production',
+      persist: false,
+      reportHealth: true,
+      fetch: (async (url: string) => {
+        urls.push(url);
+        return new Response(JSON.stringify(off), { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+    const mf = new ModuleFederation({
+      name: 'host',
+      remotes: [],
+      plugins: [harmoniqPlugin(client)],
+    });
+    await expect(resolve(mf, 'checkout/Page')).rejects.toThrow('disabled: broken');
+    await mf.remoteHandler.hooks.lifecycle.afterLoadRemote.emit({
+      id: 'checkout/Page',
+      error: new Error('disabled'),
+      origin: mf,
+    } as never);
+    client.flushHealth();
+    expect(urls.filter((u) => u.includes('/api/health/'))).toEqual([]);
+  });
+
   it('adds SRI and crossorigin to remote entry scripts it knows', async () => {
     const created: Array<Record<string, unknown>> = [];
     vi.stubGlobal('document', {

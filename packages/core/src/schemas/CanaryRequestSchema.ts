@@ -88,3 +88,16 @@ export const CanaryActionRequestSchema = z.object({
 });
 
 export type CanaryActionRequest = z.infer<typeof CanaryActionRequestSchema>;
+
+/** Kill switch (M3.6): disable or re-enable a module in one environment. */
+export const KillSwitchRequestSchema = z
+  .object({
+    environment: z.string().min(1),
+    disabled: z.boolean(),
+    reason: z.string().max(500).optional(),
+  })
+  .refine((r) => !r.disabled || (r.reason && r.reason.trim().length >= 3), {
+    message: 'Say why the module is disabled (reason, at least 3 characters)',
+  });
+
+export type KillSwitchRequest = z.infer<typeof KillSwitchRequestSchema>;

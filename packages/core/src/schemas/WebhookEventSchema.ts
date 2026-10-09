@@ -8,6 +8,8 @@ export const WebhookEventNameSchema = z.enum([
   'deploy.failed',
   'rollback.executed',
   'module.promoted',
+  'module.disabled',
+  'module.enabled',
   'canary.started',
   'canary.updated',
   'canary.promoted',

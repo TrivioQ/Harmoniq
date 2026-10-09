@@ -43,6 +43,7 @@ See [`docs/requirements.md §5.4`](../requirements.md).
 - **Alerts.** `alert.evaluate` runs every minute (pg-boss runs a schedule once across replicas). A rule needs `minSamples` in its window to decide; it fires on the `ok` → `firing` change only, respects a cooldown, and resolves when the metric recovers or the data runs out. Auto-rollback goes through `ManifestMutations` as actor `system`, so it is frozen-environment-aware, audited, snapshotted and published like any change.
 - **Staged rollouts.** The schedule lives on the canary (`rolloutSchedule`, `currentBandIndex`, `bandStartedAt`). `rollout.advance` scans every minute rather than scheduling one delayed job per band, so a restart or a lost job never strands a rollout and a freeze simply pauses it. Each gate check covers the loads of the band that just ran. A band-index check inside the transaction keeps a manual advance and the job from both acting on the same band.
 - **Targeting.** Rules live on the canary version (`targeting`) and are cached with the running canaries, so matching needs no database. A match puts the user in the canary before the percentage is considered; without a user key only targeting applies. `X-Harmoniq-Context` is parsed defensively (size and key limits; bad input is ignored, never an error) and is part of `Vary`.
+- **Kill switch.** `ModuleEnvState` per module and environment; the manifest keeps the module (so hosts can tell "disabled" from "missing") with `disabled` and a reason, and the derived import-map and federation formats drop it. It runs through the mutation pipeline (audit, snapshot, CDN publish) with `ignoreFreeze`, the one change allowed in a frozen environment.
 - **CDN and import maps** stay stable-only: a CDN can't vary by user, and browsers load import maps without custom headers. The SDK therefore asks the registry first whenever it has a user id, and falls back to the CDN.
 
 ### Deviation: `harmoniq_canary` cookie (CAN-02)
@@ -56,6 +57,22 @@ YES (pre-1.0): `CanaryConfigSchema` was removed from `@harmoniq/core` in favour 
 ---
 
 ## Change History
+
+### 2026-10-09 — Kill switch (M3.6)
+
+**Type:** feature
+**PR / Branch:** feat/m3-progressive
+**Refs:** report §5.7
+
+#### What changed
+
+- `PUT …/modules/:ref/kill-switch` (reason required, works when frozen), `ModuleEnvState` table (RLS), `disabled` / `disabledReason` in the manifest and JSON Schema, disabled modules dropped from import maps and federation manifests; webhooks `module.disabled` / `module.enabled`.
+- SDK: `getModuleEntry` returns null for disabled modules, `isModuleDisabled`, `moduleDisabled` event; React/Vue/Angular expose `disabled`; disabled modules aren't health-reported. `@harmoniq/mf-plugin` refuses disabled remotes.
+- CLI `harmoniq disable` / `enable`; dashboard kill-switch control, banner and list badge.
+
+#### Testing
+
+`killSwitch.test.ts` (reason and role checks, every manifest format, freeze bypass, audit and webhook, re-enable), SDK, adapter, plugin and CLI tests. The `examples/vite-mf` e2e disables a remote and checks the host renders without it. Dashboard controls exercised in headless Chrome.
 
 ### 2026-10-09 — Canary targeting (M3.6)
 

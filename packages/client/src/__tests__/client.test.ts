@@ -362,6 +362,29 @@ describe('HarmoniqClient', () => {
     });
   });
 
+  describe('kill switch (M3.6)', () => {
+    it('hides disabled modules and announces newly disabled ones', async () => {
+      const off = manifest('1.0.0');
+      off.etag = 'sha256-off';
+      off.modules[0] = { ...off.modules[0], disabled: true, disabledReason: 'broken' };
+      const { fetchImpl } = fakeRegistry([manifest('1.0.0'), off]);
+      const client = new HarmoniqClient(options(fetchImpl));
+      const disabled = vi.fn();
+      client.on(EVENTS.moduleDisabled, disabled);
+      await client.init();
+      expect(client.getModuleEntry('checkout')).not.toBeNull();
+      expect(client.isModuleDisabled('checkout')).toBeNull();
+
+      await (client as unknown as { fetchManifest(): Promise<void> }).fetchManifest();
+      expect(client.getModuleEntry('checkout')).toBeNull();
+      expect(client.getScriptTag('checkout')).toBeNull();
+      expect(client.isModuleDisabled('checkout')).toEqual({ reason: 'broken' });
+      expect(disabled).toHaveBeenCalledWith({ name: 'checkout', reason: 'broken' });
+      await (client as unknown as { fetchManifest(): Promise<void> }).fetchManifest();
+      expect(disabled).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('health reporting (M3.2)', () => {
     const HEALTH = 'http://registry.test/api/health/acme/portal/production';
 

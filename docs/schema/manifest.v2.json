@@ -75,6 +75,12 @@
           "metadata": {
             "type": "object",
             "additionalProperties": {}
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "disabledReason": {
+            "type": "string"
           }
         },
         "required": ["name", "url", "integrity", "version"]

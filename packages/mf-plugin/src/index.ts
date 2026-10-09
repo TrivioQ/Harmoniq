@@ -114,6 +114,13 @@ export function harmoniqPlugin(
           (!!r.alias && (args.id === r.alias || args.id.startsWith(`${r.alias}/`)))
       );
       const name = remote?.name ?? nameOf(args.id);
+      // Kill switch: refuse to load, so the host's error handling renders a fallback.
+      const killed = client.isModuleDisabled(toModule(name));
+      if (killed) {
+        throw new Error(
+          `[harmoniq] Remote "${name}" is disabled${killed.reason ? `: ${killed.reason}` : ''}`
+        );
+      }
       const entry = client.getModuleEntry(toModule(name));
 
       if (!entry) {

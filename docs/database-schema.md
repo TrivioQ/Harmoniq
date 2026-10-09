@@ -357,6 +357,26 @@ Evaluated every minute by `alert.evaluate` (ALT-05).
 
 ---
 
+### `ModuleEnvState`
+
+Kill switch per module and environment (M3.6).
+
+| Column           | Type       | Notes                                |
+| ---------------- | ---------- | ------------------------------------ |
+| `id`             | `CUID`     | Primary key                          |
+| `workspaceId`    | `CUID`     | FK → Workspace (RLS key)             |
+| `remoteModuleId` | `CUID`     | FK → RemoteModule                    |
+| `environmentId`  | `CUID`     | FK → Environment                     |
+| `disabled`       | `Boolean`  | Manifest marks the module `disabled` |
+| `reason`         | `String?`  | Shown to hosts as `disabledReason`   |
+| `updatedBy`      | `String`   | Principal id                         |
+| `updatedAt`      | `DateTime` |                                      |
+
+**Unique**: `(remoteModuleId, environmentId)`  
+**RLS**: enabled, policy on `workspaceId`
+
+---
+
 ### `ManifestSnapshot`
 
 | Column          | Type        | Notes                                        |

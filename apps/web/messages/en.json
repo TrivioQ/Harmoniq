@@ -44,7 +44,8 @@
     "namePlaceholder": "Checkout",
     "slug": "Slug",
     "canaryBadge": "canary {version} · {percent}%",
-    "healthLabel": "Module loads in {environment}, last 24 hours"
+    "healthLabel": "Module loads in {environment}, last 24 hours",
+    "disabledBadge": "disabled"
   },
   "EnvironmentsPage": {
     "title": "Environments",
@@ -184,7 +185,9 @@
     "alertCreated": "Alert rule created.",
     "alertEnabled": "Alert rule enabled.",
     "alertDisabled": "Alert rule disabled.",
-    "alertDeleted": "Alert rule deleted."
+    "alertDeleted": "Alert rule deleted.",
+    "moduleDisabled": "Module disabled. Hosts stop loading it at their next manifest fetch.",
+    "moduleEnabled": "Module enabled again."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -217,7 +220,9 @@
       "alert_update": "Updated an alert rule",
       "alert_delete": "Deleted alert rule {name}",
       "canary_rollout_advance": "Advanced the rollout of {module} {version} in {environment} to {percent}%",
-      "canary_rollout_failed": "Stopped the rollout of {module} {version} in {environment}: health gate failed"
+      "canary_rollout_failed": "Stopped the rollout of {module} {version} in {environment}: health gate failed",
+      "module_disable": "Disabled {module} in {environment}: {reason}",
+      "module_enable": "Enabled {module} in {environment} again"
     },
     "systemActor": "automatic"
   },
@@ -273,7 +278,15 @@
     "rolloutAdvance": "Advance now",
     "rolloutAdvanceConfirm": "Move to the next band without waiting for the health gate?",
     "canaryTargeting": "Always served to users with",
-    "canaryTargetingOr": "or"
+    "canaryTargetingOr": "or",
+    "killedTitle": "Disabled by the kill switch:",
+    "killEnable": "Enable again",
+    "killEnableConfirm": "Let hosts load this module again in {environment}?",
+    "killTitle": "Kill switch",
+    "killHint": "Disabling stops hosts in {environment} from loading this module at their next manifest fetch, even if the environment is frozen. Hosts should render a fallback.",
+    "killDisable": "Disable module",
+    "killDisableConfirm": "Disable {module} in {environment} now?",
+    "killReason": "Reason, e.g. checkout errors after payment change"
   },
   "EnvironmentHistory": {
     "back": "Environments",

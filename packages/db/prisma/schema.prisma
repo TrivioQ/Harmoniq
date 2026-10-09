@@ -53,6 +53,7 @@ model Workspace {
   WebhookDeadLetters         WebhookDeadLetter[]
   ModuleHealthEvents         ModuleHealthEvent[]
   ModuleHealthRollups        ModuleHealthRollup[]
+  ModuleEnvStates            ModuleEnvState[]
   ScimAuditEvents            ScimAuditEvent[]
   ApprovalPolicies           ApprovalPolicy[]
   DeploymentRequests         DeploymentRequest[]
@@ -121,6 +122,7 @@ model Environment {
   ModuleHealthEvents  ModuleHealthEvent[]
   ModuleHealthRollups ModuleHealthRollup[]
   AlertRules          AlertRule[]
+  ModuleEnvStates     ModuleEnvState[]
 
   @@unique([hostAppId, slug])
   @@index([ephemeral, expiresAt])
@@ -143,6 +145,7 @@ model RemoteModule {
   ModuleHealthEvents  ModuleHealthEvent[]
   ModuleHealthRollups ModuleHealthRollup[]
   AlertRules          AlertRule[]
+  ModuleEnvStates     ModuleEnvState[]
 
   @@unique([hostAppId, slug])
   @@index([workspaceId, slug])
@@ -590,4 +593,23 @@ model WorkspaceStorageConfig {
   workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
+}
+
+/// Kill switch (M3.6): a module disabled in one environment is marked `disabled` in the
+/// manifest, so hosts stop loading it at once.
+model ModuleEnvState {
+  id             String       @id @default(cuid())
+  workspaceId    String
+  remoteModuleId String
+  environmentId  String
+  disabled       Boolean      @default(false)
+  reason         String?
+  updatedBy      String
+  updatedAt      DateTime     @updatedAt
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  remoteModule   RemoteModule @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
+  environment    Environment  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([remoteModuleId, environmentId])
+  @@index([environmentId])
 }

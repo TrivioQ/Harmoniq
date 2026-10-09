@@ -27,6 +27,8 @@ const KNOWN = [
   'canary.rollout_advance',
   'canary.rollout_failed',
   'module.auto_rollback',
+  'module.disable',
+  'module.enable',
   'alert.create',
   'alert.update',
   'alert.delete',
@@ -56,6 +58,7 @@ export async function AuditLine({ event }: { event: AuditEvent }) {
             role: m.role ?? m.to ?? '',
             percent: m.trafficPercent ?? '',
             rule: m.ruleName ?? '',
+            reason: m.reason ?? '',
           })
         : event.action}{' '}
       <span className="text-muted-foreground">· {actor}</span>

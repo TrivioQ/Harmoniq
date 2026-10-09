@@ -12,6 +12,7 @@ import {
   promoteCanaryAction,
   rollbackAction,
   setCanaryAction,
+  setKillSwitchAction,
 } from '../../actions';
 
 const statusStyle: Record<string, string> = {
@@ -110,6 +111,48 @@ export default async function ModuleDetailPage(props: {
         <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">
           🔒 {t('frozen', { reason: env.freezeReason ?? '' })}
         </div>
+      )}
+
+      {env.disabled ? (
+        <section className="rounded-xl border border-red-300 bg-red-50 p-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-red-900">
+            <strong>{t('killedTitle')}</strong> {env.disabled.reason}
+          </p>
+          {canDeploy && (
+            <ActionForm
+              action={setKillSwitchAction.bind(null, workspaceSlug, module.id, env.slug, false)}
+              submitLabel={t('killEnable')}
+              confirm={t('killEnableConfirm', { environment: env.name })}
+              variant="outline"
+            />
+          )}
+        </section>
+      ) : (
+        canDeploy && (
+          <details className="rounded-xl border bg-card p-4">
+            <summary className="cursor-pointer text-sm font-medium">{t('killTitle')}</summary>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t('killHint', { environment: env.name })}
+            </p>
+            <ActionForm
+              action={setKillSwitchAction.bind(null, workspaceSlug, module.id, env.slug, true)}
+              submitLabel={t('killDisable')}
+              confirm={t('killDisableConfirm', { module: module.name, environment: env.name })}
+              variant="danger"
+              className="mt-3 flex flex-wrap items-center gap-2"
+            >
+              <input
+                name="reason"
+                required
+                minLength={3}
+                maxLength={500}
+                placeholder={t('killReason')}
+                aria-label={t('killReason')}
+                className="w-80 rounded-md border px-3 py-1.5 text-sm"
+              />
+            </ActionForm>
+          </details>
+        )
       )}
 
       <section className="rounded-xl border bg-card p-4 space-y-3">

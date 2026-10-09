@@ -55,14 +55,16 @@ export class ManifestMutations {
   async run<T>(
     target: MutationTarget,
     actor: AuditActor,
-    operation: (tx: TenantTx) => Promise<MutationOutcome<T>>
+    operation: (tx: TenantTx) => Promise<MutationOutcome<T>>,
+    /** `ignoreFreeze`: emergency controls (the kill switch) work in frozen environments. */
+    opts: { ignoreFreeze?: boolean } = {}
   ): Promise<{ result: T; manifest: BuiltManifest; snapshotId: string }> {
     const { workspace, environment } = target;
 
     const committed = await this.deps.withTenant(workspace.id, async (tx) => {
       // Read inside the transaction so a concurrent freeze can't slip past (ENV-FRZ-02).
       const env = await tx.environment.findUniqueOrThrow({ where: { id: environment.id } });
-      if (isFrozen(env)) {
+      if (isFrozen(env) && !opts.ignoreFreeze) {
         throw new LockedError(
           `Environment "${env.slug}" is frozen: ${env.freezeReason ?? 'no reason given'}`,
           {

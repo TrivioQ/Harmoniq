@@ -44,7 +44,8 @@ const entry = client.getModuleEntry('checkout');
 | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `init()`                                                                                  | Loads the manifest and starts polling. Rejects if the first load fails; call again to retry.  |
 | `getManifest()`                                                                           | The full manifest (`schemaVersion: 2`) or `null`                                              |
-| `getModuleEntry(name)`                                                                    | `{ url, integrity, version }` or `null`                                                       |
+| `getModuleEntry(name)`                                                                    | `{ url, integrity, version }`, or `null` when missing or disabled                             |
+| `isModuleDisabled(name)`                                                                  | Kill switch: `{ reason }` when the module is disabled, else `null`                            |
 | `getModule(name)`                                                                         | The full module entry, including `dependencies`, `exposes`, `metadata`                        |
 | `getScriptTag(name)`                                                                      | `<script type="module" … integrity crossorigin>` with escaped attributes                      |
 | `getVariant()` / `getCohortId()`                                                          | Canary assignment: `stable` or `canary`, and the opaque cohort id (safe to send to analytics) |
@@ -55,7 +56,7 @@ const entry = client.getModuleEntry('checkout');
 | `on(event, fn)`                                                                           | Subscribe; returns an unsubscribe function                                                    |
 | `destroy()`                                                                               | Stop polling and remove listeners                                                             |
 
-**Events** (`EVENTS.*`): `manifestUpdate` (only when the content changes), `variantAssigned` (first assignment and changes), `manifestStale` (serving a persisted or bundled copy), `error` (each failed fetch).
+**Events** (`EVENTS.*`): `manifestUpdate` (only when the content changes), `moduleDisabled` (`{ name, reason }`, when the kill switch turns a module off), `variantAssigned` (first assignment and changes), `manifestStale` (serving a persisted or bundled copy), `error` (each failed fetch).
 
 **Failures**: sources are tried in order. If all fail, the last manifest stays in use (stale beats broken) and polling backs off. On a cold start with every source down, `init()` uses the persisted copy, then `fallbackManifest`, and emits `manifestStale`; `getSource()` reports `network`, `persisted` or `fallback`. `init()` rejects only when none of these exist.
 
@@ -73,6 +74,10 @@ await client.setUserId(user.id);
 Canaries can also target users: with `context: { plan: 'beta' }` (or `setContext()`), a canary whose rules include `plan ∈ beta` is always served, whatever its percentage. Don't put secrets or personal data in the context.
 
 The registry decides the variant per user and module; the CDN copy is always stable, so with a user id the registry is asked first and the CDN is the fallback. Use an opaque id: the registry never echoes it, only `cohortId`.
+
+### Kill switch
+
+A module disabled from the dashboard or `harmoniq disable` stays in the manifest with `disabled: true`. `getModuleEntry()` then returns `null`, `useRemoteModule()` (React), `useHarmoniq()` (Vue) and `getModule()` (Angular) report `disabled` and `disabledReason` instead of an error, and `@harmoniq/mf-plugin` refuses to load the remote, so your error boundary renders a fallback. Hosts on an SDK older than this see the module as normal: upgrade before relying on the kill switch.
 
 ### Module health
 

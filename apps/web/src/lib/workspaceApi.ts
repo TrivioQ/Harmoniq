@@ -83,6 +83,7 @@ export interface ModuleSummary {
     frozen: boolean;
     active: Version | null;
     canary: Version | null;
+    disabled: { reason: string | null; by: string; at: string } | null;
   }>;
 }
 
@@ -98,6 +99,8 @@ export interface ModuleDetail {
     name: string;
     frozen: boolean;
     freezeReason: string | null;
+    /** Kill switch state. */
+    disabled: { reason: string | null; at: string } | null;
   }>;
 }
 

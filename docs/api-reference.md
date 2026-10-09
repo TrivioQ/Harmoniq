@@ -197,6 +197,10 @@ A plain canary: the new version runs next to the active one (which must exist, e
 
 All three return the version, `manifestEtag` and `snapshotId`, are audited (`canary.update`, `canary.start`, `canary.promote`, `canary.abort`) and return `423` in a frozen environment. `GET /api/workspaces/:ws/modules` lists each environment's `canary` next to `active`.
 
+### Kill switch — `module:deploy`
+
+`PUT /api/workspaces/:ws/modules/:moduleRef/kill-switch` with `{ "environment": "production", "disabled": true, "reason": "checkout errors" }` (a reason of at least 3 characters is required to disable; `{ "disabled": false }` re-enables). The module stays in the manifest with `"disabled": true` and `disabledReason`, and is left out of import maps and federation manifests. Works in frozen environments (an emergency control). Audited `module.disable` / `module.enable`; webhooks `module.disabled` / `module.enabled`. Module listings show each environment's `disabled` state.
+
 ### `POST /api/workspaces/:ws/modules/:moduleRef/promote` — `module:deploy`
 
 ```json
@@ -259,7 +263,7 @@ Slugs: lowercase letters, digits and inner hyphens.
 | `GET /api/workspaces/:ws/webhooks/dead-letters`            | Exhausted deliveries                                                     |
 | `POST /api/workspaces/:ws/webhooks/dead-letters/:id/retry` | Re-enqueue                                                               |
 
-Events: `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollback.executed`, `module.promoted`, `canary.started`, `canary.updated`, `canary.promoted`, `canary.rolled_back`, `canary.auto_rolled_back`, `module.auto_rolled_back`, `alert.triggered`, `alert.resolved`, `env.frozen`, `env.unfrozen` (and later `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
+Events: `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollback.executed`, `module.promoted`, `module.disabled`, `module.enabled`, `canary.started`, `canary.updated`, `canary.promoted`, `canary.rolled_back`, `canary.auto_rolled_back`, `module.auto_rolled_back`, `alert.triggered`, `alert.resolved`, `env.frozen`, `env.unfrozen` (and later `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
 
 ## Sign-in (used by the dashboard)
 

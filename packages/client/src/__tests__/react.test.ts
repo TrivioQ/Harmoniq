@@ -30,7 +30,13 @@ function Checkout() {
   return React.createElement(
     'span',
     null,
-    mod.loading ? 'loading' : mod.error ? `error:${mod.error.message}` : `${mod.version}@${mod.url}`
+    mod.loading
+      ? 'loading'
+      : mod.disabled
+        ? `disabled:${mod.disabledReason}`
+        : mod.error
+          ? `error:${mod.error.message}`
+          : `${mod.version}@${mod.url}`
   );
 }
 
@@ -66,5 +72,16 @@ describe('React adapter', () => {
     const client = new HarmoniqClient({ ...options, fetch: fetchImpl as unknown as typeof fetch });
     await client.init();
     expect(render({ client, options: undefined })).toContain('is not in the manifest');
+  });
+
+  it('exposes the kill switch instead of an error', async () => {
+    const off = {
+      ...manifest,
+      modules: [{ ...manifest.modules[0], disabled: true, disabledReason: 'broken checkout' }],
+    };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(off), { status: 200 }));
+    const client = new HarmoniqClient({ ...options, fetch: fetchImpl as unknown as typeof fetch });
+    await client.init();
+    expect(render({ client, options: undefined })).toContain('disabled:broken checkout');
   });
 });

@@ -6,6 +6,7 @@ import { whoamiCommand } from './commands/whoami';
 import { deployCommand } from './commands/deploy';
 import { promoteCommand } from './commands/promote';
 import { canaryCommand } from './commands/canary';
+import { disableCommand, enableCommand } from './commands/killSwitch';
 import { rollbackCommand } from './commands/rollback';
 import { validateCommand } from './commands/validate';
 import { manifestCommand } from './commands/manifest';
@@ -28,6 +29,8 @@ export function buildProgram() {
     .addCommand(promoteCommand)
     .addCommand(rollbackCommand)
     .addCommand(canaryCommand)
+    .addCommand(disableCommand)
+    .addCommand(enableCommand)
     .addCommand(validateCommand)
     .addCommand(manifestCommand)
     .addCommand(doctorCommand);

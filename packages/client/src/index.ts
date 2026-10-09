@@ -11,6 +11,9 @@ export interface ManifestModule {
   dependencies?: Record<string, string>;
   exposes?: Record<string, string>;
   metadata?: Record<string, unknown>;
+  /** Kill switch: the module must not be loaded. */
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export interface Manifest {
@@ -131,6 +134,8 @@ export const EVENTS = {
   manifestStale: 'manifestStale',
   /** Some modules are served from developer overrides instead of the manifest. */
   overrideActive: 'overrideActive',
+  /** A module was switched off (kill switch); stop rendering it. */
+  moduleDisabled: 'moduleDisabled',
   error: 'error',
 } as const;
 
@@ -139,6 +144,7 @@ type EventMap = {
   [EVENTS.variantAssigned]: VariantAssignment;
   [EVENTS.manifestStale]: { source: ManifestSource; generatedAt: string };
   [EVENTS.overrideActive]: Record<string, string>;
+  [EVENTS.moduleDisabled]: { name: string; reason: string | null };
   [EVENTS.error]: Error;
 };
 type EventName = keyof EventMap;
@@ -388,7 +394,7 @@ export class HarmoniqClient {
     const sampleRate = typeof health === 'object' ? (health.sampleRate ?? 1) : 1;
     if (sampleRate < 1 && Math.random() >= sampleRate) return;
     const mod = this.modules.get(name);
-    if (!mod || this.overrides[name]) return;
+    if (!mod || mod.disabled || this.overrides[name]) return;
 
     const error =
       report.error === undefined
@@ -473,9 +479,18 @@ export class HarmoniqClient {
     return this.modules.get(name)?.url ?? null;
   }
 
+  /** Where to load a module from, or null when it isn't in the manifest or is disabled. */
   getModuleEntry(name: string): ModuleEntry | null {
     const mod = this.modules.get(name);
-    return mod ? { url: mod.url, integrity: mod.integrity, version: mod.version } : null;
+    return mod && !mod.disabled
+      ? { url: mod.url, integrity: mod.integrity, version: mod.version }
+      : null;
+  }
+
+  /** Kill switch: `{ reason }` when the module is disabled in this environment, else null. */
+  isModuleDisabled(name: string): { reason: string | null } | null {
+    const mod = this.modules.get(name);
+    return mod?.disabled ? { reason: mod.disabledReason ?? null } : null;
   }
 
   /** SRI-02: a ready-to-inject script tag; attribute values are HTML-escaped. */
@@ -656,6 +671,13 @@ export class HarmoniqClient {
       this.emit(EVENTS.overrideActive, { ...this.overrides });
     }
 
+    // Newly disabled modules first, so listeners can stop rendering before a re-render.
+    for (const mod of this.modules.values()) {
+      const before = previous?.modules.find((m) => m.name === mod.name);
+      if (mod.disabled && !before?.disabled) {
+        this.emit(EVENTS.moduleDisabled, { name: mod.name, reason: mod.disabledReason ?? null });
+      }
+    }
     if (previous?.etag !== manifest.etag) this.emit(EVENTS.manifestUpdate, manifest);
     // CAN-10: emitted on the first assignment and whenever it changes, not on every poll.
     if (previous?.variant !== manifest.variant || previous?.cohortId !== manifest.cohortId) {

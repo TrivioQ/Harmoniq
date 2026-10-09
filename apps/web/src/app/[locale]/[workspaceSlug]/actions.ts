@@ -409,3 +409,24 @@ export async function deleteAlertAction(workspace: string, ruleId: string, _prev
     (t) => ({ status: 'success', message: t('alertDeleted') })
   );
 }
+
+// ─── Kill switch (M3.6) ─────────────────────────────────────────────────────
+
+export async function setKillSwitchAction(
+  workspace: string,
+  moduleRef: string,
+  environment: string,
+  disabled: boolean,
+  _prev: ActionResult,
+  form?: FormData
+): Promise<ActionResult> {
+  const reason = form ? field(form, 'reason') : '';
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/modules/${enc(moduleRef)}/kill-switch`, {
+        method: 'PUT',
+        body: { environment, disabled, ...(disabled && { reason }) },
+      }),
+    (t) => ({ status: 'success', message: t(disabled ? 'moduleDisabled' : 'moduleEnabled') })
+  );
+}

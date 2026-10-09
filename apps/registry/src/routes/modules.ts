@@ -14,6 +14,7 @@ import {
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import {
   CanaryActionRequestSchema,
+  KillSwitchRequestSchema,
   SetCanaryRequestSchema,
 } from '@harmoniq/core/dist/schemas/CanaryRequestSchema';
 import {
@@ -124,6 +125,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           include: {
             hostApp: { include: { Environments: { orderBy: { slug: 'asc' } } } },
             ModuleVersions: { where: { status: { in: ['active', 'canary'] }, deletedAt: null } },
+            ModuleEnvStates: { where: { disabled: true } },
           },
         })
       );
@@ -139,12 +141,20 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               m.ModuleVersions.find((v) => v.environmentId === env.id && v.status === status);
             const active = current('active');
             const canary = current('canary');
+            const killed = m.ModuleEnvStates.find((d) => d.environmentId === env.id);
             return {
               slug: env.slug,
               name: env.name,
               frozen: isFrozen(env),
               active: active ? versionDto(active, env.slug) : null,
               canary: canary ? versionDto(canary, env.slug) : null,
+              disabled: killed
+                ? {
+                    reason: killed.reason,
+                    by: killed.updatedBy,
+                    at: killed.updatedAt.toISOString(),
+                  }
+                : null,
             };
           }),
         })),
@@ -157,19 +167,26 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('workspace:read') },
     async (request) => {
       const m = await loadModule(request);
+      const killed = await withTenant(request.workspace!.id, (tx) =>
+        tx.moduleEnvState.findMany({ where: { remoteModuleId: m.id, disabled: true } })
+      );
       return {
         id: m.id,
         name: m.name,
         slug: m.slug,
         description: m.description,
         hostApp: { slug: m.hostApp.slug, name: m.hostApp.name },
-        environments: m.hostApp.Environments.map((e) => ({
-          id: e.id,
-          slug: e.slug,
-          name: e.name,
-          frozen: isFrozen(e),
-          freezeReason: isFrozen(e) ? e.freezeReason : null,
-        })),
+        environments: m.hostApp.Environments.map((e) => {
+          const state = killed.find((k) => k.environmentId === e.id);
+          return {
+            id: e.id,
+            slug: e.slug,
+            name: e.name,
+            frozen: isFrozen(e),
+            freezeReason: isFrozen(e) ? e.freezeReason : null,
+            disabled: state ? { reason: state.reason, at: state.updatedAt.toISOString() } : null,
+          };
+        }),
       };
     }
   );
@@ -646,6 +663,72 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       return reply
         .code(201)
         .send({ ...versionDto(result, to.slug), manifestEtag: manifest.etag, snapshotId });
+    }
+  );
+
+  // ─── Kill switch (M3.6) ───────────────────────────────────────────────────
+
+  // Hosts stop loading the module at their next manifest fetch. An emergency control:
+  // it works in frozen environments.
+  fastify.put<{ Params: ModuleParams }>(
+    '/api/workspaces/:workspaceSlug/modules/:moduleRef/kill-switch',
+    { preHandler: fastify.requireWorkspace('module:deploy') },
+    async (request) => {
+      const body = KillSwitchRequestSchema.parse(request.body);
+      const module = await loadModule(request);
+      const env = findEnvironment(module, body.environment);
+      const workspace = request.workspace!;
+
+      const { result, manifest, snapshotId } = await mutations.run(
+        targetFor(request, module, env),
+        actor(request),
+        async (tx) => {
+          const state = await tx.moduleEnvState.upsert({
+            where: {
+              remoteModuleId_environmentId: { remoteModuleId: module.id, environmentId: env.id },
+            },
+            create: {
+              workspaceId: workspace.id,
+              remoteModuleId: module.id,
+              environmentId: env.id,
+              disabled: body.disabled,
+              reason: body.disabled ? body.reason : null,
+              updatedBy: request.principal!.id,
+            },
+            update: {
+              disabled: body.disabled,
+              reason: body.disabled ? body.reason : null,
+              updatedBy: request.principal!.id,
+            },
+          });
+          const change = {
+            module: module.slug,
+            disabled: state.disabled,
+            ...(state.reason && { reason: state.reason }),
+          };
+          return {
+            result: state,
+            audit: {
+              action: body.disabled ? 'module.disable' : 'module.enable',
+              resourceType: 'remoteModule',
+              resourceId: module.id,
+              metadata: { ...change, environment: env.slug },
+            },
+            events: [
+              { name: body.disabled ? 'module.disabled' : 'module.enabled', payload: change },
+            ],
+          };
+        },
+        { ignoreFreeze: true }
+      );
+      return {
+        module: module.slug,
+        environment: env.slug,
+        disabled: result.disabled,
+        reason: result.reason,
+        manifestEtag: manifest.etag,
+        snapshotId,
+      };
     }
   );
 

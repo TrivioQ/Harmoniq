@@ -265,6 +265,25 @@ try {
     versions(s)
   );
 
+  // Kill switch: the MF plugin refuses the remote; the rest of the page keeps working.
+  await api('PUT', `/api/workspaces/${ws}/modules/greeting/kill-switch`, accessToken, {
+    environment: ENV,
+    disabled: true,
+    reason: 'e2e kill switch',
+  });
+  await published();
+  s = await open(page, hostUrl());
+  const greetingText = await page.$eval('#greeting', (el) => el.textContent);
+  check(
+    'kill switch: disabled remote is not loaded, others still are',
+    /disabled: e2e kill switch/.test(greetingText) && s.cart === '1.0.0',
+    greetingText
+  );
+  await api('PUT', `/api/workspaces/${ws}/modules/greeting/kill-switch`, accessToken, {
+    environment: ENV,
+    disabled: false,
+  });
+
   check('no uncaught errors in the page', pageErrors.length === 0, pageErrors.join('; '));
 } catch (err) {
   check('e2e run', false, err.message);
