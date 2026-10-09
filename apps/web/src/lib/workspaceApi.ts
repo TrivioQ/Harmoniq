@@ -56,6 +56,14 @@ export interface Version {
   trafficPercent: number | null;
   /** Canary targeting: matching users always get this version. */
   targeting: Array<{ attribute: string; values: string[] }> | null;
+  /** APR-18: the approval chain, for versions created by an approved request. */
+  approval?: {
+    requestId: string;
+    bypassed: boolean;
+    bypassJustification: string | null;
+    changeTicket: { id: string; url: string | null } | null;
+    decisions: Array<{ approverId: string; decision: string; comment: string | null }>;
+  } | null;
   /** Staged rollout progress while the version is a canary following a schedule. */
   rollout: {
     bands: Array<{ percent: number; holdMinutes: number }>;
@@ -249,6 +257,42 @@ export interface DependencyMatrix {
   }>;
 }
 
+export interface ApprovalRequest {
+  id: string;
+  type: string;
+  module: string;
+  environment: string;
+  status: 'pending_approval' | 'executing' | 'executed' | 'failed' | 'rejected' | 'expired';
+  requestedBy: { type: string; id: string; email: string | null };
+  request: Record<string, unknown>;
+  requiredApprovers: number;
+  approvals: Array<{
+    approverId: string;
+    approverEmail: string | null;
+    decision: 'approved' | 'rejected';
+    comment: string | null;
+    decidedAt: string;
+  }>;
+  changeTicket: { id: string; url: string | null } | null;
+  bypassed: boolean;
+  bypassJustification: string | null;
+  expiresAt: string;
+  createdAt: string;
+  canDecide: boolean;
+  cannotDecideBecause?: string;
+}
+
+export interface ApprovalPolicySummary {
+  id: string;
+  environment?: string;
+  hostApp?: string;
+  requiredApprovers: number;
+  eligibleRoles: Role[];
+  requireChangeTicket: boolean;
+  ticketUrlPattern: string | null;
+  expiryHours: number;
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
@@ -292,6 +336,10 @@ export const workspaceApi = {
     authedFetch<DependencyMatrix>(
       `${ws(slug)}/host-apps/${enc(host)}/environments/${enc(env)}/dependencies`
     ),
+  approvals: (slug: string) =>
+    authedFetch<{ requests: ApprovalRequest[] }>(`${ws(slug)}/approvals`),
+  approvalPolicies: (slug: string) =>
+    authedFetch<{ policies: ApprovalPolicySummary[] }>(`${ws(slug)}/approval-policies`),
   alerts: (slug: string) => authedFetch<{ rules: AlertRuleSummary[] }>(`${ws(slug)}/alerts`),
   moduleHealth: (slug: string, ref: string, env: string) =>
     authedFetch<ModuleHealth>(`${ws(slug)}/modules/${enc(ref)}/health?environment=${enc(env)}`),

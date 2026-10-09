@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { evaluateAlerts } from '../services/alerts';
 import { evaluateRollouts } from '../services/rollout';
 import { runScheduled } from '../services/scheduler';
+import { expireRequests } from '../services/approvals';
 
 export async function registerAlertJobs(fastify: FastifyInstance) {
   const { boss, logger, systemDb, withTenant, mutations, webhooks } = fastify.container;
@@ -12,6 +13,7 @@ export async function registerAlertJobs(fastify: FastifyInstance) {
   await boss.createQueue('alert.evaluate');
   await boss.createQueue('rollout.advance');
   await boss.createQueue('schedule.run');
+  await boss.createQueue('approval.expire');
 
   // ALT-05: every rule, every minute. pg-boss runs a schedule once across replicas.
   await boss.schedule('alert.evaluate', '* * * * *');
@@ -42,5 +44,12 @@ export async function registerAlertJobs(fastify: FastifyInstance) {
     for (const r of await runScheduled(fastify)) {
       logger.info(`Scheduled operation ${r.id}: ${r.status} (${r.statusCode})`);
     }
+  });
+
+  // APR-09: expire approval requests nobody decided on in time.
+  await boss.schedule('approval.expire', '*/5 * * * *');
+  boss.work('approval.expire', async () => {
+    const expired = await expireRequests(fastify);
+    if (expired) logger.info(`Expired ${expired} approval requests`);
   });
 }

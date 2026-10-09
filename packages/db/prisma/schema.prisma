@@ -502,26 +502,42 @@ model ApprovalPolicy {
   @@index([workspaceId])
 }
 
+/// APR-04: a change waiting for approval. It is the API call itself (`method`, `path`,
+/// `payload`), executed as the requester once approved, like a scheduled operation.
 model DeploymentRequest {
   id                  String               @id @default(cuid())
   workspaceId         String
   moduleId            String
   environmentId       String
+  /// `deploy`, `rollback`, `promote`, `canary_traffic`, `canary_promote`, `canary_abort`.
   type                String
   requestedBy         String
+  requestedByType     ActorType            @default(user)
+  method              String               @default("POST")
+  path                String               @default("")
   payload             Json
+  /// `pending_approval`, `executing`, `executed`, `failed`, `rejected` or `expired`.
   status              String
+  requiredApprovers   Int                  @default(1)
   changeTicketId      String?
   changeTicketUrl     String?
   expiresAt           DateTime
   resolvedAt          DateTime?
   resolvedBy          String?
+  /// APR-10: an owner executed it without the approvals.
+  bypassed            Boolean              @default(false)
   bypassJustification String?
+  /// `{ statusCode, body }` of the executed call.
+  result              Json?
+  /// The version the executed deploy or promote created (APR-18).
+  resultVersionId     String?
   createdAt           DateTime             @default(now())
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   DeploymentApprovals DeploymentApproval[]
 
   @@index([workspaceId])
+  @@index([status, expiresAt])
+  @@index([resultVersionId])
 }
 
 model DeploymentApproval {
@@ -532,6 +548,8 @@ model DeploymentApproval {
   comment             String?
   decidedAt           DateTime          @default(now())
   deploymentRequest   DeploymentRequest @relation(fields: [deploymentRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([deploymentRequestId, approverId])
 }
 
 model Organization {

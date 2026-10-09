@@ -581,25 +581,27 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 
 ### `DeploymentRequest`
 
-| Column                | Type        | Notes                                                                         |
-| --------------------- | ----------- | ----------------------------------------------------------------------------- |
-| `id`                  | `CUID`      | Primary key                                                                   |
-| `workspaceId`         | `CUID`      | FK → Workspace (RLS key)                                                      |
-| `moduleId`            | `CUID`      | FK → RemoteModule                                                             |
-| `environmentId`       | `CUID`      | FK → Environment                                                              |
-| `type`                | `String`    | `deploy \| rollback \| promote \| canary`                                     |
-| `requestedBy`         | `CUID`      | FK → WorkspaceMember                                                          |
-| `payload`             | `Json`      | Original operation parameters (serialised)                                    |
-| `status`              | `String`    | `pending_approval \| approved \| rejected \| executed \| expired \| bypassed` |
-| `changeTicketId`      | `String?`   | e.g., `PROJ-1234` (APR-13)                                                    |
-| `changeTicketUrl`     | `String?`   | Resolved URL from pattern                                                     |
-| `expiresAt`           | `DateTime`  | Computed from `ApprovalPolicy.expiryHours` at creation                        |
-| `resolvedAt`          | `DateTime?` | When status transitioned out of `pending_approval`                            |
-| `resolvedBy`          | `CUID?`     | FK → WorkspaceMember (bypasser or final approver)                             |
-| `bypassJustification` | `String?`   | Required on emergency bypass (APR-10)                                         |
-| `createdAt`           | `DateTime`  |                                                                               |
+A change waiting for approval (APR-04): the API call itself, run as the requester once approved.
 
-**Index**: `(workspaceId, status, expiresAt)`  
+| Column                              | Type       | Notes                                                                                                 |
+| ----------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------- |
+| `id`                                | `CUID`     | Primary key                                                                                           |
+| `workspaceId`                       | `CUID`     | FK → Workspace (RLS key)                                                                              |
+| `moduleId`, `environmentId`         | `CUID`     | The module and the environment the change targets                                                     |
+| `type`                              | `String`   | `deploy`, `rollback`, `promote`, `canary_traffic`, `canary_promote`, `canary_abort`, `canary_advance` |
+| `requestedBy`, `requestedByType`    |            | User or API key id; who the call runs as                                                              |
+| `method`, `path`, `payload`         |            | The call                                                                                              |
+| `status`                            | `String`   | `pending_approval`, `executing`, `executed`, `failed`, `rejected`, `expired`                          |
+| `requiredApprovers`                 | `Int`      | Copied from the policy when requested                                                                 |
+| `changeTicketId`, `changeTicketUrl` | `String?`  | APR-13/14                                                                                             |
+| `expiresAt`                         | `DateTime` | From `ApprovalPolicy.expiryHours`                                                                     |
+| `resolvedAt`, `resolvedBy`          |            | Final approver, rejecter or bypassing owner                                                           |
+| `bypassed`, `bypassJustification`   |            | APR-10/12                                                                                             |
+| `result`                            | `Json?`    | `{ statusCode, body }` of the executed call                                                           |
+| `resultVersionId`                   | `String?`  | Version created by an executed deploy or promote (APR-18)                                             |
+| `createdAt`                         | `DateTime` |                                                                                                       |
+
+**Index**: `(workspaceId)`, `(status, expiresAt)`, `(resultVersionId)`  
 **RLS**: enabled, policy on `workspaceId`
 
 ---

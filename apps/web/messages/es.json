@@ -20,7 +20,8 @@
     "signOut": "Cerrar sesión",
     "audit": "Auditoría",
     "quickstart": "Integrar",
-    "scheduled": "Programado"
+    "scheduled": "Programado",
+    "approvals": "Aprobaciones"
   },
   "WorkspaceOverview": {
     "title": "Resumen",
@@ -82,7 +83,8 @@
     "members": "Miembros",
     "webhooks": "Webhooks",
     "adminOnly": "Solo los administradores y propietarios pueden cambiar la configuración.",
-    "alerts": "Alertas"
+    "alerts": "Alertas",
+    "approvalRules": "Reglas de aprobación"
   },
   "LoginPage": {
     "title": "Iniciar sesión en Harmoniq",
@@ -202,7 +204,13 @@
     "scheduleCancelled": "Operación programada cancelada.",
     "ownersUpdated": "Responsables del módulo actualizados.",
     "freezeOverrideOpened": "Los cambios en {environment} pasan la congelación hasta que termine la excepción.",
-    "freezeOverrideClosed": "La congelación de {environment} vuelve a aplicarse."
+    "freezeOverrideClosed": "La congelación de {environment} vuelve a aplicarse.",
+    "approvalRecorded": "Aprobación registrada; se necesitan más.",
+    "approvalExecuted": "Aprobado: el cambio se aplicó.",
+    "approvalRejected": "Rechazado: el cambio no se aplicará.",
+    "approvalBypassed": "Omitido: el cambio se aplicó y quedó marcado.",
+    "approvalPolicySaved": "Reglas de aprobación de {environment} guardadas.",
+    "approvalPolicyRemoved": "Los cambios en {environment} ya no necesitan aprobación."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -245,7 +253,13 @@
       "module_owners_update": "Cambió los responsables de {module}",
       "module_unauthorized_attempt": "Se le denegó un cambio en {module} (no es responsable)",
       "env_freeze_override": "Hizo una excepción a la congelación de {environment}: {reason}",
-      "env_freeze_override_end": "Terminó la excepción a la congelación de {environment}"
+      "env_freeze_override_end": "Terminó la excepción a la congelación de {environment}",
+      "deploy_approval_requested": "Pidió aprobación para {name} en {environment}",
+      "deploy_approve": "Aprobó {name}",
+      "deploy_reject": "Rechazó {name}: {reason}",
+      "deploy_emergency_bypass": "⚠️ OMITIÓ la aprobación de {name}: {reason}",
+      "approval_policy_set": "Fijó reglas de aprobación para {environment}",
+      "approval_policy_delete": "Quitó las reglas de aprobación de {environment}"
     },
     "systemActor": "automático"
   },
@@ -313,7 +327,9 @@
     "ownersTitle": "Responsables del módulo",
     "ownersNone": "ninguno (cualquier desarrollador puede cambiar este módulo)",
     "ownersHint": "Los responsables y los administradores del espacio pueden desplegar, revertir, promover y usar canaries con este módulo. Sin responsables, cualquier desarrollador puede.",
-    "ownersSave": "Guardar responsables"
+    "ownersSave": "Guardar responsables",
+    "bypassed": "OMITIDA",
+    "approvedBy": "{count, plural, one {Aprobado por # revisor} other {Aprobado por # revisores}}"
   },
   "EnvironmentHistory": {
     "back": "Entornos",
@@ -486,5 +502,45 @@
     "invalid": "rango no válido",
     "empty": "Ningún módulo declara dependencias aquí todavía. Despliega con dependencias para verlas.",
     "sharedHint": "Define las dependencias compartidas con PATCH /api/workspaces/'{workspace}'/host-apps/'{hostApp}' y un objeto sharedDependencies, p. ej. react: ^18.2.0."
+  },
+  "ApprovalsPage": {
+    "title": "Aprobaciones",
+    "description": "Los cambios en entornos con reglas de aprobación esperan aquí hasta que suficientes revisores los aprueben. Un rechazo detiene el cambio. Se ejecutan como la persona o clave que los pidió.",
+    "pending": "Pendientes de revisión",
+    "recent": "Decididas",
+    "empty": "Nada espera aprobación.",
+    "requestedBy": "Pedido por {who}",
+    "apiKey": "una clave de API",
+    "approvals": "{count} de {required} aprobaciones",
+    "expires": "caduca {when}",
+    "comment": "Comentario (opcional)",
+    "approve": "Aprobar",
+    "reject": "Rechazar",
+    "rejectConfirm": "¿Rechazar este cambio? No se aplicará.",
+    "bypass": "Omisión de emergencia",
+    "bypassHint": "Solo propietarios: aplicar ya sin aprobaciones. Queda marcado como OMITIDA en el historial y la auditoría.",
+    "justification": "Justificación (al menos 20 caracteres)",
+    "bypassConfirm": "¿Aplicar este cambio sin aprobaciones?",
+    "cannotDecide": "No puedes revisarlo: {reason}",
+    "statuses": {
+      "pending_approval": "Pendiente",
+      "executing": "Aplicando",
+      "executed": "Aplicado",
+      "failed": "Falló",
+      "rejected": "Rechazado",
+      "expired": "Caducado"
+    }
+  },
+  "ApprovalRulesPage": {
+    "description": "Exige aprobación antes de que despliegues, reversiones, promociones y cambios de canary lleguen a un entorno. El interruptor de emergencia nunca se retiene.",
+    "none": "Sin aprobación",
+    "required": "Aprobaciones necesarias",
+    "roles": "Quién puede aprobar",
+    "ticket": "Exigir ticket de cambio",
+    "ticketPattern": "Enlace del ticket, p. ej. https://acme.atlassian.net/browse/'{id}'",
+    "expiry": "Caduca tras (horas)",
+    "save": "Guardar reglas",
+    "remove": "Quitar reglas",
+    "removeConfirm": "¿Dejar pasar los cambios a este entorno sin aprobación?"
   }
 }

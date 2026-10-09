@@ -34,6 +34,12 @@ const KNOWN = [
   'module.owners_update',
   'module.unauthorized_attempt',
   'schedule.create',
+  'deploy.approval_requested',
+  'deploy.approve',
+  'deploy.reject',
+  'deploy.emergency_bypass',
+  'approval_policy.set',
+  'approval_policy.delete',
   'schedule.cancel',
   'schedule.executed',
   'schedule.failed',
@@ -66,7 +72,7 @@ export async function AuditLine({ event }: { event: AuditEvent }) {
             role: m.role ?? m.to ?? '',
             percent: m.trafficPercent ?? '',
             rule: m.ruleName ?? '',
-            reason: m.reason ?? '',
+            reason: m.reason ?? m.justification ?? m.comment ?? '',
           })
         : event.action}{' '}
       <span className="text-muted-foreground">· {actor}</span>

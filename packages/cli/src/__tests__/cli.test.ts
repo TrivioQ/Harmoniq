@@ -498,6 +498,66 @@ describe('harmoniq CLI', () => {
     expect(received['checkout/deploy'].body).toMatchObject({ force: true });
   });
 
+  describe('approvals (APR-04)', () => {
+    const pendingDeploy = () => {
+      let ticket: string | null = null;
+      server.use(
+        http.post(`${REGISTRY}/api/workspaces/acme/modules/:module/deploy`, ({ request }) => {
+          ticket = request.headers.get('x-harmoniq-change-ticket');
+          return HttpResponse.json(
+            {
+              status: 'pending_approval',
+              requestId: 'req1',
+              requiredApprovers: 2,
+              expiresAt: '2026-10-10T12:00:00.000Z',
+            },
+            { status: 202 }
+          );
+        })
+      );
+      return () => ticket;
+    };
+
+    it('reports a pending request with exit code 6 and sends the change ticket', async () => {
+      const ticket = pendingDeploy();
+      const file = join(configDir, 'remoteEntry.js');
+      await writeFile(file, BUNDLE);
+      expect(await cli('--change-ticket', 'OPS-42', ...deployArgs('--file', file))).toBe(6);
+      expect(ticket()).toBe('OPS-42');
+      expect(stdout.join('\n')).toContain('Waiting for approval: request req1 needs 2 approval(s)');
+      server.resetHandlers();
+    });
+
+    it('waits for the decision with --wait', async () => {
+      process.env.HARMONIQ_APPROVAL_POLL_MS = '5';
+      pendingDeploy();
+      const states = ['pending_approval', 'executing', 'executed'];
+      server.use(
+        http.get(`${REGISTRY}/api/workspaces/acme/approvals/req1`, () =>
+          HttpResponse.json({
+            status: states.shift(),
+            result: { statusCode: 201, body: { version: '2.0.0', manifestEtag: 'sha256-x' } },
+          })
+        )
+      );
+      const file = join(configDir, 'remoteEntry.js');
+      await writeFile(file, BUNDLE);
+      expect(await cli('--wait', ...deployArgs('--file', file))).toBe(0);
+      expect(stdout.join('\n')).toContain('Deployed checkout 2.0.0');
+
+      pendingDeploy();
+      server.use(
+        http.get(`${REGISTRY}/api/workspaces/acme/approvals/req1`, () =>
+          HttpResponse.json({ status: 'rejected' })
+        )
+      );
+      expect(await cli('--wait', ...deployArgs('--file', file))).toBe(5);
+      expect(stderr.join('\n')).toContain('Not applied: the request was rejected');
+      server.resetHandlers();
+      delete process.env.HARMONIQ_APPROVAL_POLL_MS;
+    });
+  });
+
   it('promotes between environments', async () => {
     expect(
       await cli(

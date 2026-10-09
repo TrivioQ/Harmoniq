@@ -24,6 +24,11 @@ export function buildProgram() {
     .option('--api-key <key>', 'API key (env HARMONIQ_API_KEY)')
     .option('--workspace <slug>', 'Workspace slug (env HARMONIQ_WORKSPACE)')
     .option('--profile <name>', 'Saved profile (env HARMONIQ_PROFILE)', undefined)
+    .option(
+      '--change-ticket <id>',
+      'Change ticket for environments that require one (env HARMONIQ_CHANGE_TICKET)'
+    )
+    .option('--wait', 'When a change needs approval, wait until it is decided')
     .addCommand(loginCommand)
     .addCommand(whoamiCommand)
     .addCommand(deployCommand)

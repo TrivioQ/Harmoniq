@@ -493,3 +493,89 @@ export async function freezeOverrideAction(
     })
   );
 }
+
+// ─── Approvals (APR-*) ──────────────────────────────────────────────────────
+
+export async function decideApprovalAction(
+  workspace: string,
+  requestId: string,
+  decision: 'approve' | 'reject',
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const comment = field(form, 'comment');
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/approvals/${enc(requestId)}/${decision}`, {
+        body: comment ? { comment } : {},
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: t(
+        decision === 'reject'
+          ? 'approvalRejected'
+          : (r as { status: string }).status === 'executed'
+            ? 'approvalExecuted'
+            : 'approvalRecorded'
+      ),
+    })
+  );
+}
+
+export async function bypassApprovalAction(
+  workspace: string,
+  requestId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/approvals/${enc(requestId)}/bypass`, {
+        body: { bypassJustification: field(form, 'justification') },
+      }),
+    (t) => ({ status: 'success', message: t('approvalBypassed') })
+  );
+}
+
+export async function setApprovalPolicyAction(
+  workspace: string,
+  hostApp: string,
+  environment: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const pattern = field(form, 'ticketUrlPattern');
+  return run(
+    () =>
+      authedFetch(
+        `/api/workspaces/${enc(workspace)}/host-apps/${enc(hostApp)}/environments/${enc(environment)}/approval-policy`,
+        {
+          method: 'PUT',
+          body: {
+            requiredApprovers: Number(field(form, 'requiredApprovers') || 1),
+            eligibleRoles: form.getAll('eligibleRoles').map(String),
+            requireChangeTicket: form.get('requireChangeTicket') === 'on',
+            ...(pattern && { ticketUrlPattern: pattern }),
+            expiryHours: Number(field(form, 'expiryHours') || 24),
+          },
+        }
+      ),
+    (t) => ({ status: 'success', message: t('approvalPolicySaved', { environment }) })
+  );
+}
+
+export async function deleteApprovalPolicyAction(
+  workspace: string,
+  hostApp: string,
+  environment: string,
+  _prev: ActionResult
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(
+        `/api/workspaces/${enc(workspace)}/host-apps/${enc(hostApp)}/environments/${enc(environment)}/approval-policy`,
+        { method: 'DELETE' }
+      ),
+    (t) => ({ status: 'success', message: t('approvalPolicyRemoved', { environment }) })
+  );
+}

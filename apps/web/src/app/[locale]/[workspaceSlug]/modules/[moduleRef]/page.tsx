@@ -409,6 +409,25 @@ export default async function ModuleDetailPage(props: {
                 </td>
                 <td className="px-4 py-2 text-xs text-muted-foreground">
                   {v.promotedFromEnv && t('promotedFrom', { environment: v.promotedFromEnv })}
+                  {v.approval &&
+                    (v.approval.bypassed ? (
+                      <div
+                        className="font-medium text-red-700"
+                        title={v.approval.bypassJustification ?? ''}
+                      >
+                        ⚠️ {t('bypassed')}
+                      </div>
+                    ) : (
+                      <div>
+                        {t('approvedBy', {
+                          count: v.approval.decisions.filter((d) => d.decision === 'approved')
+                            .length,
+                        })}
+                      </div>
+                    ))}
+                  {v.approval?.changeTicket && (
+                    <div className="font-mono">{v.approval.changeTicket.id}</div>
+                  )}
                   {v.commitSha && <div className="font-mono">{v.commitSha.slice(0, 7)}</div>}
                 </td>
                 <td className="px-4 py-2 text-right">

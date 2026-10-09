@@ -3,7 +3,8 @@ import { CliError, EXIT, exitCodeForStatus } from './errors';
 export class ApiClient {
   constructor(
     private baseUrl: string,
-    private apiKey?: string
+    private apiKey?: string,
+    private extraHeaders: Record<string, string> = {}
   ) {}
 
   async request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -15,6 +16,7 @@ export class ApiClient {
           Accept: 'application/json',
           ...(body !== undefined && { 'Content-Type': 'application/json' }),
           ...(this.apiKey && { Authorization: `Bearer ${this.apiKey}` }),
+          ...this.extraHeaders,
         },
         body: body === undefined ? undefined : JSON.stringify(body),
       });

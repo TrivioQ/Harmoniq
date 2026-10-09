@@ -7,6 +7,8 @@ export interface AuditActor {
   ip?: string;
   /** ENV-FRZ-03: set when an owner overrides a freeze; the reason given. */
   freezeOverride?: string;
+  /** APR-18: the approval behind this change, recorded on its audit event. */
+  approval?: Record<string, unknown>;
 }
 
 /** AUD-01/02: one append-only event per state change, written in the same transaction. */

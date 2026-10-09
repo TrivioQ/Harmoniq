@@ -27,6 +27,7 @@ export default async function SettingsLayout(props: {
               members: t('members'),
               webhooks: t('webhooks'),
               alerts: t('alerts'),
+              approvals: t('approvalRules'),
             }}
           />
           <div className="min-w-0">{props.children}</div>

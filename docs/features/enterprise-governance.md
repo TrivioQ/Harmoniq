@@ -30,6 +30,10 @@ See [`docs/requirements.md §16`](../requirements.md) for the full specification
 
 ## Architecture Notes
 
+### Change approvals (APR-01..18)
+
+A held-back change is stored as the API call itself, exactly like a scheduled operation, and executed the same way: in-process through the original route, as the requester, marked with an internal-only header (honoured only for requests authenticated by the per-process secret) that skips the approval check and carries the approval chain into the change's audit metadata. Because execution goes through the route, ownership, freezes, the dependency gate and validation all apply at execution time, not just at request time. Completing the approval count claims the request with a conditional `pending_approval → executing` update, so concurrent approvals run it once. The executed deploy's version id is kept on the request (`resultVersionId`) to show the approval chain in the version history.
+
 ### Freezes (ENV-FRZ-03/04)
 
 A freeze has an optional start (`freezeFrom`) and end; `isFrozen` evaluates the window at check time, so no job is needed to start or end one. Owners override in two ways: per request with the `X-Harmoniq-Freeze-Override` header (sessions only), or by opening a time-boxed window (`POST …/freeze/override`, at most 4 hours) during which changes from any authorized caller pass. That second form is the practical one for a CI hotfix, since API keys can never override. Every change made in a window records `freezeOverride` (reason, owner, end) in its audit event.
@@ -87,6 +91,22 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-09 — Change approvals (M4.3)
+
+**Type:** feature
+**PR / Branch:** feat/m4-enterprise
+**Refs:** APR-01 – APR-18
+
+#### What changed
+
+- Approval policies per environment; deploys, rollbacks, promotes and canary changes into them return `202` with a request; approve (eligible roles, not the requester, users only), reject (one is enough), owner emergency bypass; atomic execution as the requester; expiry job; change tickets; webhooks; approval chain on versions and audit events.
+- CLI: exit code 6 for pending, global `--wait` and `--change-ticket`. Build plugin: reports `pendingApproval`, sends the change ticket.
+- Dashboard: Approvals queue (approve with comment, reject, bypass), Settings → Approval rules, approval/BYPASSED marks in version history, audit lines.
+
+#### Testing
+
+`approvals.test.ts` (7 cases: policies, pending with webhook and ticket, eligibility and two-approver execution with the chain on the version and audit event, self-approval and rejection, bypass, expiry, other operations, dry runs and the kill switch exempt, policy removal); CLI and build-plugin tests. End to end in headless Chrome: rules set in the UI, a CLI deploy pending (exit 6), approvals by two users applying it, an owner bypass flagged in history.
 
 ### 2026-10-09 — Freeze windows and owner overrides (M4.2)
 

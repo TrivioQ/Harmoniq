@@ -106,6 +106,9 @@ export class ManifestMutations {
       }
 
       const outcome = await operation(tx);
+      if (actor.approval) {
+        outcome.audit.metadata = { ...outcome.audit.metadata, approval: actor.approval };
+      }
       if (overrideWindow) {
         outcome.audit.metadata = {
           ...outcome.audit.metadata,

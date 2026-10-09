@@ -4,6 +4,7 @@ import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
 import { CliError, EXIT } from '../lib/errors';
 import { resolveIntegrity } from '../lib/integrity';
 import { emit, enc } from '../lib/output';
+import { settleApproval } from '../lib/approval';
 import { AT_OPTION, scheduleIfRequested } from '../lib/schedule';
 import { printGate, withGateReport } from '../lib/gate';
 import { collectTarget, parsePercent, parseRollout, parseTargets } from './canary';
@@ -105,12 +106,17 @@ export const deployCommand = new Command('deploy')
     };
     const op = { type: 'deploy', module: opts.module, request };
     if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
-    const result = await withGateReport(() =>
-      authedClient(ctx).post<Record<string, unknown>>(
-        `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/deploy`,
-        request
+    const result = await settleApproval(
+      ctx,
+      workspace,
+      await withGateReport(() =>
+        authedClient(ctx).post<Record<string, unknown>>(
+          `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/deploy`,
+          request
+        )
       )
     );
+    if (!result) return;
 
     if (opts.dryRun) {
       const validation = result.validation as {

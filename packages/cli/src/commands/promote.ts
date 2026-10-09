@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
 import { emit, enc } from '../lib/output';
+import { settleApproval } from '../lib/approval';
 import { AT_OPTION, scheduleIfRequested } from '../lib/schedule';
 import { withGateReport } from '../lib/gate';
 
@@ -23,11 +24,16 @@ export const promoteCommand = new Command('promote')
     };
     const op = { type: 'promote', module: opts.module, request };
     if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
-    const result = await withGateReport(() =>
-      authedClient(ctx).post<{ version: string }>(
-        `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/promote`,
-        request
+    const result = await settleApproval(
+      ctx,
+      workspace,
+      await withGateReport(() =>
+        authedClient(ctx).post<{ version: string }>(
+          `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/promote`,
+          request
+        )
       )
     );
+    if (!result) return;
     emit(ctx, result, `Promoted ${opts.module} ${result.version} from ${opts.from} to ${opts.to}`);
   });

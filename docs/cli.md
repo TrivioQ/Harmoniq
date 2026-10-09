@@ -119,6 +119,19 @@ Error: Blocked by the dependency gate: … Use force to deploy anyway.
 
 Fix the ranges, or pass `--force` (audited). `--dry-run` prints the same lines without deploying.
 
+### Approvals
+
+When an environment has approval rules, `deploy`, `rollback`, `promote` and the `canary` commands don't change it right away: the registry records a request, and the CLI prints its id and exits with `6`. Reviewers approve it in the dashboard (Approvals); it then runs as the API key that requested it. Global options:
+
+| Option                 | Description                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `--wait`               | Block until the request is decided; exit `0` once applied, `5` if rejected, expired or failed |
+| `--change-ticket <id>` | Change ticket, required by some environments (env `HARMONIQ_CHANGE_TICKET`)                   |
+
+```bash
+harmoniq --wait --change-ticket OPS-42 deploy --module checkout --env production --release 1.3.0 --url … --file …
+```
+
 ### `harmoniq promote`
 
 Copies the exact artifact (URL and integrity) running in one environment to another — production only ever runs what was tested.
@@ -176,14 +189,15 @@ harmoniq manifest pull --env production --out src/harmoniq-fallback.json
 
 ## Exit codes
 
-| Code | Meaning                                                       |
-| ---- | ------------------------------------------------------------- |
-| 0    | Success                                                       |
-| 1    | Generic error (network, server error, not found)              |
-| 2    | Invalid input or bundle failed validation                     |
-| 3    | Authentication or authorization failed                        |
-| 4    | Target environment is frozen                                  |
-| 5    | Conflict (e.g. version already active, ambiguous module slug) |
+| Code | Meaning                                                                                                              |
+| ---- | -------------------------------------------------------------------------------------------------------------------- |
+| 0    | Success                                                                                                              |
+| 1    | Generic error (network, server error, not found)                                                                     |
+| 2    | Invalid input or bundle failed validation                                                                            |
+| 3    | Authentication or authorization failed                                                                               |
+| 4    | Target environment is frozen                                                                                         |
+| 5    | Conflict (e.g. version already active, ambiguous module slug; with `--wait`, a rejected, expired or failed approval) |
+| 6    | The change waits for approval (see `--wait`)                                                                         |
 
 With `--json`, successful commands print exactly one JSON document on stdout; errors go to stderr.
 

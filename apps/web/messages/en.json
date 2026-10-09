@@ -20,7 +20,8 @@
     "signOut": "Sign out",
     "audit": "Audit log",
     "quickstart": "Integrate",
-    "scheduled": "Scheduled"
+    "scheduled": "Scheduled",
+    "approvals": "Approvals"
   },
   "WorkspaceOverview": {
     "title": "Overview",
@@ -82,7 +83,8 @@
     "members": "Members",
     "webhooks": "Webhooks",
     "adminOnly": "Only workspace admins and owners can change settings.",
-    "alerts": "Alerts"
+    "alerts": "Alerts",
+    "approvalRules": "Approval rules"
   },
   "LoginPage": {
     "title": "Sign in to Harmoniq",
@@ -202,7 +204,13 @@
     "scheduleCancelled": "Scheduled operation cancelled.",
     "ownersUpdated": "Module owners updated.",
     "freezeOverrideOpened": "Changes to {environment} pass the freeze until the override ends.",
-    "freezeOverrideClosed": "The freeze on {environment} applies again."
+    "freezeOverrideClosed": "The freeze on {environment} applies again.",
+    "approvalRecorded": "Approval recorded; more approvals are needed.",
+    "approvalExecuted": "Approved: the change was applied.",
+    "approvalRejected": "Rejected: the change will not be applied.",
+    "approvalBypassed": "Bypassed: the change was applied and flagged.",
+    "approvalPolicySaved": "Approval rules for {environment} saved.",
+    "approvalPolicyRemoved": "Changes to {environment} no longer need approval."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -245,7 +253,13 @@
       "module_owners_update": "Changed the owners of {module}",
       "module_unauthorized_attempt": "Was refused a change to {module} (not an owner)",
       "env_freeze_override": "Overrode the freeze on {environment}: {reason}",
-      "env_freeze_override_end": "Ended the freeze override on {environment}"
+      "env_freeze_override_end": "Ended the freeze override on {environment}",
+      "deploy_approval_requested": "Requested approval for a {name} in {environment}",
+      "deploy_approve": "Approved a {name}",
+      "deploy_reject": "Rejected a {name}: {reason}",
+      "deploy_emergency_bypass": "⚠️ BYPASSED approval for a {name}: {reason}",
+      "approval_policy_set": "Set approval rules for {environment}",
+      "approval_policy_delete": "Removed approval rules for {environment}"
     },
     "systemActor": "automatic"
   },
@@ -313,7 +327,9 @@
     "ownersTitle": "Module owners",
     "ownersNone": "none (every developer can change this module)",
     "ownersHint": "Owners and workspace admins can deploy, roll back, promote and run canaries for this module. Without owners, every developer can.",
-    "ownersSave": "Save owners"
+    "ownersSave": "Save owners",
+    "bypassed": "BYPASSED",
+    "approvedBy": "{count, plural, one {Approved by # reviewer} other {Approved by # reviewers}}"
   },
   "EnvironmentHistory": {
     "back": "Environments",
@@ -486,5 +502,45 @@
     "invalid": "not a valid range",
     "empty": "No module declares dependencies here yet. Deploy with dependencies to see them.",
     "sharedHint": "Set shared dependencies with PATCH /api/workspaces/'{workspace}'/host-apps/'{hostApp}' and a sharedDependencies object, e.g. react: ^18.2.0."
+  },
+  "ApprovalsPage": {
+    "title": "Approvals",
+    "description": "Changes to environments with approval rules wait here until enough eligible reviewers approve them. One rejection stops a change. They run as the person or key that requested them.",
+    "pending": "Waiting for review",
+    "recent": "Decided",
+    "empty": "Nothing waits for approval.",
+    "requestedBy": "Requested by {who}",
+    "apiKey": "an API key",
+    "approvals": "{count} of {required} approvals",
+    "expires": "expires {when}",
+    "comment": "Comment (optional)",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectConfirm": "Reject this change? It will not be applied.",
+    "bypass": "Emergency bypass",
+    "bypassHint": "Owners only: apply now without the approvals. Flagged as BYPASSED in history and the audit log.",
+    "justification": "Justification (at least 20 characters)",
+    "bypassConfirm": "Apply this change without approvals?",
+    "cannotDecide": "You can’t review this: {reason}",
+    "statuses": {
+      "pending_approval": "Pending",
+      "executing": "Applying",
+      "executed": "Applied",
+      "failed": "Failed",
+      "rejected": "Rejected",
+      "expired": "Expired"
+    }
+  },
+  "ApprovalRulesPage": {
+    "description": "Require approval before deploys, rollbacks, promotions and canary changes reach an environment. The kill switch is never held back.",
+    "none": "No approval needed",
+    "required": "Approvals needed",
+    "roles": "Who can approve",
+    "ticket": "Require a change ticket",
+    "ticketPattern": "Ticket link, e.g. https://acme.atlassian.net/browse/'{id}'",
+    "expiry": "Expires after (hours)",
+    "save": "Save rules",
+    "remove": "Remove rules",
+    "removeConfirm": "Let changes to this environment through without approval?"
   }
 }

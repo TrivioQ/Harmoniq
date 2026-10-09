@@ -20,6 +20,8 @@ declare module 'fastify' {
     workspace?: Workspace;
     /** The user's role in `workspace` (undefined for API keys and instance-admin access). */
     workspaceRole?: Role;
+    /** Set when the request came from this process (`internalHeaders`), never the network. */
+    internal?: boolean;
   }
 
   interface FastifyInstance {
@@ -196,7 +198,10 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     if (request.principal) return request.principal;
     if (request.headers[INTERNAL]) {
       const principal = await resolveInternal(request);
-      if (principal) request.principal = principal;
+      if (principal) {
+        request.principal = principal;
+        request.internal = true;
+      }
       return principal;
     }
     const header = request.headers.authorization;

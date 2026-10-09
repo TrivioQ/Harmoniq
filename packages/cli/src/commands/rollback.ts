@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
 import { CliError, EXIT } from '../lib/errors';
 import { emit, enc } from '../lib/output';
+import { settleApproval } from '../lib/approval';
 import { AT_OPTION, scheduleIfRequested } from '../lib/schedule';
 
 export const rollbackCommand = new Command('rollback')
@@ -26,9 +27,14 @@ export const rollbackCommand = new Command('rollback')
     const request = { environment: opts.env, ...target };
     const op = { type: 'rollback', module: opts.module, request };
     if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
-    const result = await authedClient(ctx).post<{ version: string; manifestEtag: string }>(
-      `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/rollback`,
-      request
+    const result = await settleApproval(
+      ctx,
+      workspace,
+      await authedClient(ctx).post<{ version: string; manifestEtag: string }>(
+        `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/rollback`,
+        request
+      )
     );
+    if (!result) return;
     emit(ctx, result, `Rolled back ${opts.module} in ${opts.env} to ${result.version}`);
   });

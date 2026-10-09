@@ -279,7 +279,7 @@ Slugs: lowercase letters, digits and inner hyphens.
 | `GET /api/workspaces/:ws/webhooks/dead-letters`            | Exhausted deliveries                                                     |
 | `POST /api/workspaces/:ws/webhooks/dead-letters/:id/retry` | Re-enqueue                                                               |
 
-Events: `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollback.executed`, `module.promoted`, `module.disabled`, `module.enabled`, `canary.started`, `canary.updated`, `canary.promoted`, `canary.rolled_back`, `canary.auto_rolled_back`, `module.auto_rolled_back`, `alert.triggered`, `alert.resolved`, `schedule.executed`, `schedule.failed`, `env.frozen`, `env.unfrozen` (and later `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
+Events: `deploy.approval_requested`, `deploy.approved`, `deploy.rejected`, `deploy.approval_expired`, `deploy.emergency_bypass`, `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollback.executed`, `module.promoted`, `module.disabled`, `module.enabled`, `canary.started`, `canary.updated`, `canary.promoted`, `canary.rolled_back`, `canary.auto_rolled_back`, `module.auto_rolled_back`, `alert.triggered`, `alert.resolved`, `schedule.executed`, `schedule.failed`, `env.frozen`, `env.unfrozen` (and later `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
 
 ## Sign-in (used by the dashboard)
 
@@ -310,6 +310,23 @@ HLT-02/03: the last 5 minutes. `loadSuccessRate` (0–1), `p50LoadMs`, `p95LoadM
 ### `GET /api/workspaces/:ws/health?hours=24` — read
 
 Hourly `{ hour, sampleCount, errorCount }` series per module and environment, for sparklines.
+
+## Approvals
+
+APR-01..18. An environment with an approval policy holds back deploys, rollbacks, promotions (into it) and canary changes: the call returns **`202`** with `{ status: "pending_approval", requestId, requiredApprovers, expiresAt, changeTicket }` instead of applying the change (dry runs and the kill switch are not held back). Send `X-Harmoniq-Change-Ticket: <id>` when the policy requires a ticket (`400` without it).
+
+| Endpoint                                                                       | Permission    | Description                                                                                                                      |
+| ------------------------------------------------------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/workspaces/:ws/approval-policies`                                    | read          | Policies with their environment                                                                                                  |
+| `PUT /api/workspaces/:ws/host-apps/:hostApp/environments/:env/approval-policy` | admin         | `{ requiredApprovers (1–10), eligibleRoles: ["admin","owner"], requireChangeTicket, ticketUrlPattern (with {id}), expiryHours }` |
+| `DELETE …/approval-policy`                                                     | admin         | Changes no longer need approval                                                                                                  |
+| `GET /api/workspaces/:ws/approvals?status`                                     | read          | Requests (newest 100) with decisions, requester and approver emails, and `canDecide` / `cannotDecideBecause` for you             |
+| `GET /api/workspaces/:ws/approvals/:requestId`                                 | read          | One request                                                                                                                      |
+| `POST …/approvals/:requestId/approve`                                          | eligible role | `{ comment? }`; the last required approval runs the change as the requester                                                      |
+| `POST …/approvals/:requestId/reject`                                           | eligible role | `{ comment? }`; one rejection ends the request                                                                                   |
+| `POST …/approvals/:requestId/bypass`                                           | owner         | `{ bypassJustification (≥20 chars) }`: runs it now, flagged `bypassed`; audited `deploy.emergency_bypass`                        |
+
+Approvers must be signed-in users (never API keys), hold a role the policy lists, and not be the requester (`403` otherwise). Approval is atomic: whichever approval completes the count runs the change exactly once, through the same route as a direct call, so freezes and every other check apply then. Undecided requests expire after `expiryHours` (job every 5 minutes). Webhooks: `deploy.approval_requested`, `deploy.approved`, `deploy.rejected`, `deploy.approval_expired`, `deploy.emergency_bypass`. Versions created through an approval carry `approval` (requester, decisions, ticket, `bypassed`) in `GET …/versions`, and the change's audit event has `approval` in its metadata.
 
 ## Scheduled operations
 
@@ -376,6 +393,6 @@ Actions: `webhook` sends `alert.triggered` / `alert.resolved` to webhook endpoin
 
 ## Planned
 
-| Endpoint                                            | Milestone |
-| --------------------------------------------------- | --------- |
-| Approvals, organizations, SSO, SCIM, GitOps `apply` | M4        |
+| Endpoint                                 | Milestone |
+| ---------------------------------------- | --------- |
+| Organizations, SSO, SCIM, GitOps `apply` | M4        |

@@ -6,6 +6,8 @@ export const EXIT = {
   auth: 3,
   frozen: 4,
   conflict: 5,
+  /** The change waits for approval (APR-04); `--wait` to block until it is decided. */
+  pending: 6,
 } as const;
 
 export class CliError extends Error {

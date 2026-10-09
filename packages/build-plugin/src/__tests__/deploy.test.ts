@@ -106,6 +106,17 @@ describe('@harmoniq/build-plugin', () => {
     expect(body).toMatchObject({ dependencies: result.dependencies, force: true });
   });
 
+  it('reports a deploy waiting for approval instead of claiming it happened', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ status: 'pending_approval', requestId: 'req1' }), {
+        status: 202,
+      })
+    );
+    const result = await harmoniqDeploy({ ...base(), deploy: true, changeTicket: 'OPS-1' });
+    expect(result).toMatchObject({ deployed: false, pendingApproval: 'req1' });
+    expect(fetchMock.mock.calls[0][1].headers['X-Harmoniq-Change-Ticket']).toBe('OPS-1');
+  });
+
   it('fails the build when the registry rejects the deploy', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ error: { message: 'Environment "production" is frozen' } }), {

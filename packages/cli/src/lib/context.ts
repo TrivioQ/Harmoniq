@@ -11,6 +11,10 @@ export interface Context {
   workspace?: string;
   json: boolean;
   profile: string;
+  /** APR-13: change ticket sent with changes that may need approval. */
+  changeTicket?: string;
+  /** Wait for approval when a change becomes a pending request. */
+  wait: boolean;
 }
 
 /** Precedence: flag > environment variable > saved profile > default. */
@@ -21,6 +25,8 @@ export async function resolveContext(command: Command): Promise<Context> {
     workspace?: string;
     json?: boolean;
     profile?: string;
+    changeTicket?: string;
+    wait?: boolean;
   }>();
   const profileName = root.profile ?? process.env.HARMONIQ_PROFILE ?? 'default';
   const profile = (await readConfig()).profiles[profileName];
@@ -36,6 +42,8 @@ export async function resolveContext(command: Command): Promise<Context> {
     workspace: root.workspace ?? process.env.HARMONIQ_WORKSPACE ?? profile?.workspace,
     json: !!root.json,
     profile: profileName,
+    changeTicket: root.changeTicket ?? process.env.HARMONIQ_CHANGE_TICKET,
+    wait: !!root.wait,
   };
 }
 
@@ -56,5 +64,9 @@ export function authedClient(ctx: Context): ApiClient {
       EXIT.auth
     );
   }
-  return new ApiClient(ctx.registryUrl, ctx.apiKey);
+  return new ApiClient(
+    ctx.registryUrl,
+    ctx.apiKey,
+    ctx.changeTicket ? { 'X-Harmoniq-Change-Ticket': ctx.changeTicket } : {}
+  );
 }

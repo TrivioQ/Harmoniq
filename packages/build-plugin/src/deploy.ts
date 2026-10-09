@@ -37,6 +37,8 @@ export interface HarmoniqBuildOptions {
   dependencies?: Record<string, string>;
   /** Deploy despite dependency conflicts or removed exposes (audited by the registry). */
   force?: boolean;
+  /** Change ticket for environments that require one. Defaults to HARMONIQ_CHANGE_TICKET. */
+  changeTicket?: string;
   log?: (message: string) => void;
 }
 
@@ -45,6 +47,8 @@ export interface HarmoniqBuildResult {
   exposes?: Record<string, string>;
   dependencies?: Record<string, string>;
   deployed: boolean;
+  /** Set when the environment needs approval: the request waiting for it. */
+  pendingApproval?: string;
   response?: Record<string, unknown>;
 }
 
@@ -130,11 +134,16 @@ export async function harmoniqDeploy(options: HarmoniqBuildOptions): Promise<Har
   if (missing.length) throw new Error(`[harmoniq] Missing ${missing.join(', ')}`);
 
   const commitSha = options.commitSha ?? process.env.GITHUB_SHA ?? process.env.CI_COMMIT_SHA;
+  const changeTicket = options.changeTicket ?? process.env.HARMONIQ_CHANGE_TICKET;
   const res = await fetch(
     `${registryUrl}/api/workspaces/${encodeURIComponent(workspace!)}/modules/${encodeURIComponent(options.module)}/deploy`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        ...(changeTicket && { 'X-Harmoniq-Change-Ticket': changeTicket }),
+      },
       body: JSON.stringify({
         environment: options.environment,
         url: options.url,
@@ -153,6 +162,21 @@ export async function harmoniqDeploy(options: HarmoniqBuildOptions): Promise<Har
     const message =
       (body.error as { message?: string } | undefined)?.message ?? `HTTP ${res.status}`;
     throw new Error(`[harmoniq] Deploy of ${options.module} ${options.version} failed: ${message}`);
+  }
+
+  if (res.status === 202) {
+    const requestId = String(body.requestId);
+    log(
+      `${options.module} ${options.version} → ${options.environment} awaits approval (request ${requestId})`
+    );
+    return {
+      integrity,
+      exposes,
+      dependencies,
+      deployed: false,
+      pendingApproval: requestId,
+      response: body,
+    };
   }
 
   log(

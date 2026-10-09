@@ -26,6 +26,7 @@ import {
 } from '@harmoniq/core/dist/schemas/ResourceSchemas';
 import { audit } from '../services/audit';
 import { canWriteModule, ownersOf } from '../services/moduleAccess';
+import { interceptForApproval } from '../services/approvals';
 import { roleAllows, scopesAllow } from '../auth/permissions';
 import { advanceRollout, clearedRollout, startRollout } from '../services/rollout';
 import { GateResult, checkGate, enforceGate } from '../services/dependencyGate';
@@ -66,14 +67,20 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   const actor = (request: FastifyRequest) => {
     const header = request.headers[FREEZE_OVERRIDE_HEADER];
     const reason = (Array.isArray(header) ? header[0] : header)?.trim();
-    if (!reason) return { principal: request.principal!, ip: request.ip };
+    // APR-18: an approved request's execution records its approval chain.
+    const base = {
+      principal: request.principal!,
+      ip: request.ip,
+      ...(request.approvalContext && { approval: request.approvalContext }),
+    };
+    if (!reason) return base;
     if (request.principal!.type !== 'user' || request.workspaceRole !== 'owner') {
       throw new ForbiddenError('Only workspace owners can override a freeze');
     }
     if (reason.length < 10) {
       throw new BadRequestError('Explain the freeze override (at least 10 characters)');
     }
-    return { principal: request.principal!, ip: request.ip, freezeOverride: reason.slice(0, 500) };
+    return { ...base, freezeOverride: reason.slice(0, 500) };
   };
   /** Whether the caller has `module:deploy` at all (before module ownership). */
   const mayDeploy = (request: FastifyRequest) => {
@@ -320,8 +327,38 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       );
       const envSlug = new Map(m.hostApp.Environments.map((e) => [e.id, e.slug]));
       const page = versions.slice(0, limit);
+      // APR-18: the approval chain behind versions created by an approved request.
+      const approvals = await withTenant(request.workspace!.id, (tx) =>
+        tx.deploymentRequest.findMany({
+          where: { resultVersionId: { in: page.map((v) => v.id) } },
+          include: { DeploymentApprovals: { orderBy: { decidedAt: 'asc' } } },
+        })
+      );
+      const approvalOf = (versionId: string) => {
+        const dr = approvals.find((a) => a.resultVersionId === versionId);
+        return dr
+          ? {
+              requestId: dr.id,
+              requestedBy: dr.requestedBy,
+              bypassed: dr.bypassed,
+              bypassJustification: dr.bypassJustification,
+              changeTicket: dr.changeTicketId
+                ? { id: dr.changeTicketId, url: dr.changeTicketUrl }
+                : null,
+              decisions: dr.DeploymentApprovals.map((a) => ({
+                approverId: a.approverId,
+                decision: a.decision,
+                comment: a.comment,
+                decidedAt: a.decidedAt.toISOString(),
+              })),
+            }
+          : null;
+      };
       return {
-        versions: page.map((v) => versionDto(v, envSlug.get(v.environmentId))),
+        versions: page.map((v) => ({
+          ...versionDto(v, envSlug.get(v.environmentId)),
+          approval: approvalOf(v.id),
+        })),
         nextCursor: versions.length > limit ? page[page.length - 1].id : null,
       };
     }
@@ -509,6 +546,15 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
         throw new ValidationError('Bundle failed validation', { validation });
       }
 
+      // APR-04: environments with an approval policy get a request instead.
+      const pending = await interceptForApproval(fastify, request, {
+        type: 'deploy',
+        moduleId: module.id,
+        environmentId: env.id,
+        environment: env.slug,
+      });
+      if (pending) return reply.code(202).send(pending);
+
       let gate: GateResult = { dependencyConflicts: [], removedExposes: [], blocking: false };
 
       const { result, manifest, snapshotId } = await mutations.run(
@@ -641,10 +687,17 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Params: ModuleParams }>(
     '/api/workspaces/:workspaceSlug/modules/:moduleRef/rollback',
     { preHandler: fastify.requireWorkspace('module:deploy') },
-    async (request) => {
+    async (request, reply) => {
       const body = RollbackRequestSchema.parse(request.body);
       const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
+      const pending = await interceptForApproval(fastify, request, {
+        type: 'rollback',
+        moduleId: module.id,
+        environmentId: env.id,
+        environment: env.slug,
+      });
+      if (pending) return reply.code(202).send(pending);
 
       const { result, manifest, snapshotId } = await mutations.run(
         targetFor(request, module, env),
@@ -731,6 +784,13 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       const module = await loadModule(request, { write: true });
       const from = findEnvironment(module, body.fromEnvironment);
       const to = findEnvironment(module, body.toEnvironment);
+      const pending = await interceptForApproval(fastify, request, {
+        type: 'promote',
+        moduleId: module.id,
+        environmentId: to.id,
+        environment: to.slug,
+      });
+      if (pending) return reply.code(202).send(pending);
       const workspace = request.workspace!;
 
       // The freeze check in the pipeline applies to the target environment (PRO-03).
@@ -894,10 +954,17 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put<{ Params: ModuleParams }>(
     '/api/workspaces/:workspaceSlug/modules/:moduleRef/canary',
     { preHandler: fastify.requireWorkspace('module:deploy') },
-    async (request) => {
+    async (request, reply) => {
       const body = SetCanaryRequestSchema.parse(request.body);
       const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
+      const pending = await interceptForApproval(fastify, request, {
+        type: 'canary_traffic',
+        moduleId: module.id,
+        environmentId: env.id,
+        environment: env.slug,
+      });
+      if (pending) return reply.code(202).send(pending);
 
       const { result, manifest, snapshotId } = await mutations.run(
         targetFor(request, module, env),
@@ -1008,10 +1075,17 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Params: ModuleParams }>(
     '/api/workspaces/:workspaceSlug/modules/:moduleRef/canary/promote',
     { preHandler: fastify.requireWorkspace('module:deploy') },
-    async (request) => {
+    async (request, reply) => {
       const body = CanaryActionRequestSchema.parse(request.body);
       const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
+      const pending = await interceptForApproval(fastify, request, {
+        type: 'canary_promote',
+        moduleId: module.id,
+        environmentId: env.id,
+        environment: env.slug,
+      });
+      if (pending) return reply.code(202).send(pending);
 
       const { result, manifest, snapshotId } = await mutations.run(
         targetFor(request, module, env),
@@ -1064,10 +1138,17 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Params: ModuleParams }>(
     '/api/workspaces/:workspaceSlug/modules/:moduleRef/canary/advance',
     { preHandler: fastify.requireWorkspace('module:deploy') },
-    async (request) => {
+    async (request, reply) => {
       const body = CanaryActionRequestSchema.parse(request.body);
       const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
+      const pending = await interceptForApproval(fastify, request, {
+        type: 'canary_advance',
+        moduleId: module.id,
+        environmentId: env.id,
+        environment: env.slug,
+      });
+      if (pending) return reply.code(202).send(pending);
       const { result, manifest, snapshotId } = await advanceRollout(
         { mutations },
         { workspace: request.workspace!, hostApp: module.hostApp, environment: env, module },
@@ -1082,10 +1163,17 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Params: ModuleParams }>(
     '/api/workspaces/:workspaceSlug/modules/:moduleRef/canary/abort',
     { preHandler: fastify.requireWorkspace('module:deploy') },
-    async (request) => {
+    async (request, reply) => {
       const body = CanaryActionRequestSchema.parse(request.body);
       const module = await loadModule(request, { write: true });
       const env = findEnvironment(module, body.environment);
+      const pending = await interceptForApproval(fastify, request, {
+        type: 'canary_abort',
+        moduleId: module.id,
+        environmentId: env.id,
+        environment: env.slug,
+      });
+      if (pending) return reply.code(202).send(pending);
 
       const { result, manifest, snapshotId } = await mutations.run(
         targetFor(request, module, env),
