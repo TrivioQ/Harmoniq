@@ -1,10 +1,7 @@
-import { PrismaClient } from '@harmoniq/db';
-import { getSession } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { getTranslations } from 'next-intl/server';
-
-const db = new PrismaClient();
+import { getMe } from '@/lib/registry';
 
 export default async function WorkspaceLayout(props: {
   children: React.ReactNode;
@@ -12,16 +9,12 @@ export default async function WorkspaceLayout(props: {
 }) {
   const t = await getTranslations('WorkspaceLayout');
   const params = await props.params;
-  const session = await getSession();
-  if (!session) redirect('/auth/login');
+  const me = await getMe();
+  if (!me) redirect('/auth/login');
 
-  const workspace = await db.workspace.findUnique({
-    where: { slug: params.workspaceSlug },
-  });
-
-  if (!workspace) {
-    redirect('/');
-  }
+  // Membership comes from the registry; non-members get a 404 (no slug probing).
+  const workspace = me.workspaces.find((w) => w.slug === params.workspaceSlug);
+  if (!workspace) notFound();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -50,6 +43,11 @@ export default async function WorkspaceLayout(props: {
             >
               {t('settings')}
             </Link>
+            <form action="/api/auth/logout" method="post">
+              <button type="submit" className="text-muted-foreground hover:text-primary">
+                {t('signOut')}
+              </button>
+            </form>
           </nav>
         </div>
       </header>

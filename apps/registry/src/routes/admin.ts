@@ -1,7 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { createHash, timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
-import { signAccessToken } from '../auth/tokens';
 
 // InstanceConfig key marking the one-time setup token as consumed (INST-04).
 const SETUP_COMPLETED_KEY = 'setup.completed';
@@ -69,16 +68,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify, _options) => {
         throw err;
       }
 
-      // Interim: until dashboard sign-in lands (M0.4), setup hands back an access token.
-      const token = await signAccessToken(
-        { userId: newAdmin.user.id, email: newAdmin.user.email },
-        fastify.config.jwtSecret
-      );
-
+      // No session is issued here: the admin signs in normally with this (verified) email,
+      // which links their identity to this user.
       reply.send({
-        message: 'Admin created successfully',
-        user: newAdmin.user,
-        token,
+        message: 'Admin created. Sign in with this email address to continue.',
+        user: { id: newAdmin.user.id, email: newAdmin.user.email, name: newAdmin.user.name },
       });
     }
   );

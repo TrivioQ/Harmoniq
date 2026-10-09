@@ -9,6 +9,7 @@ import deployRoutes from './routes/deploy';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
 import workspaceRoutes from './routes/workspaces';
+import authRoutes from './routes/auth';
 import jobsPlugin from './plugins/jobs';
 import metricsPlugin from './plugins/metrics';
 import swagger from '@fastify/swagger';
@@ -109,6 +110,7 @@ export async function buildApp() {
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
   await app.register(workspaceRoutes);
+  await app.register(authRoutes);
 
   // Health check routes
   app.get('/health', async () => {

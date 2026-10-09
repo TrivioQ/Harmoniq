@@ -13,7 +13,8 @@
     "overview": "Overview",
     "modules": "Modules",
     "environments": "Environments",
-    "settings": "Settings"
+    "settings": "Settings",
+    "signOut": "Sign out"
   },
   "WorkspaceOverview": {
     "title": "Overview",
@@ -50,7 +51,22 @@
     "description": "Welcome back. Please sign in to your account.",
     "continueWithGithub": "Continue with GitHub",
     "or": "Or",
-    "continueWithSaml": "Continue with SAML SSO"
+    "continueWithSaml": "Continue with SAML SSO",
+    "continueWith": "Continue with {provider}",
+    "devLogin": "Development sign-in",
+    "devLoginSubmit": "Sign in with email",
+    "devLoginHint": "Enabled by HARMONIQ_DEV_LOGIN. Never available in production.",
+    "noProviders": "No sign-in methods are configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET on the registry.",
+    "registryUnavailable": "The registry is unreachable. Check that it is running.",
+    "errors": {
+      "generic": "Sign-in failed. Please try again.",
+      "invalid_state": "Your sign-in session expired or was started in another browser. Please try again.",
+      "access_denied": "Sign-in was cancelled.",
+      "email_not_verified": "Your account has no verified email address. Verify it with your provider and try again.",
+      "invalid_grant": "The sign-in code was rejected. Please try again.",
+      "provider_unavailable": "The sign-in provider is unavailable. Please try again later.",
+      "dev_login_disabled": "Development sign-in is not enabled."
+    }
   },
   "AdminDashboardPage": {
     "errorFetch": "Failed to fetch stats. You may not be authenticated as an admin.",
@@ -63,7 +79,8 @@
     "title": "Harmoniq Admin",
     "dashboard": "Dashboard",
     "workspaces": "Workspaces",
-    "exitAdmin": "← Exit Admin"
+    "exitAdmin": "← Exit Admin",
+    "signOut": "Sign out"
   },
   "AdminSetupPage": {
     "errorSetup": "Failed to setup admin",
@@ -72,9 +89,10 @@
     "setupToken": "Setup Token",
     "emailAddress": "Email Address",
     "name": "Name",
-    "successMessage": "Successfully initialized! Redirecting...",
+    "successMessage": "Instance initialized. Sign in as {email} to open the admin panel.",
     "initializing": "Initializing...",
-    "initialize": "Initialize Instance"
+    "initialize": "Initialize Instance",
+    "goToSignIn": "Go to sign in"
   },
   "AdminWorkspacesPage": {
     "title": "Workspaces",
@@ -90,7 +108,6 @@
     "successUpdate": "Storage config updated successfully.",
     "title": "Storage Configuration: {slug}",
     "storageProvider": "Storage Provider",
-    "local": "Local File System (Default)",
     "s3": "Amazon S3 / Compatible",
     "gcs": "Google Cloud Storage",
     "region": "Region",
@@ -101,6 +118,11 @@
     "clientEmail": "Client Email",
     "privateKey": "Private Key",
     "saving": "Saving...",
-    "saveConfiguration": "Save Configuration"
+    "saveConfiguration": "Save Configuration",
+    "errorLoad": "Failed to load storage settings.",
+    "cdnPrefix": "CDN prefix (optional)",
+    "instanceDefaultHint": "Without a workspace bucket, bundles use the instance default storage.",
+    "credentialsKeepHint": "Leave credential fields blank to keep the stored credentials.",
+    "credentialsRequiredHint": "Credentials are encrypted at rest and never shown again."
   }
 }

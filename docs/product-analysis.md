@@ -279,7 +279,12 @@ interface IdentityProviderBase {
 /** Redirect-based providers: GitHub, Google, generic OIDC, SAML. */
 export interface RedirectIdentityProvider extends IdentityProviderBase {
   kind: 'redirect';
-  getAuthorizationUrl(params: { state: string; codeVerifier: string; redirectUri: string }): string;
+  // Receives the PKCE challenge; the verifier only travels at the code exchange.
+  getAuthorizationUrl(params: {
+    state: string;
+    codeChallenge: string;
+    redirectUri: string;
+  }): string;
   handleCallback(params: {
     code: string;
     codeVerifier: string;

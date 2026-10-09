@@ -21,6 +21,9 @@ const EnvSchema = z.object({
   REDIS_URL: z.string().optional(),
   HARMONIQ_SETUP_TOKEN: z.string().optional(),
   HARMONIQ_GC_KEEP_VERSIONS: z.coerce.number().int().min(1).default(10),
+  GITHUB_CLIENT_ID: z.string().optional(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+  HARMONIQ_DEV_LOGIN: z.string().optional(),
 });
 
 export interface Config {
@@ -36,6 +39,9 @@ export interface Config {
   setupToken?: string;
   /** Newest versions kept per module+environment regardless of age, so rollback always works. */
   gcKeepVersions: number;
+  github?: { clientId: string; clientSecret: string };
+  /** Passwordless sign-in as any email. Development only; refused in production. */
+  devLogin: boolean;
 }
 
 export class ConfigError extends Error {}
@@ -73,6 +79,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new ConfigError('HARMONIQ_ENCRYPTION_KEY must decode to exactly 32 bytes');
   }
 
+  const devLogin = e.HARMONIQ_DEV_LOGIN === '1' || e.HARMONIQ_DEV_LOGIN === 'true';
+  if (devLogin && isProduction) {
+    throw new ConfigError('HARMONIQ_DEV_LOGIN must not be enabled in production');
+  }
+
   const cacheAdapter = e.CACHE_ADAPTER === 'redis' && e.REDIS_URL ? 'redis' : 'memory';
 
   return {
@@ -86,5 +97,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     redisUrl: e.REDIS_URL,
     setupToken: e.HARMONIQ_SETUP_TOKEN,
     gcKeepVersions: e.HARMONIQ_GC_KEEP_VERSIONS,
+    github:
+      e.GITHUB_CLIENT_ID && e.GITHUB_CLIENT_SECRET
+        ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }
+        : undefined,
+    devLogin,
   };
 }

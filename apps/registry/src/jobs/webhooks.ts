@@ -152,6 +152,9 @@ export async function registerWebhookJobs(fastify: FastifyInstance) {
 
   if (!boss) return;
 
+  // pg-boss 10+ requires queues to exist before schedule()/work(). Idempotent.
+  await boss.createQueue('webhook.deliver');
+
   boss.work<WebhookJobData>('webhook.deliver', (jobs) => {
     const jobList = Array.isArray(jobs) ? jobs : [jobs];
     return Promise.all(jobList.map((job) => handleWebhookDelivery(job, db, logger, boss)));

@@ -6,6 +6,11 @@ export async function registerAlertJobs(fastify: FastifyInstance) {
 
   if (!boss) return;
 
+  // pg-boss 10+ requires queues to exist before schedule()/work(). Idempotent.
+  await boss.createQueue('alert.evaluate');
+  await boss.createQueue('rollout.advance');
+  await boss.createQueue('alert.auto_rollback');
+
   // 1. Alert Evaluate - Every minute
   await boss.schedule('alert.evaluate', '* * * * *');
   boss.work('alert.evaluate', async () => {

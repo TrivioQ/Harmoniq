@@ -1,27 +1,14 @@
-import { PrismaClient } from '@harmoniq/db';
-import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { Button } from '@/components/ui/button';
 import { getTranslations } from 'next-intl/server';
-
-const db = new PrismaClient();
+import { getMe } from '@/lib/registry';
 
 export default async function WorkspaceSelector() {
   const t = await getTranslations('WorkspaceSelector');
-  const session = await getSession();
-  if (!session) {
-    redirect('/auth/login');
-  }
-
-  const workspaces = await db.workspace.findMany({
-    where: {
-      WorkspaceMembers: {
-        some: { userId: session.userId },
-      },
-    },
-    orderBy: { name: 'asc' },
-  });
+  const me = await getMe();
+  if (!me) redirect('/auth/login');
+  const { workspaces } = me;
 
   return (
     <div className="flex flex-col min-h-screen items-center p-6 md:p-24 bg-muted/30">
@@ -33,7 +20,7 @@ export default async function WorkspaceSelector() {
 
         <div className="grid gap-4">
           {workspaces.map((ws) => (
-            <Link key={ws.id} href={`/${ws.slug}`}>
+            <Link key={ws.slug} href={`/${ws.slug}`}>
               <div className="p-6 border rounded-xl bg-card hover:border-primary transition-colors cursor-pointer shadow-sm">
                 <h3 className="font-medium text-lg">{ws.name}</h3>
                 <p className="text-sm text-muted-foreground">{ws.slug}</p>

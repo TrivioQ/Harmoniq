@@ -45,6 +45,7 @@ This directory contains **one Markdown file per product feature**. Each file ser
 | File | Feature | Description | PRs / Status |
 |---------|-------------|--------------|
 | [Enterprise Governance](./enterprise-governance.md) | Org-level controls, SSO mappings, audit logs, approval policies | Active |
+| [Authentication](./authentication.md) | Sign-in (GitHub, dev, email), sessions, API keys, instance admin | In progress |
 | [Registry Core](./registry-core.md) | Manifest generation, deploy routes, caching, and auth middleware | Active |
 | [Web Dashboard](./web-dashboard.md) | Next.js Dashboard UI and OAuth flow | Active |
 | [SDK and CLI](./sdk-and-cli.md) | `@harmoniq/client` SDK and `@harmoniq/cli` developer tooling | Active |

@@ -1,13 +1,22 @@
-import { NextResponse } from 'next/server';
-import { clearSession } from '@/lib/auth';
+import { NextRequest } from 'next/server';
+import { isSameOrigin, redirectTo } from '@/lib/http';
+import { registryFetch } from '@/lib/registry';
+import { REFRESH_COOKIE, clearSessionCookies } from '@/lib/session';
 
-export async function POST(request: Request) {
-  await clearSession();
-  return NextResponse.redirect(new URL('/auth/login', request.url));
-}
+// POST only, same-origin only: a GET logout lets any page sign users out cross-site.
+export async function POST(request: NextRequest) {
+  if (!isSameOrigin(request)) {
+    return new Response('Forbidden', { status: 403 });
+  }
 
-// Support GET for simplicity in some scenarios (though POST is better for CSRF)
-export async function GET(request: Request) {
-  await clearSession();
-  return NextResponse.redirect(new URL('/auth/login', request.url));
+  const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
+  if (refreshToken) {
+    // Revoke server-side so a copied cookie stops working too. Best effort: the cookies
+    // are cleared below regardless.
+    await registryFetch('/api/auth/logout', { body: { refreshToken } }).catch(() => undefined);
+  }
+
+  const response = redirectTo('/auth/login');
+  clearSessionCookies(response.cookies);
+  return response;
 }

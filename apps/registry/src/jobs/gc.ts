@@ -137,6 +137,11 @@ export async function registerGcJobs(fastify: FastifyInstance) {
 
   if (!boss) return;
 
+  // pg-boss 10+ requires queues to exist before schedule()/work(). Idempotent.
+  for (const queue of ['gc.softDelete', 'gc.hardDelete', 'gc.healthEventPurge', 'gc.orphanScan']) {
+    await boss.createQueue(queue);
+  }
+
   // Bundles in a workspace's own bucket are removed with their version. Without one, the
   // instance default storage owns the objects (orphan scan, M2.1).
   const purge: PurgeObjects = async (workspaceId, paths) => {

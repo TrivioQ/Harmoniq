@@ -49,7 +49,14 @@ GRANT USAGE ON SCHEMA public TO harmoniq_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO harmoniq_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO harmoniq_app;
-REVOKE ALL ON "_prisma_migrations" FROM harmoniq_app;
+-- Conditional: Prisma's shadow database (migrate dev) has no _prisma_migrations table.
+DO $$
+BEGIN
+  IF to_regclass('public."_prisma_migrations"') IS NOT NULL THEN
+    REVOKE ALL ON "_prisma_migrations" FROM harmoniq_app;
+  END IF;
+END
+$$;
 
 -- 4. Audit log is append-only for the runtime role (AUD-04). Workspace deletion still
 --    cascades because referential actions run with the table owner's privileges.

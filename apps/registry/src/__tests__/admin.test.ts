@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildApp } from '../app';
 import { FastifyInstance } from 'fastify';
+import { signAccessToken } from '../auth/tokens';
 
 describe('Admin Routes', () => {
   let app: FastifyInstance;
@@ -41,9 +42,13 @@ describe('Admin Routes', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.token).toBeDefined();
+    // Setup no longer hands out a session; the admin signs in like any other user.
+    expect(body.token).toBeUndefined();
     expect(body.user.email).toBe('admin@harmoniq.local');
-    adminToken = body.token;
+    adminToken = await signAccessToken(
+      { userId: body.user.id, email: body.user.email },
+      app.config.jwtSecret
+    );
   });
 
   it('should reject setup if already initialized', async () => {

@@ -1,0 +1,176 @@
+import { FastifyPluginAsync, FastifyReply } from 'fastify';
+import { ZodError } from 'zod';
+import {
+  IdentityError,
+  RedirectIdentityProvider,
+} from '@harmoniq/core/dist/ports/IdentityProvider';
+import {
+  AuthCallbackRequestSchema,
+  AuthProviderSummary,
+  AuthStartRequestSchema,
+  DevLoginRequestSchema,
+  MeResponse,
+  RefreshRequestSchema,
+} from '@harmoniq/core/dist/schemas/AuthSchemas';
+import { GitHubIdentityProvider } from '../adapters/identity/GitHubIdentityProvider';
+import { AuthService } from '../services/authService';
+
+const LOGIN_RATE_LIMIT = { rateLimit: { max: 20, timeWindow: '1 minute' } };
+const REFRESH_RATE_LIMIT = { rateLimit: { max: 60, timeWindow: '1 minute' } };
+
+const authRoutes: FastifyPluginAsync = async (fastify) => {
+  const { config } = fastify;
+  const { systemDb, logger } = fastify.container;
+  const auth = new AuthService(systemDb, config.jwtSecret, logger);
+
+  const redirectProviders = new Map<string, RedirectIdentityProvider>();
+  if (config.github) {
+    redirectProviders.set(
+      'github',
+      new GitHubIdentityProvider(config.github.clientId, config.github.clientSecret)
+    );
+  }
+
+  const badRequest = (reply: FastifyReply, error: ZodError | string) =>
+    reply.code(400).send({
+      error: {
+        code: 'BAD_REQUEST',
+        message: typeof error === 'string' ? error : 'Invalid request',
+        ...(typeof error !== 'string' && { details: error.flatten() }),
+      },
+    });
+
+  // Codes must only ever be sent back to the dashboard (no open redirect / code injection).
+  const isAllowedRedirect = (uri: string) => {
+    try {
+      return new URL(uri).origin === new URL(config.webOrigin).origin;
+    } catch {
+      return false;
+    }
+  };
+
+  const identityFailure = (reply: FastifyReply, err: unknown) => {
+    if (err instanceof IdentityError) {
+      const status = err.code === 'provider_unavailable' ? 502 : 401;
+      return reply
+        .code(status)
+        .send({ error: { code: err.code.toUpperCase(), message: err.message } });
+    }
+    throw err;
+  };
+
+  fastify.get('/api/auth/providers', async () => {
+    const providers: AuthProviderSummary[] = [...redirectProviders.values()].map((p) => ({
+      id: p.id,
+      kind: p.kind,
+      displayName: p.displayName,
+    }));
+    if (config.devLogin) {
+      providers.push({ id: 'dev', kind: 'dev', displayName: 'Development login' });
+    }
+    return { providers };
+  });
+
+  fastify.post<{ Params: { provider: string } }>(
+    '/api/auth/:provider/start',
+    { config: LOGIN_RATE_LIMIT },
+    async (request, reply) => {
+      const provider = redirectProviders.get(request.params.provider);
+      if (!provider) {
+        return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Unknown provider' } });
+      }
+      const parsed = AuthStartRequestSchema.safeParse(request.body);
+      if (!parsed.success) return badRequest(reply, parsed.error);
+      if (!isAllowedRedirect(parsed.data.redirectUri)) {
+        return badRequest(reply, 'redirectUri must be on the dashboard origin');
+      }
+      return { authorizationUrl: provider.getAuthorizationUrl(parsed.data) };
+    }
+  );
+
+  fastify.post<{ Params: { provider: string } }>(
+    '/api/auth/:provider/callback',
+    { config: LOGIN_RATE_LIMIT },
+    async (request, reply) => {
+      const provider = redirectProviders.get(request.params.provider);
+      if (!provider) {
+        return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Unknown provider' } });
+      }
+      const parsed = AuthCallbackRequestSchema.safeParse(request.body);
+      if (!parsed.success) return badRequest(reply, parsed.error);
+      if (!isAllowedRedirect(parsed.data.redirectUri)) {
+        return badRequest(reply, 'redirectUri must be on the dashboard origin');
+      }
+      try {
+        const info = await provider.handleCallback(parsed.data);
+        return await auth.completeLogin(info, provider.id);
+      } catch (err) {
+        return identityFailure(reply, err);
+      }
+    }
+  );
+
+  // Development only (refused at startup in production): sign in as any email.
+  if (config.devLogin) {
+    fastify.post('/api/auth/dev/login', { config: LOGIN_RATE_LIMIT }, async (request, reply) => {
+      const parsed = DevLoginRequestSchema.safeParse(request.body);
+      if (!parsed.success) return badRequest(reply, parsed.error);
+      return auth.completeLogin(
+        {
+          providerUserId: parsed.data.email.toLowerCase(),
+          email: parsed.data.email,
+          emailVerified: true,
+          name: parsed.data.name,
+        },
+        'dev'
+      );
+    });
+  }
+
+  fastify.post('/api/auth/refresh', { config: REFRESH_RATE_LIMIT }, async (request, reply) => {
+    const parsed = RefreshRequestSchema.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, parsed.error);
+    const session = await auth.refresh(parsed.data.refreshToken);
+    if (!session) {
+      return reply
+        .code(401)
+        .send({ error: { code: 'UNAUTHORIZED', message: 'Refresh token is invalid or expired' } });
+    }
+    return session;
+  });
+
+  fastify.post('/api/auth/logout', { config: REFRESH_RATE_LIMIT }, async (request, reply) => {
+    const parsed = RefreshRequestSchema.safeParse(request.body);
+    if (parsed.success) await auth.logout(parsed.data.refreshToken);
+    return reply.code(204).send();
+  });
+
+  fastify.get('/api/me', { preHandler: fastify.authenticate }, async (request, reply) => {
+    const principal = request.principal!;
+    if (principal.type !== 'user') {
+      return reply
+        .code(400)
+        .send({ error: { code: 'BAD_REQUEST', message: '/api/me requires a user session' } });
+    }
+    const user = await auth.sessionUser(principal.id);
+    if (!user)
+      return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'User not found' } });
+
+    const memberships = await systemDb.workspaceMember.findMany({
+      where: { userId: principal.id, joinedAt: { not: null } },
+      include: { workspace: true },
+      orderBy: { workspace: { name: 'asc' } },
+    });
+    const body: MeResponse = {
+      user,
+      workspaces: memberships.map((m) => ({
+        slug: m.workspace.slug,
+        name: m.workspace.name,
+        role: m.role,
+      })),
+    };
+    return body;
+  });
+};
+
+export default authRoutes;

@@ -13,7 +13,8 @@
     "overview": "Resumen",
     "modules": "Módulos",
     "environments": "Entornos",
-    "settings": "Configuración"
+    "settings": "Configuración",
+    "signOut": "Cerrar sesión"
   },
   "WorkspaceOverview": {
     "title": "Resumen",
@@ -50,7 +51,22 @@
     "description": "Bienvenido de nuevo. Por favor, inicie sesión en su cuenta.",
     "continueWithGithub": "Continuar con GitHub",
     "or": "O",
-    "continueWithSaml": "Continuar con SAML SSO"
+    "continueWithSaml": "Continuar con SAML SSO",
+    "continueWith": "Continuar con {provider}",
+    "devLogin": "Inicio de sesión de desarrollo",
+    "devLoginSubmit": "Iniciar sesión con correo",
+    "devLoginHint": "Habilitado por HARMONIQ_DEV_LOGIN. Nunca disponible en producción.",
+    "noProviders": "No hay métodos de inicio de sesión configurados. Define GITHUB_CLIENT_ID y GITHUB_CLIENT_SECRET en el registro.",
+    "registryUnavailable": "No se puede contactar con el registro. Comprueba que está en ejecución.",
+    "errors": {
+      "generic": "No se pudo iniciar sesión. Inténtalo de nuevo.",
+      "invalid_state": "Tu sesión de inicio caducó o se inició en otro navegador. Inténtalo de nuevo.",
+      "access_denied": "Se canceló el inicio de sesión.",
+      "email_not_verified": "Tu cuenta no tiene un correo verificado. Verifícalo con tu proveedor e inténtalo de nuevo.",
+      "invalid_grant": "Se rechazó el código de inicio de sesión. Inténtalo de nuevo.",
+      "provider_unavailable": "El proveedor de inicio de sesión no está disponible. Inténtalo más tarde.",
+      "dev_login_disabled": "El inicio de sesión de desarrollo no está habilitado."
+    }
   },
   "AdminDashboardPage": {
     "errorFetch": "No se pudieron obtener las estadísticas. Es posible que no esté autenticado como administrador.",
@@ -63,7 +79,8 @@
     "title": "Administrador de Harmoniq",
     "dashboard": "Tablero",
     "workspaces": "Espacios de trabajo",
-    "exitAdmin": "← Salir del administrador"
+    "exitAdmin": "← Salir del administrador",
+    "signOut": "Cerrar sesión"
   },
   "AdminSetupPage": {
     "errorSetup": "Error al configurar el administrador",
@@ -72,9 +89,10 @@
     "setupToken": "Token de configuración",
     "emailAddress": "Correo electrónico",
     "name": "Nombre",
-    "successMessage": "¡Inicializado exitosamente! Redirigiendo...",
+    "successMessage": "Instancia inicializada. Inicia sesión como {email} para abrir el panel de administración.",
     "initializing": "Inicializando...",
-    "initialize": "Inicializar instancia"
+    "initialize": "Inicializar instancia",
+    "goToSignIn": "Ir a iniciar sesión"
   },
   "AdminWorkspacesPage": {
     "title": "Espacios de trabajo",
@@ -90,7 +108,6 @@
     "successUpdate": "Configuración de almacenamiento actualizada exitosamente.",
     "title": "Configuración de almacenamiento: {slug}",
     "storageProvider": "Proveedor de almacenamiento",
-    "local": "Sistema de archivos local (predeterminado)",
     "s3": "Amazon S3 / Compatible",
     "gcs": "Google Cloud Storage",
     "region": "Región",
@@ -101,6 +118,11 @@
     "clientEmail": "Correo electrónico del cliente",
     "privateKey": "Clave privada",
     "saving": "Guardando...",
-    "saveConfiguration": "Guardar configuración"
+    "saveConfiguration": "Guardar configuración",
+    "errorLoad": "No se pudo cargar la configuración de almacenamiento.",
+    "cdnPrefix": "Prefijo de CDN (opcional)",
+    "instanceDefaultHint": "Sin un bucket del espacio de trabajo, los paquetes usan el almacenamiento predeterminado de la instancia.",
+    "credentialsKeepHint": "Deja vacíos los campos de credenciales para conservar las guardadas.",
+    "credentialsRequiredHint": "Las credenciales se cifran en reposo y no se vuelven a mostrar."
   }
 }

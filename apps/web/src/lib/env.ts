@@ -30,3 +30,8 @@ export function getJwtKey(): Uint8Array {
 export function getRegistryUrl(): string {
   return process.env.REGISTRY_URL || 'http://localhost:4000';
 }
+
+/** Public origin of the dashboard; OAuth redirect URIs are built from it. */
+export function getAppUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+}

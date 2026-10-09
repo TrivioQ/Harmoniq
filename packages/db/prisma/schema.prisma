@@ -15,8 +15,10 @@ model User {
   email               String               @unique
   name                String?
   avatarUrl           String?
+  lastLoginAt         DateTime?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+  Identities          Identity[]
   WorkspaceMembers    WorkspaceMember[]
   ApiKeys             ApiKey[]
   RefreshTokens       RefreshToken[]
@@ -191,12 +193,50 @@ model ApiKey {
 model RefreshToken {
   id        String    @id @default(cuid())
   userId    String
-  tokenHash String
+  /// sha256 of the raw token (high-entropy, so a fast hash is sufficient).
+  tokenHash String    @unique
+  /// All tokens descending from one login. Reuse of a rotated token revokes the family.
+  familyId  String
   expiresAt DateTime
   usedAt    DateTime?
   revokedAt DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+}
+
+/// A login method linked to a user (GitHub account, email, OIDC subject, ...).
+model Identity {
+  id             String    @id @default(cuid())
+  userId         String
+  /// IdentityProvider id, e.g. 'github', 'email', 'oidc:acme'.
+  provider       String
+  /// Stable subject at the provider (GitHub user id, email address, OIDC `sub`).
+  providerUserId String
+  email          String
+  createdAt      DateTime  @default(now())
+  lastUsedAt     DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+/// Passwordless email sign-in (magic link + one-time code).
+model EmailLoginToken {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  codeHash  String
+  /// Binds the link to the browser that requested it (login CSRF protection).
+  nonceHash String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email, createdAt])
 }
 
 model WebhookEndpoint {
