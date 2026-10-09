@@ -64,6 +64,24 @@ YES — see the change history entry below.
 
 ## Change History
 
+### 2026-10-09 — Rate limits per user, not per dashboard
+
+**Type:** fix
+**PR / Branch:** feat/m3-progressive
+**Refs:** report §3.x follow-up (M0.3 rate limits)
+
+#### What changed
+
+Every dashboard request reaches the registry from the dashboard's server, so the per-IP auth limits were shared by all users: 60 refreshes per minute for the whole instance (busy minutes signed everyone out) and 20 email sign-ins per 15 minutes. Behind a load balancer the manifest limit had the same problem.
+
+- `/api/auth/refresh` and `/api/auth/logout` are limited per session (hash of the refresh token, 30/min).
+- The dashboard forwards the browser's `X-Forwarded-For`; the registry trusts it from private networks by default (`TRUST_PROXY`), so per-IP limits and audit IPs use the user's address.
+- Terraform: the dashboard reaches the registry over ECS Service Connect instead of the public load balancer, so requests don't arrive from the NAT gateway's address.
+
+#### Testing
+
+`auth.test.ts`: a session's refreshes are limited without affecting another session from the same IP; per-IP sign-in limits follow the forwarded address (fails with `TRUST_PROXY=false`). `config.test.ts` covers `TRUST_PROXY` parsing. `terraform validate` passes.
+
 ### 2026-10-09 — Email sign-in: magic link and one-time code
 
 **Type:** feature

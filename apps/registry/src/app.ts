@@ -33,6 +33,7 @@ export async function buildApp() {
   const config = loadConfig();
 
   const app = Fastify({
+    trustProxy: config.trustProxy,
     logger:
       process.env.NODE_ENV === 'production'
         ? true

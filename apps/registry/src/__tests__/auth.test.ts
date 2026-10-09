@@ -277,3 +277,37 @@ describe('Authentication without optional providers', () => {
     await app.close();
   });
 });
+
+// Every dashboard user reaches the registry from the dashboard's server: limits must not
+// be shared by all of them.
+describe('Auth rate limits behind the dashboard', () => {
+  let app: Awaited<ReturnType<typeof buildApp>>;
+
+  beforeAll(async () => {
+    app = await buildApp();
+    await app.ready();
+  });
+  afterAll(() => app.close());
+
+  it('limits refreshes per session, not per IP', async () => {
+    const refresh = (refreshToken: string) =>
+      app.inject({ method: 'POST', url: '/api/auth/refresh', payload: { refreshToken } });
+    for (let i = 0; i < 30; i++) expect((await refresh('session-a')).statusCode).toBe(401);
+    expect((await refresh('session-a')).statusCode).toBe(429);
+    // Same IP (the dashboard), another session: unaffected.
+    expect((await refresh('session-b')).statusCode).toBe(401);
+  });
+
+  it('applies per-IP sign-in limits to the forwarded client address', async () => {
+    const verify = (ip: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/auth/email/verify',
+        headers: { 'x-forwarded-for': ip },
+        payload: {},
+      });
+    for (let i = 0; i < 20; i++) expect((await verify('203.0.113.7')).statusCode).not.toBe(429);
+    expect((await verify('203.0.113.7')).statusCode).toBe(429);
+    expect((await verify('198.51.100.20')).statusCode).not.toBe(429);
+  });
+});

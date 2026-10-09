@@ -55,6 +55,15 @@ describe('loadConfig', () => {
   });
 });
 
+describe('trust proxy', () => {
+  it('trusts private-network proxies by default and accepts true, false or a list', () => {
+    expect(loadConfig({}).trustProxy).toBe('loopback,linklocal,uniquelocal');
+    expect(loadConfig({ TRUST_PROXY: 'false' }).trustProxy).toBe(false);
+    expect(loadConfig({ TRUST_PROXY: 'true' }).trustProxy).toBe(true);
+    expect(loadConfig({ TRUST_PROXY: '10.0.0.0/8' }).trustProxy).toBe('10.0.0.0/8');
+  });
+});
+
 describe('instance storage config', () => {
   it('accepts S3 without static keys (task role) but not half a key pair', () => {
     expect(

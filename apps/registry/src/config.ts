@@ -37,11 +37,18 @@ const EnvSchema = z.object({
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('Harmoniq <no-reply@harmoniq.local>'),
   HARMONIQ_MANIFEST_RATE_LIMIT: z.coerce.number().int().positive().default(600),
+  TRUST_PROXY: z.string().optional(),
 });
 
 export interface Config {
   nodeEnv: 'development' | 'test' | 'production';
   isProduction: boolean;
+  /**
+   * Which peers may set X-Forwarded-For (Fastify `trustProxy`). Per-IP rate limits and
+   * audit IPs use the client address it yields, e.g. the browser behind the dashboard
+   * or a load balancer.
+   */
+  trustProxy: boolean | string;
   port: number;
   jwtSecret: string;
   /** Raw 32-byte key for AES-256-GCM. */
@@ -149,9 +156,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   const cacheAdapter = e.CACHE_ADAPTER === 'redis' && e.REDIS_URL ? 'redis' : 'memory';
 
+  // Default: proxies on private networks (the dashboard, a load balancer in the VPC).
+  const trustProxy =
+    e.TRUST_PROXY === undefined
+      ? 'loopback,linklocal,uniquelocal'
+      : e.TRUST_PROXY === 'true'
+        ? true
+        : e.TRUST_PROXY === 'false'
+          ? false
+          : e.TRUST_PROXY;
+
   return {
     nodeEnv: e.NODE_ENV,
     isProduction,
+    trustProxy,
     port: e.PORT,
     jwtSecret,
     encryptionKey,

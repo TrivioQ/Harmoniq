@@ -1,4 +1,5 @@
-import { FastifyPluginAsync, FastifyReply } from 'fastify';
+import { createHash } from 'crypto';
+import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import {
   IdentityError,
@@ -19,7 +20,21 @@ import { EmailIdentityProvider } from '../adapters/identity/EmailIdentityProvide
 import { AuthService } from '../services/authService';
 
 const LOGIN_RATE_LIMIT = { rateLimit: { max: 20, timeWindow: '1 minute' } };
-const REFRESH_RATE_LIMIT = { rateLimit: { max: 60, timeWindow: '1 minute' } };
+// Per session, not per IP: every refresh arrives from the dashboard's server, so an IP
+// limit would be shared by all users. Runs after body parsing to see the token.
+const REFRESH_RATE_LIMIT = {
+  rateLimit: {
+    max: 30,
+    timeWindow: '1 minute',
+    hook: 'preHandler' as const,
+    keyGenerator: (request: FastifyRequest) => {
+      const token = (request.body as { refreshToken?: unknown } | undefined)?.refreshToken;
+      return typeof token === 'string'
+        ? `refresh:${createHash('sha256').update(token).digest('base64url')}`
+        : `refresh-ip:${request.ip}`;
+    },
+  },
+};
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const { config } = fastify;

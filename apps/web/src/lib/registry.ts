@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers';
+import { cookies, headers as requestHeaders } from 'next/headers';
 import type { MeResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { getRegistryUrl } from './env';
 import { ACCESS_COOKIE } from './session';
@@ -24,10 +24,24 @@ interface RequestOptions {
   token?: string;
 }
 
+/**
+ * The browser's address chain, so the registry's per-IP limits and audit log see users
+ * rather than this server (the registry trusts it from private networks, TRUST_PROXY).
+ */
+async function forwardedFor(): Promise<string | undefined> {
+  try {
+    return (await requestHeaders()).get('x-forwarded-for') ?? undefined;
+  } catch {
+    return undefined; // outside a request (e.g. build time)
+  }
+}
+
 export async function registryFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
+  const clientIp = await forwardedFor();
+  if (clientIp) headers['X-Forwarded-For'] = clientIp;
 
   const res = await fetch(`${getRegistryUrl()}${path}`, {
     method: opts.method ?? (opts.body === undefined ? 'GET' : 'POST'),

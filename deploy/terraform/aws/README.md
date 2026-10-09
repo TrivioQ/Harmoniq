@@ -13,7 +13,7 @@ Deploys a production Harmoniq into an existing VPC:
 | Published manifests   | Private S3 bucket + CloudFront (origin access control, CORS)                          |
 | Secrets               | Secrets Manager: generated `JWT_SECRET`, `HARMONIQ_ENCRYPTION_KEY`, DB URLs           |
 
-The two apps get separate hostnames because the dashboard has its own `/api/*` routes.
+The two apps get separate hostnames because the dashboard has its own `/api/*` routes. The dashboard reaches the registry privately over ECS Service Connect (`http://registry:4000`), so the registry sees users' addresses rather than the NAT gateway's.
 
 ## Prerequisites
 

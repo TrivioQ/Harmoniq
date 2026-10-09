@@ -17,11 +17,17 @@ const localePrefix = `(?:/(?:${routing.locales.join('|')}))?`;
 const PUBLIC_PATH = new RegExp(`^${localePrefix}/(?:auth|admin/setup)(?:/|$)`);
 const LOGIN_PATH = new RegExp(`^${localePrefix}/auth/login/?$`);
 
-async function refreshSession(refreshToken: string): Promise<SessionResponse | null> {
+async function refreshSession(
+  refreshToken: string,
+  forwardedFor: string | null
+): Promise<SessionResponse | null> {
   try {
     const res = await fetch(`${getRegistryUrl()}/api/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(forwardedFor && { 'X-Forwarded-For': forwardedFor }),
+      },
       body: JSON.stringify({ refreshToken }),
       cache: 'no-store',
     });
@@ -46,7 +52,9 @@ export default async function proxy(request: NextRequest) {
   }
 
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
-  const session = refreshToken ? await refreshSession(refreshToken) : null;
+  const session = refreshToken
+    ? await refreshSession(refreshToken, request.headers.get('x-forwarded-for'))
+    : null;
   if (session) {
     // Update the incoming request too: next-intl forwards these headers downstream, so
     // server components see the new token without another round trip.

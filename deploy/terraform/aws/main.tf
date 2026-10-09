@@ -132,6 +132,13 @@ resource "aws_security_group" "tasks" {
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
+  # Dashboard → registry over Service Connect.
+  ingress {
+    from_port = 4000
+    to_port   = 4000
+    protocol  = "tcp"
+    self      = true
+  }
   # Bundle validation, webhooks, GitHub OAuth, image pulls.
   egress {
     from_port   = 0
@@ -386,6 +393,14 @@ resource "aws_ecs_cluster" "this" {
   }
 }
 
+# The dashboard calls the registry privately (http://registry:4000) instead of through
+# the public load balancer and NAT, so the registry sees users' addresses (forwarded by
+# the dashboard, trusted from private networks) rather than the NAT gateway's.
+resource "aws_service_discovery_http_namespace" "this" {
+  name = var.name
+  tags = local.tags
+}
+
 resource "aws_ecs_task_definition" "registry" {
   family                   = "${var.name}-registry"
   requires_compatibilities = ["FARGATE"]
@@ -401,7 +416,7 @@ resource "aws_ecs_task_definition" "registry" {
     image            = var.registry_image
     essential        = true
     command          = ["sh", "-c", "${local.with_rds_ca} && exec node dist/index.js"]
-    portMappings     = [{ containerPort = 4000, protocol = "tcp" }]
+    portMappings     = [{ name = "registry", containerPort = 4000, protocol = "tcp", appProtocol = "http" }]
     environment      = local.registry_env
     secrets          = local.registry_secrets
     logConfiguration = local.log_config
@@ -453,8 +468,8 @@ resource "aws_ecs_task_definition" "web" {
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
     environment = [
       { name = "HARMONIQ_ENV", value = "production" },
-      # Server-side calls go through the ALB; the registry is not exposed separately.
-      { name = "REGISTRY_URL", value = local.registry_url },
+      # Server-side calls stay inside the VPC (Service Connect); browsers use the public URL.
+      { name = "REGISTRY_URL", value = "http://registry:4000" },
       { name = "PUBLIC_REGISTRY_URL", value = local.registry_url },
       { name = "APP_URL", value = local.web_url },
     ]
@@ -482,6 +497,18 @@ resource "aws_ecs_service" "registry" {
     container_port   = 4000
   }
 
+  service_connect_configuration {
+    enabled   = true
+    namespace = aws_service_discovery_http_namespace.this.arn
+    service {
+      port_name = "registry"
+      client_alias {
+        dns_name = "registry"
+        port     = 4000
+      }
+    }
+  }
+
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -507,6 +534,11 @@ resource "aws_ecs_service" "web" {
     target_group_arn = aws_lb_target_group.web.arn
     container_name   = "web"
     container_port   = 3000
+  }
+
+  service_connect_configuration {
+    enabled   = true
+    namespace = aws_service_discovery_http_namespace.this.arn
   }
 
   deployment_circuit_breaker {
