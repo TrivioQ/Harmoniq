@@ -90,7 +90,8 @@ Returns the manifest for one host app environment. No authentication. Rate limit
 - If the database is unavailable, the last-known-good manifest is served with `X-Harmoniq-Stale: true`.
 - `?pretty=true` pretty-prints outside production.
 - Headers `X-Harmoniq-Variant` and `X-Harmoniq-Cohort-Id`. Cross-origin reads can see them and `ETag` (`Access-Control-Expose-Headers`).
-- **Canary assignment** (CAN-02): send `X-Harmoniq-User-Id: <opaque user id>` (or a `harmoniq_canary` cookie on same-site setups). The registry hashes it into a `cohortId` and, for each module with a running canary, puts the user in the canary when their bucket for that module is below its traffic percentage. Assignment is sticky, and raising the traffic keeps existing canary users there. Canary responses have `variant: "canary"`, `metadata.canary: true` on the canary modules, `Cache-Control: private, no-cache`, and `Vary: X-Harmoniq-User-Id, Cookie`. Without a user id the response is the stable variant. Published (CDN) copies and import maps are always stable.
+- **Canary assignment** (CAN-02): send `X-Harmoniq-User-Id: <opaque user id>` (or a `harmoniq_canary` cookie on same-site setups). The registry hashes it into a `cohortId` and, for each module with a running canary, puts the user in the canary when their bucket for that module is below its traffic percentage. Assignment is sticky, and raising the traffic keeps existing canary users there. Canary responses have `variant: "canary"`, `metadata.canary: true` on the canary modules, `Cache-Control: private, no-cache`, and `Vary: X-Harmoniq-User-Id, Cookie`. Without a user id the response is the stable variant, unless targeting matches.
+- **Targeting** (M3.6): a canary may have rules `[{ "attribute": "plan", "values": ["beta"] }]`; a user matching any rule always gets it, whatever the percentage (which may then be `0`). Attributes are `userId` (the user key) or keys of the `X-Harmoniq-Context` header, a JSON object of strings (≤2 KB, ≤20 keys; malformed headers are ignored). Published (CDN) copies and import maps are always stable.
 
 ### `GET /api/importmap/:workspaceSlug/:hostAppSlug/:env`
 
@@ -167,7 +168,7 @@ Exactly one of `previous: true`, `version: "1.2.2"` or `versionId`. `previous` i
 
 ### Canary releases — `module:deploy`
 
-Start one by deploying with `"canary": { "trafficPercent": 10 }`, or as a **staged rollout** (STG-01):
+Start one by deploying with `"canary": { "trafficPercent": 10 }` (optionally with `"targeting"`), or as a **staged rollout** (STG-01):
 
 ```json
 "canary": {
@@ -187,12 +188,12 @@ Bands must increase and end at 100. Every minute, the registry checks canaries w
 
 A plain canary: the new version runs next to the active one (which must exist, else `409`) and replaces any running canary. A deploy without `canary` ends a running canary (recorded as `endedCanary` in the audit event).
 
-| Endpoint                                            | Body                                          | Effect                                                                                        | Webhook                              |
-| --------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `PUT /api/workspaces/:ws/modules/:moduleRef/canary` | `{ environment, trafficPercent, versionId? }` | Change the traffic (1–99); with `versionId`, make that earlier version the canary instead     | `canary.updated` / `canary.started`  |
-| `POST …/canary/advance`                             | `{ environment }`                             | Staged rollout: move to the next band now, skipping the gate (STG-05); the 100% band promotes | `canary.updated` / `canary.promoted` |
-| `POST …/canary/promote`                             | `{ environment, reason? }`                    | The canary becomes the active version for everyone                                            | `canary.promoted`                    |
-| `POST …/canary/abort`                               | `{ environment, reason? }`                    | Everyone goes back to the active version; the canary becomes inactive                         | `canary.rolled_back`                 |
+| Endpoint                                            | Body                                                       | Effect                                                                                        | Webhook                              |
+| --------------------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `PUT /api/workspaces/:ws/modules/:moduleRef/canary` | `{ environment, trafficPercent?, versionId?, targeting? }` | Change the traffic (1–99); with `versionId`, make that earlier version the canary instead     | `canary.updated` / `canary.started`  |
+| `POST …/canary/advance`                             | `{ environment }`                                          | Staged rollout: move to the next band now, skipping the gate (STG-05); the 100% band promotes | `canary.updated` / `canary.promoted` |
+| `POST …/canary/promote`                             | `{ environment, reason? }`                                 | The canary becomes the active version for everyone                                            | `canary.promoted`                    |
+| `POST …/canary/abort`                               | `{ environment, reason? }`                                 | Everyone goes back to the active version; the canary becomes inactive                         | `canary.rolled_back`                 |
 
 All three return the version, `manifestEtag` and `snapshotId`, are audited (`canary.update`, `canary.start`, `canary.promote`, `canary.abort`) and return `423` in a frozen environment. `GET /api/workspaces/:ws/modules` lists each environment's `canary` next to `active`.
 

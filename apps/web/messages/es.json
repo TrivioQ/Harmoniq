@@ -271,7 +271,9 @@
     "rolloutTitle": "Tramos del despliegue",
     "rolloutStatus": "Despliegue escalonado: tramo {band} de {bands}. La comprobación de salud se hace después de las {next} (necesita {samples} cargas del canary); si falla, el canary se aborta.",
     "rolloutAdvance": "Avanzar ahora",
-    "rolloutAdvanceConfirm": "¿Pasar al siguiente tramo sin esperar la comprobación de salud?"
+    "rolloutAdvanceConfirm": "¿Pasar al siguiente tramo sin esperar la comprobación de salud?",
+    "canaryTargeting": "Siempre se sirve a usuarios con",
+    "canaryTargetingOr": "o"
   },
   "EnvironmentHistory": {
     "back": "Entornos",

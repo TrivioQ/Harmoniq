@@ -5,6 +5,7 @@ import { buildApp } from '../app';
 import {
   CanaryInfo,
   assignCanaries,
+  attributesFrom,
   bucketFor,
   cohortIdFor,
   userKeyFrom,
@@ -61,6 +62,35 @@ describe('Canary assignment', () => {
     expect(userKeyFrom({ 'x-harmoniq-user-id': ' u1 ' })).toBe('u1');
     expect(userKeyFrom({ cookie: 'a=1; harmoniq_canary=abc%20d' })).toBe('abc d');
     expect(userKeyFrom({ 'x-harmoniq-user-id': '', cookie: 'other=1' })).toBeNull();
+  });
+});
+
+describe('Canary targeting (M3.6)', () => {
+  const rules = [
+    { attribute: 'plan', values: ['beta'] },
+    { attribute: 'userId', values: ['qa-1'] },
+  ];
+
+  it('matches rules before the percentage, with or without a cohort', () => {
+    const c = { ...canary('m1', 0), targeting: rules };
+    expect(assignCanaries([c], null, { plan: 'beta' })).toHaveLength(1);
+    expect(assignCanaries([c], null, { plan: 'pro' })).toHaveLength(0);
+    expect(assignCanaries([c], cohortIdFor('ws', 'qa-1'), { userId: 'qa-1' })).toHaveLength(1);
+    // No rules match and 0%: nobody else.
+    expect(assignCanaries([c], cohortIdFor('ws', 'x'), { userId: 'x' })).toHaveLength(0);
+  });
+
+  it('parses X-Harmoniq-Context defensively', () => {
+    const ctx = (value: string) => attributesFrom({ 'x-harmoniq-context': value }, null);
+    expect(ctx('{"plan":"beta","seats":5,"trial":true,"nested":{"a":1}}')).toEqual({
+      plan: 'beta',
+      seats: '5',
+      trial: 'true',
+    });
+    expect(ctx('not json')).toEqual({});
+    expect(ctx('["a"]')).toEqual({});
+    expect(ctx(JSON.stringify({ big: 'x'.repeat(3000) }))).toEqual({});
+    expect(attributesFrom({}, 'u1')).toEqual({ userId: 'u1' });
   });
 });
 
@@ -261,6 +291,44 @@ describe('Canary releases', () => {
     expect(actions).toEqual(
       expect.arrayContaining(['canary.update', 'canary.abort', 'canary.start', 'canary.promote'])
     );
+  });
+
+  it('targets users by context or id, even at 0%', async () => {
+    await deploy('7.0.0');
+    const zero = await deploy('7.1.0', { canary: { trafficPercent: 0 } });
+    expect(zero.statusCode).toBe(400);
+    const res = await deploy('7.1.0', {
+      canary: { trafficPercent: 0, targeting: [{ attribute: 'plan', values: ['beta'] }] },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().targeting).toEqual([{ attribute: 'plan', values: ['beta'] }]);
+
+    const withContext = (context: object, user?: string) =>
+      manifest(user, { 'x-harmoniq-context': JSON.stringify(context) });
+    expect(checkoutVersion(await withContext({ plan: 'beta' }))).toBe('7.1.0');
+    expect(checkoutVersion(await withContext({ plan: 'pro' }))).toBe('7.0.0');
+    expect(checkoutVersion(await manifest(userIn(99, true)))).toBe('7.0.0'); // 0%
+    expect((await withContext({ plan: 'beta' })).headers.vary).toContain('X-Harmoniq-Context');
+
+    // Replace the rules without touching the traffic.
+    const put = await api('PUT', `/api/workspaces/${ws}/modules/checkout/canary`, {
+      environment: 'production',
+      targeting: [{ attribute: 'userId', values: ['qa-1'] }],
+    });
+    expect(put.statusCode).toBe(200);
+    expect(checkoutVersion(await manifest('qa-1'))).toBe('7.1.0');
+    expect(checkoutVersion(await withContext({ plan: 'beta' }))).toBe('7.0.0');
+    // Removing the rules at 0% would leave a canary nobody gets.
+    const empty = await api('PUT', `/api/workspaces/${ws}/modules/checkout/canary`, {
+      environment: 'production',
+      targeting: [],
+    });
+    expect(empty.statusCode).toBe(400);
+
+    const promoted = await api('POST', `/api/workspaces/${ws}/modules/checkout/canary/promote`, {
+      environment: 'production',
+    });
+    expect(promoted.json()).toMatchObject({ version: '7.1.0', targeting: null });
   });
 
   it('never rolls back to an aborted canary', async () => {

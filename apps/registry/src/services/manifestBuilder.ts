@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import type { TenantTx } from '@harmoniq/db';
 import type { Manifest, Module } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import type { CanaryInfo } from './canary';
+import type { TargetingRule } from '@harmoniq/core/dist/schemas/CanaryRequestSchema';
 
 export interface ManifestTarget {
   workspaceSlug: string;
@@ -110,6 +111,8 @@ export async function buildManifest(
           versionId: c.id,
           version: c.version,
           trafficPercent: c.trafficPercent ?? 0,
+          ...(Array.isArray(c.targeting) &&
+            c.targeting.length && { targeting: c.targeting as unknown as TargetingRule[] }),
         })),
       }
     : undefined;

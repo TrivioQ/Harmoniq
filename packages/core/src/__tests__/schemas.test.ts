@@ -37,10 +37,11 @@ describe('Zod Schemas', () => {
     expect(() => DeploySchema.parse(invalidData)).toThrow();
   });
 
-  it('accepts canary traffic between 1 and 99 only', () => {
+  it('accepts whole-number canary traffic up to 99', () => {
     const ok = { environment: 'production', trafficPercent: 10 };
     expect(() => SetCanaryRequestSchema.parse(ok)).not.toThrow();
-    for (const trafficPercent of [0, 100, 12.5]) {
+    // 0 is valid here; the registry requires targeting rules for it.
+    for (const trafficPercent of [-1, 100, 12.5]) {
       expect(() => SetCanaryRequestSchema.parse({ ...ok, trafficPercent })).toThrow();
     }
     expect(() =>

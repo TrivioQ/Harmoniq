@@ -1,5 +1,5 @@
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   BadRequestError,
   ConflictError,
@@ -400,6 +400,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               ...(canary?.rollout
                 ? startRollout(canary.rollout)
                 : { trafficPercent: canary?.trafficPercent }),
+              ...(canary?.targeting?.length && { targeting: json(canary.targeting) }),
               activatedAt: canary ? null : new Date(),
               deployedBy: request.principal!.id,
               deployedByType: request.principal!.type,
@@ -671,10 +672,23 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                 `No canary of "${module.slug}" in "${env.slug}"; deploy one with a canary or pass versionId`
               );
             }
-            // Setting traffic by hand takes over from a staged rollout.
+            const percent = body.trafficPercent ?? current.trafficPercent ?? 0;
+            const rules = body.targeting ?? (current.targeting as unknown[] | null) ?? [];
+            if (percent === 0 && !rules.length) {
+              throw new BadRequestError('A canary at 0% needs targeting rules');
+            }
             const updated = await tx.moduleVersion.update({
               where: { id: current.id },
-              data: { trafficPercent: body.trafficPercent, ...clearedRollout },
+              data: {
+                // Setting traffic by hand takes over from a staged rollout.
+                ...(body.trafficPercent !== undefined && {
+                  trafficPercent: body.trafficPercent,
+                  ...clearedRollout,
+                }),
+                ...(body.targeting && {
+                  targeting: body.targeting.length ? json(body.targeting) : Prisma.DbNull,
+                }),
+              },
             });
             const change = {
               module: module.slug,
@@ -682,6 +696,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               versionId: updated.id,
               fromTrafficPercent: current.trafficPercent,
               trafficPercent: updated.trafficPercent,
+              ...(body.targeting && { targeting: body.targeting }),
             };
             return {
               result: updated,
@@ -710,16 +725,25 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           if (!(await tx.moduleVersion.count({ where: activeWhere(module.id, env.id) }))) {
             throw new ConflictError('No active version to run a canary against');
           }
+          if (body.trafficPercent === 0 && !body.targeting?.length) {
+            throw new BadRequestError('A canary at 0% needs targeting rules');
+          }
           const ended = await endCanary(tx, module.id, env.id);
           const started = await tx.moduleVersion.update({
             where: { id: target.id },
-            data: { status: 'canary', trafficPercent: body.trafficPercent, ...clearedRollout },
+            data: {
+              status: 'canary',
+              trafficPercent: body.trafficPercent,
+              targeting: body.targeting?.length ? json(body.targeting) : Prisma.DbNull,
+              ...clearedRollout,
+            },
           });
           const change = {
             module: module.slug,
             version: started.version,
             versionId: started.id,
             trafficPercent: started.trafficPercent,
+            ...(body.targeting?.length && { targeting: body.targeting }),
           };
           return {
             result: started,
@@ -765,6 +789,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
             data: {
               status: 'active',
               trafficPercent: null,
+              targeting: Prisma.DbNull,
               activatedAt: new Date(),
               ...clearedRollout,
             },

@@ -284,6 +284,31 @@ describe('harmoniq CLI', () => {
       expect(received['checkout/canary/advance:POST'].body).toEqual({ environment: 'production' });
     });
 
+    it('targets users with --target, allowing 0%', async () => {
+      const file = join(configDir, 'remoteEntry.js');
+      await writeFile(file, BUNDLE);
+      expect(
+        await cli(...deployArgs('--file', file, '--canary', '0', '--target', 'plan=beta,internal'))
+      ).toBe(0);
+      expect(received['checkout/deploy'].body).toMatchObject({
+        canary: {
+          trafficPercent: 0,
+          targeting: [{ attribute: 'plan', values: ['beta', 'internal'] }],
+        },
+      });
+      expect(await cli(...deployArgs('--file', file, '--canary', '0'))).toBe(2);
+      expect(await cli(...deployArgs('--file', file, '--canary', '5', '--target', 'plan'))).toBe(2);
+
+      expect(
+        await cli(...withKey, 'canary', 'set-traffic', '10', ...target, '--target', 'userId=qa-1')
+      ).toBe(0);
+      expect(received['checkout/canary:PUT'].body).toEqual({
+        environment: 'production',
+        trafficPercent: 10,
+        targeting: [{ attribute: 'userId', values: ['qa-1'] }],
+      });
+    });
+
     it('sets traffic, promotes and aborts', async () => {
       expect(await cli(...withKey, 'canary', 'set-traffic', '25', ...target)).toBe(0);
       expect(received['checkout/canary:PUT'].body).toEqual({

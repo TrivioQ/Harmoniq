@@ -271,7 +271,9 @@
     "rolloutTitle": "Rollout bands",
     "rolloutStatus": "Staged rollout: band {band} of {bands}. The health gate is checked after {next} (needs {samples} canary loads); a failed gate aborts the canary.",
     "rolloutAdvance": "Advance now",
-    "rolloutAdvanceConfirm": "Move to the next band without waiting for the health gate?"
+    "rolloutAdvanceConfirm": "Move to the next band without waiting for the health gate?",
+    "canaryTargeting": "Always served to users with",
+    "canaryTargetingOr": "or"
   },
   "EnvironmentHistory": {
     "back": "Environments",

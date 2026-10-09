@@ -43,6 +43,7 @@ export function versionDto(v: ModuleVersion, environmentSlug?: string) {
     integrity: v.integrity,
     status: v.status,
     trafficPercent: v.trafficPercent,
+    targeting: v.targeting ?? null,
     deployedBy: v.deployedBy,
     deployedByType: v.deployedByType,
     deployedAt: v.deployedAt.toISOString(),
@@ -89,6 +90,7 @@ export async function endCanary(tx: TenantTx, moduleId: string, environmentId: s
         trafficPercent: null,
         rolloutSchedule: Prisma.DbNull,
         currentBandIndex: null,
+        targeting: Prisma.DbNull,
       },
     });
   }

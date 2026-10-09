@@ -50,6 +50,8 @@ export interface Version {
   status: 'active' | 'inactive' | 'canary' | 'orphaned';
   /** Share of users on this version while it is the canary (1–99). */
   trafficPercent: number | null;
+  /** Canary targeting: matching users always get this version. */
+  targeting: Array<{ attribute: string; values: string[] }> | null;
   /** Staged rollout progress while the version is a canary following a schedule. */
   rollout: {
     bands: Array<{ percent: number; holdMinutes: number }>;

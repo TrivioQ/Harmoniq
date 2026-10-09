@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import type { TargetingRule } from '@harmoniq/core/dist/schemas/CanaryRequestSchema';
 
 /** A running canary, as cached with the stable manifest so assignment needs no database. */
 export interface CanaryInfo {
@@ -7,9 +8,13 @@ export interface CanaryInfo {
   versionId: string;
   version: string;
   trafficPercent: number;
+  targeting?: TargetingRule[];
 }
 
 export const USER_ID_HEADER = 'x-harmoniq-user-id';
+export const CONTEXT_HEADER = 'x-harmoniq-context';
+const MAX_CONTEXT_LENGTH = 2048;
+const MAX_CONTEXT_KEYS = 20;
 export const CANARY_COOKIE = 'harmoniq_canary';
 const MAX_USER_KEY_LENGTH = 256;
 
@@ -32,11 +37,57 @@ export function bucketFor(cohortId: string, moduleId: string): number {
 }
 
 /**
- * CAN-02: modules whose canary this cohort gets. Sticky because it depends only on the
- * cohort; raising the traffic keeps everyone already in the canary there.
+ * CAN-02: modules whose canary this user gets. Targeting rules match first (M3.6); then
+ * the percentage, which is sticky because it depends only on the cohort, so raising the
+ * traffic keeps everyone already in the canary there. Without a cohort (no user key) only
+ * targeting applies.
  */
-export function assignCanaries(canaries: CanaryInfo[], cohortId: string): CanaryInfo[] {
-  return canaries.filter((c) => bucketFor(cohortId, c.moduleId) < c.trafficPercent);
+export function assignCanaries(
+  canaries: CanaryInfo[],
+  cohortId: string | null,
+  attributes: Record<string, string> = {}
+): CanaryInfo[] {
+  return canaries.filter(
+    (c) =>
+      c.targeting?.some((rule) => {
+        const value = attributes[rule.attribute];
+        return value !== undefined && rule.values.includes(value);
+      }) ||
+      (cohortId !== null && bucketFor(cohortId, c.moduleId) < c.trafficPercent)
+  );
+}
+
+/**
+ * Targeting attributes from `X-Harmoniq-Context` (a small JSON object of strings), plus
+ * `userId`. Malformed or oversized headers are ignored, never an error: the manifest must
+ * always be served.
+ */
+export function attributesFrom(
+  headers: Record<string, string | string[] | undefined>,
+  userKey: string | null
+): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  const raw = headers[CONTEXT_HEADER];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (value && value.length <= MAX_CONTEXT_LENGTH) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        for (const [k, v] of Object.entries(parsed).slice(0, MAX_CONTEXT_KEYS)) {
+          if (
+            k.length <= 64 &&
+            (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+          ) {
+            attributes[k] = String(v).slice(0, 200);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  if (userKey) attributes.userId = userKey;
+  return attributes;
 }
 
 /**

@@ -330,6 +330,24 @@ describe('HarmoniqClient', () => {
       expect(ids[1]).toBe(ids[0]);
     });
 
+    it('sends the targeting context to the registry only, and re-fetches on change', async () => {
+      const { fetchImpl, calls } = recording();
+      const client = new HarmoniqClient({
+        ...options(fetchImpl),
+        cdnBaseUrl: 'https://cdn.test',
+        context: { plan: 'beta', seats: 5 },
+      });
+      await client.init();
+      expect(calls[0]).toEqual([REGISTRY, { 'X-Harmoniq-Context': '{"plan":"beta","seats":5}' }]);
+
+      await client.setContext({ plan: 'pro' });
+      expect(calls[1][1]['X-Harmoniq-Context']).toBe('{"plan":"pro"}');
+      await client.setContext(null);
+      // No user key or context left: back to the CDN first.
+      await (client as unknown as { fetchManifest(): Promise<void> }).fetchManifest();
+      expect(calls[calls.length - 1]).toEqual([CDN, {}]);
+    });
+
     it('re-fetches with the new user after setUserId()', async () => {
       const { fetchImpl, calls } = recording();
       const client = new HarmoniqClient({ ...options(fetchImpl), cdnBaseUrl: 'https://cdn.test' });

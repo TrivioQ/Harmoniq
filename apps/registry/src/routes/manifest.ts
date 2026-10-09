@@ -4,7 +4,13 @@ import { toFederationManifest, toImportMap } from '@harmoniq/core/dist/manifest/
 import { BuiltManifest, buildManifest } from '../services/manifestBuilder';
 import { manifestJsonSchema } from '../services/manifestJsonSchema';
 import { lastKnownGoodKey, manifestKey } from '../services/cacheKeys';
-import { assignCanaries, cohortIdFor, userKeyFrom, variantKey } from '../services/canary';
+import {
+  assignCanaries,
+  attributesFrom,
+  cohortIdFor,
+  userKeyFrom,
+  variantKey,
+} from '../services/canary';
 import { MANIFEST_CACHE_TTL_SECONDS } from '../services/manifestMutation';
 
 type CanonicalParams = { workspaceSlug: string; hostAppSlug: string; env: string };
@@ -54,7 +60,10 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     reply.header('Cache-Control', manifest.variant === 'canary' ? 'private, no-cache' : 'no-cache');
     if (built.canaries) {
       const vary = reply.getHeader('vary');
-      reply.header('Vary', [vary, 'X-Harmoniq-User-Id, Cookie'].filter(Boolean).join(', '));
+      reply.header(
+        'Vary',
+        [vary, 'X-Harmoniq-User-Id, X-Harmoniq-Context, Cookie'].filter(Boolean).join(', ')
+      );
     }
     reply.header('X-Harmoniq-Variant', manifest.variant);
     reply.header('X-Harmoniq-Cohort-Id', manifest.cohortId);
@@ -155,16 +164,20 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     const stable = await resolveStable(workspaceSlug, hostAppSlug, envSlug);
     const canaries = stable.built.canaries;
     const userKey = userKeyFrom(request.headers);
-    if (!canaries || !userKey) return stable;
+    const attributes = attributesFrom(request.headers, userKey);
+    if (!canaries || !Object.keys(attributes).length) return stable;
 
-    const cohortId = cohortIdFor(canaries.workspaceId, userKey);
-    const assigned = assignCanaries(canaries.running, cohortId);
-    if (!assigned.length || stable.stale) return { ...stable, cohortId };
+    const cohortId = userKey ? cohortIdFor(canaries.workspaceId, userKey) : null;
+    const assigned = assignCanaries(canaries.running, cohortId, attributes);
+    const withCohort = cohortId ? { cohortId } : {};
+    if (!assigned.length || stable.stale) return { ...stable, ...withCohort };
 
     const host = stable.built.manifest.hostApp.slug;
     const key = manifestKey(workspaceSlug, host, envSlug, variantKey(assigned));
     const cached = await cache.get(key);
-    if (cached) return { built: JSON.parse(cached) as BuiltManifest, stale: false, cohortId };
+    if (cached) {
+      return { built: JSON.parse(cached) as BuiltManifest, stale: false, ...withCohort };
+    }
     try {
       const { built } = await load(
         workspaceSlug,
@@ -173,11 +186,11 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
         assigned.map((c) => c.moduleId)
       );
       await cache.set(key, JSON.stringify(built), MANIFEST_CACHE_TTL_SECONDS);
-      return { built, stale: false, cohortId };
+      return { built, stale: false, ...withCohort };
     } catch (err) {
       // Stable beats broken: canary users fall back to the stable variant.
       logger.error('Canary variant build failed; serving stable', err as Error);
-      return { ...stable, cohortId };
+      return { ...stable, ...withCohort };
     }
   }
 

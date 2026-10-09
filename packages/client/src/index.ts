@@ -57,6 +57,12 @@ export interface HarmoniqClientOptions {
    */
   anonymousCanary?: boolean;
   /**
+   * Attributes for canary targeting (e.g. `{ plan: 'beta', tenant: 'acme' }`): users that
+   * match a canary's rules get it regardless of its percentage. Sent as
+   * `X-Harmoniq-Context` to the registry only; keep it small (2 KB) and free of secrets.
+   */
+  context?: Record<string, string | number | boolean>;
+  /**
    * Manifest bundled with the host build (e.g. `harmoniq manifest pull --out …`), used
    * when no source is reachable and nothing is cached.
    */
@@ -156,8 +162,20 @@ function isManifest(value: unknown): value is Manifest {
 const OVERRIDES_KEY = 'harmoniq:overrides';
 const ANONYMOUS_ID_KEY = 'harmoniq:uid';
 const USER_ID_HEADER = 'X-Harmoniq-User-Id';
+const CONTEXT_HEADER = 'X-Harmoniq-Context';
 /** Registry manifest URLs; only these receive the user id (CDNs may reject the header). */
 const isRegistryManifestUrl = (url: string) => url.includes('/api/manifest/');
+
+/** JSON for `X-Harmoniq-Context`, or null when empty or too large (the registry ignores those). */
+function serializeContext(context?: Record<string, string | number | boolean>): string | null {
+  if (!context || !Object.keys(context).length) return null;
+  const json = JSON.stringify(context);
+  if (json.length > 2048) {
+    console.warn('[harmoniq] context is larger than 2 KB and is not sent');
+    return null;
+  }
+  return json;
+}
 
 function randomId(): string {
   try {
@@ -211,6 +229,7 @@ export class HarmoniqClient {
   private readonly cdnSource: string | null;
   private readonly registrySource: string;
   private userKey: string | null;
+  private context: string | null;
   private readonly store: ManifestStore | null;
   private readonly storeKey: string;
   private readonly overrides: Record<string, string>;
@@ -250,6 +269,7 @@ export class HarmoniqClient {
       : null;
     this.store = options.persist === false ? null : (options.persist ?? defaultStore());
     this.userKey = options.userId || (options.anonymousCanary ? this.anonymousId() : null);
+    this.context = serializeContext(options.context);
     this.storeKey = `harmoniq:manifest:${ws}:${hostApp}:${env}`;
     this.overrides = options.allowOverrides ? this.loadOverrides(params) : {};
   }
@@ -259,7 +279,7 @@ export class HarmoniqClient {
     if (this.options.sources) return this.options.sources;
     if (!this.cdnSource) return [this.registrySource];
     // Only the registry assigns canary variants; the CDN stays the fallback.
-    return this.userKey
+    return this.userKey || this.context
       ? [this.registrySource, this.cdnSource]
       : [this.cdnSource, this.registrySource];
   }
@@ -286,6 +306,15 @@ export class HarmoniqClient {
     if (next === this.userKey) return;
     this.userKey = next;
     this.etags.clear(); // the cached response belonged to the previous user
+    if (this.initPromise) await this.fetchManifest().catch(() => undefined);
+  }
+
+  /** Replaces the targeting context (see `context`) and re-fetches the manifest. */
+  async setContext(context: HarmoniqClientOptions['context'] | null): Promise<void> {
+    const next = serializeContext(context ?? undefined);
+    if (next === this.context) return;
+    this.context = next;
+    this.etags.clear();
     if (this.initPromise) await this.fetchManifest().catch(() => undefined);
   }
 
@@ -540,7 +569,10 @@ export class HarmoniqClient {
       // Never sends credentials: manifests are public, and browsers must not hold API keys.
       const etag = this.etags.get(url);
       const headers: Record<string, string> = etag ? { 'If-None-Match': etag } : {};
-      if (this.userKey && isRegistryManifestUrl(url)) headers[USER_ID_HEADER] = this.userKey;
+      if (isRegistryManifestUrl(url)) {
+        if (this.userKey) headers[USER_ID_HEADER] = this.userKey;
+        if (this.context) headers[CONTEXT_HEADER] = this.context;
+      }
       const res = await doFetch(url, { headers, signal: controller.signal });
       if (res.status === 304 && this.manifest) {
         this.markFresh();

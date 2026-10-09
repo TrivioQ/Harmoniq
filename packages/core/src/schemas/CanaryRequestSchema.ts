@@ -3,6 +3,18 @@ import { z } from 'zod';
 /** CAN-01: a canary always shares traffic with a stable version. */
 export const TrafficPercentSchema = z.number().int().min(1).max(99);
 
+/**
+ * M3.6: users matching any rule always get the canary, whatever the percentage (e.g.
+ * internal staff, a beta tenant). `attribute` is `userId` (the user key) or a key of the
+ * `X-Harmoniq-Context` the host sends.
+ */
+export const TargetingRuleSchema = z.object({
+  attribute: z.string().regex(/^[A-Za-z][\w.-]{0,63}$/, 'Letters, digits, _ . - (max 64)'),
+  values: z.array(z.string().min(1).max(200)).min(1).max(100),
+});
+export const TargetingSchema = z.array(TargetingRuleSchema).max(20);
+export type TargetingRule = z.infer<typeof TargetingRuleSchema>;
+
 /** STG-01: one traffic band of a staged rollout. */
 export const RolloutBandSchema = z.object({
   percent: z.number().int().min(1).max(100),
@@ -47,11 +59,21 @@ export type RolloutSchedule = z.infer<typeof RolloutScheduleSchema>;
  * CAN-05: changes the running canary's traffic, or (with `versionId`) makes an earlier
  * version of this module in the environment the canary.
  */
-export const SetCanaryRequestSchema = z.object({
-  environment: z.string().min(1),
-  trafficPercent: TrafficPercentSchema,
-  versionId: z.string().min(1).optional(),
-});
+export const SetCanaryRequestSchema = z
+  .object({
+    environment: z.string().min(1),
+    /** 0 is allowed with targeting: only matching users get the canary. */
+    trafficPercent: z.number().int().min(0).max(99).optional(),
+    versionId: z.string().min(1).optional(),
+    /** Replaces the canary's targeting rules; `[]` removes them. */
+    targeting: TargetingSchema.optional(),
+  })
+  .refine((r) => r.trafficPercent !== undefined || r.targeting !== undefined, {
+    message: 'Give trafficPercent, targeting or both',
+  })
+  .refine((r) => !r.versionId || r.trafficPercent !== undefined, {
+    message: 'Starting a version as the canary needs trafficPercent',
+  });
 
 export type SetCanaryRequest = z.infer<typeof SetCanaryRequestSchema>;
 

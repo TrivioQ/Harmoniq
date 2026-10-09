@@ -5,15 +5,37 @@ import { emit, enc } from '../lib/output';
 
 type CanaryResult = { version: string; status: string; trafficPercent: number | null };
 
-export function parsePercent(value: string): number {
+/** 1–99, or 0 when targeting rules decide who gets the canary. */
+export function parsePercent(value: string, allowZero = false): number {
   const percent = Number(value);
-  if (!Number.isInteger(percent) || percent < 1 || percent > 99) {
+  if (!Number.isInteger(percent) || percent < (allowZero ? 0 : 1) || percent > 99) {
     throw new CliError(
-      `Canary traffic must be a whole number from 1 to 99, got "${value}"`,
+      `Canary traffic must be a whole number from ${allowZero ? 0 : 1} to 99, got "${value}"`,
       EXIT.validation
     );
   }
   return percent;
+}
+
+export const collectTarget = (value: string, previous: string[] = []) => [...previous, value];
+
+/** `--target plan=beta,internal --target userId=qa-1` → targeting rules. */
+export function parseTargets(targets: string[] = []) {
+  return targets.map((target) => {
+    const i = target.indexOf('=');
+    const values = target
+      .slice(i + 1)
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (i < 1 || !values.length) {
+      throw new CliError(
+        `--target must be attribute=value[,value…], got "${target}"`,
+        EXIT.validation
+      );
+    }
+    return { attribute: target.slice(0, i), values };
+  });
 }
 
 /** `30m`, `2h`, `1d` or plain minutes. */
@@ -69,15 +91,22 @@ const path = (workspace: string, module: string, action = '') =>
 
 const setTraffic = target(new Command('set-traffic'))
   .description('Change the share of users on the canary (1–99), e.g. to ramp it up')
-  .argument('<percent>', 'Traffic percentage')
+  .argument('<percent>', 'Traffic percentage (0 with --target: only matching users)')
   .option('--version-id <id>', 'Make this earlier version the canary instead')
+  .option(
+    '--target <attribute=values>',
+    'Always give the canary to matching users, e.g. plan=beta or userId=u1,u2 (repeatable; replaces existing rules)',
+    collectTarget
+  )
   .action(async (percent: string, opts, command: Command) => {
     const ctx = await resolveContext(command);
     const workspace = requireWorkspace(ctx);
+    const targeting = opts.target ? parseTargets(opts.target) : undefined;
     const result = await authedClient(ctx).put<CanaryResult>(path(workspace, opts.module), {
       environment: opts.env,
-      trafficPercent: parsePercent(percent),
+      trafficPercent: parsePercent(percent, !!targeting?.length),
       ...(opts.versionId && { versionId: opts.versionId }),
+      ...(targeting && { targeting }),
     });
     emit(
       ctx,

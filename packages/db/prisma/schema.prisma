@@ -173,6 +173,8 @@ model ModuleVersion {
   storagePath      String?
   status           ModuleVersionStatus
   trafficPercent   Int?
+  /// Canary targeting rules (M3.6): matching users always get the canary.
+  targeting        Json?
   deployedBy       String
   deployedByType   ActorType
   commitSha        String?

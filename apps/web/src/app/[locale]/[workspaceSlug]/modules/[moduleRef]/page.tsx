@@ -172,6 +172,19 @@ export default async function ModuleDetailPage(props: {
                 active: active?.version ?? '—',
               })}
             </p>
+            {!!canary.targeting?.length && (
+              <p className="text-sm">
+                {t('canaryTargeting')}{' '}
+                {canary.targeting.map((rule, i) => (
+                  <span key={rule.attribute}>
+                    {i > 0 && ` ${t('canaryTargetingOr')} `}
+                    <code className="rounded bg-muted px-1 text-xs">
+                      {rule.attribute} ∈ {rule.values.join(', ')}
+                    </code>
+                  </span>
+                ))}
+              </p>
+            )}
             {canary.rollout && (
               <div className="space-y-2">
                 <ol

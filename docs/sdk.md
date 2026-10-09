@@ -37,6 +37,7 @@ const entry = client.getModuleEntry('checkout');
 | `fetch`            | global         | Custom fetch implementation                                                                                                              |
 | `userId`           | —              | Opaque user id for canary assignment, sent as `X-Harmoniq-User-Id` to the registry only. While set, the registry is asked before the CDN |
 | `reportHealth`     | off            | `true` or `{ sampleRate, flushIntervalMs }`: send module load outcomes to the registry (batched, `sendBeacon`)                           |
+| `context`          | —              | Targeting attributes, e.g. `{ plan: 'beta' }`, sent as `X-Harmoniq-Context` to the registry only (≤2 KB); `setContext()` changes them    |
 | `anonymousCanary`  | `false`        | Without `userId`, give each browser a random id kept in `persist` storage so anonymous visitors take part in canaries                    |
 
 | Method                                                                                    | Returns                                                                                       |
@@ -68,6 +69,8 @@ client.on(EVENTS.variantAssigned, ({ variant, cohortId }) =>
 // later, after sign-in:
 await client.setUserId(user.id);
 ```
+
+Canaries can also target users: with `context: { plan: 'beta' }` (or `setContext()`), a canary whose rules include `plan ∈ beta` is always served, whatever its percentage. Don't put secrets or personal data in the context.
 
 The registry decides the variant per user and module; the CDN copy is always stable, so with a user id the registry is asked first and the CDN is the fallback. Use an opaque id: the registry never echoes it, only `cohortId`.
 

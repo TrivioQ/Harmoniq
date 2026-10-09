@@ -78,6 +78,12 @@ harmoniq deploy --module checkout --env production --release 1.3.0 --url … --f
 harmoniq canary advance --module checkout --env production   # next band now, skip the check
 ```
 
+`--target attribute=v1,v2` (repeatable, on `deploy --canary`/`--rollout` and `set-traffic`) always serves the canary to matching users; with targets, `--canary 0` limits it to them:
+
+```bash
+harmoniq deploy … --canary 0 --target plan=beta --target userId=qa-1,qa-2
+```
+
 `set-traffic --version-id <id>` makes an earlier version of the module the canary. All three fail with exit code 4 in a frozen environment.
 
 ### `harmoniq promote`

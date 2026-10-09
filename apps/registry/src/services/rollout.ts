@@ -115,6 +115,7 @@ export async function advanceRollout(
         data: {
           status: 'active',
           trafficPercent: null,
+          targeting: Prisma.DbNull,
           activatedAt: new Date(),
           ...clearedRollout,
         },

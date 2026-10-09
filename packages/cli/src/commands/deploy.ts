@@ -4,7 +4,7 @@ import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
 import { CliError, EXIT } from '../lib/errors';
 import { resolveIntegrity } from '../lib/integrity';
 import { emit, enc } from '../lib/output';
-import { parsePercent, parseRollout } from './canary';
+import { collectTarget, parsePercent, parseRollout, parseTargets } from './canary';
 
 const collect = (value: string, previous: string[] = []) => [...previous, value];
 
@@ -23,6 +23,11 @@ export const deployCommand = new Command('deploy')
   .option(
     '--canary <percent>',
     'Deploy as a canary for this share of users (1–99); the active version keeps the rest'
+  )
+  .option(
+    '--target <attribute=values>',
+    'With --canary or --rollout: always give the canary to matching users, e.g. plan=beta (repeatable)',
+    collectTarget
   )
   .option(
     '--rollout <percents>',
@@ -52,7 +57,9 @@ export const deployCommand = new Command('deploy')
     if (opts.canary !== undefined && opts.rollout !== undefined) {
       throw new CliError('Use either --canary or --rollout', EXIT.validation);
     }
-    const canary = opts.canary !== undefined ? parsePercent(opts.canary) : undefined;
+    const targeting = opts.target ? parseTargets(opts.target) : undefined;
+    const canary =
+      opts.canary !== undefined ? parsePercent(opts.canary, !!targeting?.length) : undefined;
     const rollout = opts.rollout !== undefined ? parseRollout(opts) : undefined;
     const integrity = await resolveIntegrity(opts);
 
@@ -88,8 +95,8 @@ export const deployCommand = new Command('deploy')
         ...(Object.keys(metadata).length && { metadata }),
         dryRun: !!opts.dryRun,
         ...(opts.previewTtl && { ephemeral: { ttlHours: Number(opts.previewTtl) } }),
-        ...(canary && { canary: { trafficPercent: canary } }),
-        ...(rollout && { canary: { rollout } }),
+        ...(canary !== undefined && { canary: { trafficPercent: canary, targeting } }),
+        ...(rollout && { canary: { rollout, targeting } }),
       }
     );
 
@@ -110,7 +117,7 @@ export const deployCommand = new Command('deploy')
       result,
       (rollout
         ? `Deployed ${opts.module} ${opts.release} to ${opts.env} as a staged rollout (${rollout.bands.map((b) => `${b.percent}%`).join(' → ')})`
-        : canary
+        : canary !== undefined
           ? `Deployed ${opts.module} ${opts.release} to ${opts.env} as a canary for ${canary}% of users`
           : `Deployed ${opts.module} ${opts.release} to ${opts.env}`) +
         ` (manifest ${result.manifestEtag})` +

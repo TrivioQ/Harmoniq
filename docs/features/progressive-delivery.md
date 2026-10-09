@@ -42,6 +42,7 @@ See [`docs/requirements.md §5.4`](../requirements.md).
 - **Health.** Host apps post load outcomes to a public, rate-limited endpoint; only versions live in the environment are accepted, and the variant is derived from the version (a client can't mislabel canary data). Raw events (24 h) answer the 5-minute window queries; a job rolls them up hourly every 5 minutes (30 days) for sparklines. The live-version lookup is cached for 30 s per replica and re-read when a report names an unknown version, so a fresh canary's first reports aren't dropped.
 - **Alerts.** `alert.evaluate` runs every minute (pg-boss runs a schedule once across replicas). A rule needs `minSamples` in its window to decide; it fires on the `ok` → `firing` change only, respects a cooldown, and resolves when the metric recovers or the data runs out. Auto-rollback goes through `ManifestMutations` as actor `system`, so it is frozen-environment-aware, audited, snapshotted and published like any change.
 - **Staged rollouts.** The schedule lives on the canary (`rolloutSchedule`, `currentBandIndex`, `bandStartedAt`). `rollout.advance` scans every minute rather than scheduling one delayed job per band, so a restart or a lost job never strands a rollout and a freeze simply pauses it. Each gate check covers the loads of the band that just ran. A band-index check inside the transaction keeps a manual advance and the job from both acting on the same band.
+- **Targeting.** Rules live on the canary version (`targeting`) and are cached with the running canaries, so matching needs no database. A match puts the user in the canary before the percentage is considered; without a user key only targeting applies. `X-Harmoniq-Context` is parsed defensively (size and key limits; bad input is ignored, never an error) and is part of `Vary`.
 - **CDN and import maps** stay stable-only: a CDN can't vary by user, and browsers load import maps without custom headers. The SDK therefore asks the registry first whenever it has a user id, and falls back to the CDN.
 
 ### Deviation: `harmoniq_canary` cookie (CAN-02)
@@ -55,6 +56,21 @@ YES (pre-1.0): `CanaryConfigSchema` was removed from `@harmoniq/core` in favour 
 ---
 
 ## Change History
+
+### 2026-10-09 — Canary targeting (M3.6)
+
+**Type:** feature
+**PR / Branch:** feat/m3-progressive
+**Refs:** report §5.7
+
+#### What changed
+
+- Canary targeting rules (`{ attribute, values }`, attribute `userId` or a context key) on deploy and `PUT …/canary`; a 0% canary is allowed with rules. Targeting is cleared when the canary ends or is promoted.
+- Manifest route reads `X-Harmoniq-Context`; SDK `context` option and `setContext()`; CLI `--target`; the canary panel lists the rules.
+
+#### Testing
+
+`canary.test.ts`: rule matching with and without a cohort, defensive context parsing, an end-to-end 0% canary served by context and by user id, rule replacement, rejection of a 0% canary without rules, cleared targeting after promote. SDK and CLI tests.
 
 ### 2026-10-09 — Staged rollouts (M3.5)
 
