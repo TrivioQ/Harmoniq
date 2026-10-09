@@ -43,7 +43,8 @@
     "name": "Nombre",
     "namePlaceholder": "Checkout",
     "slug": "Identificador",
-    "canaryBadge": "canary {version} · {percent}%"
+    "canaryBadge": "canary {version} · {percent}%",
+    "healthLabel": "Cargas del módulo en {environment}, últimas 24 horas"
   },
   "EnvironmentsPage": {
     "title": "Entornos",
@@ -238,7 +239,19 @@
     "canaryAbortConfirm": "¿Detener el canary {version}? Todos vuelven a {active}.",
     "canaryStart": "Iniciar canary",
     "canaryStartConfirm": "¿Servir {version} a una parte de los usuarios en {environment}?",
-    "canaryNone": "No hay canary en curso. Despliega uno con `harmoniq deploy --canary 10`, o inicia una versión anterior abajo."
+    "canaryNone": "No hay canary en curso. Despliega uno con `harmoniq deploy --canary 10`, o inicia una versión anterior abajo.",
+    "healthTitle": "Salud, últimos {minutes} minutos",
+    "healthSparkline": "Cargas por hora, últimas 24 horas",
+    "healthNone": "Aún no hay informes de carga. Activa `reportHealth` en el SDK para ver aquí el éxito y los tiempos de carga.",
+    "healthSuccess": "Éxito",
+    "healthErrors": "Errores",
+    "healthSamples": "Cargas",
+    "trend": {
+      "improving": "mejorando",
+      "degrading": "empeorando",
+      "steady": "estable",
+      "insufficient_data": "datos insuficientes para una tendencia"
+    }
   },
   "EnvironmentHistory": {
     "back": "Entornos",

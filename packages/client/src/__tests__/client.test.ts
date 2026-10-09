@@ -344,6 +344,94 @@ describe('HarmoniqClient', () => {
     });
   });
 
+  describe('health reporting (M3.2)', () => {
+    const HEALTH = 'http://registry.test/api/health/acme/portal/production';
+
+    function recorder() {
+      const reports: Array<{ events: Array<Record<string, unknown>>; client: string }> = [];
+      const contentTypes: string[] = [];
+      const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+        if (url === HEALTH) {
+          reports.push(JSON.parse(String(init?.body)));
+          contentTypes.push((init?.headers as Record<string, string>)['Content-Type']);
+          return new Response(null, { status: 202 });
+        }
+        return new Response(JSON.stringify(manifest('1.0.0')), { status: 200 });
+      }) as unknown as typeof fetch;
+      return { fetchImpl, reports, contentTypes };
+    }
+
+    it('is off by default', async () => {
+      const { fetchImpl, reports } = recorder();
+      const client = new HarmoniqClient(options(fetchImpl));
+      await client.init();
+      client.reportModuleLoad('checkout', { success: true, loadMs: 10 });
+      client.flushHealth();
+      expect(reports).toEqual([]);
+    });
+
+    it('batches reports with the manifest version and flushes on a timer', async () => {
+      const { fetchImpl, reports, contentTypes } = recorder();
+      const client = new HarmoniqClient({ ...options(fetchImpl), reportHealth: true });
+      await client.init();
+      client.reportModuleLoad('checkout', { success: true, loadMs: 142.4 });
+      client.reportModuleError('checkout', new TypeError('boom'));
+      client.reportModuleLoad('not-in-manifest', { success: true });
+      expect(reports).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(reports).toHaveLength(1);
+      expect(contentTypes[0]).toBe('text/plain;charset=UTF-8');
+      expect(reports[0].client).toMatch(/^harmoniq-js\//);
+      expect(reports[0].events).toEqual([
+        { module: 'checkout', version: '1.0.0', success: true, loadMs: 142 },
+        { module: 'checkout', version: '1.0.0', success: false, error: 'TypeError: boom' },
+      ]);
+    });
+
+    it('sends a full batch of 20 at once', async () => {
+      const { fetchImpl, reports } = recorder();
+      const client = new HarmoniqClient({ ...options(fetchImpl), reportHealth: true });
+      await client.init();
+      for (let i = 0; i < 20; i++) client.reportModuleLoad('checkout', { success: true });
+      expect(reports).toHaveLength(1);
+      expect(reports[0].events).toHaveLength(20);
+    });
+
+    it('samples, and never reports overridden modules', async () => {
+      const { fetchImpl, reports } = recorder();
+      const client = new HarmoniqClient({
+        ...options(fetchImpl),
+        reportHealth: { sampleRate: 0 },
+      });
+      await client.init();
+      client.reportModuleLoad('checkout', { success: true });
+      client.flushHealth();
+      expect(reports).toHaveLength(0);
+
+      const local = new HarmoniqClient({
+        ...options(fetchImpl),
+        reportHealth: true,
+        allowOverrides: true,
+        overrides: { checkout: 'http://localhost:5001/remoteEntry.js' },
+      });
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      await local.init();
+      local.reportModuleLoad('checkout', { success: true });
+      local.flushHealth();
+      expect(reports).toHaveLength(0);
+    });
+
+    it('flushes what is queued on destroy()', async () => {
+      const { fetchImpl, reports } = recorder();
+      const client = new HarmoniqClient({ ...options(fetchImpl), reportHealth: true });
+      await client.init();
+      client.reportModuleLoad('checkout', { success: true });
+      client.destroy();
+      expect(reports).toHaveLength(1);
+    });
+  });
+
   describe('developer overrides and preview environments (M2.6)', () => {
     afterEach(() => vi.unstubAllGlobals());
 

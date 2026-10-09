@@ -43,6 +43,21 @@ describe('Row-Level Security', () => {
     await Promise.all([clients.db.$disconnect(), clients.systemDb.$disconnect()]);
   });
 
+  it('protects every table that has a workspaceId', async () => {
+    const unprotected = await clients.systemDb.$queryRaw<Array<{ table: string }>>`
+      SELECT c.relname AS table
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+       WHERE c.relkind = 'r'
+         AND EXISTS (SELECT 1 FROM information_schema.columns col
+                      WHERE col.table_schema = 'public' AND col.table_name = c.relname
+                        AND col.column_name = 'workspaceId')
+         AND (NOT c.relrowsecurity
+              OR NOT EXISTS (SELECT 1 FROM pg_policies p
+                              WHERE p.schemaname = 'public' AND p.tablename = c.relname))`;
+    expect(unprotected.map((r) => r.table)).toEqual([]);
+  });
+
   it('scopes reads to the current workspace', async () => {
     const apps1 = await withTenant(clients.db, ws1.id, (tx) => tx.hostApp.findMany());
     expect(apps1.map((a) => a.name)).toEqual(['App A']);

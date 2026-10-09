@@ -2,8 +2,9 @@ import { notFound } from 'next/navigation';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
+import { HealthSparkline } from '@/components/HealthSparkline';
 import { RegistryError } from '@/lib/registry';
-import { roleAtLeast, workspaceApi } from '@/lib/workspaceApi';
+import { HealthStats, roleAtLeast, workspaceApi } from '@/lib/workspaceApi';
 import {
   abortCanaryAction,
   promoteAction,
@@ -36,7 +37,25 @@ export default async function ModuleDetailPage(props: {
   ]);
   const env = module.environments.find((e) => e.slug === envParam) ?? module.environments[0];
   if (!env) notFound();
-  const { versions } = await workspaceApi.versions(workspaceSlug, module.id, env.slug);
+  const [{ versions }, health] = await Promise.all([
+    workspaceApi.versions(workspaceSlug, module.id, env.slug),
+    workspaceApi.moduleHealth(workspaceSlug, module.id, env.slug),
+  ]);
+  const percent = (rate: number | null) =>
+    rate === null ? '—' : format.number(rate, { style: 'percent', maximumFractionDigits: 1 });
+  const ms = (value: number | null) => (value === null ? '—' : `${value} ms`);
+  const statsRow = (label: string, s: HealthStats) => (
+    <tr>
+      <th scope="row" className="px-3 py-1.5 text-left font-medium">
+        {label}
+      </th>
+      <td className="px-3 py-1.5">{percent(s.loadSuccessRate)}</td>
+      <td className="px-3 py-1.5">{ms(s.p50LoadMs)}</td>
+      <td className="px-3 py-1.5">{ms(s.p95LoadMs)}</td>
+      <td className="px-3 py-1.5">{s.errorCount}</td>
+      <td className="px-3 py-1.5">{s.sampleCount}</td>
+    </tr>
+  );
   const active = versions.find((v) => v.status === 'active');
   const canary = versions.find((v) => v.status === 'canary');
 
@@ -91,6 +110,55 @@ export default async function ModuleDetailPage(props: {
           🔒 {t('frozen', { reason: env.freezeReason ?? '' })}
         </div>
       )}
+
+      <section className="rounded-xl border bg-card p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold">
+            {t('healthTitle', { minutes: health.windowMinutes })}{' '}
+            <span className="text-sm font-normal text-muted-foreground">
+              {t(`trend.${health.trend}`)}
+            </span>
+          </h3>
+          <HealthSparkline
+            points={health.hourly}
+            since={health.hourlySince}
+            label={t('healthSparkline')}
+          />
+        </div>
+        {health.sampleCount === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('healthNone')}</p>
+        ) : (
+          <>
+            <table className="text-sm">
+              <thead className="text-muted-foreground">
+                <tr>
+                  <th />
+                  <th className="px-3 py-1 text-left font-normal">{t('healthSuccess')}</th>
+                  <th className="px-3 py-1 text-left font-normal">p50</th>
+                  <th className="px-3 py-1 text-left font-normal">p95</th>
+                  <th className="px-3 py-1 text-left font-normal">{t('healthErrors')}</th>
+                  <th className="px-3 py-1 text-left font-normal">{t('healthSamples')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {statsRow(t('statuses.active'), health.variants.stable)}
+                {health.variants.canary.sampleCount > 0 &&
+                  statsRow(t('statuses.canary'), health.variants.canary)}
+              </tbody>
+            </table>
+            {health.topErrors.length > 0 && (
+              <ul className="text-xs space-y-1">
+                {health.topErrors.map((e) => (
+                  <li key={`${e.variant}:${e.message}`} className="font-mono text-red-700">
+                    {e.count}× [{t(`statuses.${e.variant === 'canary' ? 'canary' : 'active'}`)}]{' '}
+                    {e.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
 
       <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
         <h3 className="font-semibold">{t('canaryTitle')}</h3>

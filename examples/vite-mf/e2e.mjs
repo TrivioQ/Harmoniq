@@ -187,6 +187,20 @@ try {
     (await page.$eval('#cart button', (b) => b.textContent)) === 'Cart 1.0.0: 1 items'
   );
 
+  const health = await waitFor('health reports', async () => {
+    const res = await api(
+      'GET',
+      `/api/workspaces/${ws}/modules/greeting/health?environment=${ENV}`,
+      accessToken
+    );
+    return res.sampleCount >= 1 && res;
+  });
+  check(
+    'load reports from the MF plugin reach the registry',
+    health.variants.stable.sampleCount >= 1 && health.p50LoadMs !== null && health.errorCount === 0,
+    `${health.sampleCount} samples, p50 ${health.p50LoadMs} ms`
+  );
+
   build('greeting', '2.0.0');
   await published();
   await page.waitForFunction(

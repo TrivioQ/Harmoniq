@@ -245,6 +245,32 @@ Events: `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollba
 
 `GET /api/auth/providers`, `POST /api/auth/:provider/start`, `POST /api/auth/:provider/callback`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/me`. See [`features/authentication.md`](./features/authentication.md).
 
+## Module health
+
+### `POST /api/health/:workspaceSlug/:hostAppSlug/:env` (public)
+
+Load outcomes from host apps (the SDK sends these when `reportHealth` is on). JSON or `text/plain` body (so `navigator.sendBeacon` works cross-origin without a preflight), at most 50 events, 64 KB; 120 requests/minute per workspace and client IP.
+
+```json
+{
+  "events": [
+    { "module": "checkout", "version": "1.2.3", "success": true, "loadMs": 142 },
+    { "module": "checkout", "version": "1.3.0", "success": false, "error": "ChunkLoadError: …" }
+  ],
+  "client": "harmoniq-js/1.0.0"
+}
+```
+
+Returns `202 { accepted, rejected }`. Only modules and versions that are live (active or canary) in the environment are stored; the registry sets `variant` from the version. Unknown environment → `404`.
+
+### `GET /api/workspaces/:ws/modules/:moduleRef/health?environment=` — read
+
+HLT-02/03: the last 5 minutes. `loadSuccessRate` (0–1), `p50LoadMs`, `p95LoadMs` (successful loads), `errorCount`, `sampleCount` and `trend` (`improving`, `degrading`, `steady` or `insufficient_data`, against the previous 5 minutes), plus `variants.stable` / `variants.canary` with the same fields, `topErrors` and `hourly` (last 24 hours).
+
+### `GET /api/workspaces/:ws/health?hours=24` — read
+
+Hourly `{ hour, sampleCount, errorCount }` series per module and environment, for sparklines.
+
 ## Health
 
 | Endpoint       | Description                                                                    |

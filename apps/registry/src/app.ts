@@ -6,6 +6,7 @@ import containerPlugin from './plugins/container';
 import authenticatePlugin from './plugins/authenticate';
 import manifestRoutes from './routes/manifest';
 import moduleRoutes from './routes/modules';
+import healthRoutes from './routes/health';
 import hostAppRoutes from './routes/hostApps';
 import historyRoutes from './routes/history';
 import accessRoutes from './routes/access';
@@ -98,14 +99,16 @@ export async function buildApp() {
   await app.register(cors, {
     delegator: (req, callback) => {
       const method = (req.headers['access-control-request-method'] as string) || req.method;
-      const isPublicRead =
-        (method === 'GET' || method === 'HEAD') &&
-        /^\/(api\/manifest|api\/importmap|api\/federation-manifest|api\/schema|static|health|ready|docs)(\/|$|\?)/.test(
-          req.url ?? ''
-        );
+      const isPublic =
+        ((method === 'GET' || method === 'HEAD') &&
+          /^\/(api\/manifest|api\/importmap|api\/federation-manifest|api\/schema|static|health|ready|docs)(\/|$|\?)/.test(
+            req.url ?? ''
+          )) ||
+        // Health reports from host apps (HLT-01).
+        (method === 'POST' && /^\/api\/health\//.test(req.url ?? ''));
       callback(
         null,
-        isPublicRead
+        isPublic
           ? {
               origin: '*',
               credentials: false,
@@ -161,6 +164,7 @@ export async function buildApp() {
   // Register routes
   await app.register(manifestRoutes);
   await app.register(moduleRoutes);
+  await app.register(healthRoutes);
   await app.register(hostAppRoutes);
   await app.register(historyRoutes);
   await app.register(accessRoutes);

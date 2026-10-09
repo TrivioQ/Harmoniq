@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
+import { HealthSparkline } from '@/components/HealthSparkline';
 import { roleAtLeast, workspaceApi } from '@/lib/workspaceApi';
 import { createModuleAction } from '../actions';
 
@@ -9,10 +10,13 @@ const input = 'block w-full rounded-md border px-3 py-1.5 text-sm';
 export default async function ModulesPage(props: { params: Promise<{ workspaceSlug: string }> }) {
   const { workspaceSlug } = await props.params;
   const t = await getTranslations('ModulesPage');
-  const [{ modules }, workspace] = await Promise.all([
+  const [{ modules }, workspace, health] = await Promise.all([
     workspaceApi.modules(workspaceSlug),
     workspaceApi.get(workspaceSlug),
+    workspaceApi.health(workspaceSlug),
   ]);
+  const series = (moduleId: string, env: string) =>
+    health.series.find((s) => s.moduleId === moduleId && s.environment === env)?.hourly ?? [];
 
   return (
     <div className="container p-6 md:p-10 max-w-6xl space-y-8">
@@ -42,6 +46,13 @@ export default async function ModulesPage(props: { params: Promise<{ workspaceSl
                       {env.name} {env.frozen && '🔒'}
                     </dt>
                     <dd className="font-mono">{env.active?.version ?? '—'}</dd>
+                    <dd>
+                      <HealthSparkline
+                        points={series(module.id, env.slug)}
+                        since={health.since}
+                        label={t('healthLabel', { environment: env.name })}
+                      />
+                    </dd>
                     {env.canary && (
                       <dd className="text-xs text-amber-700">
                         {t('canaryBadge', {

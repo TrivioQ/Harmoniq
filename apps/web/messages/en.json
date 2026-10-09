@@ -43,7 +43,8 @@
     "name": "Name",
     "namePlaceholder": "Checkout",
     "slug": "Slug",
-    "canaryBadge": "canary {version} · {percent}%"
+    "canaryBadge": "canary {version} · {percent}%",
+    "healthLabel": "Module loads in {environment}, last 24 hours"
   },
   "EnvironmentsPage": {
     "title": "Environments",
@@ -238,7 +239,19 @@
     "canaryAbortConfirm": "Stop canary {version}? Everyone goes back to {active}.",
     "canaryStart": "Start canary",
     "canaryStartConfirm": "Serve {version} to a share of users in {environment}?",
-    "canaryNone": "No canary running. Deploy one with `harmoniq deploy --canary 10`, or start an earlier version below."
+    "canaryNone": "No canary running. Deploy one with `harmoniq deploy --canary 10`, or start an earlier version below.",
+    "healthTitle": "Health, last {minutes} minutes",
+    "healthSparkline": "Loads per hour, last 24 hours",
+    "healthNone": "No load reports yet. Enable `reportHealth` in the SDK to see load success and timings here.",
+    "healthSuccess": "Success",
+    "healthErrors": "Errors",
+    "healthSamples": "Loads",
+    "trend": {
+      "improving": "improving",
+      "degrading": "degrading",
+      "steady": "steady",
+      "insufficient_data": "not enough data for a trend"
+    }
   },
   "EnvironmentHistory": {
     "back": "Environments",

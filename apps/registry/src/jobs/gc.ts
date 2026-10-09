@@ -1,3 +1,4 @@
+import { rollUpHealth } from '../services/health';
 import { FastifyInstance } from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
@@ -125,7 +126,11 @@ export async function handleHealthEventPurge(db: PrismaClient, logger: ILogger) 
         reportedAt: { lt: oneDayAgo },
       },
     });
-    logger.info(`Purged ${events.count} health events`);
+    // Hourly rollups (sparklines) are kept for 30 days.
+    const rollups = await db.moduleHealthRollup.deleteMany({
+      where: { hour: { lt: new Date(Date.now() - 30 * 86_400_000) } },
+    });
+    logger.info(`Purged ${events.count} health events and ${rollups.count} hourly rollups`);
   } catch (err) {
     logger.error('Failed to run gc.healthEventPurge', err as Error);
     throw err;
@@ -173,6 +178,7 @@ export async function registerGcJobs(fastify: FastifyInstance) {
     'gc.healthEventPurge',
     'gc.orphanScan',
     'gc.expireEnvironments',
+    'health.rollup',
   ]) {
     await boss.createQueue(queue);
   }
@@ -213,6 +219,13 @@ export async function registerGcJobs(fastify: FastifyInstance) {
       await target.storage.delete(target.prefix + paths.importMap);
     }
   };
+  // HLT-04: refresh the current and previous hour's rollups every 5 minutes.
+  await boss.schedule('health.rollup', '*/5 * * * *');
+  boss.work('health.rollup', async () => {
+    const rows = await rollUpHealth(db, new Date(Date.now() - 3_600_000));
+    logger.info(`Rolled up health into ${rows} hourly rows`);
+  });
+
   await boss.schedule('gc.expireEnvironments', '0 * * * *');
   boss.work('gc.expireEnvironments', () => handleExpireEnvironments(db, logger, onDeleted));
 

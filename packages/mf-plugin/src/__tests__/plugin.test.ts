@@ -149,6 +149,43 @@ describe('harmoniqPlugin (Module Federation 2.0 runtime)', () => {
     );
   });
 
+  it('reports first loads and failures to the client (HLT-01)', async () => {
+    const client = clientWith(manifest('1.0.0'));
+    const report = vi.spyOn(client, 'reportModuleLoad');
+    const mf = new ModuleFederation({
+      name: 'host',
+      remotes: [],
+      plugins: [harmoniqPlugin(client)],
+    });
+    const after = (args: object) =>
+      mf.remoteHandler.hooks.lifecycle.afterLoadRemote.emit({ origin: mf, ...args } as never);
+    const remote = {
+      name: 'checkout',
+      entry: 'https://cdn.example.com/checkout/1.0.0/remoteEntry.js',
+    };
+
+    await resolve(mf, 'checkout/Page');
+    await after({ id: 'checkout/Page', expose: './Page', remote });
+    expect(report).toHaveBeenCalledWith('checkout', {
+      success: true,
+      loadMs: expect.any(Number),
+    });
+
+    // A cached second load is not a new data point; a failure always is.
+    await resolve(mf, 'checkout/Page');
+    await after({ id: 'checkout/Page', expose: './Page', remote });
+    expect(report).toHaveBeenCalledTimes(1);
+
+    const error = new Error('ScriptExternalLoadError');
+    await resolve(mf, 'checkout/Cart');
+    await after({ id: 'checkout/Cart', expose: './Cart', remote, error });
+    expect(report).toHaveBeenLastCalledWith('checkout', {
+      success: false,
+      loadMs: expect.any(Number),
+      error,
+    });
+  });
+
   it('adds SRI and crossorigin to remote entry scripts it knows', async () => {
     const created: Array<Record<string, unknown>> = [];
     vi.stubGlobal('document', {

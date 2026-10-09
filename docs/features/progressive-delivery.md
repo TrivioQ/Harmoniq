@@ -39,6 +39,7 @@ See [`docs/requirements.md §5.4`](../requirements.md).
 - **Assignment.** `cohortId = sha256(workspaceId:userKey)[0..16]`; a user is in a module's canary when `sha256(cohortId:moduleId) mod 100 < trafficPercent`. Hashing per module keeps canaries of different modules independent. The user key is `X-Harmoniq-User-Id`, else a `harmoniq_canary` cookie.
 - **Caching.** The cached stable manifest carries the running canaries (not part of the public body), so assignment needs no database on a cache hit. Each set of canary modules a user can get is built once and cached under `manifest:{ws}:{host}:{env}:canary-<hash of version ids>`, at most 2^n per environment; invalidation already clears every variant. The per-user `cohortId` is set on the response, and canary responses are `Cache-Control: private`.
 - **Pipeline.** Canary start, traffic changes, promote and abort run through `ManifestMutations` like every other change: freeze check (423), audit event, snapshot of the stable manifest, cache refresh, webhooks, CDN publish.
+- **Health.** Host apps post load outcomes to a public, rate-limited endpoint; only versions live in the environment are accepted, and the variant is derived from the version (a client can't mislabel canary data). Raw events (24 h) answer the 5-minute window queries; a job rolls them up hourly every 5 minutes (30 days) for sparklines. The live-version lookup is cached for 30 s per replica and re-read when a report names an unknown version, so a fresh canary's first reports aren't dropped.
 - **CDN and import maps** stay stable-only: a CDN can't vary by user, and browsers load import maps without custom headers. The SDK therefore asks the registry first whenever it has a user id, and falls back to the CDN.
 
 ### Deviation: `harmoniq_canary` cookie (CAN-02)
@@ -52,6 +53,24 @@ YES (pre-1.0): `CanaryConfigSchema` was removed from `@harmoniq/core` in favour 
 ---
 
 ## Change History
+
+### 2026-10-09 — Module health (M3.2)
+
+**Type:** feature
+**PR / Branch:** feat/m3-progressive
+**Refs:** HLT-01 – HLT-04
+
+#### What changed
+
+- Registry: `POST /api/health/:ws/:host/:env` (public, `text/plain` or JSON, ≤50 events), `GET …/modules/:ref/health?environment=` (5-minute stats per variant, trend, top errors, 24 h hourly), `GET …/health` (sparkline series). `ModuleHealthEvent.version` and the `ModuleHealthRollup` table (RLS), rollup job every 5 minutes, 30-day retention.
+- SDK: `reportHealth` (sampling, batching, `sendBeacon`, flush on page hide), `reportModuleLoad`, `reportModuleError`, `flushHealth`.
+- `@harmoniq/mf-plugin`: reports each remote's first load time or error.
+- Dashboard: health sparklines on the modules list; health panel (stable vs canary, top errors) on the module page.
+- `rls.test.ts` now fails if any table with a `workspaceId` lacks RLS or a policy.
+
+#### Testing
+
+`health.test.ts`: acceptance of live versions only and server-side variants, malformed reports, a version deployed after the cache filled, exact window stats and percentiles, trend, rollup idempotency and series. SDK and mf-plugin unit tests. The `examples/vite-mf` e2e now checks that real load reports from Chrome reach the registry. Dashboard pages rendered in headless Chrome with seeded reports.
 
 ### 2026-10-09 — Canary releases (M3.1)
 

@@ -88,6 +88,19 @@ export interface HarmoniqClientOptions {
   timeoutMs?: number;
   /** Custom fetch (tests, SSR polyfills). */
   fetch?: typeof fetch;
+  /**
+   * Report module load outcomes to the registry (HLT-01), used for health dashboards,
+   * canary comparisons and alerts. Off by default. Reports are batched and sent with
+   * `navigator.sendBeacon` when available; `sampleRate` (0–1) keeps a share of them.
+   */
+  reportHealth?: boolean | { sampleRate?: number; flushIntervalMs?: number };
+}
+
+/** A module load outcome for `reportModuleLoad`. */
+export interface ModuleLoadReport {
+  success: boolean;
+  loadMs?: number;
+  error?: unknown;
 }
 
 export interface ModuleEntry {
@@ -126,6 +139,10 @@ type EventName = keyof EventMap;
 type Listener<E extends EventName> = (payload: EventMap[E]) => void;
 
 const DEFAULT_TIMEOUT_MS = 5_000;
+const SDK_VERSION = '1.0.0';
+const HEALTH_BATCH_SIZE = 20;
+const HEALTH_MAX_EVENTS = 50; // per request, the registry's limit
+const HEALTH_FLUSH_MS = 5_000;
 const DEFAULT_MAX_BACKOFF_MS = 60_000;
 
 const escapeAttr = (value: string) =>
@@ -198,6 +215,20 @@ export class HarmoniqClient {
   private readonly storeKey: string;
   private readonly overrides: Record<string, string>;
   private readonly environment: string;
+  private readonly healthUrl: string;
+  private healthQueue: Array<{
+    module: string;
+    version: string;
+    success: boolean;
+    loadMs?: number;
+    error?: string;
+  }> = [];
+  private healthTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly onPageHide = () => {
+    if (typeof document === 'undefined' || document.visibilityState === 'hidden') {
+      this.flushHealth();
+    }
+  };
 
   constructor(private readonly options: HarmoniqClientOptions) {
     const enc = encodeURIComponent;
@@ -208,6 +239,12 @@ export class HarmoniqClient {
     const env = this.environment;
     const path = `${enc(ws)}/${enc(hostApp)}/${enc(env)}`;
     this.registrySource = `${options.registryUrl.replace(/\/$/, '')}/api/manifest/${path}`;
+    this.healthUrl = `${options.registryUrl.replace(/\/$/, '')}/api/health/${path}`;
+    if (options.reportHealth && typeof addEventListener === 'function') {
+      // Deliver what's queued before the page goes away (bfcache, tab close, navigation).
+      addEventListener('visibilitychange', this.onPageHide);
+      addEventListener('pagehide', this.onPageHide);
+    }
     this.cdnSource = options.cdnBaseUrl
       ? `${options.cdnBaseUrl.replace(/\/$/, '')}/manifests/${path}.json`
       : null;
@@ -304,6 +341,80 @@ export class HarmoniqClient {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.listeners.clear();
+    this.flushHealth();
+    if (typeof removeEventListener === 'function') {
+      removeEventListener('visibilitychange', this.onPageHide);
+      removeEventListener('pagehide', this.onPageHide);
+    }
+  }
+
+  /**
+   * HLT-01: records how loading a module went. The version comes from the manifest in
+   * use; overridden modules and modules not in the manifest are not reported. No-op
+   * unless `reportHealth` is on.
+   */
+  reportModuleLoad(name: string, report: ModuleLoadReport) {
+    const health = this.options.reportHealth;
+    if (!health) return;
+    const sampleRate = typeof health === 'object' ? (health.sampleRate ?? 1) : 1;
+    if (sampleRate < 1 && Math.random() >= sampleRate) return;
+    const mod = this.modules.get(name);
+    if (!mod || this.overrides[name]) return;
+
+    const error =
+      report.error === undefined
+        ? undefined
+        : (report.error instanceof Error
+            ? `${report.error.name}: ${report.error.message}`
+            : String(report.error)
+          ).slice(0, 500);
+    this.healthQueue.push({
+      module: name,
+      version: mod.version,
+      success: report.success,
+      ...(report.loadMs !== undefined && { loadMs: Math.max(0, Math.round(report.loadMs)) }),
+      ...(error && !report.success && { error }),
+    });
+
+    if (this.healthQueue.length >= HEALTH_BATCH_SIZE) {
+      this.flushHealth();
+    } else if (!this.healthTimer) {
+      const interval =
+        typeof health === 'object' ? (health.flushIntervalMs ?? HEALTH_FLUSH_MS) : HEALTH_FLUSH_MS;
+      this.healthTimer = setTimeout(() => this.flushHealth(), interval);
+    }
+  }
+
+  /** Shorthand for a failed load. */
+  reportModuleError(name: string, error: unknown) {
+    this.reportModuleLoad(name, { success: false, error });
+  }
+
+  /** Sends queued health reports now. Called automatically; safe to call any time. */
+  flushHealth() {
+    if (this.healthTimer) clearTimeout(this.healthTimer);
+    this.healthTimer = null;
+    while (this.healthQueue.length) {
+      const events = this.healthQueue.splice(0, HEALTH_MAX_EVENTS);
+      // text/plain keeps it a "simple" cross-origin request: no preflight, beacon-safe.
+      const body = JSON.stringify({ events, client: `harmoniq-js/${SDK_VERSION}` });
+      const beacon =
+        !this.options.fetch && typeof navigator !== 'undefined' && navigator.sendBeacon
+          ? navigator.sendBeacon(
+              this.healthUrl,
+              new Blob([body], { type: 'text/plain;charset=UTF-8' })
+            )
+          : false;
+      if (!beacon) {
+        const doFetch = this.options.fetch ?? (typeof fetch === 'function' ? fetch : null);
+        void doFetch?.(this.healthUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          body,
+          keepalive: true,
+        }).catch(() => undefined); // health reporting must never affect the host
+      }
+    }
   }
 
   /** @deprecated Use destroy(). */

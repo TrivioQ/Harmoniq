@@ -52,6 +52,7 @@ model Workspace {
   ManifestSnapshots          ManifestSnapshot[]
   WebhookDeadLetters         WebhookDeadLetter[]
   ModuleHealthEvents         ModuleHealthEvent[]
+  ModuleHealthRollups        ModuleHealthRollup[]
   ScimAuditEvents            ScimAuditEvent[]
   ApprovalPolicies           ApprovalPolicy[]
   DeploymentRequests         DeploymentRequest[]
@@ -98,45 +99,48 @@ model HostApp {
 }
 
 model Environment {
-  id                 String              @id @default(cuid())
-  hostAppId          String
-  name               String
-  slug               String
-  isDefault          Boolean             @default(false)
-  frozenAt           DateTime?
-  frozenBy           String?
-  freezeReason       String?
-  freezeUntil        DateTime?
+  id                  String               @id @default(cuid())
+  hostAppId           String
+  name                String
+  slug                String
+  isDefault           Boolean              @default(false)
+  frozenAt            DateTime?
+  frozenBy            String?
+  freezeReason        String?
+  freezeUntil         DateTime?
   /// Last manifest copy written to storage/CDN (M2.1); hosts can read it without the registry.
-  lastPublishedEtag  String?
-  lastPublishedAt    DateTime?
-  lastPublishError   String?
+  lastPublishedEtag   String?
+  lastPublishedAt     DateTime?
+  lastPublishError    String?
   /// Preview environment created by a deploy; deleted after `expiresAt`.
-  ephemeral          Boolean             @default(false)
-  expiresAt          DateTime?
-  hostApp            HostApp             @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
-  ModuleVersions     ModuleVersion[]
-  ManifestSnapshots  ManifestSnapshot[]
-  ModuleHealthEvents ModuleHealthEvent[]
+  ephemeral           Boolean              @default(false)
+  expiresAt           DateTime?
+  hostApp             HostApp              @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
+  ModuleVersions      ModuleVersion[]
+  ManifestSnapshots   ManifestSnapshot[]
+  ModuleHealthEvents  ModuleHealthEvent[]
+  ModuleHealthRollups ModuleHealthRollup[]
 
   @@unique([hostAppId, slug])
+  @@index([ephemeral, expiresAt])
 }
 
 model RemoteModule {
-  id                 String              @id @default(cuid())
-  workspaceId        String
-  hostAppId          String
-  name               String
-  slug               String
-  description        String?
+  id                  String               @id @default(cuid())
+  workspaceId         String
+  hostAppId           String
+  name                String
+  slug                String
+  description         String?
   /// Import-map specifier, e.g. `@acme/checkout` (IMP-03). Defaults to the slug.
-  specifier          String?
-  createdAt          DateTime            @default(now())
-  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  hostApp            HostApp             @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
-  ModuleVersions     ModuleVersion[]
-  ModuleOwnerships   ModuleOwnership[]
-  ModuleHealthEvents ModuleHealthEvent[]
+  specifier           String?
+  createdAt           DateTime             @default(now())
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hostApp             HostApp              @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
+  ModuleVersions      ModuleVersion[]
+  ModuleOwnerships    ModuleOwnership[]
+  ModuleHealthEvents  ModuleHealthEvent[]
+  ModuleHealthRollups ModuleHealthRollup[]
 
   @@unique([hostAppId, slug])
   @@index([workspaceId, slug])
@@ -389,7 +393,9 @@ model ModuleHealthEvent {
   workspaceId    String
   remoteModuleId String
   environmentId  String
+  /// `stable` or `canary`, derived by the registry from the reported version.
   variant        String
+  version        String?
   success        Boolean
   loadMs         Int?
   errorMessage   String?
@@ -400,6 +406,28 @@ model ModuleHealthEvent {
   environment    Environment  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, remoteModuleId, environmentId, reportedAt])
+  @@index([environmentId, reportedAt])
+}
+
+/// Hourly health per module, environment and variant (HLT-04 sparklines). Raw events are
+/// kept for 24 hours; rollups for 30 days.
+model ModuleHealthRollup {
+  id             String       @id @default(cuid())
+  workspaceId    String
+  remoteModuleId String
+  environmentId  String
+  variant        String
+  hour           DateTime
+  sampleCount    Int
+  errorCount     Int
+  p50LoadMs      Int?
+  p95LoadMs      Int?
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  remoteModule   RemoteModule @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
+  environment    Environment  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([remoteModuleId, environmentId, variant, hour])
+  @@index([workspaceId, hour])
 }
 
 model ScimAuditEvent {

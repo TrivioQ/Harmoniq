@@ -391,22 +391,41 @@ prisma.$use(async (params, next) => {
 
 ### `ModuleHealthEvent`
 
-| Column           | Type       | Notes                                  |
-| ---------------- | ---------- | -------------------------------------- |
-| `id`             | `CUID`     | Primary key                            |
-| `workspaceId`    | `CUID`     | FK → Workspace (RLS key)               |
-| `remoteModuleId` | `CUID`     | FK → RemoteModule                      |
-| `environmentId`  | `CUID`     | FK → Environment                       |
-| `variant`        | `String`   | `"stable" \| "canary"`                 |
-| `success`        | `Boolean`  | Whether the module loaded successfully |
-| `loadMs`         | `Int?`     | Load time in milliseconds              |
-| `errorMessage`   | `String?`  | Truncated error message on failure     |
-| `clientVersion`  | `String?`  | `@harmoniq/client` version             |
-| `reportedAt`     | `DateTime` | Default: now()                         |
+| Column           | Type       | Notes                                                          |
+| ---------------- | ---------- | -------------------------------------------------------------- |
+| `id`             | `CUID`     | Primary key                                                    |
+| `workspaceId`    | `CUID`     | FK → Workspace (RLS key)                                       |
+| `remoteModuleId` | `CUID`     | FK → RemoteModule                                              |
+| `environmentId`  | `CUID`     | FK → Environment                                               |
+| `variant`        | `String`   | `"stable" \| "canary"`, derived by the registry from `version` |
+| `version`        | `String?`  | Reported module version (must be live in the environment)      |
+| `success`        | `Boolean`  | Whether the module loaded successfully                         |
+| `loadMs`         | `Int?`     | Load time in milliseconds                                      |
+| `errorMessage`   | `String?`  | Truncated error message on failure                             |
+| `clientVersion`  | `String?`  | `@harmoniq/client` version                                     |
+| `reportedAt`     | `DateTime` | Default: now()                                                 |
 
-**Index**: `(workspaceId, remoteModuleId, environmentId, reportedAt)`  
+**Index**: `(workspaceId, remoteModuleId, environmentId, reportedAt)`, `(environmentId, reportedAt)`  
 **RLS**: enabled, policy on `workspaceId`  
 **Note**: Records older than 24h are eligible for purge (high-volume table — not subject to `retentionDays`).
+
+### `ModuleHealthRollup`
+
+Hourly totals per module, environment and variant, upserted from raw events every 5 minutes (`health.rollup`); feeds the sparklines. Kept 30 days.
+
+| Column                      | Type       | Notes                    |
+| --------------------------- | ---------- | ------------------------ |
+| `id`                        | `String`   | Primary key              |
+| `workspaceId`               | `CUID`     | FK → Workspace (RLS key) |
+| `remoteModuleId`            | `CUID`     | FK → RemoteModule        |
+| `environmentId`             | `CUID`     | FK → Environment         |
+| `variant`                   | `String`   | `"stable" \| "canary"`   |
+| `hour`                      | `DateTime` | Start of the hour (UTC)  |
+| `sampleCount`, `errorCount` | `Int`      | Loads and failed loads   |
+| `p50LoadMs`, `p95LoadMs`    | `Int?`     | Over successful loads    |
+
+**Unique**: `(remoteModuleId, environmentId, variant, hour)`  
+**RLS**: enabled, policy on `workspaceId`  
 
 ---
 

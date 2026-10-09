@@ -36,20 +36,23 @@ const entry = client.getModuleEntry('checkout');
 | `timeoutMs`        | 5000           | Per-request timeout                                                                                                                      |
 | `fetch`            | global         | Custom fetch implementation                                                                                                              |
 | `userId`           | —              | Opaque user id for canary assignment, sent as `X-Harmoniq-User-Id` to the registry only. While set, the registry is asked before the CDN |
+| `reportHealth`     | off            | `true` or `{ sampleRate, flushIntervalMs }`: send module load outcomes to the registry (batched, `sendBeacon`)                           |
 | `anonymousCanary`  | `false`        | Without `userId`, give each browser a random id kept in `persist` storage so anonymous visitors take part in canaries                    |
 
-| Method                           | Returns                                                                                       |
-| -------------------------------- | --------------------------------------------------------------------------------------------- |
-| `init()`                         | Loads the manifest and starts polling. Rejects if the first load fails; call again to retry.  |
-| `getManifest()`                  | The full manifest (`schemaVersion: 2`) or `null`                                              |
-| `getModuleEntry(name)`           | `{ url, integrity, version }` or `null`                                                       |
-| `getModule(name)`                | The full module entry, including `dependencies`, `exposes`, `metadata`                        |
-| `getScriptTag(name)`             | `<script type="module" … integrity crossorigin>` with escaped attributes                      |
-| `getVariant()` / `getCohortId()` | Canary assignment: `stable` or `canary`, and the opaque cohort id (safe to send to analytics) |
-| `setUserId(id \| null)`          | Change the user (e.g. after sign-in) and re-fetch so their variant applies immediately        |
-| `getError()`                     | Error from the last failed fetch, or `null`                                                   |
-| `on(event, fn)`                  | Subscribe; returns an unsubscribe function                                                    |
-| `destroy()`                      | Stop polling and remove listeners                                                             |
+| Method                                                                                    | Returns                                                                                       |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `init()`                                                                                  | Loads the manifest and starts polling. Rejects if the first load fails; call again to retry.  |
+| `getManifest()`                                                                           | The full manifest (`schemaVersion: 2`) or `null`                                              |
+| `getModuleEntry(name)`                                                                    | `{ url, integrity, version }` or `null`                                                       |
+| `getModule(name)`                                                                         | The full module entry, including `dependencies`, `exposes`, `metadata`                        |
+| `getScriptTag(name)`                                                                      | `<script type="module" … integrity crossorigin>` with escaped attributes                      |
+| `getVariant()` / `getCohortId()`                                                          | Canary assignment: `stable` or `canary`, and the opaque cohort id (safe to send to analytics) |
+| `reportModuleLoad(name, { success, loadMs?, error? })` / `reportModuleError(name, error)` | Record a load outcome (no-op unless `reportHealth`)                                           |
+| `flushHealth()`                                                                           | Send queued reports now (also on page hide and `destroy()`)                                   |
+| `setUserId(id \| null)`                                                                   | Change the user (e.g. after sign-in) and re-fetch so their variant applies immediately        |
+| `getError()`                                                                              | Error from the last failed fetch, or `null`                                                   |
+| `on(event, fn)`                                                                           | Subscribe; returns an unsubscribe function                                                    |
+| `destroy()`                                                                               | Stop polling and remove listeners                                                             |
 
 **Events** (`EVENTS.*`): `manifestUpdate` (only when the content changes), `variantAssigned` (first assignment and changes), `manifestStale` (serving a persisted or bundled copy), `error` (each failed fetch).
 
@@ -67,6 +70,10 @@ await client.setUserId(user.id);
 ```
 
 The registry decides the variant per user and module; the CDN copy is always stable, so with a user id the registry is asked first and the CDN is the fallback. Use an opaque id: the registry never echoes it, only `cohortId`.
+
+### Module health
+
+With `reportHealth: true` the client batches load outcomes and sends them to the registry, which shows success rate and load times per module, split by stable and canary, in the dashboard. `@harmoniq/mf-plugin` reports every remote's first load automatically; other loaders call `reportModuleLoad` / `reportModuleError`. Reports carry the module version from the manifest; overridden modules are never reported. Use `sampleRate` on high-traffic hosts.
 
 ### Surviving a registry outage
 
@@ -163,6 +170,7 @@ const { CheckoutPage } = await loadRemote('checkout/CheckoutPage');
 - New deploys and rollbacks are hot-swapped (`registerRemotes(…, { force: true })`); the next `loadRemote` gets the new version.
 - Remote entry scripts get `integrity` and `crossorigin` from the manifest (SRI-04).
 - Options: `remoteNames` (MF remote name → Harmoniq module name), `strict` (refuse remotes not in the manifest).
+- Reports each remote's first load (time or error) to `client.reportModuleLoad` when the client has `reportHealth` on (`reportLoads: false` to disable).
 - `harmoniqRemotes(client)` returns `{ name, entry }[]` for `init({ remotes })` when you prefer static registration.
 
 ## Planned

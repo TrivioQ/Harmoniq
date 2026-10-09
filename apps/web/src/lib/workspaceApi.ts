@@ -157,6 +157,29 @@ export interface DeadLetter {
 const enc = encodeURIComponent;
 const ws = (slug: string) => `/api/workspaces/${enc(slug)}`;
 
+export interface HourlyHealth {
+  hour: string;
+  sampleCount: number;
+  errorCount: number;
+}
+
+export interface HealthStats {
+  sampleCount: number;
+  errorCount: number;
+  loadSuccessRate: number | null;
+  p50LoadMs: number | null;
+  p95LoadMs: number | null;
+}
+
+export interface ModuleHealth extends HealthStats {
+  windowMinutes: number;
+  trend: 'improving' | 'degrading' | 'steady' | 'insufficient_data';
+  variants: { stable: HealthStats; canary: HealthStats };
+  topErrors: Array<{ message: string; variant: string; count: number }>;
+  hourlySince: string;
+  hourly: HourlyHealth[];
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
@@ -188,6 +211,14 @@ export const workspaceApi = {
     authedFetch<{ endpoints: WebhookEndpointSummary[] }>(`${ws(slug)}/webhooks`),
   deadLetters: (slug: string) =>
     authedFetch<{ deadLetters: DeadLetter[] }>(`${ws(slug)}/webhooks/dead-letters`),
+  health: (slug: string) =>
+    authedFetch<{
+      since: string;
+      hours: number;
+      series: Array<{ moduleId: string; environment: string; hourly: HourlyHealth[] }>;
+    }>(`${ws(slug)}/health?hours=24`),
+  moduleHealth: (slug: string, ref: string, env: string) =>
+    authedFetch<ModuleHealth>(`${ws(slug)}/modules/${enc(ref)}/health?environment=${enc(env)}`),
 };
 
 const RANK: Record<Role, number> = { viewer: 0, developer: 1, admin: 2, owner: 3 };

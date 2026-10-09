@@ -13,6 +13,12 @@ export interface HarmoniqPluginOptions {
    * the remote's static configuration).
    */
   strict?: boolean;
+  /**
+   * Report each remote's first load (time from request to module, or the error) through
+   * `client.reportModuleLoad`, for health and canary comparisons (HLT-01). Only sent when
+   * the client has `reportHealth` on. Default true.
+   */
+  reportLoads?: boolean;
 }
 
 type Remote = {
@@ -38,6 +44,17 @@ export function harmoniqPlugin(
   const toModule = (remote: string) => options.remoteNames?.[remote] ?? remote;
   const toRemote = (module: string) =>
     Object.entries(options.remoteNames ?? {}).find(([, m]) => m === module)?.[0] ?? module;
+
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const nameOf = (id: string) =>
+    id
+      .split('/')
+      .slice(0, id.startsWith('@') ? 2 : 1)
+      .join('/');
+  // Request id → start time, and what was already reported: later loads of the same
+  // remote entry and expose come from the runtime's cache and would skew load times.
+  const started = new Map<string, number>();
+  const reported = new Set<string>();
 
   let instance: ModuleFederation | undefined;
   let unsubscribe: (() => void) | undefined;
@@ -85,6 +102,7 @@ export function harmoniqPlugin(
     },
 
     async beforeRequest(args) {
+      if (!started.has(args.id)) started.set(args.id, now());
       attach(args.origin);
       await client.init();
       const remotes = args.options.remotes as Remote[];
@@ -95,12 +113,7 @@ export function harmoniqPlugin(
           args.id.startsWith(`${r.name}/`) ||
           (!!r.alias && (args.id === r.alias || args.id.startsWith(`${r.alias}/`)))
       );
-      const name =
-        remote?.name ??
-        args.id
-          .split('/')
-          .slice(0, args.id.startsWith('@') ? 2 : 1)
-          .join('/');
+      const name = remote?.name ?? nameOf(args.id);
       const entry = client.getModuleEntry(toModule(name));
 
       if (!entry) {
@@ -117,6 +130,21 @@ export function harmoniqPlugin(
         remotes.push({ name, entry: entry.url });
       }
       return args;
+    },
+
+    afterLoadRemote(args) {
+      const start = started.get(args.id);
+      started.delete(args.id);
+      if (options.reportLoads === false) return;
+      const remoteName = args.remote?.name ?? nameOf(args.id);
+      const key = `${remoteName}|${args.expose ?? ''}|${args.remote?.entry ?? ''}`;
+      if (!args.error && reported.has(key)) return;
+      reported.add(key);
+      client.reportModuleLoad(toModule(remoteName), {
+        success: !args.error, // a recovered load still failed to load the real module
+        ...(start !== undefined && { loadMs: now() - start }),
+        ...(args.error !== undefined && { error: args.error }),
+      });
     },
 
     // SRI-04: remote entries are loaded with integrity checking when Harmoniq knows the hash.

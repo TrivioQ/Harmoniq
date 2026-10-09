@@ -33,6 +33,8 @@ const client = new HarmoniqClient({
   allowOverrides: true, // a demo; gate this on non-production builds in a real host
   pollIntervalMs: Number(params.get('poll') ?? 2000),
   timeoutMs: 2000,
+  // Load outcomes from the MF plugin feed the module health in the dashboard.
+  reportHealth: { flushIntervalMs: 1000 },
 });
 
 const mf = createInstance({
