@@ -107,6 +107,38 @@ harmoniq manifest pull --env production --out src/harmoniq-fallback.json
 
 With `--json`, successful commands print exactly one JSON document on stdout; errors go to stderr.
 
+## Build plugin
+
+`@harmoniq/build-plugin` registers a remote straight from your bundler (Vite, Rollup, webpack, Rspack, esbuild). After the bundle is written it computes the remote entry's SRI hash, reads `exposes` from `mf-manifest.json` when present, and — in CI (`CI=true`) — deploys it. Locally it only prints the hash.
+
+```ts
+// vite.config.ts
+import { harmoniq } from '@harmoniq/build-plugin';
+
+export default defineConfig({
+  plugins: [
+    federation({
+      name: 'checkout',
+      filename: 'remoteEntry.js',
+      exposes: { './CheckoutPage': './src/CheckoutPage' },
+    }),
+    harmoniq.vite({
+      module: 'checkout',
+      environment: 'staging',
+      version: process.env.GITHUB_SHA ?? 'dev',
+      outDir: 'dist',
+      url: `https://cdn.acme.com/checkout/${process.env.GITHUB_SHA}/remoteEntry.js`,
+    }),
+  ],
+});
+```
+
+Credentials come from `HARMONIQ_REGISTRY_URL`, `HARMONIQ_API_KEY` and `HARMONIQ_WORKSPACE` (or the `registryUrl`, `apiKey`, `workspace` options). Upload the build output to the URL's location first; a rejected deploy (e.g. frozen environment) fails the build. Other bundlers: `harmoniq.webpack(…)`, `harmoniq.rspack(…)`, `harmoniq.rollup(…)`, `harmoniq.esbuild(…)`.
+
+## GitHub Action
+
+[`actions/deploy`](../actions/deploy/README.md) wraps the CLI: deploy or promote, `version-id` / `manifest-etag` outputs, and a job summary.
+
 ## CI example (GitHub Actions)
 
 ```yaml

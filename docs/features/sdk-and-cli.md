@@ -27,6 +27,22 @@ None.
 
 ## Change History
 
+### 2026-10-09 — Build plugin and GitHub Action (M2.5)
+
+**Type:** feature
+**PR / Branch:** feat/m2-delivery
+**Refs:** VAL-01, DEP-01 (exposes); product-analysis §5.3
+
+#### What changed
+
+- New `@harmoniq/build-plugin` (unplugin 3, ESM): `harmoniq.vite|webpack|rspack|rollup|esbuild({...})` computes the remote entry's SRI after `writeBundle`, reads `exposes` from `mf-manifest.json`, and deploys in CI; `harmoniqDeploy()` for custom pipelines.
+- New composite action `actions/deploy` (deploy or promote via the CLI, outputs, job summary, CLI exit codes).
+- Shared `scripts/tsup/nodeResolve.ts` for bundling workspace packages in Node builds (works around a parent-directory Yarn PnP manifest), now used by the CLI and the build plugin.
+
+#### Testing
+
+`deploy.test.ts` (5): no network outside CI, exact deploy request incl. exposes and commit, failures fail the build, Vite hook. The action's script was run against a live registry with the built CLI: deploy and promote succeed with outputs and summary; a frozen target exits 4.
+
 ### 2026-10-09 — SDK correctness: one poll loop, real events, SSR-safe React, no credentials
 
 **Type:** bug fix

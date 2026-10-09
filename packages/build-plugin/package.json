@@ -1,0 +1,31 @@
+{
+  "name": "@harmoniq/build-plugin",
+  "version": "0.1.0",
+  "description": "Build plugin (Vite, Rollup, webpack, Rspack, esbuild) that registers remote modules with Harmoniq",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "unplugin": "^3.4.0"
+  },
+  "devDependencies": {
+    "@harmoniq/core": "workspace:*",
+    "@harmoniq/tsconfig": "workspace:*",
+    "@types/node": "^20.12.7",
+    "eslint": "^9.10.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.0"
+  },
+  "type": "module"
+}
