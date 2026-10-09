@@ -19,6 +19,10 @@ export const deployCommand = new Command('deploy')
   .option('--meta <key=value>', 'Metadata entry (repeatable)', collect)
   .option('--validate', 'Check the bundle URL and integrity locally before deploying')
   .option('--dry-run', 'Validate on the registry and show the projected change; deploy nothing')
+  .option(
+    '--preview-ttl <hours>',
+    'Create --env as a preview environment (e.g. pr-123) that expires after this many hours'
+  )
   .action(async (opts, command: Command) => {
     const ctx = await resolveContext(command);
     const workspace = requireWorkspace(ctx);
@@ -55,6 +59,7 @@ export const deployCommand = new Command('deploy')
         ...(commitSha && { commitSha }),
         ...(Object.keys(metadata).length && { metadata }),
         dryRun: !!opts.dryRun,
+        ...(opts.previewTtl && { ephemeral: { ttlHours: Number(opts.previewTtl) } }),
       }
     );
 
@@ -73,6 +78,7 @@ export const deployCommand = new Command('deploy')
     emit(
       ctx,
       result,
-      `Deployed ${opts.module} ${opts.release} to ${opts.env} (manifest ${result.manifestEtag})`
+      `Deployed ${opts.module} ${opts.release} to ${opts.env} (manifest ${result.manifestEtag})` +
+        (result.previewUrl ? `\nPreview: ${result.previewUrl}` : '')
     );
   });

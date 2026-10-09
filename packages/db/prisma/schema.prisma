@@ -27,32 +27,34 @@ model User {
 }
 
 model Workspace {
-  id                     String                  @id @default(cuid())
-  slug                   String                  @unique
-  name                   String
-  organizationId         String?
-  retentionDays          Int                     @default(90)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  organization           Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  WorkspaceMembers       WorkspaceMember[]
-  HostApps               HostApp[]
-  RemoteModules          RemoteModule[]
-  ModuleVersions         ModuleVersion[]
-  ApiKeys                ApiKey[]
-  WebhookEndpoints       WebhookEndpoint[]
-  WebhookDeliveries      WebhookDelivery[]
-  AuditEvents            AuditEvent[]
-  WorkspaceConfig        WorkspaceConfig?
-  WorkspaceStorageConfig WorkspaceStorageConfig?
-  ModuleOwnerships       ModuleOwnership[]
-  AlertRules             AlertRule[]
-  ManifestSnapshots      ManifestSnapshot[]
-  WebhookDeadLetters     WebhookDeadLetter[]
-  ModuleHealthEvents     ModuleHealthEvent[]
-  ScimAuditEvents        ScimAuditEvent[]
-  ApprovalPolicies       ApprovalPolicy[]
-  DeploymentRequests     DeploymentRequest[]
+  id                         String                  @id @default(cuid())
+  slug                       String                  @unique
+  name                       String
+  organizationId             String?
+  retentionDays              Int                     @default(90)
+  /// Let deploys create short-lived preview environments (e.g. `pr-123`).
+  allowEphemeralEnvironments Boolean                 @default(false)
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  organization               Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  WorkspaceMembers           WorkspaceMember[]
+  HostApps                   HostApp[]
+  RemoteModules              RemoteModule[]
+  ModuleVersions             ModuleVersion[]
+  ApiKeys                    ApiKey[]
+  WebhookEndpoints           WebhookEndpoint[]
+  WebhookDeliveries          WebhookDelivery[]
+  AuditEvents                AuditEvent[]
+  WorkspaceConfig            WorkspaceConfig?
+  WorkspaceStorageConfig     WorkspaceStorageConfig?
+  ModuleOwnerships           ModuleOwnership[]
+  AlertRules                 AlertRule[]
+  ManifestSnapshots          ManifestSnapshot[]
+  WebhookDeadLetters         WebhookDeadLetter[]
+  ModuleHealthEvents         ModuleHealthEvent[]
+  ScimAuditEvents            ScimAuditEvent[]
+  ApprovalPolicies           ApprovalPolicy[]
+  DeploymentRequests         DeploymentRequest[]
 }
 
 enum Role {
@@ -77,18 +79,20 @@ model WorkspaceMember {
 }
 
 model HostApp {
-  id                String             @id @default(cuid())
-  workspaceId       String
-  name              String
-  slug              String
-  description       String?
+  id                 String             @id @default(cuid())
+  workspaceId        String
+  name               String
+  slug               String
+  description        String?
   /// Served by the legacy `GET /api/manifest/:workspaceSlug/:env` endpoint (HST-02).
-  isDefault         Boolean            @default(false)
-  createdAt         DateTime           @default(now())
-  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  Environments      Environment[]
-  RemoteModules     RemoteModule[]
-  ManifestSnapshots ManifestSnapshot[]
+  isDefault          Boolean            @default(false)
+  /// Link to a preview of the host, e.g. `https://staging.acme.com/?harmoniq-env={environment}`.
+  previewUrlTemplate String?
+  createdAt          DateTime           @default(now())
+  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  Environments       Environment[]
+  RemoteModules      RemoteModule[]
+  ManifestSnapshots  ManifestSnapshot[]
 
   @@unique([workspaceId, slug])
 }
@@ -107,6 +111,9 @@ model Environment {
   lastPublishedEtag  String?
   lastPublishedAt    DateTime?
   lastPublishError   String?
+  /// Preview environment created by a deploy; deleted after `expiresAt`.
+  ephemeral          Boolean             @default(false)
+  expiresAt          DateTime?
   hostApp            HostApp             @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
   ModuleVersions     ModuleVersion[]
   ManifestSnapshots  ManifestSnapshot[]
@@ -248,18 +255,18 @@ model EmailLoginToken {
 }
 
 model WebhookEndpoint {
-  id               String              @id @default(cuid())
-  workspaceId      String
-  url              String
-  events           String[]
-  secret           String
-  active           Boolean             @default(true)
-  maxRetries       Int                 @default(5)
-  backoffCeilingMs Int                 @default(300000)
-  paused           Boolean             @default(false)
-  createdAt        DateTime            @default(now())
-  workspace        Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  WebhookDeliveries WebhookDelivery[]
+  id                 String              @id @default(cuid())
+  workspaceId        String
+  url                String
+  events             String[]
+  secret             String
+  active             Boolean             @default(true)
+  maxRetries         Int                 @default(5)
+  backoffCeilingMs   Int                 @default(300000)
+  paused             Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  WebhookDeliveries  WebhookDelivery[]
   WebhookDeadLetters WebhookDeadLetter[]
 }
 
@@ -314,23 +321,23 @@ model AuditEvent {
 }
 
 model WorkspaceConfig {
-  id              String   @id @default(cuid())
-  workspaceId     String   @unique
-  oauthProvider   String   @default("github")
+  id              String    @id @default(cuid())
+  workspaceId     String    @unique
+  oauthProvider   String    @default("github")
   oauthConfig     Json?
-  storageProvider String   @default("local")
+  storageProvider String    @default("local")
   storageConfig   Json?
-  logProvider     String   @default("console")
+  logProvider     String    @default("console")
   logConfig       Json?
   oidcConfig      Json?
   samlConfig      Json?
-  forceSso        Boolean  @default(false)
+  forceSso        Boolean   @default(false)
   trustedDomains  String[]
-  defaultSsoRole  String   @default("viewer")
-  scimEnabled     Boolean  @default(false)
+  defaultSsoRole  String    @default("viewer")
+  scimEnabled     Boolean   @default(false)
   scimTokenHash   String?
-  plan            String   @default("hobby")
-  updatedAt       DateTime @updatedAt
+  plan            String    @default("hobby")
+  updatedAt       DateTime  @updatedAt
   workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 

@@ -87,14 +87,17 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     logger,
   });
 
-  // Publish after every manifest change: queued (retried, one per burst) when the job
-  // queue runs, inline otherwise (tests, queue unavailable).
+  // Publish after every manifest change: queued (retried) when the job queue runs, inline
+  // otherwise (tests, queue unavailable). `singletonKey` keeps at most one *queued* publish
+  // per environment — it reads the latest state when it runs, so bursts collapse — while
+  // a change made during a running publish still queues a new one. (No singletonSeconds:
+  // that would drop the second publish of a burst and leave the CDN copy stale.)
   const onCommitted = async ({ environment }: { environment: { id: string } }) => {
     if (boss) {
       await boss.send(
         'manifest.publish',
         { environmentId: environment.id },
-        { singletonKey: environment.id, singletonSeconds: 2, retryLimit: 5, retryBackoff: true }
+        { singletonKey: environment.id, retryLimit: 5, retryBackoff: true }
       );
     } else {
       await publisher.publish(environment.id).catch(() => undefined); // recorded on the environment

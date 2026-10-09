@@ -8,6 +8,7 @@ import { promoteCommand } from './commands/promote';
 import { rollbackCommand } from './commands/rollback';
 import { validateCommand } from './commands/validate';
 import { manifestCommand } from './commands/manifest';
+import { doctorCommand } from './commands/doctor';
 import { CliError, EXIT } from './lib/errors';
 
 export function buildProgram() {
@@ -26,7 +27,8 @@ export function buildProgram() {
     .addCommand(promoteCommand)
     .addCommand(rollbackCommand)
     .addCommand(validateCommand)
-    .addCommand(manifestCommand);
+    .addCommand(manifestCommand)
+    .addCommand(doctorCommand);
 }
 
 /** Runs the CLI and returns the exit code (see EXIT) instead of exiting, for tests. */

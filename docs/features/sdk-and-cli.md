@@ -27,6 +27,23 @@ None.
 
 ## Change History
 
+### 2026-10-09 — Local overrides, preview environments, `harmoniq doctor` (M2.6)
+
+**Type:** feature
+**PR / Branch:** feat/m2-delivery
+**Refs:** VAL-01 (c); product-analysis §5.6
+
+#### What changed
+
+- SDK: opt-in developer overrides (`allowOverrides`; query `?harmoniq-override=name@url`, `localStorage`, option), `overrideActive` event, http(s)-only; `environmentFromQuery` for preview links; `getScriptTag` omits empty integrity.
+- Registry: preview environments (`deploy` with `ephemeral: { ttlHours }`, workspace switch `allowEphemeralEnvironments`, host `previewUrlTemplate`, hourly expiry job that also drops caches and published copies); `PATCH` workspace and host app.
+- CLI: `deploy --preview-ttl`, `harmoniq doctor`. Action: `preview-ttl-hours` input, `preview-url` output.
+- Fix: manifest publishing used `singletonSeconds`, which would drop the second publish of a burst; now `singletonKey` only.
+
+#### Testing
+
+Client (4 new), registry `previews.test.ts` (7). `doctor` run against a live registry with a real bundle: all checks pass, and a missing expose is reported (exit 2). After 3 rapid deploys the CDN copy caught up within ~2s.
+
 ### 2026-10-09 — Build plugin and GitHub Action (M2.5)
 
 **Type:** feature

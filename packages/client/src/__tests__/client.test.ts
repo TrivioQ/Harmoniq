@@ -258,4 +258,70 @@ describe('HarmoniqClient', () => {
       ).rejects.toThrow();
     });
   });
+
+  describe('developer overrides and preview environments (M2.6)', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('ignores overrides unless allowed', async () => {
+      vi.stubGlobal('location', {
+        search: '?harmoniq-override=checkout@http://localhost:5001/remoteEntry.js',
+      });
+      const { fetchImpl } = fakeRegistry([manifest('1.0.0')]);
+      const client = new HarmoniqClient(options(fetchImpl));
+      await client.init();
+      expect(client.getModuleEntry('checkout')?.version).toBe('1.0.0');
+    });
+
+    it('applies query-string overrides (including scoped names) and announces them', async () => {
+      vi.stubGlobal('location', {
+        search:
+          '?harmoniq-override=checkout@http://localhost:5001/remoteEntry.js,@acme/nav@http://localhost:5002/x.js',
+      });
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { fetchImpl } = fakeRegistry([manifest('1.0.0')]);
+      const client = new HarmoniqClient({ ...options(fetchImpl), allowOverrides: true });
+      const active = vi.fn();
+      client.on(EVENTS.overrideActive, active);
+      await client.init();
+
+      expect(client.getModuleEntry('checkout')).toEqual({
+        url: 'http://localhost:5001/remoteEntry.js',
+        integrity: '',
+        version: 'override',
+      });
+      expect(client.getModuleEntry('@acme/nav')?.url).toBe('http://localhost:5002/x.js');
+      expect(client.getScriptTag('checkout')).not.toContain('integrity');
+      expect(active).toHaveBeenCalledWith({
+        checkout: 'http://localhost:5001/remoteEntry.js',
+        '@acme/nav': 'http://localhost:5002/x.js',
+      });
+      expect(warn).toHaveBeenCalled();
+    });
+
+    it('rejects non-http override URLs', async () => {
+      const { fetchImpl } = fakeRegistry([manifest('1.0.0')]);
+      const client = new HarmoniqClient({
+        ...options(fetchImpl),
+        allowOverrides: true,
+        overrides: { checkout: 'javascript:alert(1)' },
+      });
+      await client.init();
+      expect(client.getOverrides()).toEqual({});
+      expect(client.getModuleEntry('checkout')?.version).toBe('1.0.0');
+    });
+
+    it('selects the environment from the query string for preview links', async () => {
+      vi.stubGlobal('location', { search: '?harmoniq-env=pr-123' });
+      const { fetchImpl } = fakeRegistry([manifest('1.0.0', { environment: 'pr-123' })]);
+      const client = new HarmoniqClient({
+        ...options(fetchImpl),
+        environmentFromQuery: 'harmoniq-env',
+      });
+      await client.init();
+      expect(client.getEnvironment()).toBe('pr-123');
+      expect((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe(
+        'http://registry.test/api/manifest/acme/portal/pr-123'
+      );
+    });
+  });
 });

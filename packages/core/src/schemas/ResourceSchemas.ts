@@ -45,3 +45,21 @@ export const UpdateModuleSchema = z.object({
   /** null resets to the module slug. */
   specifier: SpecifierSchema.nullable().optional(),
 });
+
+export const UpdateWorkspaceSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  retentionDays: z.number().int().min(1).max(3650).optional(),
+  allowEphemeralEnvironments: z.boolean().optional(),
+});
+
+export const UpdateHostAppSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  description: z.string().max(500).nullable().optional(),
+  /** e.g. `https://staging.acme.com/?harmoniq-env={environment}`; null removes it. */
+  previewUrlTemplate: z
+    .string()
+    .url()
+    .refine((v) => v.includes('{environment}'), 'Must contain {environment}')
+    .nullable()
+    .optional(),
+});

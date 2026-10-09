@@ -112,6 +112,22 @@ constructor(harmoniq: HarmoniqService) {
 
 `HarmoniqService.manifest$` emits every new manifest.
 
+## Local overrides and preview links
+
+Point a deployed host at a module running on your machine — no host rebuild:
+
+```ts
+new HarmoniqClient({ ...options, allowOverrides: process.env.NODE_ENV !== 'production' });
+```
+
+```
+https://staging.acme.com/?harmoniq-override=checkout@http://localhost:5001/remoteEntry.js
+```
+
+Several: comma-separate them. Overrides can also live in `localStorage['harmoniq:overrides']` (`{"checkout":"http://localhost:5001/remoteEntry.js"}`) or the `overrides` option. Overridden modules skip integrity checks, emit `overrideActive` and log a warning; only `http(s)` URLs are accepted. Keep `allowOverrides` off in production.
+
+For preview environments, `environmentFromQuery: 'harmoniq-env'` lets `?harmoniq-env=pr-123` select the environment (non-production hosts only).
+
 ## Module Federation 2.0
 
 `@harmoniq/mf-plugin` resolves remotes from the manifest inside the MF runtime, so components keep using `loadRemote('checkout/Page')` (or static `import`s) unchanged.

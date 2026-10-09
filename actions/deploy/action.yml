@@ -35,6 +35,9 @@ inputs:
   promote-from:
     description: Promote the version running in this environment instead of deploying.
     required: false
+  preview-ttl-hours:
+    description: Create `environment` (e.g. pr-123) as a preview environment that expires after this many hours. The workspace must allow preview environments.
+    required: false
   dry-run:
     description: Validate and show the projected change without deploying.
     required: false
@@ -51,6 +54,9 @@ outputs:
   manifest-etag:
     description: ETag of the manifest after the change
     value: ${{ steps.run.outputs.manifest-etag }}
+  preview-url:
+    description: Preview link, when the host app defines a preview URL template
+    value: ${{ steps.run.outputs.preview-url }}
 
 runs:
   using: composite
@@ -69,6 +75,7 @@ runs:
         INTEGRITY: ${{ inputs.integrity }}
         PROMOTE_FROM: ${{ inputs.promote-from }}
         DRY_RUN: ${{ inputs.dry-run }}
+        PREVIEW_TTL: ${{ inputs.preview-ttl-hours }}
         CLI: ${{ inputs.cli }}
       run: |
         set -euo pipefail
@@ -79,6 +86,7 @@ runs:
           args=(deploy --module "$MODULE" --env "$ENVIRONMENT" --release "$VERSION" --url "$URL")
           if [[ -n "$FILE" ]]; then args+=(--file "$FILE"); fi
           if [[ -n "$INTEGRITY" ]]; then args+=(--integrity "$INTEGRITY"); fi
+          if [[ -n "$PREVIEW_TTL" ]]; then args+=(--preview-ttl "$PREVIEW_TTL"); fi
           action="Deployed $MODULE $VERSION to $ENVIRONMENT"
           if [[ "$DRY_RUN" == "true" ]]; then
             args+=(--dry-run)
@@ -91,6 +99,8 @@ runs:
         echo "$result"
         echo "version-id=$(jq -r '.id // empty' <<<"$result")" >> "$GITHUB_OUTPUT"
         echo "manifest-etag=$(jq -r '.manifestEtag // empty' <<<"$result")" >> "$GITHUB_OUTPUT"
+        preview_url=$(jq -r '.previewUrl // empty' <<<"$result")
+        echo "preview-url=$preview_url" >> "$GITHUB_OUTPUT"
 
         {
           echo "### $action"
@@ -99,6 +109,9 @@ runs:
           echo "|---|---|"
           echo "| Version | \`$(jq -r '.version // "—"' <<<"$result")\` |"
           echo "| Manifest ETag | \`$(jq -r '.manifestEtag // "—"' <<<"$result")\` |"
+          if [[ -n "$preview_url" ]]; then
+            echo "| Preview | $preview_url |"
+          fi
           if jq -e '.validation' >/dev/null <<<"$result"; then
             echo "| Validation errors | $(jq -r '.validation.errors | length' <<<"$result") |"
           fi

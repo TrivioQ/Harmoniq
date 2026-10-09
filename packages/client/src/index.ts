@@ -50,6 +50,20 @@ export interface HarmoniqClientOptions {
    */
   fallbackManifest?: Manifest;
   /**
+   * Let developers point modules at local builds (M2.6). Overrides come from `overrides`,
+   * the `?harmoniq-override=name@url` query parameter (comma-separated for several) and
+   * `localStorage['harmoniq:overrides']` (`{ "name": "url" }`). Overridden modules have no
+   * integrity check. Enable outside production only, e.g.
+   * `allowOverrides: process.env.NODE_ENV !== 'production'`.
+   */
+  allowOverrides?: boolean;
+  overrides?: Record<string, string>;
+  /**
+   * Query parameter that selects the environment, e.g. `harmoniq-env` for preview links
+   * (`?harmoniq-env=pr-123`). Enable on non-production hosts only.
+   */
+  environmentFromQuery?: string;
+  /**
    * Keep the last good manifest across page loads. Defaults to `localStorage` in
    * browsers; `false` disables it.
    */
@@ -84,6 +98,8 @@ export const EVENTS = {
   variantAssigned: 'variantAssigned',
   /** The manifest in use did not come from the network (registry and CDN unreachable). */
   manifestStale: 'manifestStale',
+  /** Some modules are served from developer overrides instead of the manifest. */
+  overrideActive: 'overrideActive',
   error: 'error',
 } as const;
 
@@ -91,6 +107,7 @@ type EventMap = {
   [EVENTS.manifestUpdate]: Manifest;
   [EVENTS.variantAssigned]: VariantAssignment;
   [EVENTS.manifestStale]: { source: ManifestSource; generatedAt: string };
+  [EVENTS.overrideActive]: Record<string, string>;
   [EVENTS.error]: Error;
 };
 type EventName = keyof EventMap;
@@ -105,6 +122,29 @@ const escapeAttr = (value: string) =>
 function isManifest(value: unknown): value is Manifest {
   const m = value as Partial<Manifest> | null;
   return !!m && m.schemaVersion === 2 && Array.isArray(m.modules);
+}
+
+const OVERRIDES_KEY = 'harmoniq:overrides';
+const isHttpUrl = (value: string) => /^https?:\/\//i.test(value);
+
+function queryParams(): URLSearchParams | null {
+  try {
+    return typeof location === 'undefined' ? null : new URLSearchParams(location.search);
+  } catch {
+    return null;
+  }
+}
+
+/** `name@url` pairs from the query string, comma-separated. URLs may contain `@`. */
+function overridesFromQuery(params: URLSearchParams | null): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const value of params?.getAll('harmoniq-override') ?? []) {
+    for (const pair of value.split(',')) {
+      const at = pair.indexOf('@', 1); // scoped names start with @
+      if (at > 0) result[pair.slice(0, at)] = pair.slice(at + 1);
+    }
+  }
+  return result;
 }
 
 function defaultStore(): ManifestStore | null {
@@ -130,10 +170,16 @@ export class HarmoniqClient {
   private readonly sources: string[];
   private readonly store: ManifestStore | null;
   private readonly storeKey: string;
+  private readonly overrides: Record<string, string>;
+  private readonly environment: string;
 
   constructor(private readonly options: HarmoniqClientOptions) {
     const enc = encodeURIComponent;
-    const { workspaceSlug: ws, hostApp, environment: env } = options;
+    const params = queryParams();
+    const fromQuery = options.environmentFromQuery && params?.get(options.environmentFromQuery);
+    this.environment = fromQuery || options.environment;
+    const { workspaceSlug: ws, hostApp } = options;
+    const env = this.environment;
     const path = `${enc(ws)}/${enc(hostApp)}/${enc(env)}`;
     const registry = `${options.registryUrl.replace(/\/$/, '')}/api/manifest/${path}`;
     this.sources =
@@ -143,6 +189,31 @@ export class HarmoniqClient {
         : [registry]);
     this.store = options.persist === false ? null : (options.persist ?? defaultStore());
     this.storeKey = `harmoniq:manifest:${ws}:${hostApp}:${env}`;
+    this.overrides = options.allowOverrides ? this.loadOverrides(params) : {};
+  }
+
+  /** Developer overrides in effect (empty unless `allowOverrides`). */
+  getOverrides(): Record<string, string> {
+    return { ...this.overrides };
+  }
+
+  /** The environment in use (may come from `environmentFromQuery`). */
+  getEnvironment(): string {
+    return this.environment;
+  }
+
+  private loadOverrides(params: URLSearchParams | null): Record<string, string> {
+    let stored: Record<string, string> = {};
+    try {
+      const raw = (this.options.persist === false ? null : defaultStore())?.getItem(OVERRIDES_KEY);
+      stored = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    } catch {
+      stored = {};
+    }
+    const merged = { ...stored, ...this.options.overrides, ...overridesFromQuery(params) };
+    return Object.fromEntries(
+      Object.entries(merged).filter(([, url]) => typeof url === 'string' && isHttpUrl(url))
+    );
   }
 
   /**
@@ -211,7 +282,9 @@ export class HarmoniqClient {
   getScriptTag(name: string): string | null {
     const entry = this.getModuleEntry(name);
     if (!entry) return null;
-    return `<script type="module" src="${escapeAttr(entry.url)}" integrity="${escapeAttr(entry.integrity)}" crossorigin="anonymous"></script>`;
+    // Overridden (local) modules have no hash: omit the attribute rather than emit an empty one.
+    const integrity = entry.integrity ? ` integrity="${escapeAttr(entry.integrity)}"` : '';
+    return `<script type="module" src="${escapeAttr(entry.url)}"${integrity} crossorigin="anonymous"></script>`;
   }
 
   getVariant(): Manifest['variant'] {
@@ -323,7 +396,7 @@ export class HarmoniqClient {
       return isManifest(parsed) &&
         parsed.workspaceSlug === this.options.workspaceSlug &&
         parsed.hostApp?.slug === this.options.hostApp &&
-        parsed.environment === this.options.environment
+        parsed.environment === this.environment
         ? parsed
         : null;
     } catch {
@@ -344,6 +417,20 @@ export class HarmoniqClient {
     this.manifest = manifest;
     this.source = source;
     this.modules = new Map(manifest.modules.map((m) => [m.name, m]));
+    const overridden = Object.keys(this.overrides);
+    for (const name of overridden) {
+      // Local builds have no integrity hash; the version marks the entry as overridden.
+      this.modules.set(name, {
+        name,
+        url: this.overrides[name],
+        integrity: '',
+        version: 'override',
+      });
+    }
+    if (overridden.length && !previous) {
+      console.warn(`[harmoniq] Serving overridden modules: ${overridden.join(', ')}`);
+      this.emit(EVENTS.overrideActive, { ...this.overrides });
+    }
 
     if (previous?.etag !== manifest.etag) this.emit(EVENTS.manifestUpdate, manifest);
     // CAN-10: emitted on the first assignment and whenever it changes, not on every poll.

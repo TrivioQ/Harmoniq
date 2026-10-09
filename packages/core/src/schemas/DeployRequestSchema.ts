@@ -14,6 +14,11 @@ export const DeployRequestSchema = z.object({
   /** Bucket object key when the bundle was uploaded via `upload-url`. */
   storagePath: z.string().max(1024).optional(),
   dryRun: z.boolean().optional().default(false),
+  /**
+   * Create `environment` as a preview environment if it doesn't exist (workspace must
+   * allow it); it is deleted `ttlHours` after the last deploy.
+   */
+  ephemeral: z.object({ ttlHours: z.number().int().min(1).max(720) }).optional(),
 });
 
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;

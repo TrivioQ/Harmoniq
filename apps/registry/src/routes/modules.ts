@@ -14,6 +14,7 @@ import {
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import {
   CreateModuleSchema,
+  SlugSchema,
   UpdateModuleSchema,
 } from '@harmoniq/core/dist/schemas/ResourceSchemas';
 import { audit } from '../services/audit';
@@ -45,6 +46,46 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       throw new ForbiddenError('API key is not scoped to this module');
     }
     return module;
+  }
+
+  /**
+   * Preview environments (M2.6): created on first deploy when the workspace allows it,
+   * and their expiry pushed back on every later deploy. Permanent environments with the
+   * same name are used as-is (never given an expiry).
+   */
+  async function ensurePreviewEnvironment(
+    request: FastifyRequest,
+    module: Awaited<ReturnType<typeof loadModule>>,
+    slug: string,
+    ttlHours: number
+  ) {
+    const workspace = request.workspace!;
+    const expiresAt = new Date(Date.now() + ttlHours * 3_600_000);
+    const existing = module.hostApp.Environments.find((e) => e.slug === slug);
+    if (existing) {
+      if (!existing.ephemeral) return existing;
+      return withTenant(workspace.id, (tx) =>
+        tx.environment.update({ where: { id: existing.id }, data: { expiresAt } })
+      );
+    }
+    if (!workspace.allowEphemeralEnvironments) {
+      throw new ForbiddenError('This workspace does not allow preview environments');
+    }
+    SlugSchema.parse(slug);
+    const created = await withTenant(workspace.id, async (tx) => {
+      const env = await tx.environment.create({
+        data: { hostAppId: module.hostApp.id, slug, name: slug, ephemeral: true, expiresAt },
+      });
+      await audit(tx, workspace.id, actor(request), {
+        action: 'environment.create',
+        resourceType: 'environment',
+        resourceId: env.id,
+        metadata: { hostApp: module.hostApp.slug, slug, ephemeral: true, ttlHours },
+      });
+      return env;
+    });
+    module.hostApp.Environments.push(created);
+    return created;
   }
 
   const targetFor = (
@@ -260,8 +301,16 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const body = DeployRequestSchema.parse(request.body);
       const module = await loadModule(request);
-      const env = findEnvironment(module, body.environment);
       const workspace = request.workspace!;
+      const env =
+        body.ephemeral && !body.dryRun
+          ? await ensurePreviewEnvironment(
+              request,
+              module,
+              body.environment,
+              body.ephemeral.ttlHours
+            )
+          : findEnvironment(module, body.environment);
 
       // VAL-02/03: dry runs always validate; real deploys when HARMONIQ_VALIDATE_BUNDLES=1.
       const validation =
@@ -356,9 +405,16 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       fastify.metricMeters.deployCount.add(1);
-      return reply
-        .code(201)
-        .send({ ...versionDto(result, env.slug), manifestEtag: manifest.etag, snapshotId });
+      const previewUrl = module.hostApp.previewUrlTemplate?.replace(
+        '{environment}',
+        encodeURIComponent(env.slug)
+      );
+      return reply.code(201).send({
+        ...versionDto(result, env.slug),
+        manifestEtag: manifest.etag,
+        snapshotId,
+        ...(previewUrl && { previewUrl }),
+      });
     }
   );
 

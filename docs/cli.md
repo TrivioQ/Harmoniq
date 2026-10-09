@@ -75,6 +75,26 @@ harmoniq rollback --module checkout --env production --to 1.2.2
 harmoniq rollback --module checkout --env production --version-id <id>
 ```
 
+### Preview environments
+
+```bash
+harmoniq deploy --module checkout --env pr-123 --preview-ttl 72 --release $SHA --url … --file dist/remoteEntry.js
+```
+
+Creates `pr-123` on first deploy (the workspace must allow preview environments: `PATCH /api/workspaces/:ws { "allowEphemeralEnvironments": true }`), and deletes it 72 hours after the last deploy. With a preview URL template on the host app (`PATCH /api/workspaces/:ws/host-apps/:host { "previewUrlTemplate": "https://staging.acme.com/?harmoniq-env={environment}" }`) the command prints the preview link.
+
+### `harmoniq doctor`
+
+Explains why a module isn't loading. Checks the registry, the API key, that the manifest resolves and contains the module, that the bundle is reachable with a matching SRI hash and CORS header, that declared `exposes` exist in the bundle's `mf-manifest.json`, and that the CDN copy is current. Exits 2 if any check fails.
+
+```bash
+harmoniq doctor --module checkout --env production
+✓ registry reachable: https://registry.acme.dev
+✓ manifest resolves: 4 modules (sha256-…)
+✓ integrity (SRI) matches: sha384-…
+✗ exposes match the bundle: declared but not built: ./Cart
+```
+
 ### `harmoniq validate`
 
 Checks that a URL is reachable and matches the expected hash, and warns about missing CORS headers or an unexpected content type.

@@ -148,6 +148,8 @@ Modules are addressed by id **or** slug (`:moduleRef`). A slug used in several h
 
 Creates an active version in that environment (the previous one becomes inactive), writes an audit event and a manifest snapshot, refreshes caches and emits `deploy.success` + `manifest.updated` webhooks. Returns `201` with the version, `manifestEtag` and `snapshotId`.
 
+`ephemeral: { ttlHours }` creates `environment` as a preview environment on first deploy (if the workspace allows it) and extends its expiry on later deploys; expired preview environments are deleted hourly. The response includes `previewUrl` when the host app has a template.
+
 `dryRun: true` validates without deploying and returns the bundle checks (reachable, SRI match, CORS, content type) and the projected manifest diff. With `HARMONIQ_VALIDATE_BUNDLES=1`, real deploys are validated too and rejected with `422` on failure. The registry only fetches public HTTPS URLs and never follows redirects.
 
 ### `POST /api/workspaces/:ws/modules/:moduleRef/rollback` — `module:deploy`

@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import { createWorkspaceStorage } from '../adapters/storage/createStorage';
+import { invalidateManifest } from '../services/cacheKeys';
+import { publishedPaths } from '../services/manifestPublisher';
 
 /** Deletes bundle objects for one workspace. Throws if they could not be removed. */
 export type PurgeObjects = (workspaceId: string, storagePaths: string[]) => Promise<void>;
@@ -130,6 +132,33 @@ export async function handleHealthEventPurge(db: PrismaClient, logger: ILogger) 
   }
 }
 
+/** Called for each deleted environment, to drop caches and published copies. */
+export type OnEnvironmentDeleted = (env: {
+  id: string;
+  slug: string;
+  hostApp: { slug: string; workspaceId: string; workspace: { slug: string } };
+}) => Promise<void>;
+
+/** M2.6: deletes preview environments whose expiry has passed (cascades to versions). */
+export async function handleExpireEnvironments(
+  db: PrismaClient,
+  logger: ILogger,
+  onDeleted?: OnEnvironmentDeleted
+) {
+  const expired = await db.environment.findMany({
+    where: { ephemeral: true, expiresAt: { lt: new Date() } },
+    include: { hostApp: { include: { workspace: { select: { slug: true } } } } },
+  });
+  for (const env of expired) {
+    await db.environment.delete({ where: { id: env.id } });
+    await onDeleted?.(env).catch((err) =>
+      logger.error(`Cleanup after deleting environment ${env.slug} failed`, err as Error)
+    );
+  }
+  if (expired.length) logger.info(`Deleted ${expired.length} expired preview environments`);
+  return expired.length;
+}
+
 export async function registerGcJobs(fastify: FastifyInstance) {
   const boss = fastify.container.boss;
   const db = fastify.container.systemDb; // cross-tenant background work
@@ -138,7 +167,13 @@ export async function registerGcJobs(fastify: FastifyInstance) {
   if (!boss) return;
 
   // pg-boss 10+ requires queues to exist before schedule()/work(). Idempotent.
-  for (const queue of ['gc.softDelete', 'gc.hardDelete', 'gc.healthEventPurge', 'gc.orphanScan']) {
+  for (const queue of [
+    'gc.softDelete',
+    'gc.hardDelete',
+    'gc.healthEventPurge',
+    'gc.orphanScan',
+    'gc.expireEnvironments',
+  ]) {
     await boss.createQueue(queue);
   }
 
@@ -167,7 +202,21 @@ export async function registerGcJobs(fastify: FastifyInstance) {
   await boss.schedule('gc.healthEventPurge', '0 0 * * *');
   boss.work('gc.healthEventPurge', () => handleHealthEventPurge(db, logger));
 
-  // 4. Orphan Scan - Weekly
+  // 4. Expired preview environments - Hourly
+  const onDeleted: OnEnvironmentDeleted = async (env) => {
+    const ws = env.hostApp.workspace.slug;
+    await invalidateManifest(fastify.container.cache, ws, env.hostApp.slug, env.slug);
+    const target = await fastify.container.publisher.targetFor(env.hostApp.workspaceId);
+    if (target) {
+      const paths = publishedPaths(ws, env.hostApp.slug, env.slug);
+      await target.storage.delete(target.prefix + paths.manifest);
+      await target.storage.delete(target.prefix + paths.importMap);
+    }
+  };
+  await boss.schedule('gc.expireEnvironments', '0 * * * *');
+  boss.work('gc.expireEnvironments', () => handleExpireEnvironments(db, logger, onDeleted));
+
+  // 5. Orphan Scan - Weekly
   await boss.schedule('gc.orphanScan', '0 0 * * 0');
   boss.work('gc.orphanScan', async () => {
     logger.info('Running gc.orphanScan job - stub');

@@ -5,6 +5,8 @@ import {
   CreateEnvironmentSchema,
   CreateHostAppSchema,
   CreateWorkspaceSchema,
+  UpdateHostAppSchema,
+  UpdateWorkspaceSchema,
 } from '@harmoniq/core/dist/schemas/ResourceSchemas';
 import { FreezeRequestSchema } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import { audit } from '../services/audit';
@@ -90,17 +92,21 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         slug: workspace.slug,
         name: workspace.name,
         retentionDays: workspace.retentionDays,
+        allowEphemeralEnvironments: workspace.allowEphemeralEnvironments,
         role: request.workspaceRole ?? null,
         hostApps: hostApps.map((h) => ({
           slug: h.slug,
           name: h.name,
           description: h.description,
           isDefault: h.isDefault,
+          previewUrlTemplate: h.previewUrlTemplate,
           moduleCount: h._count.RemoteModules,
           environments: h.Environments.map((e) => ({
             slug: e.slug,
             name: e.name,
             isDefault: e.isDefault,
+            ephemeral: e.ephemeral,
+            expiresAt: e.expiresAt?.toISOString() ?? null,
             frozen: isFrozen(e),
             freezeReason: isFrozen(e) ? e.freezeReason : null,
             freezeUntil: isFrozen(e) ? (e.freezeUntil?.toISOString() ?? null) : null,
@@ -123,7 +129,62 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  fastify.patch<{ Params: WsParams }>(
+    '/api/workspaces/:workspaceSlug',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request) => {
+      const body = UpdateWorkspaceSchema.parse(request.body);
+      const workspace = request.workspace!;
+      const updated = await withTenant(workspace.id, async (tx) => {
+        const ws = await tx.workspace.update({ where: { id: workspace.id }, data: body });
+        await audit(tx, workspace.id, actor(request), {
+          action: 'workspace.update',
+          resourceType: 'workspace',
+          resourceId: workspace.id,
+          metadata: body,
+        });
+        return ws;
+      });
+      return {
+        slug: updated.slug,
+        name: updated.name,
+        retentionDays: updated.retentionDays,
+        allowEphemeralEnvironments: updated.allowEphemeralEnvironments,
+      };
+    }
+  );
+
   // ─── Host apps & environments ─────────────────────────────────────────────
+
+  fastify.patch<{ Params: WsParams & { hostAppSlug: string } }>(
+    '/api/workspaces/:workspaceSlug/host-apps/:hostAppSlug',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request) => {
+      const body = UpdateHostAppSchema.parse(request.body);
+      const workspace = request.workspace!;
+      return withTenant(workspace.id, async (tx) => {
+        const hostApp = await tx.hostApp.findUnique({
+          where: {
+            workspaceId_slug: { workspaceId: workspace.id, slug: request.params.hostAppSlug },
+          },
+        });
+        if (!hostApp) throw new NotFoundError('Host app not found');
+        const updated = await tx.hostApp.update({ where: { id: hostApp.id }, data: body });
+        await audit(tx, workspace.id, actor(request), {
+          action: 'hostApp.update',
+          resourceType: 'hostApp',
+          resourceId: hostApp.id,
+          metadata: body,
+        });
+        return {
+          slug: updated.slug,
+          name: updated.name,
+          description: updated.description,
+          previewUrlTemplate: updated.previewUrlTemplate,
+        };
+      });
+    }
+  );
 
   fastify.post<{ Params: WsParams }>(
     '/api/workspaces/:workspaceSlug/host-apps',
