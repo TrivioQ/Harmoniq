@@ -75,6 +75,23 @@ The registry decides the variant per user and module; the CDN copy is always sta
 
 With `reportHealth: true` the client batches load outcomes and sends them to the registry, which shows success rate and load times per module, split by stable and canary, in the dashboard. `@harmoniq/mf-plugin` reports every remote's first load automatically; other loaders call `reportModuleLoad` / `reportModuleError`. Reports carry the module version from the manifest; overridden modules are never reported. Use `sampleRate` on high-traffic hosts.
 
+### Error tracking and traces
+
+`client.getTelemetryTags()` returns what this page runs: `harmoniq.variant`, `harmoniq.cohort`, `harmoniq.environment`, `harmoniq.manifest`, `harmoniq.source` and `mf.<module>` → version. Keys are valid OpenTelemetry attribute names and at most 32 characters (Sentry's tag limit), so the same object works for span attributes.
+
+```ts
+import * as Sentry from '@sentry/browser';
+import { datadogRum } from '@datadog/browser-rum';
+import { harmoniqSentry } from '@harmoniq/client/sentry';
+import { harmoniqDatadog } from '@harmoniq/client/datadog';
+
+harmoniqSentry(client, Sentry); // tags + a `harmoniq` context, updated on every manifest change
+harmoniqDatadog(client, datadogRum); // `harmoniq` RUM global context (v5 or v4 API)
+span.setAttributes(client.getTelemetryTags()); // OpenTelemetry
+```
+
+Both adapters take the vendor SDK as an argument, so `@harmoniq/client` keeps no dependencies, and return a function that stops syncing. Filter errors by `harmoniq.variant:canary` to see what a canary breaks.
+
 ### Surviving a registry outage
 
 ```ts
@@ -172,9 +189,3 @@ const { CheckoutPage } = await loadRemote('checkout/CheckoutPage');
 - Options: `remoteNames` (MF remote name → Harmoniq module name), `strict` (refuse remotes not in the manifest).
 - Reports each remote's first load (time or error) to `client.reportModuleLoad` when the client has `reportHealth` on (`reportLoads: false` to disable).
 - `harmoniqRemotes(client)` returns `{ name, entry }[]` for `init({ remotes })` when you prefer static registration.
-
-## Planned
-
-| Feature                                         | Milestone |
-| ----------------------------------------------- | --------- |
-| Load-health reporting and error-tracker tagging | M3.2–M3.3 |

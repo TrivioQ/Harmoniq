@@ -54,6 +54,20 @@ YES (pre-1.0): `CanaryConfigSchema` was removed from `@harmoniq/core` in favour 
 
 ## Change History
 
+### 2026-10-09 — Error-tracker tagging (M3.3)
+
+**Type:** feature
+**PR / Branch:** feat/m3-progressive
+**Refs:** report §5.5
+
+#### What changed
+
+`client.getTelemetryTags()` (variant, cohort, environment, manifest, source, `mf.<module>` versions; OTel-compatible keys within Sentry's 32-character limit). New entry points `@harmoniq/client/sentry` (`harmoniqSentry`: tags and a `harmoniq` context, blanking modules that leave the manifest) and `@harmoniq/client/datadog` (`harmoniqDatadog`: RUM global context, v5 and v4 APIs). Both take the vendor SDK as an argument, so the client stays dependency-free.
+
+#### Testing
+
+`telemetry.test.ts`: tag contents and key lengths, Sentry sync across a manifest change and after unsubscribing, Datadog v5/v4 and unsupported SDKs.
+
 ### 2026-10-09 — Module health (M3.2)
 
 **Type:** feature

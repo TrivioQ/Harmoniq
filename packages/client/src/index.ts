@@ -458,6 +458,28 @@ export class HarmoniqClient {
     return `<script type="module" src="${escapeAttr(entry.url)}"${integrity} crossorigin="anonymous"></script>`;
   }
 
+  /**
+   * Tags for error trackers and traces (M3.3): which variant, cohort and module versions
+   * this page runs, so errors can be attributed to a deploy or a canary. Keys are dotted
+   * (valid OpenTelemetry attribute names) and at most 32 characters (Sentry's limit);
+   * modules appear as `mf.<name>` with their version (`override` for local builds).
+   */
+  getTelemetryTags(): Record<string, string> {
+    const tags: Record<string, string> = {
+      'harmoniq.workspace': this.options.workspaceSlug,
+      'harmoniq.environment': this.environment,
+      'harmoniq.variant': this.getVariant(),
+    };
+    const cohort = this.getCohortId();
+    if (cohort) tags['harmoniq.cohort'] = cohort;
+    if (this.manifest) tags['harmoniq.manifest'] = this.manifest.etag.slice(0, 20);
+    if (this.source) tags['harmoniq.source'] = this.source;
+    for (const [name, mod] of this.modules) {
+      tags[`mf.${name}`.slice(0, 32)] = mod.version.slice(0, 200);
+    }
+    return tags;
+  }
+
   getVariant(): Manifest['variant'] {
     return this.manifest?.variant ?? 'stable';
   }

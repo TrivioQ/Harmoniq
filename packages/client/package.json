@@ -24,11 +24,21 @@
       "types": "./dist/angular/index.d.ts",
       "require": "./dist/angular/index.js",
       "import": "./dist/angular/index.mjs"
+    },
+    "./sentry": {
+      "types": "./dist/sentry/index.d.ts",
+      "require": "./dist/sentry/index.js",
+      "import": "./dist/sentry/index.mjs"
+    },
+    "./datadog": {
+      "types": "./dist/datadog/index.d.ts",
+      "require": "./dist/datadog/index.js",
+      "import": "./dist/datadog/index.mjs"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/react/index.ts src/vue/index.ts src/angular/index.ts --format cjs,esm && tsc --emitDeclarationOnly --outDir dist",
-    "dev": "tsup src/index.ts src/react/index.ts src/vue/index.ts src/angular/index.ts --format cjs,esm --watch",
+    "build": "tsup src/index.ts src/react/index.ts src/vue/index.ts src/angular/index.ts src/sentry/index.ts src/datadog/index.ts --format cjs,esm && tsc --emitDeclarationOnly --outDir dist",
+    "dev": "tsup src/index.ts src/react/index.ts src/vue/index.ts src/angular/index.ts src/sentry/index.ts src/datadog/index.ts --format cjs,esm --watch",
     "lint": "eslint",
     "test": "vitest run"
   },
