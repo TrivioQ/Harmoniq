@@ -47,12 +47,20 @@ export default async function EnvironmentsPage(props: {
                       /api/manifest/{workspaceSlug}/{hostApp.slug}/{env.slug}
                     </p>
                   </div>
-                  <Link
-                    href={`/${workspaceSlug}/environments/${hostApp.slug}/${env.slug}`}
-                    className="text-sm text-primary hover:underline"
-                  >
-                    {t('history')}
-                  </Link>
+                  <div className="flex gap-4">
+                    <Link
+                      href={`/${workspaceSlug}/environments/${hostApp.slug}/${env.slug}/deps`}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      {t('dependencies')}
+                    </Link>
+                    <Link
+                      href={`/${workspaceSlug}/environments/${hostApp.slug}/${env.slug}`}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      {t('history')}
+                    </Link>
+                  </div>
                 </div>
 
                 {env.frozen && (

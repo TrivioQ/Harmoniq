@@ -58,6 +58,7 @@ harmoniq deploy \
 | `--meta key=value`                                                                                      | Metadata, repeatable                                                                 |
 | `--validate`                                                                                            | Fetch the URL and check the integrity locally before deploying                       |
 | `--dry-run`                                                                                             | Validate on the registry and show the projected manifest change                      |
+| `--force`                                                                                               | Deploy despite dependency conflicts or removed exposes (audited); also on `promote`  |
 | `--rollout <percents>`, `--hold`, `--max-error-rate`, `--max-error-delta`, `--max-p95`, `--min-samples` | Staged canary rollout (see `harmoniq canary`)                                        |
 | `--canary <percent>`                                                                                    | Deploy as a canary for this share of users (1–99); the active version keeps the rest |
 
@@ -105,6 +106,18 @@ harmoniq disable --module checkout --env production --reason "maintenance" --at 
 harmoniq schedule list [--status pending]
 harmoniq schedule cancel <id>
 ```
+
+### Dependency conflicts
+
+When the registry's dependency gate refuses a deploy or promote, the CLI prints each conflict to stderr and exits with `2`:
+
+```
+conflict: react ^19.0.0 (checkout) vs ^18.2.0 (cart) — no version satisfies both
+warning: removes exposed module ./MiniCart (hosts importing it will break)
+Error: Blocked by the dependency gate: … Use force to deploy anyway.
+```
+
+Fix the ranges, or pass `--force` (audited). `--dry-run` prints the same lines without deploying.
 
 ### `harmoniq promote`
 
@@ -176,7 +189,7 @@ With `--json`, successful commands print exactly one JSON document on stdout; er
 
 ## Build plugin
 
-`@harmoniq/build-plugin` registers a remote straight from your bundler (Vite, Rollup, webpack, Rspack, esbuild). After the bundle is written it computes the remote entry's SRI hash, reads `exposes` from `mf-manifest.json` when present, and — in CI (`CI=true`) — deploys it. Locally it only prints the hash.
+`@harmoniq/build-plugin` registers a remote straight from your bundler (Vite, Rollup, webpack, Rspack, esbuild). After the bundle is written it computes the remote entry's SRI hash, reads `exposes` and shared dependencies (for the registry's dependency gate) from `mf-manifest.json` when present, and — in CI (`CI=true`) — deploys it. Locally it only prints the hash.
 
 ```ts
 // vite.config.ts

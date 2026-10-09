@@ -229,6 +229,18 @@ export interface ScheduledOperationSummary {
   error: string | null;
 }
 
+export interface DependencyMatrix {
+  hostApp: string;
+  environment: string;
+  packages: string[];
+  sources: Array<{ name: string; dependencies: Record<string, string> }>;
+  conflicts: Array<{
+    package: string;
+    between: Array<{ source: string; range: string }>;
+    reason: 'no_common_version' | 'invalid_range';
+  }>;
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
@@ -268,6 +280,10 @@ export const workspaceApi = {
     }>(`${ws(slug)}/health?hours=24`),
   scheduled: (slug: string) =>
     authedFetch<{ operations: ScheduledOperationSummary[] }>(`${ws(slug)}/scheduled-operations`),
+  dependencies: (slug: string, host: string, env: string) =>
+    authedFetch<DependencyMatrix>(
+      `${ws(slug)}/host-apps/${enc(host)}/environments/${enc(env)}/dependencies`
+    ),
   alerts: (slug: string) => authedFetch<{ rules: AlertRuleSummary[] }>(`${ws(slug)}/alerts`),
   moduleHealth: (slug: string, ref: string, env: string) =>
     authedFetch<ModuleHealth>(`${ws(slug)}/modules/${enc(ref)}/health?environment=${enc(env)}`),

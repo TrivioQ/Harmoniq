@@ -5,6 +5,7 @@ import { CliError, EXIT } from '../lib/errors';
 import { resolveIntegrity } from '../lib/integrity';
 import { emit, enc } from '../lib/output';
 import { AT_OPTION, scheduleIfRequested } from '../lib/schedule';
+import { printGate, withGateReport } from '../lib/gate';
 import { collectTarget, parsePercent, parseRollout, parseTargets } from './canary';
 
 const collect = (value: string, previous: string[] = []) => [...previous, value];
@@ -21,6 +22,7 @@ export const deployCommand = new Command('deploy')
   .option('--meta <key=value>', 'Metadata entry (repeatable)', collect)
   .option('--validate', 'Check the bundle URL and integrity locally before deploying')
   .option('--dry-run', 'Validate on the registry and show the projected change; deploy nothing')
+  .option('--force', 'Deploy despite dependency conflicts or removed exposes (audited)')
   .option(
     '--canary <percent>',
     'Deploy as a canary for this share of users (1–99); the active version keeps the rest'
@@ -96,20 +98,31 @@ export const deployCommand = new Command('deploy')
       ...(commitSha && { commitSha }),
       ...(Object.keys(metadata).length && { metadata }),
       dryRun: !!opts.dryRun,
+      ...(opts.force && { force: true }),
       ...(opts.previewTtl && { ephemeral: { ttlHours: Number(opts.previewTtl) } }),
       ...(canary !== undefined && { canary: { trafficPercent: canary, targeting } }),
       ...(rollout && { canary: { rollout, targeting } }),
     };
     const op = { type: 'deploy', module: opts.module, request };
     if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
-    const result = await authedClient(ctx).post<Record<string, unknown>>(
-      `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/deploy`,
-      request
+    const result = await withGateReport(() =>
+      authedClient(ctx).post<Record<string, unknown>>(
+        `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/deploy`,
+        request
+      )
     );
 
     if (opts.dryRun) {
-      const validation = result.validation as { errors: string[]; warnings: string[] };
+      const validation = result.validation as {
+        errors: string[];
+        warnings: string[];
+        blockedByGate?: boolean;
+      };
       validation.warnings.forEach((w) => console.error(`warning: ${w}`));
+      printGate(validation);
+      if (validation.blockedByGate) {
+        validation.errors.push('blocked by the dependency gate (use --force to deploy anyway)');
+      }
       emit(ctx, result, () =>
         validation.errors.length
           ? `Dry run: bundle failed validation: ${validation.errors.join('; ')}`
@@ -119,6 +132,7 @@ export const deployCommand = new Command('deploy')
       return;
     }
 
+    (result.warnings as string[] | undefined)?.forEach((w) => console.error(`warning: ${w}`));
     emit(
       ctx,
       result,

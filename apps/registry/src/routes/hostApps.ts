@@ -1,6 +1,13 @@
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
-import { ConflictError, ForbiddenError, NotFoundError } from '@harmoniq/core/dist/errors/AppError';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from '@harmoniq/core/dist/errors/AppError';
+import { findDependencyConflicts } from '@harmoniq/core/dist/manifest/dependencies';
+import { environmentMatrix } from '../services/dependencyGate';
 import {
   CreateEnvironmentSchema,
   CreateHostAppSchema,
@@ -100,6 +107,8 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
           description: h.description,
           isDefault: h.isDefault,
           previewUrlTemplate: h.previewUrlTemplate,
+          sharedDependencies: h.sharedDependencies,
+          strictExposes: h.strictExposes,
           moduleCount: h._count.RemoteModules,
           environments: h.Environments.map((e) => ({
             slug: e.slug,
@@ -161,6 +170,15 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('workspace:admin') },
     async (request) => {
       const body = UpdateHostAppSchema.parse(request.body);
+      const invalid = findDependencyConflicts(
+        { name: 'host', dependencies: body.sharedDependencies },
+        []
+      );
+      if (invalid.length) {
+        throw new BadRequestError(
+          `Invalid semver range for ${invalid.map((c) => c.package).join(', ')}`
+        );
+      }
       const workspace = request.workspace!;
       return withTenant(workspace.id, async (tx) => {
         const hostApp = await tx.hostApp.findUnique({
@@ -169,7 +187,16 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
         if (!hostApp) throw new NotFoundError('Host app not found');
-        const updated = await tx.hostApp.update({ where: { id: hostApp.id }, data: body });
+        const { sharedDependencies, ...rest } = body;
+        const updated = await tx.hostApp.update({
+          where: { id: hostApp.id },
+          data: {
+            ...rest,
+            ...(sharedDependencies !== undefined && {
+              sharedDependencies: sharedDependencies ?? Prisma.DbNull,
+            }),
+          },
+        });
         await audit(tx, workspace.id, actor(request), {
           action: 'hostApp.update',
           resourceType: 'hostApp',
@@ -181,6 +208,8 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
           name: updated.name,
           description: updated.description,
           previewUrlTemplate: updated.previewUrlTemplate,
+          sharedDependencies: updated.sharedDependencies,
+          strictExposes: updated.strictExposes,
         };
       });
     }
@@ -305,6 +334,33 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
       freezeUntil: env.freezeUntil?.toISOString() ?? null,
     };
   }
+
+  // DEP-04: active modules' dependencies against the host's shared ones, with conflicts.
+  fastify.get<{ Params: EnvParams }>(
+    '/api/workspaces/:workspaceSlug/host-apps/:hostAppSlug/environments/:envSlug/dependencies',
+    { preHandler: fastify.requireWorkspace('workspace:read') },
+    async (request) => {
+      const workspace = request.workspace!;
+      return withTenant(workspace.id, async (tx) => {
+        const hostApp = await tx.hostApp.findUnique({
+          where: {
+            workspaceId_slug: { workspaceId: workspace.id, slug: request.params.hostAppSlug },
+          },
+        });
+        const env =
+          hostApp &&
+          (await tx.environment.findUnique({
+            where: { hostAppId_slug: { hostAppId: hostApp.id, slug: request.params.envSlug } },
+          }));
+        if (!hostApp || !env) throw new NotFoundError('Environment not found');
+        return {
+          hostApp: hostApp.slug,
+          environment: env.slug,
+          ...(await environmentMatrix(tx, hostApp, env.id)),
+        };
+      });
+    }
+  );
 
   // Manual re-publish, e.g. after fixing bucket credentials.
   fastify.post<{ Params: EnvParams }>(

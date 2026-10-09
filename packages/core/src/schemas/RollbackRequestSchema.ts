@@ -20,6 +20,8 @@ export const PromoteRequestSchema = z.object({
   toEnvironment: z.string().min(1),
   /** Defaults to the active version in `fromEnvironment`. */
   versionId: z.string().min(1).optional(),
+  /** DEP-03: promote despite dependency conflicts in the target (audited). */
+  force: z.boolean().optional(),
 });
 
 export type PromoteRequest = z.infer<typeof PromoteRequestSchema>;

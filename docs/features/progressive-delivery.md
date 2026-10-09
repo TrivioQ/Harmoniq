@@ -1,7 +1,7 @@
 # Feature: Progressive Delivery
 
 > **Requirement IDs:** `CAN-01` – `CAN-10`, `HLT-*`, `ALT-*`, `STG-*`, `DEP-*`
-> **Status:** `in-progress`
+> **Status:** `implemented`
 > **Phase:** M3
 
 Ship a new module version to a share of users first, watch it, then widen or stop it, without touching the host app. M3 builds this up in steps: canary releases (M3.1), health reporting, alerts and auto-rollback, staged rollouts, targeting and kill switches, and a dependency gate before deploys.
@@ -14,22 +14,26 @@ A canary is a module version that runs next to the active (stable) one in an env
 
 ## Requirements
 
-| ID       | Requirement                                                     | Status                                |
-| -------- | --------------------------------------------------------------- | ------------------------------------- |
-| `CAN-01` | Canary status with `trafficPercent` 1–99                        | ✅ Done                               |
-| `CAN-02` | Sticky server-side assignment from `X-Harmoniq-User-Id`, cookie | ✅ Done (cookie read only; see notes) |
-| `CAN-03` | Separate cache key for canary variants                          | ✅ Done (one key per set of canaries) |
-| `CAN-04` | Promote / roll back via dashboard or CLI                        | ✅ Done                               |
-| `CAN-05` | Change traffic without redeploying                              | ✅ Done                               |
-| `CAN-06` | `variant` in every manifest                                     | ✅ Done                               |
-| `CAN-07` | `cohortId`: opaque, derived from a hash, not the user id        | ✅ Done                               |
-| `CAN-08` | `X-Harmoniq-Variant` and `X-Harmoniq-Cohort-Id` headers         | ✅ Done                               |
-| `CAN-09` | SDK exposes `variant` and `cohortId`                            | ✅ Done                               |
-| `CAN-10` | SDK emits `variantAssigned` on first assignment and on change   | ✅ Done                               |
-| `HLT-*`  | Health ingest and aggregation                                   | 📋 Planned (M3.2)                     |
-| `ALT-*`  | Alerts and auto-rollback                                        | 📋 Planned (M3.4)                     |
-| `STG-*`  | Staged rollouts                                                 | 📋 Planned (M3.5)                     |
-| `DEP-*`  | Dependency and contract gate                                    | 📋 Planned (M3.7)                     |
+| ID       | Requirement                                                     | Status                                                  |
+| -------- | --------------------------------------------------------------- | ------------------------------------------------------- |
+| `CAN-01` | Canary status with `trafficPercent` 1–99                        | ✅ Done                                                 |
+| `CAN-02` | Sticky server-side assignment from `X-Harmoniq-User-Id`, cookie | ✅ Done (cookie read only; see notes)                   |
+| `CAN-03` | Separate cache key for canary variants                          | ✅ Done (one key per set of canaries)                   |
+| `CAN-04` | Promote / roll back via dashboard or CLI                        | ✅ Done                                                 |
+| `CAN-05` | Change traffic without redeploying                              | ✅ Done                                                 |
+| `CAN-06` | `variant` in every manifest                                     | ✅ Done                                                 |
+| `CAN-07` | `cohortId`: opaque, derived from a hash, not the user id        | ✅ Done                                                 |
+| `CAN-08` | `X-Harmoniq-Variant` and `X-Harmoniq-Cohort-Id` headers         | ✅ Done                                                 |
+| `CAN-09` | SDK exposes `variant` and `cohortId`                            | ✅ Done                                                 |
+| `CAN-10` | SDK emits `variantAssigned` on first assignment and on change   | ✅ Done                                                 |
+| `HLT-*`  | Health ingest and aggregation                                   | 📋 Planned (M3.2)                                       |
+| `ALT-*`  | Alerts and auto-rollback                                        | 📋 Planned (M3.4)                                       |
+| `STG-*`  | Staged rollouts                                                 | 📋 Planned (M3.5)                                       |
+| `DEP-01` | `dependencies` map on manifest modules                          | ✅ Done (sent by the build plugin from MF `shared`)     |
+| `DEP-02` | 422 with a conflict report on incompatible ranges               | ✅ Done (also on promote, and against host shared deps) |
+| `DEP-03` | `--force` bypass audited as `module.deploy_forced`              | ✅ Done                                                 |
+| `DEP-04` | Dependency matrix per environment in the dashboard              | ✅ Done                                                 |
+| `DEP-05` | CLI prints conflicts to stderr before failing                   | ✅ Done                                                 |
 
 See [`docs/requirements.md §5.4`](../requirements.md).
 
@@ -45,6 +49,7 @@ See [`docs/requirements.md §5.4`](../requirements.md).
 - **Targeting.** Rules live on the canary version (`targeting`) and are cached with the running canaries, so matching needs no database. A match puts the user in the canary before the percentage is considered; without a user key only targeting applies. `X-Harmoniq-Context` is parsed defensively (size and key limits; bad input is ignored, never an error) and is part of `Vary`.
 - **Kill switch.** `ModuleEnvState` per module and environment; the manifest keeps the module (so hosts can tell "disabled" from "missing") with `disabled` and a reason, and the derived import-map and federation formats drop it. It runs through the mutation pipeline (audit, snapshot, CDN publish) with `ignoreFreeze`, the one change allowed in a frozen environment.
 - **Scheduled operations.** A schedule stores the exact API call (validated with the route's schema) and runs it with `fastify.inject` as its creator: the request carries a per-process random secret and the creator's id, and the authenticate plugin reloads that user or key from the database, so membership, scopes, module scoping, revocation, freezes, audit and webhooks behave exactly as for a manual call. Claiming uses `FOR UPDATE SKIP LOCKED`, so each operation runs once across replicas.
+- **Dependency gate.** `findDependencyConflicts` (core, `semver.intersects`) compares only the incoming module against the rest, so an existing conflict between two other modules never blocks an unrelated deploy; the check runs inside the mutation transaction, against the state it will change. Canaries are left out of the matrix: a user gets a module's canary or its active version, never both.
 - **CDN and import maps** stay stable-only: a CDN can't vary by user, and browsers load import maps without custom headers. The SDK therefore asks the registry first whenever it has a user id, and falls back to the CDN.
 
 ### Deviation: `harmoniq_canary` cookie (CAN-02)
@@ -58,6 +63,22 @@ YES (pre-1.0): `CanaryConfigSchema` was removed from `@harmoniq/core` in favour 
 ---
 
 ## Change History
+
+### 2026-10-09 — Dependency and contract gate (M3.7)
+
+**Type:** feature
+**PR / Branch:** feat/m3-progressive
+**Refs:** DEP-01 – DEP-05
+
+#### What changed
+
+- Deploys and promotes are checked against the environment's active modules and the host app's `sharedDependencies` (new); conflicts return 422 with a report, `force` deploys anyway (`module.deploy_forced`). Removed exposes warn, or block with `HostApp.strictExposes` (new). Dry runs report the gate.
+- `GET …/environments/:env/dependencies` and a dashboard Dependency Matrix page (conflicts in red).
+- CLI `--force` and conflict lines on stderr; the build plugin sends `dependencies` from `mf-manifest.json` `shared`.
+
+#### Testing
+
+`dependencies.test.ts` (core: compatible and conflicting ranges, invalid ranges, matrix de-duplication, removed exposes); `dependencyGate.test.ts` (422 report, dry run, forced deploy audit, host shared deps and their validation, the matrix, removed exposes with and without `strictExposes`, promote). CLI and build-plugin tests. The matrix page was rendered in headless Chrome with a forced conflict.
 
 ### 2026-10-09 — Scheduled operations (M3.6)
 

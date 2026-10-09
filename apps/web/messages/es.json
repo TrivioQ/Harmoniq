@@ -62,7 +62,8 @@
     "freeze": "Congelar",
     "reasonPlaceholder": "Motivo, p. ej. Black Friday",
     "reason": "Motivo",
-    "until": "Congelado hasta (opcional)"
+    "until": "Congelado hasta (opcional)",
+    "dependencies": "Dependencias"
   },
   "SettingsPage": {
     "title": "Configuración",
@@ -454,5 +455,16 @@
       "canary_abort": "Abortar canary",
       "kill_switch": "Interruptor de emergencia"
     }
+  },
+  "DependencyMatrix": {
+    "back": "Entornos",
+    "title": "Dependencias de {hostApp} / {env}",
+    "description": "Rangos que declara cada módulo activo, frente a las dependencias compartidas de la aplicación host. Las celdas rojas están en conflicto: ninguna versión satisface ambas, así que un despliegue con ese rango se rechaza salvo que se fuerce.",
+    "package": "Paquete",
+    "host": "Host (compartidas)",
+    "conflicts": "{count, plural, =0 {Sin conflictos} one {# conflicto} other {# conflictos}}",
+    "invalid": "rango no válido",
+    "empty": "Ningún módulo declara dependencias aquí todavía. Despliega con dependencias para verlas.",
+    "sharedHint": "Define las dependencias compartidas con PATCH /api/workspaces/'{workspace}'/host-apps/'{hostApp}' y un objeto sharedDependencies, p. ej. react: ^18.2.0."
   }
 }

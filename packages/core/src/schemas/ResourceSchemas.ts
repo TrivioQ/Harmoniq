@@ -62,4 +62,8 @@ export const UpdateHostAppSchema = z.object({
     .refine((v) => v.includes('{environment}'), 'Must contain {environment}')
     .nullable()
     .optional(),
+  /** M3.7: package → semver range the host shares with every module; null removes. */
+  sharedDependencies: z.record(z.string().min(1).max(200)).nullable().optional(),
+  /** M3.7: reject deploys that drop an exposed module the active version had. */
+  strictExposes: z.boolean().optional(),
 });

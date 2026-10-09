@@ -24,6 +24,7 @@ import {
 } from '@harmoniq/core/dist/schemas/ResourceSchemas';
 import { audit } from '../services/audit';
 import { advanceRollout, clearedRollout, startRollout } from '../services/rollout';
+import { GateResult, checkGate, enforceGate } from '../services/dependencyGate';
 import { isValidBundle } from '@harmoniq/core/dist/validation/bundle';
 import { createWorkspaceStorage } from '../adapters/storage/createStorage';
 import { canAccessModule } from '../plugins/authenticate';
@@ -375,19 +376,33 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               },
             ],
           };
-          return diffManifests(current.manifest, next);
+          const gate = await checkGate(tx, {
+            hostApp: module.hostApp,
+            environmentId: env.id,
+            module,
+            dependencies: body.dependencies,
+            exposes: body.exposes,
+          });
+          return { diff: diffManifests(current.manifest, next), gate };
         });
         return {
           dryRun: true,
-          validation: { ...validation!, dependencyConflicts: [] },
+          validation: {
+            ...validation!,
+            dependencyConflicts: projected.gate.dependencyConflicts,
+            removedExposes: projected.gate.removedExposes,
+            blockedByGate: projected.gate.blocking,
+          },
           frozen: isFrozen(env),
-          projectedDiff: projected,
+          projectedDiff: projected.diff,
         };
       }
 
       if (validation && !isValidBundle(validation)) {
         throw new ValidationError('Bundle failed validation', { validation });
       }
+
+      let gate: GateResult = { dependencyConflicts: [], removedExposes: [], blocking: false };
 
       const { result, manifest, snapshotId } = await mutations.run(
         targetFor(request, module, env),
@@ -402,6 +417,15 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               `No active version of "${module.slug}" in "${env.slug}" to run a canary against; deploy it normally first`
             );
           }
+          // DEP-02/03: dependency conflicts and dropped exposes, unless forced.
+          gate = await checkGate(tx, {
+            hostApp: module.hostApp,
+            environmentId: env.id,
+            module,
+            dependencies: body.dependencies,
+            exposes: body.exposes,
+          });
+          enforceGate(gate, body.force);
           // A canary deploy replaces the running canary; a normal deploy ends it.
           const endedCanary = await endCanary(tx, module.id, env.id);
           if (!canary) await deactivateActive(tx, module.id, env.id);
@@ -431,7 +455,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           return {
             result: version,
             audit: {
-              action: 'module.deploy',
+              action: gate.blocking ? 'module.deploy_forced' : 'module.deploy',
               resourceType: 'moduleVersion',
               resourceId: version.id,
               metadata: {
@@ -448,6 +472,10 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                   endedCanary: { versionId: endedCanary.id, version: endedCanary.version },
                 }),
                 ...(validation && { validation }), // VAL-05
+                ...(gate.dependencyConflicts.length && {
+                  dependencyConflicts: gate.dependencyConflicts,
+                }),
+                ...(gate.removedExposes.length && { removedExposes: gate.removedExposes }),
               },
             },
             events: [
@@ -485,10 +513,17 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
         '{environment}',
         encodeURIComponent(env.slug)
       );
+      const warnings = [
+        ...(gate.removedExposes.length
+          ? [`Removes exposed modules: ${gate.removedExposes.join(', ')}`]
+          : []),
+        ...(gate.blocking ? ['Deployed despite the dependency gate (forced)'] : []),
+      ];
       return reply.code(201).send({
         ...versionDto(result, env.slug),
         manifestEtag: manifest.etag,
         snapshotId,
+        ...(warnings.length && { warnings }),
         ...(previewUrl && { previewUrl }),
       });
     }
@@ -605,6 +640,15 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
             },
           });
           if (!source) throw new NotFoundError(`No version to promote in "${from.slug}"`);
+          // The same gate as a deploy, against the target environment's modules.
+          const gate = await checkGate(tx, {
+            hostApp: module.hostApp,
+            environmentId: to.id,
+            module,
+            dependencies: source.dependencies as Record<string, string> | null,
+            exposes: source.exposes as Record<string, string> | null,
+          });
+          enforceGate(gate, body.force);
 
           await deactivateActive(tx, module.id, to.id);
           // The exact artifact that was tested: same URL, integrity and metadata.
@@ -643,6 +687,11 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                 fromEnvironment: from.slug,
                 toEnvironment: to.slug,
                 sourceVersionId: source.id,
+                ...(gate.blocking && {
+                  forced: true,
+                  dependencyConflicts: gate.dependencyConflicts,
+                  removedExposes: gate.removedExposes,
+                }),
               },
             },
             events: [

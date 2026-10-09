@@ -459,6 +459,45 @@ describe('harmoniq CLI', () => {
     });
   });
 
+  it('prints dependency conflicts to stderr before failing (DEP-05)', async () => {
+    server.use(
+      http.post(`${REGISTRY}/api/workspaces/acme/modules/:module/deploy`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Blocked by the dependency gate',
+              details: {
+                dependencyConflicts: [
+                  {
+                    package: 'react',
+                    between: [
+                      { source: 'checkout', range: '^19.0.0' },
+                      { source: 'cart', range: '^18.2.0' },
+                    ],
+                    reason: 'no_common_version',
+                  },
+                ],
+                removedExposes: ['./MiniCart'],
+              },
+            },
+          },
+          { status: 422 }
+        )
+      )
+    );
+    const file = join(configDir, 'remoteEntry.js');
+    await writeFile(file, BUNDLE);
+    expect(await cli(...deployArgs('--file', file))).toBe(2);
+    const err = stderr.join('\n');
+    expect(err).toContain('conflict: react ^19.0.0 (checkout) vs ^18.2.0 (cart)');
+    expect(err).toContain('warning: removes exposed module ./MiniCart');
+    server.resetHandlers();
+
+    expect(await cli(...deployArgs('--file', file, '--force'))).toBe(0);
+    expect(received['checkout/deploy'].body).toMatchObject({ force: true });
+  });
+
   it('promotes between environments', async () => {
     expect(
       await cli(

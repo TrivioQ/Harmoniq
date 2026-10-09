@@ -81,6 +81,31 @@ describe('@harmoniq/build-plugin', () => {
     }
   });
 
+  it('sends shared dependencies from mf-manifest.json for the dependency gate', async () => {
+    await writeFile(
+      join(outDir, 'mf-manifest.json'),
+      JSON.stringify({
+        shared: [
+          { name: 'react', version: '18.3.1', requiredVersion: '^18.2.0' },
+          { name: 'lodash', version: '4.17.21', requiredVersion: false },
+        ],
+      })
+    );
+    const result = await harmoniqDeploy({
+      ...base(),
+      deploy: true,
+      force: true,
+      dependencies: { 'react-dom': '^18.2.0' },
+    });
+    expect(result.dependencies).toEqual({
+      react: '^18.2.0',
+      lodash: '^4.17.21',
+      'react-dom': '^18.2.0',
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).toMatchObject({ dependencies: result.dependencies, force: true });
+  });
+
   it('fails the build when the registry rejects the deploy', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ error: { message: 'Environment "production" is frozen' } }), {

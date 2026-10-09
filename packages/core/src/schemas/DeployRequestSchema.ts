@@ -15,6 +15,8 @@ export const DeployRequestSchema = z.object({
   /** Bucket object key when the bundle was uploaded via `upload-url`. */
   storagePath: z.string().max(1024).optional(),
   dryRun: z.boolean().optional().default(false),
+  /** DEP-03: deploy despite dependency conflicts or removed exposes (audited). */
+  force: z.boolean().optional(),
   /**
    * Create `environment` as a preview environment if it doesn't exist (workspace must
    * allow it); it is deleted `ttlHours` after the last deploy.

@@ -388,6 +388,9 @@ importers:
 
   packages/core:
     dependencies:
+      semver:
+        specifier: ^7.6.3
+        version: 7.8.5
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -398,6 +401,9 @@ importers:
       '@types/node':
         specifier: ^20.12.7
         version: 20.19.43
+      '@types/semver':
+        specifier: ^7.5.8
+        version: 7.8.0
       eslint:
         specifier: ^9.0.0
         version: 9.39.5(jiti@2.7.0)
@@ -3345,6 +3351,9 @@ packages:
 
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
+
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
   '@types/send@1.2.1':
     resolution: {integrity: sha512-arsCikDvlU99zl1g69TcAB3mzZPpxgw0UQnaHeC1Nwb015xp8bknZv5rIfri9xTOcMuaVgvabfIRA7PSZVuZIQ==}
@@ -11237,6 +11246,8 @@ snapshots:
   '@types/react@19.3.0':
     dependencies:
       csstype: 3.2.3
+
+  '@types/semver@7.8.0': {}
 
   '@types/send@1.2.1':
     dependencies:

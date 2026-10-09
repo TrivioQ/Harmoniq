@@ -197,6 +197,15 @@ A plain canary: the new version runs next to the active one (which must exist, e
 
 All three return the version, `manifestEtag` and `snapshotId`, are audited (`canary.update`, `canary.start`, `canary.promote`, `canary.abort`) and return `423` in a frozen environment. `GET /api/workspaces/:ws/modules` lists each environment's `canary` next to `active`.
 
+### Dependency and contract gate
+
+DEP-01..05. A deploy (and a promote, against the target environment) is checked before it changes anything:
+
+- **Dependencies**: each range in the version's `dependencies` must intersect the same package's range in every other active module of the environment and in the host app's `sharedDependencies`. Conflicts among modules already deployed don't block an unrelated deploy.
+- **Exposes**: dropping an exposed module that the active version had is a warning (`warnings` in the response), or a conflict when the host app has `strictExposes`.
+
+A blocked change returns `422` with `error.details.dependencyConflicts` (`[{ package, between: [{ source, range }], reason }]`) and `removedExposes`. `"force": true` goes ahead, audited as `module.deploy_forced` (or `module.promote` with `forced: true`). Dry runs report `dependencyConflicts`, `removedExposes` and `blockedByGate` in `validation`. The build plugin sends `dependencies` from the `shared` section of `mf-manifest.json`.
+
 ### Kill switch — `module:deploy`
 
 `PUT /api/workspaces/:ws/modules/:moduleRef/kill-switch` with `{ "environment": "production", "disabled": true, "reason": "checkout errors" }` (a reason of at least 3 characters is required to disable; `{ "disabled": false }` re-enables). The module stays in the manifest with `"disabled": true` and `disabledReason`, and is left out of import maps and federation manifests. Works in frozen environments (an emergency control). Audited `module.disable` / `module.enable`; webhooks `module.disabled` / `module.enabled`. Module listings show each environment's `disabled` state.
@@ -225,16 +234,18 @@ All changes to a frozen environment return `423`. Manifest reads are never block
 
 ## Workspaces, host apps, environments
 
-| Endpoint                                                               | Permission                | Description                                                                                       |
-| ---------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `POST /api/workspaces`                                                 | signed-in user            | `{ name, slug }`; creator becomes owner; creates host app `default` with `staging` + `production` |
-| `GET /api/workspaces/:ws`                                              | read                      | Workspace, your role, host apps and environments (with freeze state)                              |
-| `POST /api/workspaces/:ws/host-apps`                                   | admin                     | `{ name, slug, environments? }`                                                                   |
-| `POST /api/workspaces/:ws/host-apps/:hostApp/environments`             | admin                     | `{ name, slug }`                                                                                  |
-| `PUT /api/workspaces/:ws/host-apps/:hostApp/environments/:env/freeze`  | admin                     | `{ reason, until? }`; emits `env.frozen`                                                          |
-| `DELETE …/freeze`                                                      | admin                     | Unfreeze; emits `env.unfrozen`                                                                    |
-| `GET /api/workspaces/:ws/audit?actor&action&resourceId&from&to&cursor` | read                      | Audit log; `action=module.` matches a prefix                                                      |
-| `GET/POST /api/workspaces/:ws/storage`                                 | admin (or instance admin) | Workspace bucket; credentials are write-only and returned masked                                  |
+| Endpoint                                                                    | Permission                | Description                                                                                                                                             |
+| --------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/workspaces`                                                      | signed-in user            | `{ name, slug }`; creator becomes owner; creates host app `default` with `staging` + `production`                                                       |
+| `GET /api/workspaces/:ws`                                                   | read                      | Workspace, your role, host apps and environments (with freeze state)                                                                                    |
+| `POST /api/workspaces/:ws/host-apps`                                        | admin                     | `{ name, slug, environments? }`                                                                                                                         |
+| `POST /api/workspaces/:ws/host-apps/:hostApp/environments`                  | admin                     | `{ name, slug }`                                                                                                                                        |
+| `PATCH /api/workspaces/:ws/host-apps/:hostApp`                              | admin                     | `{ name?, description?, previewUrlTemplate?, sharedDependencies?, strictExposes? }` (M3.7: host-shared semver ranges; reject deploys that drop exposes) |
+| `GET /api/workspaces/:ws/host-apps/:hostApp/environments/:env/dependencies` | read                      | Dependency matrix (DEP-04): `packages`, `sources` (host + active modules) and `conflicts`                                                               |
+| `PUT /api/workspaces/:ws/host-apps/:hostApp/environments/:env/freeze`       | admin                     | `{ reason, until? }`; emits `env.frozen`                                                                                                                |
+| `DELETE …/freeze`                                                           | admin                     | Unfreeze; emits `env.unfrozen`                                                                                                                          |
+| `GET /api/workspaces/:ws/audit?actor&action&resourceId&from&to&cursor`      | read                      | Audit log; `action=module.` matches a prefix                                                                                                            |
+| `GET/POST /api/workspaces/:ws/storage`                                      | admin (or instance admin) | Workspace bucket; credentials are write-only and returned masked                                                                                        |
 
 Slugs: lowercase letters, digits and inner hyphens.
 
@@ -362,6 +373,4 @@ Actions: `webhook` sends `alert.triggered` / `alert.resolved` to webhook endpoin
 
 | Endpoint                                            | Milestone |
 | --------------------------------------------------- | --------- |
-| Health ingest and aggregation                       | M3.2      |
-| Alert rules                                         | M3.4      |
 | Approvals, organizations, SSO, SCIM, GitOps `apply` | M4        |

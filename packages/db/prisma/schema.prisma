@@ -91,6 +91,10 @@ model HostApp {
   isDefault          Boolean            @default(false)
   /// Link to a preview of the host, e.g. `https://staging.acme.com/?harmoniq-env={environment}`.
   previewUrlTemplate String?
+  /// M3.7: dependencies the host shares with every module (package → semver range).
+  sharedDependencies Json?
+  /// M3.7: reject deploys that drop an exposed module the active version had.
+  strictExposes      Boolean            @default(false)
   createdAt          DateTime           @default(now())
   workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   Environments       Environment[]

@@ -62,7 +62,8 @@
     "freeze": "Freeze",
     "reasonPlaceholder": "Reason, e.g. Black Friday",
     "reason": "Reason",
-    "until": "Frozen until (optional)"
+    "until": "Frozen until (optional)",
+    "dependencies": "Dependencies"
   },
   "SettingsPage": {
     "title": "Settings",
@@ -454,5 +455,16 @@
       "canary_abort": "Abort canary",
       "kill_switch": "Kill switch"
     }
+  },
+  "DependencyMatrix": {
+    "back": "Environments",
+    "title": "{hostApp} / {env} dependencies",
+    "description": "Ranges each active module declares, against the host app's shared dependencies. Red cells conflict: no version satisfies both, so a deploy bringing in such a range is refused unless forced.",
+    "package": "Package",
+    "host": "Host (shared)",
+    "conflicts": "{count, plural, =0 {No conflicts} one {# conflict} other {# conflicts}}",
+    "invalid": "not a valid range",
+    "empty": "No module declares dependencies here yet. Deploy with dependencies to see them.",
+    "sharedHint": "Set shared dependencies with PATCH /api/workspaces/'{workspace}'/host-apps/'{hostApp}' and a sharedDependencies object, e.g. react: ^18.2.0."
   }
 }

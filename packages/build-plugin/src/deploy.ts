@@ -30,28 +30,51 @@ export interface HarmoniqBuildOptions {
   deploy?: boolean;
   /** Validate on the registry and print the projected change without deploying. */
   dryRun?: boolean;
+  /**
+   * Dependency ranges for the registry's dependency gate (M3.7). By default read from the
+   * `shared` section of `mf-manifest.json`; these entries are added or take precedence.
+   */
+  dependencies?: Record<string, string>;
+  /** Deploy despite dependency conflicts or removed exposes (audited by the registry). */
+  force?: boolean;
   log?: (message: string) => void;
 }
 
 export interface HarmoniqBuildResult {
   integrity: string;
   exposes?: Record<string, string>;
+  dependencies?: Record<string, string>;
   deployed: boolean;
   response?: Record<string, unknown>;
 }
 
-/** Reads `exposes` from Module Federation 2.0's `mf-manifest.json`, when the build emits one. */
-async function readExposes(outDir: string): Promise<Record<string, string> | undefined> {
+const nonEmpty = (record: Record<string, string>) =>
+  Object.keys(record).length ? record : undefined;
+
+/**
+ * Reads `exposes` and shared dependencies (`requiredVersion`, else `^version`) from Module
+ * Federation 2.0's `mf-manifest.json`, when the build emits one.
+ */
+async function readMfManifest(outDir: string): Promise<{
+  exposes?: Record<string, string>;
+  dependencies?: Record<string, string>;
+}> {
   try {
     const manifest = JSON.parse(await readFile(join(outDir, 'mf-manifest.json'), 'utf8')) as {
       exposes?: Array<{ name?: string; path?: string }>;
+      shared?: Array<{ name?: string; version?: string; requiredVersion?: string | false }>;
     };
     const exposes = Object.fromEntries(
       (manifest.exposes ?? []).filter((e) => e.path).map((e) => [e.path!, e.name ?? e.path!])
     );
-    return Object.keys(exposes).length ? exposes : undefined;
+    const dependencies = Object.fromEntries(
+      (manifest.shared ?? [])
+        .filter((d) => d.name && (d.requiredVersion || d.version))
+        .map((d) => [d.name!, d.requiredVersion || `^${d.version}`])
+    );
+    return { exposes: nonEmpty(exposes), dependencies: nonEmpty(dependencies) };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
@@ -78,14 +101,19 @@ export async function harmoniqDeploy(options: HarmoniqBuildOptions): Promise<Har
     ) as ArrayBuffer,
     'sha384'
   );
-  const exposes = await readExposes(options.outDir);
+  const mf = await readMfManifest(options.outDir);
+  const exposes = mf.exposes;
+  const dependencies =
+    mf.dependencies || options.dependencies
+      ? { ...mf.dependencies, ...options.dependencies }
+      : undefined;
 
   const shouldDeploy = options.deploy ?? process.env.CI === 'true';
   if (!shouldDeploy && !options.dryRun) {
     log(
       `${options.module} ${options.version}: ${integrity} (not deployed; set \`deploy\` or run in CI)`
     );
-    return { integrity, exposes, deployed: false };
+    return { integrity, exposes, dependencies, deployed: false };
   }
 
   const registryUrl = (options.registryUrl ?? process.env.HARMONIQ_REGISTRY_URL)?.replace(
@@ -114,7 +142,9 @@ export async function harmoniqDeploy(options: HarmoniqBuildOptions): Promise<Har
         integrity,
         ...(commitSha && { commitSha }),
         ...(exposes && { exposes }),
+        ...(dependencies && { dependencies }),
         dryRun: !!options.dryRun,
+        ...(options.force && { force: true }),
       }),
     }
   );
@@ -130,5 +160,5 @@ export async function harmoniqDeploy(options: HarmoniqBuildOptions): Promise<Har
       ? `dry run OK: ${options.module} ${options.version} → ${options.environment}`
       : `deployed ${options.module} ${options.version} → ${options.environment} (${integrity})`
   );
-  return { integrity, exposes, deployed: !options.dryRun, response: body };
+  return { integrity, exposes, dependencies, deployed: !options.dryRun, response: body };
 }

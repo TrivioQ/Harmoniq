@@ -64,14 +64,16 @@ User ─────────────────── WorkspaceMember �
 
 ### `HostApp`
 
-| Column        | Type       | Notes                             |
-| ------------- | ---------- | --------------------------------- |
-| `id`          | `CUID`     | Primary key                       |
-| `workspaceId` | `CUID`     | FK → Workspace (RLS key)          |
-| `name`        | `String`   | Display name                      |
-| `slug`        | `String`   | URL-safe, unique within workspace |
-| `description` | `String?`  |                                   |
-| `createdAt`   | `DateTime` |                                   |
+| Column               | Type       | Notes                                                  |
+| -------------------- | ---------- | ------------------------------------------------------ |
+| `id`                 | `CUID`     | Primary key                                            |
+| `workspaceId`        | `CUID`     | FK → Workspace (RLS key)                               |
+| `name`               | `String`   | Display name                                           |
+| `slug`               | `String`   | URL-safe, unique within workspace                      |
+| `description`        | `String?`  |                                                        |
+| `sharedDependencies` | `Json?`    | M3.7: package → semver range shared with every module  |
+| `strictExposes`      | `Boolean`  | M3.7: reject deploys that drop exposes (default false) |
+| `createdAt`          | `DateTime` |                                                        |
 
 **Unique constraint**: `(workspaceId, slug)`  
 **RLS**: enabled, policy on `workspaceId`
