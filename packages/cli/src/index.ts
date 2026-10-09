@@ -7,27 +7,46 @@ import { deployCommand } from './commands/deploy';
 import { promoteCommand } from './commands/promote';
 import { rollbackCommand } from './commands/rollback';
 import { validateCommand } from './commands/validate';
+import { manifestCommand } from './commands/manifest';
+import { CliError, EXIT } from './lib/errors';
 
-const program = new Command();
+export function buildProgram() {
+  return new Command()
+    .name('harmoniq')
+    .description('Harmoniq CLI for CI/CD deployments and validation')
+    .version('1.0.0')
+    .option('--json', 'Machine-readable JSON output')
+    .option('--registry-url <url>', 'Registry URL (env HARMONIQ_REGISTRY_URL)')
+    .option('--api-key <key>', 'API key (env HARMONIQ_API_KEY)')
+    .option('--workspace <slug>', 'Workspace slug (env HARMONIQ_WORKSPACE)')
+    .option('--profile <name>', 'Saved profile (env HARMONIQ_PROFILE)', undefined)
+    .addCommand(loginCommand)
+    .addCommand(whoamiCommand)
+    .addCommand(deployCommand)
+    .addCommand(promoteCommand)
+    .addCommand(rollbackCommand)
+    .addCommand(validateCommand)
+    .addCommand(manifestCommand);
+}
 
-program
-  .name('harmoniq')
-  .description('Harmoniq CLI for CI/CD deployments and validation')
-  .version('1.0.0')
-  .option('--json', 'output in JSON format for machines', false)
-  .option(
-    '--registry-url <url>',
-    'Registry URL',
-    process.env.HARMONIQ_REGISTRY_URL || 'http://localhost:4000'
-  )
-  .option('--api-key <key>', 'Harmoniq API Key', process.env.HARMONIQ_API_KEY)
-  .option('--profile <name>', 'Workspace profile name', 'default');
+/** Runs the CLI and returns the exit code (see EXIT) instead of exiting, for tests. */
+export async function run(argv: string[]): Promise<number> {
+  process.exitCode = undefined;
+  try {
+    await buildProgram().parseAsync(argv);
+    return Number(process.exitCode ?? EXIT.ok);
+  } catch (err) {
+    if (err instanceof CliError) {
+      console.error(`Error: ${err.message}`);
+      if (err.details) console.error(JSON.stringify(err.details, null, 2));
+      return err.exitCode;
+    }
+    console.error(err);
+    return EXIT.generic;
+  }
+}
 
-program.addCommand(loginCommand);
-program.addCommand(whoamiCommand);
-program.addCommand(deployCommand);
-program.addCommand(promoteCommand);
-program.addCommand(rollbackCommand);
-program.addCommand(validateCommand);
-
-program.parse(process.argv);
+// Executed as a binary (not imported by tests).
+if (process.env.VITEST === undefined) {
+  run(process.argv).then((code) => process.exit(code));
+}

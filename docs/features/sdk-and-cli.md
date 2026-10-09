@@ -27,6 +27,28 @@ None.
 
 ## Change History
 
+### 2026-10-09 — Real CLI: deploy, promote, rollback, validate, login, manifest
+
+**Type:** feature
+**PR / Branch:** feat/m1-core-loop
+**Refs:** PRO-04, VAL-01 (a, b), DEP-05 (output); product-analysis §3.8
+
+#### What changed
+
+- All commands call the registry; the "not implemented" stubs are gone.
+- `deploy --release` (`--version` is reserved by the CLI), `--file` computes SRI locally, `--validate`, `--dry-run`, `--commit` from CI env, repeatable `--meta`.
+- `rollback` (previous / `--to` / `--version-id`), `promote --from --to`, `validate`, `login` (verifies, saves `~/.harmoniq/config.json` with mode 0600), `whoami`, `manifest get|pull`.
+- Settings precedence: flag → env → profile → default. Documented exit codes (0–5).
+- Fixed the `bin` entry (pointed at a file the build never produced). `@harmoniq/core` is bundled via `tsup.config.ts`, with a resolver plugin so builds work even when a stray Yarn PnP manifest exists in a parent directory.
+
+#### Testing
+
+`cli.test.ts` (17 tests, msw): request bodies, every exit code, no success output on failure, profile file permissions and precedence. `scripts/e2e-core-loop.sh` runs the built CLI against a live registry (13 checks).
+
+#### Breaking changes
+
+`deploy --version-id` is now `--release`; `--workspace` moved to a global option.
+
 ### 2026-10-08 — Unimplemented CLI commands fail instead of faking success
 
 **Type:** bug fix

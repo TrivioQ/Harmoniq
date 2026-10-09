@@ -2,11 +2,11 @@
   "name": "@harmoniq/cli",
   "version": "1.0.0",
   "bin": {
-    "harmoniq": "./dist/index.js"
+    "harmoniq": "./dist/index.mjs"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm",
-    "dev": "tsup src/index.ts --format esm --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "lint": "eslint",
     "test": "vitest run"
   },
@@ -23,6 +23,7 @@
     "typescript": "^5.7.2",
     "vitest": "^2.1.0",
     "msw": "^2.4.0",
-    "@mswjs/interceptors": "^0.36.1"
+    "@mswjs/interceptors": "^0.36.1",
+    "@harmoniq/core": "workspace:*"
   }
 }

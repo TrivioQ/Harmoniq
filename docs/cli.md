@@ -1,57 +1,123 @@
 # Harmoniq CLI Reference
 
-The `@harmoniq/cli` is your primary tool for managing micro frontend deployments to your registry.
-
-## Installation
-
-You can install the CLI globally, or run it via `npx`:
+`@harmoniq/cli` deploys, promotes and rolls back modules from CI or a terminal.
 
 ```bash
-npm install -g @harmoniq/cli
+npm install -g @harmoniq/cli   # or: npx @harmoniq/cli <command>
 ```
 
-## Authentication
+## Configuration
 
-Before deploying, authenticate your CLI session:
+Every command resolves its settings in this order: **flag → environment variable → saved profile → default**.
+
+| Flag             | Environment variable    | Default                 |
+| ---------------- | ----------------------- | ----------------------- |
+| `--registry-url` | `HARMONIQ_REGISTRY_URL` | `http://localhost:4000` |
+| `--api-key`      | `HARMONIQ_API_KEY`      | —                       |
+| `--workspace`    | `HARMONIQ_WORKSPACE`    | —                       |
+| `--profile`      | `HARMONIQ_PROFILE`      | `default`               |
+| `--json`         | —                       | off                     |
+
+API keys are created in the dashboard (workspace settings → API keys) or with `POST /api/workspaces/:ws/api-keys`. Use the `deploy:write` scope for CI.
+
+### `harmoniq login`
+
+Verifies an API key against the registry and saves it as a profile in `~/.harmoniq/config.json` (permissions `0600`). Prompts for anything not given as a flag or environment variable.
 
 ```bash
-harmoniq login
+harmoniq --workspace acme --api-key hq_… login
+harmoniq --profile staging-ci --registry-url https://registry.acme.dev login
 ```
 
-This command opens a browser window for OAuth 2.0 authentication against your Harmoniq Dashboard. Alternatively, you can authenticate in headless environments by setting the `HARMONIQ_TOKEN` environment variable.
+### `harmoniq whoami`
 
-## Deploying a Module
+Shows the registry, workspace and key prefix in use, and checks that the key works.
 
-Use the `deploy` command from within your module's build directory:
+## Deploying
+
+### `harmoniq deploy`
 
 ```bash
 harmoniq deploy \
-  --workspace acme-corp \
-  --module auth-module \
-  --version 1.0.5 \
-  --url https://cdn.acme.com/auth-module/1.0.5/remoteEntry.js \
-  --env production
+  --module checkout \
+  --env staging \
+  --release 1.2.3 \
+  --url https://cdn.acme.com/checkout/1.2.3/remoteEntry.js \
+  --file dist/remoteEntry.js
 ```
 
-### Options
+| Flag               | Description                                                     |
+| ------------------ | --------------------------------------------------------------- |
+| `--module`         | Module slug or id (required)                                    |
+| `--env`            | Target environment (required)                                   |
+| `--release`        | Version string (required)                                       |
+| `--url`            | Public URL of the bundle (required)                             |
+| `--integrity`      | SRI hash, e.g. `sha384-…`                                       |
+| `--file`           | Local copy of the bundle; computes `--integrity` (sha384)       |
+| `--commit`         | Commit SHA; defaults to `GITHUB_SHA` / `CI_COMMIT_SHA`          |
+| `--meta key=value` | Metadata, repeatable                                            |
+| `--validate`       | Fetch the URL and check the integrity locally before deploying  |
+| `--dry-run`        | Validate on the registry and show the projected manifest change |
 
-| Flag          | Description                                            | Required |
-| ------------- | ------------------------------------------------------ | -------- |
-| `--workspace` | The target workspace slug                              | Yes      |
-| `--module`    | The target remote module slug                          | Yes      |
-| `--version`   | Semantic version string                                | Yes      |
-| `--url`       | The URL of the deployed `remoteEntry.js`               | Yes      |
-| `--env`       | The target environment (e.g., `production`, `staging`) | Yes      |
-| `--token`     | API token (can also use `HARMONIQ_TOKEN` env var)      | No       |
+### `harmoniq promote`
 
-## CI/CD Usage
+Copies the exact artifact (URL and integrity) running in one environment to another — production only ever runs what was tested.
 
-For headless CI/CD environments (like GitHub Actions), you should generate a machine-to-machine API Key with `module:write` permissions from the dashboard, and export it as an environment variable:
+```bash
+harmoniq promote --module checkout --from staging --to production
+```
+
+### `harmoniq rollback`
+
+```bash
+harmoniq rollback --module checkout --env production            # previous version
+harmoniq rollback --module checkout --env production --to 1.2.2
+harmoniq rollback --module checkout --env production --version-id <id>
+```
+
+### `harmoniq validate`
+
+Checks that a URL is reachable and matches the expected hash, and warns about missing CORS headers or an unexpected content type.
+
+```bash
+harmoniq validate --url https://cdn.acme.com/checkout/1.2.3/remoteEntry.js --file dist/remoteEntry.js
+```
+
+## Manifests
+
+Manifests are public; these commands need no API key.
+
+```bash
+harmoniq manifest get --env production [--host consumer-portal]
+harmoniq manifest pull --env production --out src/harmoniq-fallback.json
+```
+
+`manifest pull` is meant for a host app's build: ship the file as a fallback for when the registry is unreachable.
+
+## Exit codes
+
+| Code | Meaning                                                       |
+| ---- | ------------------------------------------------------------- |
+| 0    | Success                                                       |
+| 1    | Generic error (network, server error, not found)              |
+| 2    | Invalid input or bundle failed validation                     |
+| 3    | Authentication or authorization failed                        |
+| 4    | Target environment is frozen                                  |
+| 5    | Conflict (e.g. version already active, ambiguous module slug) |
+
+With `--json`, successful commands print exactly one JSON document on stdout; errors go to stderr.
+
+## CI example (GitHub Actions)
 
 ```yaml
-steps:
-  - name: Deploy to Harmoniq
-    run: npx @harmoniq/cli deploy --workspace acme-corp --module nav-module --version $GITHUB_SHA --url https://cdn... --env production
-    env:
-      HARMONIQ_TOKEN: ${{ secrets.HARMONIQ_API_KEY }}
+- name: Deploy checkout to staging
+  run: |
+    npx @harmoniq/cli deploy \
+      --module checkout --env staging --release ${{ github.sha }} \
+      --url https://cdn.acme.com/checkout/${{ github.sha }}/remoteEntry.js \
+      --file dist/remoteEntry.js
+  env:
+    HARMONIQ_REGISTRY_URL: https://registry.acme.dev
+    HARMONIQ_WORKSPACE: acme
+    HARMONIQ_API_KEY: ${{ secrets.HARMONIQ_API_KEY }}
 ```

@@ -224,6 +224,9 @@ importers:
         specifier: ^8.0.1
         version: 8.2.0
     devDependencies:
+      '@harmoniq/core':
+        specifier: workspace:*
+        version: link:../core
       '@harmoniq/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
