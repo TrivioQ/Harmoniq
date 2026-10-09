@@ -351,6 +351,28 @@ SP-initiated sign-in uses `POST /api/auth/:provider/start` and `/callback` with 
 
 **Session scope**: a session started with a workspace's OIDC or SAML only reaches that workspace (`403 SSO_SCOPED` elsewhere); `/api/me` lists only that workspace, and such sessions can't create workspaces or use instance-admin powers.
 
+## Provisioning (SCIM 2.0)
+
+M4.6, SSO-24/25/28. The registry is a SCIM 2.0 service provider (RFC 7643/7644) at `/scim/v2`, for Okta, Entra ID, OneLogin and others. Requests authenticate with the workspace's SCIM token (`Authorization: Bearer hq_scim_…`), which also identifies the workspace; bodies and responses use `application/scim+json` (plain JSON is accepted), errors use the SCIM error schema.
+
+| Endpoint                                                                    | Notes                                                                                                                                        |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /scim/v2/ServiceProviderConfig`, `GET /scim/v2/ResourceTypes`          | Discovery                                                                                                                                    |
+| `GET /scim/v2/Users`                                                        | `filter=userName eq "…"` (case-insensitive), `externalId eq`, `emails.value eq`; `startIndex`, `count` (≤ 200)                               |
+| `POST /scim/v2/Users`                                                       | `201`; the email comes from `emails` (primary) or `userName`; `409` if the user exists; a deleted user comes back as the same resource       |
+| `GET`, `PUT`, `PATCH`, `DELETE /scim/v2/Users/:id`                          | `PATCH` takes add/replace/remove on `active`, `userName`, `externalId`, `displayName`, `name.*`, `emails` (Entra ID's `"False"` strings too) |
+| `GET /scim/v2/Groups`                                                       | `filter=displayName eq "…"` or `externalId eq`                                                                                               |
+| `POST /scim/v2/Groups`, `GET`, `PUT`, `PATCH`, `DELETE /scim/v2/Groups/:id` | Members are SCIM user ids; `PATCH` adds/removes/replaces `members` (including `members[value eq "…"]`) and renames                           |
+
+A provisioned, active user is a joined member. Group names map to roles through the workspace's SSO group → role mapping (OIDC and SAML): when the IdP pushes groups that map to roles, the role follows them (most permissive wins, the SSO default role otherwise); new users without one get the default role. Deactivating (`active: false`) or deleting a user removes the membership, revokes API keys they created in the workspace and ends the sessions they started through the workspace's SSO; SSO then refuses them (`access_denied`) until the IdP reactivates them. Owners are never demoted, and the last owner is never removed (`scim.deprovision_skipped`). Audit events: `scim.user_provisioned`, `scim.user_deprovisioned`, `scim.role_synced`, `scim.group_created|updated|deleted`; every SCIM write is also kept as a `ScimAuditEvent` with its status code (passwords dropped).
+
+| Endpoint                                     | Permission | Notes                                                                                             |
+| -------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------- |
+| `GET /api/workspaces/:ws/scim`               | admin      | `{ enabled, baseUrl, tokenCreatedAt, users, groups }`                                             |
+| `POST /api/workspaces/:ws/scim/token`        | admin      | `{ token, baseUrl }`: turns SCIM on, or rotates the token (shown once; the old one stops working) |
+| `DELETE /api/workspaces/:ws/scim`            | admin      | Turns SCIM off (members stay)                                                                     |
+| `GET /api/workspaces/:ws/scim/events?limit=` | admin      | Recent SCIM requests                                                                              |
+
 ## Approvals
 
 APR-01..18. An environment with an approval policy holds back deploys, rollbacks, promotions (into it) and canary changes: the call returns **`202`** with `{ status: "pending_approval", requestId, requiredApprovers, expiresAt, changeTicket }` instead of applying the change (dry runs and the kill switch are not held back). Send `X-Harmoniq-Change-Ticket: <id>` when the policy requires a ticket (`400` without it).

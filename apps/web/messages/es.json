@@ -85,7 +85,8 @@
     "adminOnly": "Solo los administradores y propietarios pueden cambiar la configuración.",
     "alerts": "Alertas",
     "approvalRules": "Reglas de aprobación",
-    "sso": "Inicio de sesión único"
+    "sso": "Inicio de sesión único",
+    "provisioning": "Aprovisionamiento (SCIM)"
   },
   "LoginPage": {
     "title": "Iniciar sesión en Harmoniq",
@@ -217,7 +218,9 @@
     "approvalPolicySaved": "Reglas de aprobación de {environment} guardadas.",
     "approvalPolicyRemoved": "Los cambios en {environment} ya no necesitan aprobación.",
     "ssoSaved": "Inicio de sesión único guardado; el proveedor respondió.",
-    "ssoRemoved": "Inicio de sesión único eliminado."
+    "ssoRemoved": "Inicio de sesión único eliminado.",
+    "scimToken": "Token SCIM creado. Pégalo en tu proveedor de identidad.",
+    "scimDisabled": "Aprovisionamiento SCIM desactivado."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -599,5 +602,21 @@
     "samlTestResult": "Resultado del inicio de sesión de prueba (no se creó ninguna sesión)",
     "samlTestExpired": "Este resultado ha caducado o no existe. Vuelve a ejecutar la prueba.",
     "samlTestMapped": "Sesión como {email}, grupos: {groups}"
+  },
+  "ProvisioningPage": {
+    "description": "Permite que tu proveedor de identidad (Okta, Entra ID, OneLogin …) cree, actualice y elimine miembros mediante SCIM 2.0. Los grupos se asignan a roles con la asignación grupo → rol de Inicio de sesión único.",
+    "baseUrl": "URL base de SCIM",
+    "status": "Estado",
+    "enabled": "Activo desde {since} · {users} usuarios · {groups} grupos",
+    "disabled": "Desactivado",
+    "howItWorks": "Desactivar o eliminar un usuario en el IdP quita su membresía, revoca sus claves de API en este espacio de trabajo y cierra las sesiones que inició mediante el inicio de sesión único de este espacio. No puede volver a entrar por SSO hasta que el IdP lo reactive. Los propietarios nunca pierden su rol y el último propietario nunca se elimina.",
+    "enable": "Activar y crear token",
+    "rotate": "Rotar token",
+    "rotateConfirm": "¿Rotar el token SCIM? El token actual deja de funcionar de inmediato.",
+    "copyOnce": "Copia este token ahora; no se volverá a mostrar. Úsalo como token bearer (token de API) en tu IdP.",
+    "disable": "Desactivar",
+    "disableConfirm": "¿Desactivar el aprovisionamiento SCIM? Los miembros actuales se mantienen; el IdP ya no podrá cambiarlos.",
+    "events": "Solicitudes SCIM recientes",
+    "noEvents": "Aún no hay solicitudes."
   }
 }

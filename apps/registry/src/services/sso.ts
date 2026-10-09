@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import type { Role } from '@prisma/client';
-import type {
-  IdentityUserInfo,
-  RedirectIdentityProvider,
+import {
+  IdentityError,
+  type IdentityUserInfo,
+  type RedirectIdentityProvider,
 } from '@harmoniq/core/dist/ports/IdentityProvider';
 import { OidcConfig } from '@harmoniq/core/dist/schemas/SsoSchema';
 import { OidcIdentityProvider } from '../adapters/identity/OidcIdentityProvider';
@@ -11,6 +12,7 @@ import { checkPublicUrl } from './bundleValidator';
 import { SamlService } from './saml';
 import { openSecret } from './crypto';
 import { audit } from './audit';
+import { isDeprovisioned } from './scim';
 
 /** What `WorkspaceConfig.oidcConfig` holds: the config with the secret sealed. */
 export type StoredOidcConfig = Omit<OidcConfig, 'clientSecret' | 'forceSso'> & {
@@ -179,6 +181,9 @@ export async function provisionSsoMember(
   const trusted = config.trustedDomains.includes(domain);
 
   return withTenant(workspace.id, async (tx) => {
+    if (await isDeprovisioned(tx, workspace.id, userId)) {
+      throw new IdentityError('access_denied', 'Your access to this workspace was removed');
+    }
     const existing = await tx.workspaceMember.findUnique({
       where: { workspaceId_userId: { workspaceId: workspace.id, userId } },
     });
@@ -208,7 +213,7 @@ export async function provisionSsoMember(
         resourceId: userId,
         metadata: {
           email: info.email,
-          provider: workspaceProviderId(slug),
+          provider: providerId,
           groups: info.groups ?? [],
           role,
           ...(change && { change }),

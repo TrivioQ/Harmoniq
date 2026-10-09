@@ -70,7 +70,11 @@ export type IdentityProvider =
 export class IdentityError extends Error {
   constructor(
     public readonly code:
-      'invalid_grant' | 'email_not_verified' | 'provider_unavailable' | 'invalid_token',
+      | 'invalid_grant'
+      | 'email_not_verified'
+      | 'provider_unavailable'
+      | 'invalid_token'
+      | 'access_denied',
     message: string
   ) {
     super(message);

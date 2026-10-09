@@ -15,6 +15,7 @@ export function SettingsNav({
     alerts: string;
     approvals: string;
     sso: string;
+    provisioning: string;
   };
 }) {
   const pathname = usePathname();
@@ -27,6 +28,7 @@ export function SettingsNav({
     [`${base}/alerts`, labels.alerts],
     [`${base}/approvals`, labels.approvals],
     [`${base}/sso`, labels.sso],
+    [`${base}/provisioning`, labels.provisioning],
   ] as const;
   return (
     <nav className="flex md:flex-col gap-1 text-sm">

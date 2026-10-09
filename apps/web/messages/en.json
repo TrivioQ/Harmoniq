@@ -85,7 +85,8 @@
     "adminOnly": "Only workspace admins and owners can change settings.",
     "alerts": "Alerts",
     "approvalRules": "Approval rules",
-    "sso": "Single sign-on"
+    "sso": "Single sign-on",
+    "provisioning": "Provisioning (SCIM)"
   },
   "LoginPage": {
     "title": "Sign in to Harmoniq",
@@ -217,7 +218,9 @@
     "approvalPolicySaved": "Approval rules for {environment} saved.",
     "approvalPolicyRemoved": "Changes to {environment} no longer need approval.",
     "ssoSaved": "Single sign-on saved; the identity provider answered.",
-    "ssoRemoved": "Single sign-on removed."
+    "ssoRemoved": "Single sign-on removed.",
+    "scimToken": "SCIM token created. Paste it into your identity provider.",
+    "scimDisabled": "SCIM provisioning turned off."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -599,5 +602,21 @@
     "samlTestResult": "Test sign-in result (no session was created)",
     "samlTestExpired": "This test result has expired or doesn't exist. Run the test again.",
     "samlTestMapped": "Signed in as {email}, groups: {groups}"
+  },
+  "ProvisioningPage": {
+    "description": "Let your identity provider (Okta, Entra ID, OneLogin …) create, update and remove members over SCIM 2.0. Groups map to roles with the group → role mapping in Single sign-on.",
+    "baseUrl": "SCIM base URL",
+    "status": "Status",
+    "enabled": "On since {since} · {users} users · {groups} groups",
+    "disabled": "Off",
+    "howItWorks": "Deactivating or deleting a user at the IdP removes their membership, revokes their API keys in this workspace and ends the sessions they started through this workspace’s single sign-on. They can’t rejoin through SSO until the IdP reactivates them. Owners are never demoted, and the last owner is never removed.",
+    "enable": "Turn on and create token",
+    "rotate": "Rotate token",
+    "rotateConfirm": "Rotate the SCIM token? The current token stops working immediately.",
+    "copyOnce": "Copy this token now; it won’t be shown again. Use it as the bearer token (API token) in your IdP.",
+    "disable": "Turn off",
+    "disableConfirm": "Turn off SCIM provisioning? Existing members stay; the IdP can no longer change them.",
+    "events": "Recent SCIM requests",
+    "noEvents": "No requests yet."
   }
 }

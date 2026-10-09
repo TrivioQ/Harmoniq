@@ -378,11 +378,11 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] SAML Response full validation (SSO-14)
 - [x] Per-workspace SP signing key pair generation + encrypted storage (SSO-18)
 - [x] Dashboard: SAML Setup Wizard for Okta, Azure AD, ADFS (SSO-19)
-- [ ] Dashboard: Test Connection button (SSO-20)
-- [ ] SCIM 2.0 endpoint `/scim/v2` for Okta/Azure AD push provisioning (SSO-24)
-- [ ] Forced SSO enforcement (SSO-26)
-- [ ] JIT provisioning + domain auto-join (SSO-21, SSO-22)
-- [ ] Group-to-role mapping (SSO-23)
+- [x] Dashboard: Test Connection button (SSO-20)
+- [x] SCIM 2.0 endpoint `/scim/v2` for Okta/Azure AD push provisioning (SSO-24)
+- [x] Forced SSO enforcement (SSO-26)
+- [x] JIT provisioning + domain auto-join (SSO-21, SSO-22)
+- [x] Group-to-role mapping (SSO-23)
 
 ### Performance
 

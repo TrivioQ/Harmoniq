@@ -305,17 +305,18 @@ prisma.$use(async (params, next) => {
 
 ### `WorkspaceConfig` — New Columns
 
-| Column           | Type       | Notes                                                                         |
-| ---------------- | ---------- | ----------------------------------------------------------------------------- |
-| `oauthProvider`  | `String`   | Now supports: `github \| google \| oidc \| saml`                              |
-| `oidcConfig`     | `Json?`    | Encrypted: issuer, clientId, clientSecret, scopes, roleMapping (SSO-03)       |
-| `samlConfig`     | `Json?`    | Encrypted: entityId, ssoUrl, sloUrl, idpCert, spKeyPair, attrMapping (SSO-15) |
-| `forceSso`       | `Boolean`  | Default: false (SSO-26)                                                       |
-| `trustedDomains` | `String[]` | e.g. `["acme.com"]` (SSO-22)                                                  |
-| `defaultSsoRole` | `String`   | Default: `"viewer"` — role assigned on domain-based auto-join                 |
-| `scimEnabled`    | `Boolean`  | Default: false (SSO-24)                                                       |
-| `scimTokenHash`  | `String?`  | argon2id hash of the SCIM bearer token                                        |
-| `plan`           | `String`   | `hobby \| startup \| enterprise` — default: `hobby` (PLN-01)                  |
+| Column               | Type        | Notes                                                                         |
+| -------------------- | ----------- | ----------------------------------------------------------------------------- |
+| `oauthProvider`      | `String`    | Now supports: `github \| google \| oidc \| saml`                              |
+| `oidcConfig`         | `Json?`     | Encrypted: issuer, clientId, clientSecret, scopes, roleMapping (SSO-03)       |
+| `samlConfig`         | `Json?`     | Encrypted: entityId, ssoUrl, sloUrl, idpCert, spKeyPair, attrMapping (SSO-15) |
+| `forceSso`           | `Boolean`   | Default: false (SSO-26)                                                       |
+| `trustedDomains`     | `String[]`  | e.g. `["acme.com"]` (SSO-22)                                                  |
+| `defaultSsoRole`     | `String`    | Default: `"viewer"` — role assigned on domain-based auto-join                 |
+| `scimEnabled`        | `Boolean`   | Default: false (SSO-24)                                                       |
+| `scimTokenHash`      | `String?`   | Unique; sha256 of the SCIM bearer token (high-entropy, looked up by hash)     |
+| `scimTokenCreatedAt` | `DateTime?` | When the current token was issued                                             |
+| `plan`               | `String`    | `hobby \| startup \| enterprise` — default: `hobby` (PLN-01)                  |
 
 ---
 
@@ -482,17 +483,44 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 
 ---
 
+### `ScimUser`
+
+| Column                                   | Type        | Notes                                                 |
+| ---------------------------------------- | ----------- | ----------------------------------------------------- |
+| `id`                                     | `CUID`      | Primary key; the SCIM resource id                     |
+| `workspaceId`                            | `CUID`      | FK → Workspace (RLS key)                              |
+| `userId`                                 | `CUID`      | FK → User                                             |
+| `userName`, `externalId`                 | `String`    | As sent by the IdP                                    |
+| `displayName`, `givenName`, `familyName` | `String?`   |                                                       |
+| `active`                                 | `Boolean`   | `false`: deprovisioned                                |
+| `deletedAt`                              | `DateTime?` | Deleted at the IdP; kept so SSO can't re-add the user |
+
+**Unique**: `(workspaceId, userId)`, `(workspaceId, userName)`  
+**RLS**: enabled, policy on `workspaceId`
+
+### `ScimGroup`
+
+| Column                      | Type       | Notes                                 |
+| --------------------------- | ---------- | ------------------------------------- |
+| `id`                        | `CUID`     | Primary key; the SCIM resource id     |
+| `workspaceId`               | `CUID`     | FK → Workspace (RLS key)              |
+| `displayName`, `externalId` | `String`   | The name maps to a role (SSO mapping) |
+| `memberIds`                 | `String[]` | ScimUser ids                          |
+
+**Unique**: `(workspaceId, displayName)`  
+**RLS**: enabled, policy on `workspaceId`
+
 ### `ScimAuditEvent`
 
-| Column        | Type       | Notes                                                  |
-| ------------- | ---------- | ------------------------------------------------------ |
-| `id`          | `CUID`     | Primary key                                            |
-| `workspaceId` | `CUID`     | FK → Workspace (RLS key)                               |
-| `operation`   | `String`   | `"user.create" \| "user.update" \| "user.deprovision"` |
-| `scimUserId`  | `String`   | External SCIM user ID                                  |
-| `payload`     | `Json`     | SCIM request/response payload                          |
-| `statusCode`  | `Int`      | HTTP status code returned                              |
-| `createdAt`   | `DateTime` | Immutable                                              |
+| Column        | Type       | Notes                                     |
+| ------------- | ---------- | ----------------------------------------- |
+| `id`          | `CUID`     | Primary key                               |
+| `workspaceId` | `CUID`     | FK → Workspace (RLS key)                  |
+| `operation`   | `String`   | Method and route, e.g. `PATCH /Users/:id` |
+| `scimUserId`  | `String`   | The SCIM resource id (user or group)      |
+| `payload`     | `Json`     | SCIM request body (passwords dropped)     |
+| `statusCode`  | `Int`      | HTTP status code returned                 |
+| `createdAt`   | `DateTime` | Immutable                                 |
 
 **Index**: `(workspaceId, createdAt DESC)`  
 **RLS**: enabled, policy on `workspaceId`

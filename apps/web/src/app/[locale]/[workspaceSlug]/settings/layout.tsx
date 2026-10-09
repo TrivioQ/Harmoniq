@@ -29,6 +29,7 @@ export default async function SettingsLayout(props: {
               alerts: t('alerts'),
               approvals: t('approvalRules'),
               sso: t('sso'),
+              provisioning: t('provisioning'),
             }}
           />
           <div className="min-w-0">{props.children}</div>

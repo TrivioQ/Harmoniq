@@ -709,3 +709,23 @@ export async function testSamlAction(
   }
   redirect(url);
 }
+
+// ─── SCIM (SSO-24) ──────────────────────────────────────────────────────────
+
+export async function rotateScimTokenAction(workspace: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/workspaces/${enc(workspace)}/scim/token`, { method: 'POST' }),
+    (t, r) => ({
+      status: 'success',
+      message: t('scimToken'),
+      secret: (r as { token: string }).token,
+    })
+  );
+}
+
+export async function disableScimAction(workspace: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/workspaces/${enc(workspace)}/scim`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('scimDisabled') })
+  );
+}

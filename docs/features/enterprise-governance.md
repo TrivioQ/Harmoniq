@@ -23,6 +23,7 @@ Large enterprises operating in regulated industries require three capabilities t
 | `RBAC-01`–`RBAC-06`                                     | Module ownership and module-scoped access                                                               | ✅ Done (M4.1) |
 | `SSO-01`–`SSO-08`, `SSO-21`–`SSO-23`, `SSO-26`–`SSO-28` | OIDC single sign-on, JIT, domain join, group mapping, forced SSO, IdP session lifetime                  | ✅ Done (M4.4) |
 | `SSO-09`–`SSO-20`                                       | SAML 2.0 single sign-on: SP/IdP-initiated, metadata, SLO, signing keypair, setup notes, test connection | ✅ Done (M4.5) |
+| `SSO-24`, `SSO-25`                                      | SCIM 2.0 provisioning and deprovisioning (workspace level; org level comes with organizations)          | ✅ Done (M4.6) |
 | `ENV-FRZ-03`–`04`                                       | Owner freeze override, scheduled freeze windows                                                         | ✅ Done (M4.2) |
 | `APR-01`–`APR-18`                                       | Change Approval Workflows                                                                               | 📋 Planned     |
 | `ORG-01`–`ORG-15`                                       | Organization Hierarchy                                                                                  | 📋 Planned     |
@@ -41,6 +42,10 @@ Workspace providers (`oidc:<workspace>`) are built from `WorkspaceConfig.oidcCon
 `saml:<workspace>` providers are built from `WorkspaceConfig.samlConfig` with `@node-saml/node-saml`. The SP signing key is generated with the first save (self-signed, 10 years) and sealed at rest; AuthnRequests are signed and responses must carry a signed assertion. SAML has no PKCE, so the ACS binds the login to the browser itself: `start` stores the dashboard's state and code challenge under the request's RelayState, the ACS checks `InResponseTo` against the request ids it issued (kept in the cache for ten minutes) and hands the dashboard a one-time code that only the holder of the PKCE verifier can exchange. IdP-initiated responses have nothing to bind to, so they are refused unless the workspace opts in; the code then goes straight to the dashboard's redeem route.
 
 Every session started through a workspace's IdP (OIDC or SAML) is confined to that workspace: that IdP vouches for its own members, not for what the same person can do elsewhere.
+
+### Provisioning (SCIM)
+
+The SCIM token identifies the workspace (its sha256 is unique), so the endpoint is the same `/scim/v2` for every workspace. A SCIM user links the IdP account to a global `User` by email, and the membership is derived from it after every change: active → member with a role from the SCIM groups (through the SSO role mapping), inactive or deleted → no membership. The `ScimUser` row outlives deprovisioning on purpose: it is what stops a trusted-domain SSO login from silently re-adding someone the IdP removed. Session revocation happens after the tenant transaction, through the system client, because sessions are not tenant data.
 
 ### Change approvals (APR-01..18)
 
@@ -103,6 +108,22 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-09 — SCIM provisioning (M4.6)
+
+**Type:** Feature
+**Author:** Shashi Kumar Dhandapani
+**Refs:** SSO-24, SSO-25, SSO-28
+
+**Summary:**
+
+- `/scim/v2` Users and Groups (filters, paging, PATCH in Okta and Entra ID shapes) with a per-workspace bearer token, rotated from Settings → Provisioning.
+- Memberships follow SCIM users; group → role mapping shared with SSO; deprovisioning removes the membership, the user's API keys in the workspace and their workspace SSO sessions, and blocks SSO re-entry. Last owner protected.
+- Audit events for provisioning, deprovisioning and role sync; `ScimAuditEvent` per SCIM write.
+
+**Tests:**
+
+`scim.test.ts`: token issue/rotation/disable, SCIM errors, provisioning and filters, groups → roles through Okta and Entra ID PATCH shapes, deactivate/reactivate/delete/re-create with keys and sessions revoked and SSO refused, last owner, tenant isolation.
 
 ### 2026-10-09 — SAML 2.0 single sign-on (M4.5)
 

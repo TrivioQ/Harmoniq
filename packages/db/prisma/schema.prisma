@@ -24,6 +24,7 @@ model User {
   RefreshTokens       RefreshToken[]
   OrganizationMembers OrganizationMember[]
   InstanceAdmin       InstanceAdmin?
+  ScimUsers           ScimUser[]
 }
 
 model Workspace {
@@ -56,6 +57,8 @@ model Workspace {
   ModuleEnvStates            ModuleEnvState[]
   ScheduledOperations        ScheduledOperation[]
   ScimAuditEvents            ScimAuditEvent[]
+  ScimUsers                  ScimUser[]
+  ScimGroups                 ScimGroup[]
   ApprovalPolicies           ApprovalPolicy[]
   DeploymentRequests         DeploymentRequest[]
 }
@@ -353,24 +356,26 @@ model AuditEvent {
 }
 
 model WorkspaceConfig {
-  id              String    @id @default(cuid())
-  workspaceId     String    @unique
-  oauthProvider   String    @default("github")
-  oauthConfig     Json?
-  storageProvider String    @default("local")
-  storageConfig   Json?
-  logProvider     String    @default("console")
-  logConfig       Json?
-  oidcConfig      Json?
-  samlConfig      Json?
-  forceSso        Boolean   @default(false)
-  trustedDomains  String[]
-  defaultSsoRole  String    @default("viewer")
-  scimEnabled     Boolean   @default(false)
-  scimTokenHash   String?
-  plan            String    @default("hobby")
-  updatedAt       DateTime  @updatedAt
-  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(cuid())
+  workspaceId        String    @unique
+  oauthProvider      String    @default("github")
+  oauthConfig        Json?
+  storageProvider    String    @default("local")
+  storageConfig      Json?
+  logProvider        String    @default("console")
+  logConfig          Json?
+  oidcConfig         Json?
+  samlConfig         Json?
+  forceSso           Boolean   @default(false)
+  trustedDomains     String[]
+  defaultSsoRole     String    @default("viewer")
+  scimEnabled        Boolean   @default(false)
+  /// sha256 of the SCIM bearer token (SSO-24).
+  scimTokenHash      String?   @unique
+  scimTokenCreatedAt DateTime?
+  plan               String    @default("hobby")
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model ModuleOwnership {
@@ -475,6 +480,43 @@ model ModuleHealthRollup {
 
   @@unique([remoteModuleId, environmentId, variant, hour])
   @@index([workspaceId, hour])
+}
+
+/// SSO-24/25: a user provisioned by the workspace's IdP over SCIM. Kept after
+/// deprovisioning (`active: false` / `deletedAt`) so SSO can't silently re-add them.
+model ScimUser {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  userName    String
+  externalId  String?
+  displayName String?
+  givenName   String?
+  familyName  String?
+  active      Boolean   @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@unique([workspaceId, userName])
+  @@index([workspaceId, externalId])
+}
+
+/// SCIM groups; members are ScimUser ids. Group names map to roles like SSO groups.
+model ScimGroup {
+  id          String    @id @default(cuid())
+  workspaceId String
+  displayName String
+  externalId  String?
+  memberIds   String[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, displayName])
 }
 
 model ScimAuditEvent {

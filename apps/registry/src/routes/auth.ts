@@ -127,7 +127,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   async function finishLogin(info: IdentityUserInfo, providerId: string, ip: string) {
     const { user, response } = await auth.login(info, providerId);
     const sso = await providers.policyFor(providerId);
-    if (sso) await provisionSsoMember(fastify, sso.slug, providerId, sso.policy, user.id, info, ip);
+    if (sso) {
+      try {
+        await provisionSsoMember(fastify, sso.slug, providerId, sso.policy, user.id, info, ip);
+      } catch (err) {
+        await auth.logout(response.refreshToken); // e.g. deprovisioned over SCIM
+        throw err;
+      }
+    }
     return response;
   }
 

@@ -341,6 +341,23 @@ export interface SamlTestResult {
   mapped: { email?: string; name?: string; groups?: string[]; error?: string };
 }
 
+export interface ScimSettings {
+  enabled: boolean;
+  baseUrl: string;
+  tokenCreatedAt: string | null;
+  users: number;
+  groups: number;
+}
+
+export interface ScimEvent {
+  id: string;
+  operation: string;
+  scimUserId: string;
+  payload: unknown;
+  statusCode: number;
+  createdAt: string;
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
@@ -389,6 +406,9 @@ export const workspaceApi = {
   approvalPolicies: (slug: string) =>
     authedFetch<{ policies: ApprovalPolicySummary[] }>(`${ws(slug)}/approval-policies`),
   sso: (slug: string) => authedFetch<{ oidc: OidcSettings | null }>(`${ws(slug)}/sso/oidc`),
+  scim: (slug: string) => authedFetch<ScimSettings>(`${ws(slug)}/scim`),
+  scimEvents: (slug: string) =>
+    authedFetch<{ events: ScimEvent[] }>(`${ws(slug)}/scim/events?limit=50`),
   saml: (slug: string) => authedFetch<SamlSettingsResponse>(`${ws(slug)}/sso/saml`),
   samlTest: (slug: string, id: string) =>
     authedFetch<SamlTestResult>(`${ws(slug)}/sso/saml/test/${enc(id)}`),
