@@ -105,29 +105,35 @@ model HostApp {
 }
 
 model Environment {
-  id                  String               @id @default(cuid())
-  hostAppId           String
-  name                String
-  slug                String
-  isDefault           Boolean              @default(false)
-  frozenAt            DateTime?
-  frozenBy            String?
-  freezeReason        String?
-  freezeUntil         DateTime?
+  id                   String               @id @default(cuid())
+  hostAppId            String
+  name                 String
+  slug                 String
+  isDefault            Boolean              @default(false)
+  frozenAt             DateTime?
+  frozenBy             String?
+  freezeReason         String?
+  /// ENV-FRZ-04: a scheduled freeze starts here (null: as soon as it is set).
+  freezeFrom           DateTime?
+  freezeUntil          DateTime?
+  /// ENV-FRZ-03: an owner lets changes through a freeze until then, for a reason.
+  freezeOverrideUntil  DateTime?
+  freezeOverrideReason String?
+  freezeOverrideBy     String?
   /// Last manifest copy written to storage/CDN (M2.1); hosts can read it without the registry.
-  lastPublishedEtag   String?
-  lastPublishedAt     DateTime?
-  lastPublishError    String?
+  lastPublishedEtag    String?
+  lastPublishedAt      DateTime?
+  lastPublishError     String?
   /// Preview environment created by a deploy; deleted after `expiresAt`.
-  ephemeral           Boolean              @default(false)
-  expiresAt           DateTime?
-  hostApp             HostApp              @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
-  ModuleVersions      ModuleVersion[]
-  ManifestSnapshots   ManifestSnapshot[]
-  ModuleHealthEvents  ModuleHealthEvent[]
-  ModuleHealthRollups ModuleHealthRollup[]
-  AlertRules          AlertRule[]
-  ModuleEnvStates     ModuleEnvState[]
+  ephemeral            Boolean              @default(false)
+  expiresAt            DateTime?
+  hostApp              HostApp              @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
+  ModuleVersions       ModuleVersion[]
+  ManifestSnapshots    ManifestSnapshot[]
+  ModuleHealthEvents   ModuleHealthEvent[]
+  ModuleHealthRollups  ModuleHealthRollup[]
+  AlertRules           AlertRule[]
+  ModuleEnvStates      ModuleEnvState[]
 
   @@unique([hostAppId, slug])
   @@index([ephemeral, expiresAt])

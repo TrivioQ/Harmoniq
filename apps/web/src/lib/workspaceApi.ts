@@ -14,6 +14,10 @@ export interface EnvironmentSummary {
   freezeReason: string | null;
   freezeUntil: string | null;
   frozenBy: string | null;
+  /** ENV-FRZ-04: a freeze window that starts later. */
+  scheduledFreeze: { from: string; until: string | null; reason: string | null } | null;
+  /** ENV-FRZ-03: an owner's open override window. */
+  freezeOverride: { until: string; reason: string | null; by: string | null } | null;
   ephemeral: boolean;
   expiresAt: string | null;
   /** Published (CDN) copy; null when no storage is configured. */

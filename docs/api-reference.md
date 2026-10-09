@@ -230,7 +230,7 @@ Copies the exact artifact (URL, integrity, metadata) active in `fromEnvironment`
 | `GET /api/workspaces/:ws/modules/:moduleRef/owners`                            | read       | Module owners (RBAC-01)                                              |
 | `PUT /api/workspaces/:ws/modules/:moduleRef/owners`                            | admin      | `{ memberIds }` replaces the owners; `[]` makes the module ownerless |
 
-All changes to a frozen environment return `423`. Manifest reads are never blocked.
+All changes to a frozen environment return `423`. Manifest reads are never blocked. A workspace owner (with a session, never an API key) can also push a single request through with the header `X-Harmoniq-Freeze-Override: <reason>`; it is audited as `env.freeze_override`. For CI hotfixes, open an override window instead.
 
 **Module ownership** (RBAC-02/03): when a module has owners, only they and workspace admins/owners can deploy, roll back, promote, run canaries, use the kill switch or schedule those for it; other developers get `403` (audited as `module.unauthorized_attempt`). Modules without owners are open to every developer. `GET …/modules/:moduleRef` returns `owners` and `canWrite` for the caller.
 
@@ -246,7 +246,8 @@ All changes to a frozen environment return `423`. Manifest reads are never block
 | `POST /api/workspaces/:ws/host-apps/:hostApp/environments`                  | admin                     | `{ name, slug }`                                                                                                                                        |
 | `PATCH /api/workspaces/:ws/host-apps/:hostApp`                              | admin                     | `{ name?, description?, previewUrlTemplate?, sharedDependencies?, strictExposes? }` (M3.7: host-shared semver ranges; reject deploys that drop exposes) |
 | `GET /api/workspaces/:ws/host-apps/:hostApp/environments/:env/dependencies` | read                      | Dependency matrix (DEP-04): `packages`, `sources` (host + active modules) and `conflicts`                                                               |
-| `PUT /api/workspaces/:ws/host-apps/:hostApp/environments/:env/freeze`       | admin                     | `{ reason, until? }`; emits `env.frozen`                                                                                                                |
+| `PUT /api/workspaces/:ws/host-apps/:hostApp/environments/:env/freeze`       | admin                     | `{ reason, from?, until? }`; `from` schedules the window (ENV-FRZ-04); emits `env.frozen`                                                               |
+| `POST …/freeze/override`                                                    | owner                     | `{ reason (≥10 chars), minutes (5–240, default 60) }`: changes pass the freeze until then, each recording the override (ENV-FRZ-03); `DELETE` ends it   |
 | `DELETE …/freeze`                                                           | admin                     | Unfreeze; emits `env.unfrozen`                                                                                                                          |
 | `GET /api/workspaces/:ws/audit?actor&action&resourceId&from&to&cursor`      | read                      | Audit log; `action=module.` matches a prefix                                                                                                            |
 | `GET/POST /api/workspaces/:ws/storage`                                      | admin (or instance admin) | Workspace bucket; credentials are write-only and returned masked                                                                                        |

@@ -63,7 +63,16 @@
     "reasonPlaceholder": "Reason, e.g. Black Friday",
     "reason": "Reason",
     "until": "Frozen until (optional)",
-    "dependencies": "Dependencies"
+    "dependencies": "Dependencies",
+    "from": "from",
+    "freezeScheduled": "Freeze scheduled from {from}: {reason}",
+    "overrideActive": "Owner override until {until}: changes pass the freeze ({reason})",
+    "overrideOpen": "Allow changes",
+    "overrideClose": "End override",
+    "overrideConfirm": "Let changes through this freeze for the chosen time? Every change will record your reason.",
+    "overrideReason": "Why (e.g. hotfix INC-4711)",
+    "overrideMinutes": "Duration",
+    "minutes": "{count} min"
   },
   "SettingsPage": {
     "title": "Settings",
@@ -191,7 +200,9 @@
     "moduleDisabled": "Module disabled. Hosts stop loading it at their next manifest fetch.",
     "moduleEnabled": "Module enabled again.",
     "scheduleCancelled": "Scheduled operation cancelled.",
-    "ownersUpdated": "Module owners updated."
+    "ownersUpdated": "Module owners updated.",
+    "freezeOverrideOpened": "Changes to {environment} pass the freeze until the override ends.",
+    "freezeOverrideClosed": "The freeze on {environment} applies again."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -232,7 +243,9 @@
       "schedule_executed": "Ran a scheduled {name} of {module} in {environment}",
       "schedule_failed": "A scheduled {name} of {module} in {environment} failed",
       "module_owners_update": "Changed the owners of {module}",
-      "module_unauthorized_attempt": "Was refused a change to {module} (not an owner)"
+      "module_unauthorized_attempt": "Was refused a change to {module} (not an owner)",
+      "env_freeze_override": "Overrode the freeze on {environment}: {reason}",
+      "env_freeze_override_end": "Ended the freeze override on {environment}"
     },
     "systemActor": "automatic"
   },

@@ -9,6 +9,7 @@ import {
 } from '@harmoniq/core/dist/errors/AppError';
 import { DeployRequestSchema } from '@harmoniq/core/dist/schemas/DeployRequestSchema';
 import {
+  FREEZE_OVERRIDE_HEADER,
   PromoteRequestSchema,
   RollbackRequestSchema,
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
@@ -58,7 +59,22 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   const { withTenant, mutations } = fastify.container;
   const { config } = fastify;
 
-  const actor = (request: FastifyRequest) => ({ principal: request.principal!, ip: request.ip });
+  /**
+   * The audit actor. ENV-FRZ-03: `X-Harmoniq-Freeze-Override: <reason>` lets a workspace
+   * owner (never an API key) push this change through a freeze; the pipeline audits it.
+   */
+  const actor = (request: FastifyRequest) => {
+    const header = request.headers[FREEZE_OVERRIDE_HEADER];
+    const reason = (Array.isArray(header) ? header[0] : header)?.trim();
+    if (!reason) return { principal: request.principal!, ip: request.ip };
+    if (request.principal!.type !== 'user' || request.workspaceRole !== 'owner') {
+      throw new ForbiddenError('Only workspace owners can override a freeze');
+    }
+    if (reason.length < 10) {
+      throw new BadRequestError('Explain the freeze override (at least 10 characters)');
+    }
+    return { principal: request.principal!, ip: request.ip, freezeOverride: reason.slice(0, 500) };
+  };
   /** Whether the caller has `module:deploy` at all (before module ownership). */
   const mayDeploy = (request: FastifyRequest) => {
     const principal = request.principal!;

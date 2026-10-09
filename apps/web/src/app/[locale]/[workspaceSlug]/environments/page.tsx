@@ -2,7 +2,7 @@ import { getFormatter, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
 import { roleAtLeast, workspaceApi } from '@/lib/workspaceApi';
-import { freezeAction, unfreezeAction } from '../actions';
+import { freezeAction, freezeOverrideAction, unfreezeAction } from '../actions';
 
 export default async function EnvironmentsPage(props: {
   params: Promise<{ workspaceSlug: string }>;
@@ -12,6 +12,9 @@ export default async function EnvironmentsPage(props: {
   const format = await getFormatter();
   const workspace = await workspaceApi.get(workspaceSlug);
   const isAdmin = roleAtLeast(workspace.role, 'admin');
+  const isOwner = workspace.role === 'owner';
+  const when = (iso: string) =>
+    format.dateTime(new Date(iso), { dateStyle: 'medium', timeStyle: 'short' });
 
   return (
     <div className="container p-6 md:p-10 max-w-6xl space-y-8">
@@ -71,8 +74,65 @@ export default async function EnvironmentsPage(props: {
                   </p>
                 )}
 
+                {env.scheduledFreeze && (
+                  <p className="text-sm text-blue-900">
+                    {t('freezeScheduled', {
+                      from: when(env.scheduledFreeze.from),
+                      reason: env.scheduledFreeze.reason ?? '',
+                    })}
+                  </p>
+                )}
+                {env.freezeOverride && (
+                  <p className="text-sm text-amber-900">
+                    {t('overrideActive', {
+                      until: when(env.freezeOverride.until),
+                      reason: env.freezeOverride.reason ?? '',
+                    })}
+                  </p>
+                )}
+                {isOwner && env.frozen && (
+                  <ActionForm
+                    action={freezeOverrideAction.bind(
+                      null,
+                      workspaceSlug,
+                      hostApp.slug,
+                      env.slug,
+                      !env.freezeOverride
+                    )}
+                    submitLabel={env.freezeOverride ? t('overrideClose') : t('overrideOpen')}
+                    confirm={env.freezeOverride ? undefined : t('overrideConfirm')}
+                    variant="outline"
+                    className="flex flex-wrap items-center gap-2"
+                  >
+                    {!env.freezeOverride && (
+                      <>
+                        <input
+                          name="reason"
+                          required
+                          minLength={10}
+                          placeholder={t('overrideReason')}
+                          aria-label={t('overrideReason')}
+                          className="rounded-md border px-2 py-1.5 text-sm w-72"
+                        />
+                        <select
+                          name="minutes"
+                          defaultValue="60"
+                          aria-label={t('overrideMinutes')}
+                          className="rounded-md border px-2 py-1.5 text-sm"
+                        >
+                          {[15, 30, 60, 120, 240].map((m) => (
+                            <option key={m} value={m}>
+                              {t('minutes', { count: m })}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                  </ActionForm>
+                )}
+
                 {isAdmin &&
-                  (env.frozen ? (
+                  (env.frozen || env.scheduledFreeze ? (
                     <ActionForm
                       action={unfreezeAction.bind(null, workspaceSlug, hostApp.slug, env.slug)}
                       submitLabel={t('unfreeze')}
@@ -93,12 +153,22 @@ export default async function EnvironmentsPage(props: {
                         aria-label={t('reason')}
                         className="rounded-md border px-2 py-1.5 text-sm w-64"
                       />
-                      <input
-                        name="until"
-                        type="datetime-local"
-                        aria-label={t('until')}
-                        className="rounded-md border px-2 py-1.5 text-sm"
-                      />
+                      <label className="text-xs text-muted-foreground flex items-center gap-1">
+                        {t('from')}
+                        <input
+                          name="from"
+                          type="datetime-local"
+                          className="rounded-md border px-2 py-1.5 text-sm"
+                        />
+                      </label>
+                      <label className="text-xs text-muted-foreground flex items-center gap-1">
+                        {t('until')}
+                        <input
+                          name="until"
+                          type="datetime-local"
+                          className="rounded-md border px-2 py-1.5 text-sm"
+                        />
+                      </label>
                     </ActionForm>
                   ))}
               </div>

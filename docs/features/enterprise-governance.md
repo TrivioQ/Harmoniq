@@ -18,16 +18,21 @@ Large enterprises operating in regulated industries require three capabilities t
 
 ## Requirements
 
-| ID                  | Requirement                               | Status         |
-| ------------------- | ----------------------------------------- | -------------- |
-| `RBAC-01`–`RBAC-06` | Module ownership and module-scoped access | ✅ Done (M4.1) |
-| `APR-01`–`APR-18`   | Change Approval Workflows                 | 📋 Planned     |
-| `ORG-01`–`ORG-15`   | Organization Hierarchy                    | 📋 Planned     |
-| `IaC-01`–`IaC-14`   | GitOps / Infrastructure as Code           | 📋 Planned     |
+| ID                  | Requirement                                     | Status         |
+| ------------------- | ----------------------------------------------- | -------------- |
+| `RBAC-01`–`RBAC-06` | Module ownership and module-scoped access       | ✅ Done (M4.1) |
+| `ENV-FRZ-03`–`04`   | Owner freeze override, scheduled freeze windows | ✅ Done (M4.2) |
+| `APR-01`–`APR-18`   | Change Approval Workflows                       | 📋 Planned     |
+| `ORG-01`–`ORG-15`   | Organization Hierarchy                          | 📋 Planned     |
+| `IaC-01`–`IaC-14`   | GitOps / Infrastructure as Code                 | 📋 Planned     |
 
 See [`docs/requirements.md §16`](../requirements.md) for the full specification.
 
 ## Architecture Notes
+
+### Freezes (ENV-FRZ-03/04)
+
+A freeze has an optional start (`freezeFrom`) and end; `isFrozen` evaluates the window at check time, so no job is needed to start or end one. Owners override in two ways: per request with the `X-Harmoniq-Freeze-Override` header (sessions only), or by opening a time-boxed window (`POST …/freeze/override`, at most 4 hours) during which changes from any authorized caller pass. That second form is the practical one for a CI hotfix, since API keys can never override. Every change made in a window records `freezeOverride` (reason, owner, end) in its audit event.
 
 ### Module ownership (RBAC)
 
@@ -82,6 +87,22 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-09 — Freeze windows and owner overrides (M4.2)
+
+**Type:** feature
+**PR / Branch:** feat/m4-enterprise
+**Refs:** ENV-FRZ-03, ENV-FRZ-04
+
+#### What changed
+
+- `freeze` accepts `from` (scheduled windows); environments show `scheduledFreeze`.
+- Owner overrides: the `X-Harmoniq-Freeze-Override` header, and time-boxed override windows (`POST/DELETE …/freeze/override`) that let CI hotfixes through; audited as `env.freeze_override`, with the override recorded on each change.
+- Dashboard: "from" on the freeze form, scheduled-freeze and override notices, owner controls; audit lines.
+
+#### Testing
+
+`freezeWindows.test.ts`: window evaluation, a scheduled freeze that only blocks once started, header override limited to owners with a reason, an override window letting an API-key deploy through with the override in its audit, closing it, unfreezing clearing everything. Checked in headless Chrome.
 
 ### 2026-10-09 — Module ownership (M4.1)
 

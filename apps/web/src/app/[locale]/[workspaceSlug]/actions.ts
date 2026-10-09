@@ -178,6 +178,7 @@ export async function freezeAction(
   _prev: ActionResult,
   form: FormData
 ): Promise<ActionResult> {
+  const from = field(form, 'from');
   const until = field(form, 'until');
   return run(
     () =>
@@ -187,6 +188,7 @@ export async function freezeAction(
           method: 'PUT',
           body: {
             reason: field(form, 'reason'),
+            ...(from && { from: new Date(from).toISOString() }),
             ...(until && { until: new Date(until).toISOString() }),
           },
         }
@@ -459,5 +461,35 @@ export async function setModuleOwnersAction(
         body: { memberIds },
       }),
     (t) => ({ status: 'success', message: t('ownersUpdated') })
+  );
+}
+
+// ─── Freeze override (ENV-FRZ-03) ───────────────────────────────────────────
+
+export async function freezeOverrideAction(
+  workspace: string,
+  hostApp: string,
+  environment: string,
+  open: boolean,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(
+        `/api/workspaces/${enc(workspace)}/host-apps/${enc(hostApp)}/environments/${enc(environment)}/freeze/override`,
+        open
+          ? {
+              body: {
+                reason: field(form, 'reason'),
+                minutes: Number(field(form, 'minutes') || 60),
+              },
+            }
+          : { method: 'DELETE' }
+      ),
+    (t) => ({
+      status: 'success',
+      message: t(open ? 'freezeOverrideOpened' : 'freezeOverrideClosed', { environment }),
+    })
   );
 }

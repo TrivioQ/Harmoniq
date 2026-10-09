@@ -1,5 +1,6 @@
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
+import type { Environment } from '@prisma/client';
 import {
   BadRequestError,
   ConflictError,
@@ -15,7 +16,10 @@ import {
   UpdateHostAppSchema,
   UpdateWorkspaceSchema,
 } from '@harmoniq/core/dist/schemas/ResourceSchemas';
-import { FreezeRequestSchema } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
+import {
+  FreezeOverrideRequestSchema,
+  FreezeRequestSchema,
+} from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import { audit } from '../services/audit';
 import { isFrozen } from '../services/manifestMutation';
 import { publishedPaths } from '../services/manifestPublisher';
@@ -120,6 +124,16 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
             freezeReason: isFrozen(e) ? e.freezeReason : null,
             freezeUntil: isFrozen(e) ? (e.freezeUntil?.toISOString() ?? null) : null,
             frozenBy: isFrozen(e) ? e.frozenBy : null,
+            freezeOverride: isFrozen(e) ? overrideOf(e) : null,
+            // ENV-FRZ-04: a freeze window that hasn't started yet.
+            scheduledFreeze:
+              e.frozenAt && e.freezeFrom && e.freezeFrom > new Date()
+                ? {
+                    from: e.freezeFrom.toISOString(),
+                    until: e.freezeUntil?.toISOString() ?? null,
+                    reason: e.freezeReason,
+                  }
+                : null,
             // M2.1: where hosts can read this environment without the registry.
             published: publishTarget && {
               manifestUrl: publishTarget.publicUrl(
@@ -283,6 +297,19 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  /** ENV-FRZ-03: the open override window, if any. */
+  function overrideOf(
+    env: Pick<Environment, 'freezeOverrideUntil' | 'freezeOverrideReason' | 'freezeOverrideBy'>
+  ) {
+    return env.freezeOverrideUntil && env.freezeOverrideUntil > new Date()
+      ? {
+          until: env.freezeOverrideUntil.toISOString(),
+          reason: env.freezeOverrideReason,
+          by: env.freezeOverrideBy,
+        }
+      : null;
+  }
+
   // ─── Freeze (ENV-FRZ-01/02/06) ────────────────────────────────────────────
 
   async function setFreeze(request: FastifyRequest<{ Params: EnvParams }>, freeze: boolean) {
@@ -308,9 +335,19 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
               frozenAt: new Date(),
               frozenBy: request.principal!.id,
               freezeReason: body!.reason,
+              freezeFrom: body!.from ? new Date(body!.from) : null,
               freezeUntil: body!.until ? new Date(body!.until) : null,
             }
-          : { frozenAt: null, frozenBy: null, freezeReason: null, freezeUntil: null },
+          : {
+              frozenAt: null,
+              frozenBy: null,
+              freezeReason: null,
+              freezeFrom: null,
+              freezeUntil: null,
+              freezeOverrideUntil: null,
+              freezeOverrideReason: null,
+              freezeOverrideBy: null,
+            },
       });
       await audit(tx, workspace.id, actor(request), {
         action: freeze ? 'env.freeze' : 'env.unfreeze',
@@ -331,7 +368,9 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
       slug: env.slug,
       frozen: isFrozen(env),
       freezeReason: env.freezeReason,
+      freezeFrom: env.freezeFrom?.toISOString() ?? null,
       freezeUntil: env.freezeUntil?.toISOString() ?? null,
+      override: overrideOf(env),
     };
   }
 
@@ -398,6 +437,58 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     freezeRoute,
     { preHandler: fastify.requireWorkspace('workspace:admin') },
     (request) => setFreeze(request, false)
+  );
+
+  // ENV-FRZ-03: owners open (POST) or close (DELETE) a window in which changes pass the
+  // freeze, e.g. for a hotfix deployed by CI. Opening it is audited as env.freeze_override.
+  async function setOverride(request: FastifyRequest<{ Params: EnvParams }>, open: boolean) {
+    const workspace = request.workspace!;
+    const { hostAppSlug, envSlug } = request.params;
+    const body = open ? FreezeOverrideRequestSchema.parse(request.body) : null;
+    const env = await withTenant(workspace.id, async (tx) => {
+      const hostApp = await tx.hostApp.findUnique({
+        where: { workspaceId_slug: { workspaceId: workspace.id, slug: hostAppSlug } },
+      });
+      const current =
+        hostApp &&
+        (await tx.environment.findUnique({
+          where: { hostAppId_slug: { hostAppId: hostApp.id, slug: envSlug } },
+        }));
+      if (!current) throw new NotFoundError('Environment not found');
+      if (open && !isFrozen(current)) throw new ConflictError(`"${envSlug}" is not frozen`);
+      const until = body ? new Date(Date.now() + body.minutes * 60_000) : null;
+      const updated = await tx.environment.update({
+        where: { id: current.id },
+        data: {
+          freezeOverrideUntil: until,
+          freezeOverrideReason: body?.reason ?? null,
+          freezeOverrideBy: body ? request.principal!.id : null,
+        },
+      });
+      await audit(tx, workspace.id, actor(request), {
+        action: open ? 'env.freeze_override' : 'env.freeze_override_end',
+        resourceType: 'environment',
+        resourceId: updated.id,
+        metadata: {
+          hostApp: hostAppSlug,
+          environment: envSlug,
+          ...(body && { reason: body.reason, until: until!.toISOString() }),
+          freezeReason: current.freezeReason,
+        },
+      });
+      return updated;
+    });
+    return { slug: env.slug, frozen: isFrozen(env), override: overrideOf(env) };
+  }
+  fastify.post<{ Params: EnvParams }>(
+    `${freezeRoute}/override`,
+    { preHandler: fastify.requireWorkspace('workspace:owner') },
+    (request) => setOverride(request, true)
+  );
+  fastify.delete<{ Params: EnvParams }>(
+    `${freezeRoute}/override`,
+    { preHandler: fastify.requireWorkspace('workspace:owner') },
+    (request) => setOverride(request, false)
   );
 };
 

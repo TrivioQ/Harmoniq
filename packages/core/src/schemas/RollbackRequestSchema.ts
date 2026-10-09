@@ -27,9 +27,24 @@ export const PromoteRequestSchema = z.object({
 export type PromoteRequest = z.infer<typeof PromoteRequestSchema>;
 
 // ENV-FRZ-01.
-export const FreezeRequestSchema = z.object({
-  reason: z.string().min(3).max(500),
-  until: z.string().datetime().optional(),
+// ENV-FRZ-04: `from` schedules the freeze window (e.g. a release weekend).
+export const FreezeRequestSchema = z
+  .object({
+    reason: z.string().min(3).max(500),
+    from: z.string().datetime({ offset: true }).optional(),
+    until: z.string().datetime({ offset: true }).optional(),
+  })
+  .refine((f) => !f.from || !f.until || new Date(f.from) < new Date(f.until), {
+    message: '`from` must be before `until`',
+  });
+
+/** ENV-FRZ-03: an owner opens a window in which changes pass the freeze (e.g. a hotfix from CI). */
+export const FreezeOverrideRequestSchema = z.object({
+  reason: z.string().min(10).max(500),
+  minutes: z.number().int().min(5).max(240).default(60),
 });
+
+/** ENV-FRZ-03: header an owner sends to push a change through a freeze, with the reason. */
+export const FREEZE_OVERRIDE_HEADER = 'x-harmoniq-freeze-override';
 
 export type FreezeRequest = z.infer<typeof FreezeRequestSchema>;

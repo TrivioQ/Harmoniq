@@ -29,9 +29,19 @@ export interface MutationOutcome<T> {
   events: Array<{ name: WebhookEventName; payload: Record<string, unknown> }>;
 }
 
-/** An environment is frozen until `freezeUntil` passes (or indefinitely without one). */
-export function isFrozen(env: Pick<Environment, 'frozenAt' | 'freezeUntil'>, now = new Date()) {
-  return !!env.frozenAt && (!env.freezeUntil || env.freezeUntil > now);
+/**
+ * An environment is frozen from `freezeFrom` (or as soon as the freeze is set) until
+ * `freezeUntil` (or indefinitely). ENV-FRZ-04.
+ */
+export function isFrozen(
+  env: Pick<Environment, 'frozenAt' | 'freezeFrom' | 'freezeUntil'>,
+  now = new Date()
+) {
+  return (
+    !!env.frozenAt &&
+    (!env.freezeFrom || env.freezeFrom <= now) &&
+    (!env.freezeUntil || env.freezeUntil > now)
+  );
 }
 
 /**
@@ -64,7 +74,26 @@ export class ManifestMutations {
     const committed = await this.deps.withTenant(workspace.id, async (tx) => {
       // Read inside the transaction so a concurrent freeze can't slip past (ENV-FRZ-02).
       const env = await tx.environment.findUniqueOrThrow({ where: { id: environment.id } });
-      if (isFrozen(env) && !opts.ignoreFreeze) {
+      const frozen = isFrozen(env);
+      if (frozen && !opts.ignoreFreeze && actor.freezeOverride) {
+        // ENV-FRZ-03: an owner's documented override (authorized by the route).
+        await audit(tx, workspace.id, actor, {
+          action: 'env.freeze_override',
+          resourceType: 'environment',
+          resourceId: env.id,
+          metadata: {
+            environment: env.slug,
+            reason: actor.freezeOverride,
+            freezeReason: env.freezeReason,
+          },
+        });
+      }
+      // ENV-FRZ-03: inside an owner's override window, changes pass and say so.
+      const overrideWindow =
+        frozen && !opts.ignoreFreeze && !actor.freezeOverride && env.freezeOverrideUntil
+          ? env.freezeOverrideUntil > new Date()
+          : false;
+      if (frozen && !opts.ignoreFreeze && !actor.freezeOverride && !overrideWindow) {
         throw new LockedError(
           `Environment "${env.slug}" is frozen: ${env.freezeReason ?? 'no reason given'}`,
           {
@@ -77,6 +106,16 @@ export class ManifestMutations {
       }
 
       const outcome = await operation(tx);
+      if (overrideWindow) {
+        outcome.audit.metadata = {
+          ...outcome.audit.metadata,
+          freezeOverride: {
+            reason: env.freezeOverrideReason,
+            by: env.freezeOverrideBy,
+            until: env.freezeOverrideUntil,
+          },
+        };
+      }
       const auditEvent = await audit(tx, workspace.id, actor, outcome.audit);
       const { built, snapshotId } = await this.snapshot(tx, target, auditEvent.id);
       return { outcome, built, snapshotId };

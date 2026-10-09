@@ -80,13 +80,15 @@ User ─────────────────── WorkspaceMember �
 
 ### `Environment`
 
-| Column      | Type      | Notes                        |
-| ----------- | --------- | ---------------------------- |
-| `id`        | `CUID`    | Primary key                  |
-| `hostAppId` | `CUID`    | FK → HostApp                 |
-| `name`      | `String`  | e.g. `production`, `staging` |
-| `slug`      | `String`  | URL-safe                     |
-| `isDefault` | `Boolean` | Default: false               |
+| Column                                                            | Type        | Notes                              |
+| ----------------------------------------------------------------- | ----------- | ---------------------------------- |
+| `id`                                                              | `CUID`      | Primary key                        |
+| `hostAppId`                                                       | `CUID`      | FK → HostApp                       |
+| `name`                                                            | `String`    | e.g. `production`, `staging`       |
+| `slug`                                                            | `String`    | URL-safe                           |
+| `isDefault`                                                       | `Boolean`   | Default: false                     |
+| `freezeFrom`                                                      | `DateTime?` | ENV-FRZ-04: scheduled freeze start |
+| `freezeOverrideUntil`, `freezeOverrideReason`, `freezeOverrideBy` |             | ENV-FRZ-03: owner override window  |
 
 **Unique constraint**: `(hostAppId, slug)`
 

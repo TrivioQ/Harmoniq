@@ -8,6 +8,8 @@ const KNOWN = [
   'module.create',
   'env.freeze',
   'env.unfreeze',
+  'env.freeze_override',
+  'env.freeze_override_end',
   'apiKey.create',
   'apiKey.revoke',
   'apiKey.rotate',
