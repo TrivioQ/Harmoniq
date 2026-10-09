@@ -126,6 +126,29 @@ describe('harmoniqPlugin (Module Federation 2.0 runtime)', () => {
     );
   });
 
+  it('keeps the configured remote type when hot-swapping (ES module entries)', async () => {
+    const client = clientWith(manifest('1.0.0'), manifest('1.1.0'));
+    const mf = new ModuleFederation({
+      name: 'host',
+      remotes: [{ name: 'checkout', entry: 'harmoniq:checkout', type: 'module' }],
+      plugins: [harmoniqPlugin(client)],
+    });
+    await resolve(mf, 'checkout/Page');
+    const register = vi.spyOn(mf, 'registerRemotes');
+
+    await (client as unknown as { fetchManifest(): Promise<void> }).fetchManifest();
+    expect(register).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          name: 'checkout',
+          type: 'module',
+          entry: 'https://cdn.example.com/checkout/1.1.0/remoteEntry.js',
+        }),
+      ],
+      { force: true }
+    );
+  });
+
   it('adds SRI and crossorigin to remote entry scripts it knows', async () => {
     const created: Array<Record<string, unknown>> = [];
     vi.stubGlobal('document', {

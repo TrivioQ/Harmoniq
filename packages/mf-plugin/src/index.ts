@@ -15,7 +15,13 @@ export interface HarmoniqPluginOptions {
   strict?: boolean;
 }
 
-type Remote = { name: string; alias?: string; entry?: string; version?: string };
+type Remote = {
+  name: string;
+  alias?: string;
+  entry?: string;
+  version?: string;
+  type?: string;
+};
 
 /**
  * Module Federation 2.0 runtime plugin: resolves remote entries from the Harmoniq
@@ -48,9 +54,16 @@ export function harmoniqPlugin(
     const before = new Map(integrityByUrl);
     index(manifest);
     if (!instance) return;
+    const configured = instance.options.remotes as Remote[];
+    // Keep the remote's other settings (e.g. `type: 'module'` for ES module entries).
     const changed = manifest.modules
       .filter((m) => !before.has(m.url))
-      .map((m) => ({ name: toRemote(m.name), entry: m.url }));
+      .map((m) => {
+        const name = toRemote(m.name);
+        const previous: Remote = { ...configured.find((r) => r.name === name), name };
+        delete previous.version; // version-based resolution would bypass the entry
+        return { ...previous, entry: m.url };
+      });
     if (changed.length) instance.registerRemotes(changed, { force: true });
   };
 

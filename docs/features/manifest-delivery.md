@@ -43,6 +43,21 @@ None.
 
 ## Change History
 
+### 2026-10-09 — Example and e2e: Vite + Module Federation 2.0
+
+**Type:** test/example
+**PR / Branch:** feat/m2-delivery
+**Refs:** report §5.1, §5.3; plan M2 verification
+
+#### What changed
+
+- `examples/vite-mf`: two `@module-federation/vite` remotes deployed by `@harmoniq/build-plugin`, a host using `@harmoniq/mf-plugin`, and a CDN stand-in. `e2e.mjs` (puppeteer-core, headless Chrome) checks deploy, live upgrade and rollback, registry and CDN outages (CDN copy → persisted copy → bundled fallback) and `?harmoniq-override=`. Runs in CI.
+- `@harmoniq/mf-plugin` fix: re-registered remotes keep their configured settings. They were re-registered as `{ name, entry }`, which dropped `type: 'module'`. Because the client's first manifest load also emits `manifestUpdate`, ES module remotes (e.g. `@module-federation/vite` builds) failed to load at all, not only after a deploy.
+
+#### Testing
+
+`pnpm --filter @harmoniq-example/vite-mf e2e` against a local registry: 12/12 checks pass. New mf-plugin unit test for the preserved remote type.
+
 ### 2026-10-09 — Multi-replica guard and AWS deployment
 
 **Type:** infra

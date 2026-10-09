@@ -82,6 +82,18 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # Remotes built and deployed by the build plugin, loaded by a host through the MF
+      # runtime plugin; also covers rollback, CDN/persisted/fallback manifests and overrides.
+      - name: E2E (examples/vite-mf)
+        env:
+          NODE_ENV: development
+          HARMONIQ_DEV_LOGIN: '1'
+          STORAGE_ADAPTER: local
+        run: |
+          (cd apps/registry && node dist/index.js > "$RUNNER_TEMP/registry.log" 2>&1 &)
+          for i in $(seq 1 30); do curl -sf http://localhost:4000/health && break; sleep 1; done
+          pnpm --filter @harmoniq-example/vite-mf e2e || { cat "$RUNNER_TEMP/registry.log"; exit 1; }
+
   docker:
     name: Docker images
     runs-on: ubuntu-latest

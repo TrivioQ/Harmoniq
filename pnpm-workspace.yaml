@@ -1,3 +1,5 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  - 'examples/vite-mf'
+  - 'examples/vite-mf/*'

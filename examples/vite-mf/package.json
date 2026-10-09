@@ -1,0 +1,12 @@
+{
+  "name": "@harmoniq-example/vite-mf",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "node serve.mjs",
+    "e2e": "node e2e.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.0.0"
+  }
+}

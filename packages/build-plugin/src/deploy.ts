@@ -82,7 +82,9 @@ export async function harmoniqDeploy(options: HarmoniqBuildOptions): Promise<Har
 
   const shouldDeploy = options.deploy ?? process.env.CI === 'true';
   if (!shouldDeploy && !options.dryRun) {
-    log(`${options.module} ${options.version}: ${integrity} (not deploying outside CI)`);
+    log(
+      `${options.module} ${options.version}: ${integrity} (not deployed; set \`deploy\` or run in CI)`
+    );
     return { integrity, exposes, deployed: false };
   }
 
