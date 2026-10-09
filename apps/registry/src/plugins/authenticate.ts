@@ -231,7 +231,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
   const requireInstanceAdmin: Handler = async (request, reply) => {
     const principal = await resolvePrincipal(request);
     if (!principal) return deny(reply, 401, 'UNAUTHORIZED', 'Missing or invalid credentials');
-    if (principal.type !== 'user' || !principal.isInstanceAdmin) {
+    if (principal.type !== 'user' || !principal.isInstanceAdmin || ssoScope(principal)) {
       return deny(reply, 403, 'FORBIDDEN', 'Not an active Instance Admin');
     }
   };
@@ -264,6 +264,18 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       // Users: non-members get 404 so workspace slugs can't be probed.
       if (!workspace) return deny(reply, 404, 'NOT_FOUND', 'Workspace not found');
 
+      // A session from a workspace's own IdP only reaches that workspace: its admins
+      // control what the IdP asserts, so it can't vouch for anyone elsewhere.
+      const scope = ssoScope(principal);
+      if (scope && scope !== workspace.slug) {
+        return deny(
+          reply,
+          403,
+          'SSO_SCOPED',
+          `This session comes from the single sign-on of "${scope}" and only works there`
+        );
+      }
+
       if (opts.allowInstanceAdmin && principal.isInstanceAdmin) {
         request.workspace = workspace;
         return;
@@ -283,7 +295,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
           where: { workspaceId: workspace.id },
           select: { forceSso: true },
         });
-        if (sso?.forceSso && principal.provider !== `oidc:${workspace.slug}`) {
+        if (sso?.forceSso && ssoScope(principal) !== workspace.slug) {
           return deny(
             reply,
             403,
@@ -308,6 +320,16 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
 };
 
 /** API keys may be restricted to specific modules (RBAC-04). Users are checked by role. */
+/**
+ * The workspace a session is limited to, when it came from that workspace's own IdP
+ * (`oidc:<workspace>` or `saml:<workspace>`); null for other sign-ins and API keys.
+ */
+export function ssoScope(principal: Principal | undefined): string | null {
+  if (principal?.type !== 'user' || !principal.provider) return null;
+  const match = /^(?:oidc|saml):(.+)$/.exec(principal.provider);
+  return match ? match[1] : null;
+}
+
 export function canAccessModule(principal: Principal | undefined, moduleId: string): boolean {
   if (principal?.type !== 'apiKey' || principal.moduleIds.length === 0) return true;
   return principal.moduleIds.includes(moduleId);

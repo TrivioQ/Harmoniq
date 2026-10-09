@@ -21,6 +21,7 @@ import {
   FreezeRequestSchema,
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import { audit } from '../services/audit';
+import { ssoScope } from '../plugins/authenticate';
 import { isFrozen } from '../services/manifestMutation';
 import { publishedPaths } from '../services/manifestPublisher';
 
@@ -39,6 +40,11 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/api/workspaces', { preHandler: fastify.authenticate }, async (request, reply) => {
     const principal = request.principal!;
     if (principal.type !== 'user') throw new ForbiddenError('Workspaces are created by users');
+    if (ssoScope(principal)) {
+      throw new ForbiddenError(
+        'Sign in another way to create workspaces (this session is limited to its SSO workspace)'
+      );
+    }
     const body = CreateWorkspaceSchema.parse(request.body);
 
     try {

@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
-import { IdentityError } from '@harmoniq/core/dist/ports/IdentityProvider';
+import { IdentityError, IdentityUserInfo } from '@harmoniq/core/dist/ports/IdentityProvider';
 import {
   AuthCallbackRequestSchema,
   AuthProviderSummary,
@@ -14,7 +14,9 @@ import {
 } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { EmailIdentityProvider } from '../adapters/identity/EmailIdentityProvider';
 import { AuthService } from '../services/authService';
+import { ssoScope } from '../plugins/authenticate';
 import { provisionSsoMember, workspaceProviderId } from '../services/sso';
+import { samlProviderId } from '../services/saml';
 import { openSecret, sealSecret } from '../services/crypto';
 import { Prisma } from '@prisma/client';
 
@@ -98,23 +100,52 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       const domain = request.query.email?.trim().toLowerCase().split('@')[1];
       if (!domain) return badRequest(reply, 'email is required');
       const configs = await systemDb.workspaceConfig.findMany({
-        where: { oidcConfig: { not: Prisma.DbNull } },
+        where: {
+          OR: [{ oidcConfig: { not: Prisma.DbNull } }, { samlConfig: { not: Prisma.DbNull } }],
+        },
         include: { workspace: { select: { slug: true, name: true } } },
       });
-      const match = configs.find((c) =>
-        ((c.oidcConfig as { trustedDomains?: string[] } | null)?.trustedDomains ?? []).includes(
-          domain
-        )
-      );
+      const trusts = (config: unknown) =>
+        ((config as { trustedDomains?: string[] } | null)?.trustedDomains ?? []).includes(domain);
+      const match = configs.find((c) => trusts(c.oidcConfig) || trusts(c.samlConfig));
       if (!match) {
         return reply
           .code(404)
           .send({ error: { code: 'NOT_FOUND', message: 'No single sign-on for this domain' } });
       }
       return {
-        provider: workspaceProviderId(match.workspace.slug),
+        // OIDC when both are set up.
+        provider: trusts(match.oidcConfig)
+          ? workspaceProviderId(match.workspace.slug)
+          : samlProviderId(match.workspace.slug),
         workspace: { slug: match.workspace.slug, name: match.workspace.name },
       };
+    }
+  );
+
+  /** Session for a proven identity; workspace SSO also provisions the membership. */
+  async function finishLogin(info: IdentityUserInfo, providerId: string, ip: string) {
+    const { user, response } = await auth.login(info, providerId);
+    const sso = await providers.policyFor(providerId);
+    if (sso) await provisionSsoMember(fastify, sso.slug, providerId, sso.policy, user.id, info, ip);
+    return response;
+  }
+
+  // SSO-09: IdP-initiated SAML logins have no browser state to bind to (the workspace
+  // opts in); the dashboard redeems the one-time code the ACS issued.
+  fastify.post<{ Body: { code?: string; provider?: string } }>(
+    '/api/auth/saml/redeem',
+    { config: LOGIN_RATE_LIMIT },
+    async (request, reply) => {
+      const { code, provider } = request.body ?? {};
+      if (!code || !provider?.startsWith('saml:'))
+        return badRequest(reply, 'code and provider are required');
+      try {
+        const info = await providers.samlService.redeem(code, null, provider);
+        return await finishLogin(info, provider, request.ip);
+      } catch (err) {
+        return identityFailure(reply, err);
+      }
     }
   );
 
@@ -154,14 +185,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const info = await provider.handleCallback(parsed.data);
-        const { user, response } = await auth.login(info, provider.id);
-        if (provider.id.startsWith('oidc:')) {
-          const slug = provider.id.slice('oidc:'.length);
-          const loaded = await providers.loadWorkspace(slug);
-          if (loaded)
-            await provisionSsoMember(fastify, slug, loaded.config, user.id, info, request.ip);
-        }
-        return response;
+        return await finishLogin(info, provider.id, request.ip);
       } catch (err) {
         return identityFailure(reply, err);
       }
@@ -242,13 +266,20 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     if (!user)
       return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'User not found' } });
 
+    const scope = ssoScope(principal);
     const memberships = await systemDb.workspaceMember.findMany({
-      where: { userId: principal.id, joinedAt: { not: null } },
+      // A workspace-SSO session only sees that workspace.
+      where: {
+        userId: principal.id,
+        joinedAt: { not: null },
+        ...(scope && { workspace: { slug: scope } }),
+      },
       include: { workspace: true },
       orderBy: { workspace: { name: 'asc' } },
     });
     const body: MeResponse = {
-      user,
+      // Instance-admin powers never come from a workspace's IdP.
+      user: scope ? { ...user, isInstanceAdmin: false } : user,
       workspaces: memberships.map((m) => ({
         slug: m.workspace.slug,
         name: m.workspace.name,

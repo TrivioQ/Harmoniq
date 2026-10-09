@@ -240,7 +240,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [ ] **Members** (`/[workspaceSlug]/settings/members`) — invite, role assignment, module ownership
 - [ ] **Webhooks** (`/[workspaceSlug]/settings/webhooks`) — create, delivery log, **Dead Letter Queue** with Retry Now (WHK-08)
 - [ ] **Audit Log** (`/[workspaceSlug]/settings/audit`) — filterable table (actor, action, date range)
-- [ ] **SSO Settings** (`/[workspaceSlug]/settings/sso`) — OIDC config, SAML Setup Wizard (SSO-19), Test Connection (SSO-20), domain allowlist, forced SSO toggle
+- [x] **SSO Settings** (`/[workspaceSlug]/settings/sso`) — OIDC config, SAML Setup Wizard (SSO-19), Test Connection (SSO-20), domain allowlist, forced SSO toggle
 - [ ] **Alert Rules** (`/[workspaceSlug]/settings/alerts`) — create/edit alert rules (ALT-01)
 - [ ] **API Explorer** (`/docs/api`) — embedded Scalar UI (OAS-04)
 - [ ] **Quickstart Wizard** — first-time workspace onboarding (DX-04)
@@ -365,19 +365,19 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ### SSO — OIDC Plugin
 
-- [ ] Implement `OIDCPlugin`: auth code + PKCE flow, JWKS token validation, silent refresh (SSO-01 to SSO-08)
-- [ ] Dashboard: OIDC configuration UI, domain allowlist, claim-to-role mapping (SSO-03, SSO-07)
+- [x] Implement `OIDCPlugin`: auth code + PKCE flow, JWKS token validation, silent refresh (SSO-01 to SSO-08)
+- [x] Dashboard: OIDC configuration UI, domain allowlist, claim-to-role mapping (SSO-03, SSO-07)
 
 ### SSO — SAML 2.0 Plugin
 
-- [ ] Implement `SAMLPlugin` using `node-saml`: SP-initiated + IdP-initiated flows (SSO-09)
-- [ ] ACS endpoint `POST /auth/saml/:workspaceSlug/acs` (SSO-10)
-- [ ] SP Metadata endpoint `GET /auth/saml/:workspaceSlug/metadata` (SSO-11)
-- [ ] SP-Initiated redirect `GET /auth/saml/:workspaceSlug/login` (SSO-12)
-- [ ] SLO endpoints (SSO-13)
-- [ ] SAML Response full validation (SSO-14)
-- [ ] Per-workspace SP signing key pair generation + encrypted storage (SSO-18)
-- [ ] Dashboard: SAML Setup Wizard for Okta, Azure AD, ADFS (SSO-19)
+- [x] Implement `SAMLPlugin` using `node-saml`: SP-initiated + IdP-initiated flows (SSO-09)
+- [x] ACS endpoint `POST /auth/saml/:workspaceSlug/acs` (SSO-10)
+- [x] SP Metadata endpoint `GET /auth/saml/:workspaceSlug/metadata` (SSO-11)
+- [x] SP-Initiated redirect `GET /auth/saml/:workspaceSlug/login` (SSO-12)
+- [x] SLO endpoints (SSO-13)
+- [x] SAML Response full validation (SSO-14)
+- [x] Per-workspace SP signing key pair generation + encrypted storage (SSO-18)
+- [x] Dashboard: SAML Setup Wizard for Okta, Azure AD, ADFS (SSO-19)
 - [ ] Dashboard: Test Connection button (SSO-20)
 - [ ] SCIM 2.0 endpoint `/scim/v2` for Okta/Azure AD push provisioning (SSO-24)
 - [ ] Forced SSO enforcement (SSO-26)

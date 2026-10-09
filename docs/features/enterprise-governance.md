@@ -18,14 +18,15 @@ Large enterprises operating in regulated industries require three capabilities t
 
 ## Requirements
 
-| ID                                                      | Requirement                                                                            | Status         |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------- |
-| `RBAC-01`–`RBAC-06`                                     | Module ownership and module-scoped access                                              | ✅ Done (M4.1) |
-| `SSO-01`–`SSO-08`, `SSO-21`–`SSO-23`, `SSO-26`–`SSO-28` | OIDC single sign-on, JIT, domain join, group mapping, forced SSO, IdP session lifetime | ✅ Done (M4.4) |
-| `ENV-FRZ-03`–`04`                                       | Owner freeze override, scheduled freeze windows                                        | ✅ Done (M4.2) |
-| `APR-01`–`APR-18`                                       | Change Approval Workflows                                                              | 📋 Planned     |
-| `ORG-01`–`ORG-15`                                       | Organization Hierarchy                                                                 | 📋 Planned     |
-| `IaC-01`–`IaC-14`                                       | GitOps / Infrastructure as Code                                                        | 📋 Planned     |
+| ID                                                      | Requirement                                                                                             | Status         |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------- |
+| `RBAC-01`–`RBAC-06`                                     | Module ownership and module-scoped access                                                               | ✅ Done (M4.1) |
+| `SSO-01`–`SSO-08`, `SSO-21`–`SSO-23`, `SSO-26`–`SSO-28` | OIDC single sign-on, JIT, domain join, group mapping, forced SSO, IdP session lifetime                  | ✅ Done (M4.4) |
+| `SSO-09`–`SSO-20`                                       | SAML 2.0 single sign-on: SP/IdP-initiated, metadata, SLO, signing keypair, setup notes, test connection | ✅ Done (M4.5) |
+| `ENV-FRZ-03`–`04`                                       | Owner freeze override, scheduled freeze windows                                                         | ✅ Done (M4.2) |
+| `APR-01`–`APR-18`                                       | Change Approval Workflows                                                                               | 📋 Planned     |
+| `ORG-01`–`ORG-15`                                       | Organization Hierarchy                                                                                  | 📋 Planned     |
+| `IaC-01`–`IaC-14`                                       | GitOps / Infrastructure as Code                                                                         | 📋 Planned     |
 
 See [`docs/requirements.md §16`](../requirements.md) for the full specification.
 
@@ -34,6 +35,12 @@ See [`docs/requirements.md §16`](../requirements.md) for the full specification
 ### Single sign-on (OIDC)
 
 Workspace providers (`oidc:<workspace>`) are built from `WorkspaceConfig.oidcConfig` (client secret sealed) and cached for five minutes; saving the settings invalidates the cache. The nonce is derived from the PKCE challenge, so it needs no server-side storage and binds the ID token to the browser holding the verifier. The login's provider is carried in the access token (`prv`) and on the refresh-token family, which is what forced SSO checks; in-process calls (scheduled operations, approved requests) are exempt because their creator was checked at creation. A workspace admin picks the issuer, so the registry refuses private and non-HTTPS issuer, token and JWKS URLs in production unless the instance allows private issuers.
+
+### Single sign-on (SAML 2.0)
+
+`saml:<workspace>` providers are built from `WorkspaceConfig.samlConfig` with `@node-saml/node-saml`. The SP signing key is generated with the first save (self-signed, 10 years) and sealed at rest; AuthnRequests are signed and responses must carry a signed assertion. SAML has no PKCE, so the ACS binds the login to the browser itself: `start` stores the dashboard's state and code challenge under the request's RelayState, the ACS checks `InResponseTo` against the request ids it issued (kept in the cache for ten minutes) and hands the dashboard a one-time code that only the holder of the PKCE verifier can exchange. IdP-initiated responses have nothing to bind to, so they are refused unless the workspace opts in; the code then goes straight to the dashboard's redeem route.
+
+Every session started through a workspace's IdP (OIDC or SAML) is confined to that workspace: that IdP vouches for its own members, not for what the same person can do elsewhere.
 
 ### Change approvals (APR-01..18)
 
@@ -96,6 +103,23 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-09 — SAML 2.0 single sign-on (M4.5)
+
+**Type:** Feature
+**Author:** Shashi Kumar Dhandapani
+**Refs:** SSO-09 – SSO-20
+
+**Summary:**
+
+- SAML service provider per workspace: metadata, ACS, SP-initiated login with signed AuthnRequests, IdP-initiated login (opt-in), single logout; SP keypair generated and sealed; IdP metadata import; test connection that shows the assertion without signing in.
+- Same provisioning as OIDC (JIT, trusted domains, group → role mapping, forced SSO); SSO discovery returns SAML when only SAML trusts the domain.
+- Workspace-IdP sessions are scoped to their workspace (`403 SSO_SCOPED`).
+- Dashboard: SAML section in Settings → Single sign-on with the SP details, Okta / Entra ID / ADFS notes, metadata paste, test results; `/api/auth/saml/idp` for IdP-initiated sign-ins.
+
+**Tests:**
+
+`saml.test.ts` signs responses with `xml-crypto` and a generated IdP certificate: metadata import and SP metadata, SP-initiated sign-in with the PKCE-bound code (wrong verifier, reuse), tampered / unsolicited / wrong-audience responses, IdP-initiated opt-in, test connection, and session scoping.
 
 ### 2026-10-09 — OIDC single sign-on (M4.4)
 

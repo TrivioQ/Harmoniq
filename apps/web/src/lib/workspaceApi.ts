@@ -307,6 +307,40 @@ export interface OidcSettings {
   providerId: string;
 }
 
+export interface SamlSettings {
+  idpEntityId: string;
+  idpSsoUrl: string;
+  idpSloUrl?: string;
+  idpCert: string;
+  nameIdFormat: string;
+  attributeMapping: { email?: string; name?: string; groups?: string };
+  roleMapping: Record<string, Role>;
+  trustedDomains: string[];
+  defaultRole: Role;
+  forceSso: boolean;
+  allowIdpInitiated: boolean;
+  providerId: string;
+}
+
+export interface SamlSettingsResponse {
+  /** What to register at the IdP. */
+  serviceProvider: {
+    entityId: string;
+    metadata: string;
+    acs: string;
+    login: string;
+    logout: string;
+    slo: string;
+    cert: string | null;
+  };
+  saml: SamlSettings | null;
+}
+
+export interface SamlTestResult {
+  attributes: Record<string, unknown>;
+  mapped: { email?: string; name?: string; groups?: string[]; error?: string };
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
@@ -355,6 +389,9 @@ export const workspaceApi = {
   approvalPolicies: (slug: string) =>
     authedFetch<{ policies: ApprovalPolicySummary[] }>(`${ws(slug)}/approval-policies`),
   sso: (slug: string) => authedFetch<{ oidc: OidcSettings | null }>(`${ws(slug)}/sso/oidc`),
+  saml: (slug: string) => authedFetch<SamlSettingsResponse>(`${ws(slug)}/sso/saml`),
+  samlTest: (slug: string, id: string) =>
+    authedFetch<SamlTestResult>(`${ws(slug)}/sso/saml/test/${enc(id)}`),
   alerts: (slug: string) => authedFetch<{ rules: AlertRuleSummary[] }>(`${ws(slug)}/alerts`),
   moduleHealth: (slug: string, ref: string, env: string) =>
     authedFetch<ModuleHealth>(`${ws(slug)}/modules/${enc(ref)}/health?environment=${enc(env)}`),

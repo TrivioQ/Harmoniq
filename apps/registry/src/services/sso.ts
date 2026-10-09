@@ -8,6 +8,7 @@ import { OidcConfig } from '@harmoniq/core/dist/schemas/SsoSchema';
 import { OidcIdentityProvider } from '../adapters/identity/OidcIdentityProvider';
 import { GitHubIdentityProvider } from '../adapters/identity/GitHubIdentityProvider';
 import { checkPublicUrl } from './bundleValidator';
+import { SamlService } from './saml';
 import { openSecret } from './crypto';
 import { audit } from './audit';
 
@@ -38,6 +39,7 @@ export class SsoProviders {
   private fixed = new Map<string, RedirectIdentityProvider>();
 
   constructor(private app: FastifyInstance) {
+    this.samlService = new SamlService(app);
     const { oidc, github } = app.config;
     const fixed = this.fixed;
     if (github) {
@@ -71,6 +73,10 @@ export class SsoProviders {
   async get(id: string): Promise<RedirectIdentityProvider | null> {
     const fixed = this.fixed.get(id);
     if (fixed) return fixed;
+    if (id.startsWith('saml:')) {
+      const slug = id.slice('saml:'.length);
+      return (await this.samlService.load(slug)) ? this.samlService.provider(slug) : null;
+    }
     if (!id.startsWith('oidc:')) return null;
     const hit = this.cache.get(id);
     if (hit && hit.expires > Date.now()) return hit.provider;
@@ -113,6 +119,24 @@ export class SsoProviders {
     });
   }
 
+  /** The workspace and its SSO policy behind a workspace provider id, else null. */
+  async policyFor(id: string): Promise<{ slug: string; policy: SsoPolicy } | null> {
+    const [kind, slug] = id.split(':');
+    if (!slug) return null;
+    if (kind === 'oidc') {
+      const loaded = await this.loadWorkspace(slug);
+      return loaded && { slug, policy: loaded.config };
+    }
+    if (kind === 'saml') {
+      const loaded = await this.samlService.load(slug);
+      return loaded ? { slug, policy: loaded.config } : null;
+    }
+    return null;
+  }
+
+  /** SAML (SSO-09..20) for workspace providers `saml:<workspace>`. */
+  readonly samlService: SamlService;
+
   /** SSO-08/27: the IdP's verdict on a session. */
   async checkSession(providerId: string, refreshToken: string): Promise<string | null> {
     const provider = await this.get(providerId);
@@ -130,10 +154,17 @@ export class SsoProviders {
  * permissive wins) or the trusted-domain default; a mapped role is resynced on every
  * login (owners are never demoted by the IdP); the login is audited in the workspace.
  */
+export interface SsoPolicy {
+  roleMapping: Record<string, string>;
+  trustedDomains: string[];
+  defaultRole: string;
+}
+
 export async function provisionSsoMember(
   app: FastifyInstance,
   slug: string,
-  config: StoredOidcConfig,
+  providerId: string,
+  config: SsoPolicy,
   userId: string,
   info: IdentityUserInfo,
   ip?: string
@@ -141,7 +172,7 @@ export async function provisionSsoMember(
   const { systemDb, withTenant } = app.container;
   const workspace = await systemDb.workspace.findUniqueOrThrow({ where: { slug } });
   const mapped = (info.groups ?? [])
-    .map((group) => config.roleMapping[group])
+    .map((group) => config.roleMapping[group] as Role | undefined)
     .filter((role): role is Role => !!role)
     .sort((a, b) => RANK[b] - RANK[a])[0];
   const domain = info.email.split('@')[1];
@@ -170,7 +201,7 @@ export async function provisionSsoMember(
     await audit(
       tx,
       workspace.id,
-      { principal: { type: 'system', id: `sso:${slug}` }, ip },
+      { principal: { type: 'system', id: providerId }, ip },
       {
         action: 'auth.sso_login',
         resourceType: 'user',
