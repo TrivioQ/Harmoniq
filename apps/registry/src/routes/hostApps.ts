@@ -9,6 +9,7 @@ import {
 import { FreezeRequestSchema } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import { audit } from '../services/audit';
 import { isFrozen } from '../services/manifestMutation';
+import { publishedPaths } from '../services/manifestPublisher';
 
 type WsParams = { workspaceSlug: string };
 type EnvParams = WsParams & { hostAppSlug: string; envSlug: string };
@@ -16,7 +17,7 @@ type EnvParams = WsParams & { hostAppSlug: string; envSlug: string };
 const titleCase = (slug: string) => slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ');
 
 const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
-  const { systemDb, withTenant, webhooks } = fastify.container;
+  const { systemDb, withTenant, webhooks, publisher } = fastify.container;
   const actor = (request: FastifyRequest) => ({ principal: request.principal!, ip: request.ip });
 
   // ─── Workspaces ───────────────────────────────────────────────────────────
@@ -75,6 +76,7 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: fastify.requireWorkspace('workspace:read') },
     async (request) => {
       const workspace = request.workspace!;
+      const publishTarget = await publisher.targetFor(workspace.id);
       const hostApps = await withTenant(workspace.id, (tx) =>
         tx.hostApp.findMany({
           orderBy: [{ isDefault: 'desc' }, { slug: 'asc' }],
@@ -103,6 +105,18 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
             freezeReason: isFrozen(e) ? e.freezeReason : null,
             freezeUntil: isFrozen(e) ? (e.freezeUntil?.toISOString() ?? null) : null,
             frozenBy: isFrozen(e) ? e.frozenBy : null,
+            // M2.1: where hosts can read this environment without the registry.
+            published: publishTarget && {
+              manifestUrl: publishTarget.publicUrl(
+                publishTarget.prefix + publishedPaths(workspace.slug, h.slug, e.slug).manifest
+              ),
+              importMapUrl: publishTarget.publicUrl(
+                publishTarget.prefix + publishedPaths(workspace.slug, h.slug, e.slug).importMap
+              ),
+              etag: e.lastPublishedEtag,
+              at: e.lastPublishedAt?.toISOString() ?? null,
+              error: e.lastPublishError,
+            },
           })),
         })),
       };
@@ -230,6 +244,31 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
       freezeUntil: env.freezeUntil?.toISOString() ?? null,
     };
   }
+
+  // Manual re-publish, e.g. after fixing bucket credentials.
+  fastify.post<{ Params: EnvParams }>(
+    '/api/workspaces/:workspaceSlug/host-apps/:hostAppSlug/environments/:envSlug/publish',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request) => {
+      const workspace = request.workspace!;
+      const env = await withTenant(workspace.id, async (tx) => {
+        const hostApp = await tx.hostApp.findUnique({
+          where: {
+            workspaceId_slug: { workspaceId: workspace.id, slug: request.params.hostAppSlug },
+          },
+        });
+        return hostApp
+          ? tx.environment.findUnique({
+              where: { hostAppId_slug: { hostAppId: hostApp.id, slug: request.params.envSlug } },
+            })
+          : null;
+      });
+      if (!env) throw new NotFoundError('Environment not found');
+      const result = await publisher.publish(env.id);
+      if (!result) throw new ConflictError('No storage configured to publish to');
+      return result;
+    }
+  );
 
   const freezeRoute =
     '/api/workspaces/:workspaceSlug/host-apps/:hostAppSlug/environments/:envSlug/freeze';

@@ -44,6 +44,7 @@ export async function buildManifest(
 
   const modules: Module[] = versions.map((v) => ({
     name: v.remoteModule.slug,
+    ...(v.remoteModule.specifier && { specifier: v.remoteModule.specifier }),
     url: v.url,
     integrity: v.integrity,
     version: v.version,

@@ -91,6 +91,27 @@ Returns the manifest for one host app environment. No authentication. Rate limit
 - `?pretty=true` pretty-prints outside production.
 - Headers `X-Harmoniq-Variant` / `X-Harmoniq-Cohort-Id` (always `stable` until canary releases land).
 
+### `GET /api/importmap/:workspaceSlug/:hostAppSlug/:env`
+
+A standard import map (`application/importmap+json`; `?format=systemjs` for SystemJS), public and cached like manifests:
+
+```json
+{
+  "imports": { "@acme/checkout": "https://cdn.example.com/checkout/1.2.3/remoteEntry.js" },
+  "integrity": { "https://cdn.example.com/checkout/1.2.3/remoteEntry.js": "sha384-…" }
+}
+```
+
+Keys are the module `specifier` (set with `PATCH /api/workspaces/:ws/modules/:module`), defaulting to its slug.
+
+### `GET /api/federation-manifest/:workspaceSlug/:hostAppSlug/:env`
+
+Native Federation format: `{ "checkout": "https://…/remoteEntry.js" }`.
+
+### Published copies
+
+After every change the registry writes the manifest and import map to storage, readable without the registry (see [manifest delivery](./features/manifest-delivery.md)). `GET /api/workspaces/:ws` lists their URLs and publish status per environment; `POST /api/workspaces/:ws/host-apps/:hostApp/environments/:env/publish` re-publishes (admin).
+
 ### `GET /api/manifest/:workspaceSlug/:env`
 
 Legacy form: resolves to the workspace's default host app.

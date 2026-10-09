@@ -12,7 +12,11 @@ import {
   PromoteRequestSchema,
   RollbackRequestSchema,
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
-import { CreateModuleSchema } from '@harmoniq/core/dist/schemas/ResourceSchemas';
+import {
+  CreateModuleSchema,
+  UpdateModuleSchema,
+} from '@harmoniq/core/dist/schemas/ResourceSchemas';
+import { audit } from '../services/audit';
 import { isValidBundle } from '@harmoniq/core/dist/validation/bundle';
 import { createWorkspaceStorage } from '../adapters/storage/createStorage';
 import { canAccessModule } from '../plugins/authenticate';
@@ -179,6 +183,44 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
         return module;
       });
       return reply.code(201).send(created);
+    }
+  );
+
+  fastify.patch<{ Params: ModuleParams }>(
+    '/api/workspaces/:workspaceSlug/modules/:moduleRef',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request) => {
+      const body = UpdateModuleSchema.parse(request.body);
+      const module = await loadModule(request);
+      const workspace = request.workspace!;
+
+      const { updated, auditEventId } = await withTenant(workspace.id, async (tx) => {
+        const updated = await tx.remoteModule.update({ where: { id: module.id }, data: body });
+        const event = await audit(tx, workspace.id, actor(request), {
+          action: 'module.update',
+          resourceType: 'module',
+          resourceId: module.id,
+          metadata: body,
+        });
+        return { updated, auditEventId: event.id };
+      });
+
+      // The specifier is part of every manifest of this host app: re-snapshot and publish.
+      if (body.specifier !== undefined) {
+        for (const environment of module.hostApp.Environments) {
+          await mutations.rebuild(
+            { workspace, hostApp: module.hostApp, environment },
+            auditEventId
+          );
+        }
+      }
+      return {
+        id: updated.id,
+        name: updated.name,
+        slug: updated.slug,
+        description: updated.description,
+        specifier: updated.specifier,
+      };
     }
   );
 

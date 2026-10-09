@@ -103,6 +103,10 @@ model Environment {
   frozenBy           String?
   freezeReason       String?
   freezeUntil        DateTime?
+  /// Last manifest copy written to storage/CDN (M2.1); hosts can read it without the registry.
+  lastPublishedEtag  String?
+  lastPublishedAt    DateTime?
+  lastPublishError   String?
   hostApp            HostApp             @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
   ModuleVersions     ModuleVersion[]
   ManifestSnapshots  ManifestSnapshot[]
@@ -118,6 +122,8 @@ model RemoteModule {
   name               String
   slug               String
   description        String?
+  /// Import-map specifier, e.g. `@acme/checkout` (IMP-03). Defaults to the slug.
+  specifier          String?
   createdAt          DateTime            @default(now())
   workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   hostApp            HostApp             @relation(fields: [hostAppId], references: [id], onDelete: Cascade)

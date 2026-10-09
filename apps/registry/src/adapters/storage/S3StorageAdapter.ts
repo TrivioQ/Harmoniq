@@ -71,4 +71,20 @@ export class S3StorageAdapter implements IStorage {
     });
     await this.client.send(command);
   }
+
+  async put(
+    key: string,
+    body: string,
+    opts: { contentType: string; cacheControl?: string }
+  ): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: opts.contentType,
+        CacheControl: opts.cacheControl,
+      })
+    );
+  }
 }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 // WHK-02 + WHK-11.
 export const WebhookEventNameSchema = z.enum([
   'manifest.updated',
+  'manifest.publish_failed',
   'deploy.success',
   'deploy.failed',
   'rollback.executed',

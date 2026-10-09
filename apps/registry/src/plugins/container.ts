@@ -10,6 +10,8 @@ import { createDbClients, withTenant, TenantTx } from '@harmoniq/db';
 import { PgBoss } from 'pg-boss';
 import { WebhookDispatcher, createWebhookDispatcher } from '../services/webhookDispatcher';
 import { ManifestMutations } from '../services/manifestMutation';
+import { ManifestPublisher } from '../services/manifestPublisher';
+import { StorageTarget, instanceStorageTarget } from '../adapters/storage/createStorage';
 import { IMailer } from '@harmoniq/core/dist/ports/IMailer';
 import { SmtpMailer } from '../adapters/mail/SmtpMailer';
 import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
@@ -28,6 +30,9 @@ export interface AppContainer {
   mutations: ManifestMutations;
   /** null when no SMTP is configured in production (email sign-in is then disabled). */
   mailer: IMailer | null;
+  /** Instance default storage (null when STORAGE_ADAPTER=none). */
+  instanceStorage: StorageTarget | null;
+  publisher: ManifestPublisher;
 }
 
 declare module 'fastify' {
@@ -72,6 +77,30 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
       ? null
       : new ConsoleMailer(logger);
 
+  const instanceStorage = instanceStorageTarget(fastify.config);
+  const publisher = new ManifestPublisher({
+    systemDb,
+    withTenant: tenant,
+    instance: instanceStorage,
+    encryptionKey: fastify.config.encryptionKey,
+    webhooks,
+    logger,
+  });
+
+  // Publish after every manifest change: queued (retried, one per burst) when the job
+  // queue runs, inline otherwise (tests, queue unavailable).
+  const onCommitted = async ({ environment }: { environment: { id: string } }) => {
+    if (boss) {
+      await boss.send(
+        'manifest.publish',
+        { environmentId: environment.id },
+        { singletonKey: environment.id, singletonSeconds: 2, retryLimit: 5, retryBackoff: true }
+      );
+    } else {
+      await publisher.publish(environment.id).catch(() => undefined); // recorded on the environment
+    }
+  };
+
   fastify.decorate('container', {
     cache,
     logger,
@@ -80,7 +109,9 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     withTenant: tenant,
     boss,
     webhooks,
-    mutations: new ManifestMutations({ withTenant: tenant, cache, webhooks, logger }),
+    mutations: new ManifestMutations({ withTenant: tenant, cache, webhooks, logger, onCommitted }),
+    instanceStorage,
+    publisher,
     mailer,
   });
 

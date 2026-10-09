@@ -9,6 +9,7 @@ import moduleRoutes from './routes/modules';
 import hostAppRoutes from './routes/hostApps';
 import historyRoutes from './routes/history';
 import accessRoutes from './routes/access';
+import staticRoutes from './routes/static';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
 import workspaceRoutes from './routes/workspaces';
@@ -98,7 +99,9 @@ export async function buildApp() {
       const method = (req.headers['access-control-request-method'] as string) || req.method;
       const isPublicRead =
         (method === 'GET' || method === 'HEAD') &&
-        /^\/(api\/manifest|api\/importmap|health|ready|docs)(\/|$|\?)/.test(req.url ?? '');
+        /^\/(api\/manifest|api\/importmap|api\/federation-manifest|static|health|ready|docs)(\/|$|\?)/.test(
+          req.url ?? ''
+        );
       callback(
         null,
         isPublicRead
@@ -148,6 +151,7 @@ export async function buildApp() {
   await app.register(hostAppRoutes);
   await app.register(historyRoutes);
   await app.register(accessRoutes);
+  await app.register(staticRoutes);
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
   await app.register(workspaceRoutes);

@@ -25,6 +25,15 @@ const EnvSchema = z.object({
   GITHUB_CLIENT_SECRET: z.string().optional(),
   HARMONIQ_DEV_LOGIN: z.string().optional(),
   HARMONIQ_VALIDATE_BUNDLES: z.string().optional(),
+  STORAGE_ADAPTER: z.enum(['local', 's3', 'none']).optional(),
+  LOCAL_STORAGE_DIR: z.string().default('./data/storage'),
+  PUBLIC_URL: z.string().url().optional(),
+  S3_BUCKET: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  S3_PUBLIC_URL: z.string().url().optional(),
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('Harmoniq <no-reply@harmoniq.local>'),
   HARMONIQ_MANIFEST_RATE_LIMIT: z.coerce.number().int().positive().default(600),
@@ -52,9 +61,51 @@ export interface Config {
   manifestRateLimit: number;
   /** Outbound email. Without SMTP in production, email sign-in is unavailable. */
   mail: { smtpUrl?: string; from: string };
+  /** Public base URL of this registry (links to /static objects). */
+  publicUrl: string;
+  /**
+   * Instance default storage for published manifests (and bundles without a workspace
+   * bucket). `none` disables publishing for workspaces without their own bucket.
+   */
+  storage:
+    | { adapter: 'none' }
+    | { adapter: 'local'; dir: string }
+    | {
+        adapter: 's3';
+        bucket: string;
+        region: string;
+        endpoint?: string;
+        accessKeyId: string;
+        secretAccessKey: string;
+        /** CDN/public base URL for objects in the bucket. */
+        publicUrl?: string;
+      };
 }
 
 export class ConfigError extends Error {}
+
+function resolveStorage(e: z.infer<typeof EnvSchema>, isProduction: boolean): Config['storage'] {
+  // Local disk by default in development; production must choose explicitly.
+  const adapter = e.STORAGE_ADAPTER ?? (isProduction ? 'none' : 'local');
+  if (adapter === 'local') return { adapter, dir: e.LOCAL_STORAGE_DIR };
+  if (adapter === 's3') {
+    if (!e.S3_BUCKET || !e.S3_REGION || !e.S3_ACCESS_KEY_ID || !e.S3_SECRET_ACCESS_KEY) {
+      throw new ConfigError(
+        'STORAGE_ADAPTER=s3 requires S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY'
+      );
+    }
+    return {
+      adapter,
+      bucket: e.S3_BUCKET,
+      region: e.S3_REGION,
+      endpoint: e.S3_ENDPOINT,
+      accessKeyId: e.S3_ACCESS_KEY_ID,
+      secretAccessKey: e.S3_SECRET_ACCESS_KEY,
+      publicUrl: e.S3_PUBLIC_URL?.replace(/\/$/, ''),
+    };
+  }
+  return { adapter: 'none' };
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = EnvSchema.safeParse(env);
@@ -114,6 +165,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     devLogin,
     manifestRateLimit: e.HARMONIQ_MANIFEST_RATE_LIMIT,
     mail: { smtpUrl: e.SMTP_URL, from: e.MAIL_FROM },
+    publicUrl: (e.PUBLIC_URL ?? `http://localhost:${e.PORT}`).replace(/\/$/, ''),
+    storage: resolveStorage(e, isProduction),
     validateBundles: e.HARMONIQ_VALIDATE_BUNDLES === '1' || e.HARMONIQ_VALIDATE_BUNDLES === 'true',
   };
 }

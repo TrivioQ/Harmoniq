@@ -47,6 +47,8 @@ export class ManifestMutations {
       cache: ICache;
       webhooks: WebhookDispatcher;
       logger: ILogger;
+      /** After commit, e.g. publish the manifest to the CDN (M2.1). Must not throw. */
+      onCommitted?: (target: MutationTarget) => Promise<void>;
     }
   ) {}
 
@@ -55,7 +57,7 @@ export class ManifestMutations {
     actor: AuditActor,
     operation: (tx: TenantTx) => Promise<MutationOutcome<T>>
   ): Promise<{ result: T; manifest: BuiltManifest; snapshotId: string }> {
-    const { workspace, hostApp, environment } = target;
+    const { workspace, environment } = target;
 
     const committed = await this.deps.withTenant(workspace.id, async (tx) => {
       // Read inside the transaction so a concurrent freeze can't slip past (ENV-FRZ-02).
@@ -74,30 +76,59 @@ export class ManifestMutations {
 
       const outcome = await operation(tx);
       const auditEvent = await audit(tx, workspace.id, actor, outcome.audit);
-
-      const now = new Date();
-      const built = await buildManifest(
-        tx,
-        { workspaceSlug: workspace.slug, hostApp, environment },
-        { generatedAt: now }
-      );
-      // SNAP-01: the exact manifest after this change, linked to what caused it.
-      const snapshot = await tx.manifestSnapshot.create({
-        data: {
-          workspaceId: workspace.id,
-          hostAppId: hostApp.id,
-          environmentId: environment.id,
-          manifestJson: built.manifest as unknown as Prisma.InputJsonValue,
-          etag: built.etag,
-          auditEventId: auditEvent.id,
-          createdAt: now,
-        },
-      });
-      return { outcome, built, snapshotId: snapshot.id };
+      const { built, snapshotId } = await this.snapshot(tx, target, auditEvent.id);
+      return { outcome, built, snapshotId };
     });
 
-    // After commit: caches and webhooks are best effort and must not undo the change.
     const { outcome, built, snapshotId } = committed;
+    await this.afterCommit(target, built, snapshotId, outcome.events);
+    return { result: outcome.result, manifest: built, snapshotId };
+  }
+
+  /**
+   * Re-snapshots and republishes an environment whose manifest changed as a side effect
+   * of another change (e.g. a module's import-map specifier), linked to that change's
+   * audit event.
+   */
+  async rebuild(target: MutationTarget, auditEventId: string): Promise<BuiltManifest> {
+    const { built, snapshotId } = await this.deps.withTenant(target.workspace.id, (tx) =>
+      this.snapshot(tx, target, auditEventId)
+    );
+    await this.afterCommit(target, built, snapshotId, []);
+    return built;
+  }
+
+  /** SNAP-01: the exact manifest after a change, linked to what caused it. */
+  private async snapshot(tx: TenantTx, target: MutationTarget, auditEventId: string) {
+    const { workspace, hostApp, environment } = target;
+    const now = new Date();
+    const built = await buildManifest(
+      tx,
+      { workspaceSlug: workspace.slug, hostApp, environment },
+      { generatedAt: now }
+    );
+    const snapshot = await tx.manifestSnapshot.create({
+      data: {
+        workspaceId: workspace.id,
+        hostAppId: hostApp.id,
+        environmentId: environment.id,
+        manifestJson: built.manifest as unknown as Prisma.InputJsonValue,
+        etag: built.etag,
+        auditEventId,
+        createdAt: now,
+      },
+    });
+    return { built, snapshotId: snapshot.id };
+  }
+
+  /** Caches, webhooks and publishing are best effort and must not undo the change. */
+  private async afterCommit(
+    target: MutationTarget,
+    built: BuiltManifest,
+    snapshotId: string,
+    events: MutationOutcome<unknown>['events']
+  ) {
+    const { workspace, hostApp, environment } = target;
     try {
       await invalidateManifest(this.deps.cache, workspace.slug, hostApp.slug, environment.slug);
       const value = JSON.stringify(built);
@@ -120,7 +151,7 @@ export class ManifestMutations {
       environment: environment.slug,
     };
     try {
-      for (const event of outcome.events) {
+      for (const event of events) {
         await this.deps.webhooks.dispatch(workspace.id, event.name, {
           ...common,
           ...event.payload,
@@ -135,6 +166,8 @@ export class ManifestMutations {
       this.deps.logger.error('Webhook dispatch failed after commit', err as Error);
     }
 
-    return { result: outcome.result, manifest: built, snapshotId };
+    await this.deps
+      .onCommitted?.(target)
+      .catch((err) => this.deps.logger.error('Post-commit hook failed', err as Error));
   }
 }

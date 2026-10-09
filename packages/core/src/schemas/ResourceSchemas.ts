@@ -29,3 +29,19 @@ export const CreateModuleSchema = z.object({
   slug: SlugSchema,
   description: z.string().max(500).optional(),
 });
+
+/** npm-style specifier for import maps, e.g. `@acme/checkout` (IMP-03). */
+export const SpecifierSchema = z
+  .string()
+  .max(214)
+  .regex(
+    /^(@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*$/,
+    'Use an npm-style name such as @acme/checkout'
+  );
+
+export const UpdateModuleSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  description: z.string().max(500).nullable().optional(),
+  /** null resets to the module slug. */
+  specifier: SpecifierSchema.nullable().optional(),
+});

@@ -55,4 +55,15 @@ export class GCSStorageAdapter implements IStorage {
       }
     }
   }
+
+  async put(
+    key: string,
+    body: string,
+    opts: { contentType: string; cacheControl?: string }
+  ): Promise<void> {
+    await this.storage
+      .bucket(this.bucket)
+      .file(key)
+      .save(body, { contentType: opts.contentType, metadata: { cacheControl: opts.cacheControl } });
+  }
 }

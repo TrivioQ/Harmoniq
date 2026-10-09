@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const ModuleSchema = z.object({
   name: z.string(),
+  /** Import-map specifier when it differs from `name`, e.g. `@acme/checkout`. */
+  specifier: z.string().optional(),
   url: z.string().url(),
   integrity: z.string(),
   version: z.string(),

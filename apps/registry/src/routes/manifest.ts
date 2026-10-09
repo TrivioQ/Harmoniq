@@ -1,5 +1,6 @@
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';
+import { toFederationManifest, toImportMap } from '@harmoniq/core/dist/manifest/formats';
 import { BuiltManifest, buildManifest } from '../services/manifestBuilder';
 import { lastKnownGoodKey, manifestKey } from '../services/cacheKeys';
 import { MANIFEST_CACHE_TTL_SECONDS } from '../services/manifestMutation';
@@ -88,19 +89,20 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     return { built, hostAppSlug: hostApp.slug };
   }
 
-  async function serve(
-    request: FastifyRequest<{ Querystring: { pretty?: string } }>,
-    reply: FastifyReply,
+  /**
+   * The current manifest: cache first (keyed only by URL slugs, so a hit never touches
+   * the database), rebuilt on a miss, last-known-good when the database fails (MAN-06).
+   */
+  async function resolve(
     workspaceSlug: string,
     hostAppSlug: string | null,
     envSlug: string
-  ) {
-    // Cache first, keyed only by URL slugs: a hit never touches the database.
+  ): Promise<{ built: BuiltManifest; stale: boolean }> {
     if (hostAppSlug) {
       const cached = await cache.get(manifestKey(workspaceSlug, hostAppSlug, envSlug));
       if (cached) {
         fastify.metricMeters.manifestCacheHits.add(1);
-        return send(request, reply, JSON.parse(cached) as BuiltManifest);
+        return { built: JSON.parse(cached) as BuiltManifest, stale: false };
       }
     }
     fastify.metricMeters.manifestCacheMisses.add(1);
@@ -114,15 +116,44 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
         MANIFEST_CACHE_TTL_SECONDS
       );
       await cache.set(lastKnownGoodKey(workspaceSlug, resolvedHost, envSlug), value);
-      return send(request, reply, built);
+      return { built, stale: false };
     } catch (err) {
       if (err instanceof NotFoundError || !hostAppSlug) throw err;
-      // MAN-06: on database failure serve the last manifest we know was correct.
       const lkg = await cache.get(lastKnownGoodKey(workspaceSlug, hostAppSlug, envSlug));
       if (!lkg) throw err;
       logger.error('Serving last-known-good manifest after build failure', err as Error);
-      return send(request, reply, JSON.parse(lkg) as BuiltManifest, true);
+      return { built: JSON.parse(lkg) as BuiltManifest, stale: true };
     }
+  }
+
+  async function serve(
+    request: FastifyRequest<{ Querystring: { pretty?: string } }>,
+    reply: FastifyReply,
+    workspaceSlug: string,
+    hostAppSlug: string | null,
+    envSlug: string
+  ) {
+    const { built, stale } = await resolve(workspaceSlug, hostAppSlug, envSlug);
+    return send(request, reply, built, stale);
+  }
+
+  /** Derived formats (import map, federation manifest) share the manifest's caching. */
+  async function serveDerived(
+    request: FastifyRequest<{ Params: CanonicalParams }>,
+    reply: FastifyReply,
+    format: 'importmap' | 'federation',
+    contentType: string,
+    toBody: (manifest: BuiltManifest['manifest']) => unknown
+  ) {
+    const { workspaceSlug, hostAppSlug, env } = request.params;
+    const { built, stale } = await resolve(workspaceSlug, hostAppSlug, env);
+    // Derived from the manifest ETag: changes exactly when the manifest does (IMP-04).
+    const etag = `${built.etag}.${format}`;
+    reply.header('ETag', `"${etag}"`);
+    reply.header('Cache-Control', 'no-cache');
+    if (stale) reply.header('X-Harmoniq-Stale', 'true');
+    if (etagMatches(request.headers['if-none-match'], etag)) return reply.code(304).send();
+    return reply.type(contentType).send(JSON.stringify(toBody(built.manifest)));
   }
 
   // HST-01: canonical endpoint. Public (MAN-05).
@@ -145,6 +176,30 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     { config: rateLimit },
     (request, reply) =>
       serve(request, reply, request.params.workspaceSlug, null, request.params.env)
+  );
+
+  // IMP-01..06: standards-compliant import map (also valid for SystemJS).
+  fastify.get<{ Params: CanonicalParams; Querystring: { format?: string } }>(
+    '/api/importmap/:workspaceSlug/:hostAppSlug/:env',
+    { config: rateLimit },
+    (request, reply) =>
+      serveDerived(
+        request,
+        reply,
+        'importmap',
+        request.query.format === 'systemjs'
+          ? 'application/systemjs-importmap'
+          : 'application/importmap+json',
+        toImportMap
+      )
+  );
+
+  // Native Federation (`@angular-architects/native-federation`): { name: remoteEntry URL }.
+  fastify.get<{ Params: CanonicalParams }>(
+    '/api/federation-manifest/:workspaceSlug/:hostAppSlug/:env',
+    { config: rateLimit },
+    (request, reply) =>
+      serveDerived(request, reply, 'federation', 'application/json', toFederationManifest)
   );
 };
 

@@ -50,3 +50,6 @@ prisma/*.db-journal
 # artifacts
 brain/
 scratch/
+
+# Local instance storage (STORAGE_ADAPTER=local): published manifests in development
+data/
