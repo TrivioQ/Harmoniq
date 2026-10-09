@@ -242,6 +242,48 @@ describe('harmoniq CLI', () => {
       expect(received['checkout/deploy']).toBeUndefined();
     });
 
+    it('deploys a staged rollout and advances it', async () => {
+      const file = join(configDir, 'remoteEntry.js');
+      await writeFile(file, BUNDLE);
+      expect(
+        await cli(
+          ...deployArgs(
+            '--file',
+            file,
+            '--rollout',
+            '5,25,100',
+            '--hold',
+            '2h',
+            '--max-error-rate',
+            '0.02'
+          )
+        )
+      ).toBe(0);
+      expect(received['checkout/deploy'].body).toMatchObject({
+        canary: {
+          rollout: {
+            bands: [
+              { percent: 5, holdMinutes: 120 },
+              { percent: 25, holdMinutes: 120 },
+              { percent: 100, holdMinutes: 0 },
+            ],
+            gate: { maxErrorRate: 0.02 },
+          },
+        },
+      });
+      expect(stdout.join('\n')).toContain('5% → 25% → 100%');
+
+      received = {};
+      expect(await cli(...deployArgs('--file', file, '--rollout', '5,50'))).toBe(2);
+      expect(await cli(...deployArgs('--file', file, '--rollout', '5,100', '--canary', '5'))).toBe(
+        2
+      );
+      expect(received['checkout/deploy']).toBeUndefined();
+
+      expect(await cli(...withKey, 'canary', 'advance', ...target)).toBe(0);
+      expect(received['checkout/canary/advance:POST'].body).toEqual({ environment: 'production' });
+    });
+
     it('sets traffic, promotes and aborts', async () => {
       expect(await cli(...withKey, 'canary', 'set-traffic', '25', ...target)).toBe(0);
       expect(received['checkout/canary:PUT'].body).toEqual({

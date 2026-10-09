@@ -50,6 +50,18 @@ export interface Version {
   status: 'active' | 'inactive' | 'canary' | 'orphaned';
   /** Share of users on this version while it is the canary (1–99). */
   trafficPercent: number | null;
+  /** Staged rollout progress while the version is a canary following a schedule. */
+  rollout: {
+    bands: Array<{ percent: number; holdMinutes: number }>;
+    gate: {
+      maxErrorRate?: number;
+      maxErrorRateDelta?: number;
+      maxP95Ms?: number;
+      minSamples: number;
+    };
+    bandStartedAt: string;
+    currentBandIndex: number;
+  } | null;
   deployedBy: string;
   deployedByType: 'user' | 'apiKey';
   deployedAt: string;

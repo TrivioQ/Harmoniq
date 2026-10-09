@@ -22,6 +22,7 @@ import {
   UpdateModuleSchema,
 } from '@harmoniq/core/dist/schemas/ResourceSchemas';
 import { audit } from '../services/audit';
+import { advanceRollout, clearedRollout, startRollout } from '../services/rollout';
 import { isValidBundle } from '@harmoniq/core/dist/validation/bundle';
 import { createWorkspaceStorage } from '../adapters/storage/createStorage';
 import { canAccessModule } from '../plugins/authenticate';
@@ -396,7 +397,9 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               url: body.url,
               integrity: body.integrity,
               status: canary ? 'canary' : 'active',
-              trafficPercent: canary?.trafficPercent,
+              ...(canary?.rollout
+                ? startRollout(canary.rollout)
+                : { trafficPercent: canary?.trafficPercent }),
               activatedAt: canary ? null : new Date(),
               deployedBy: request.principal!.id,
               deployedByType: request.principal!.type,
@@ -418,7 +421,11 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                 environment: env.slug,
                 version: version.version,
                 url: version.url,
-                ...(canary && { canary: true, trafficPercent: canary.trafficPercent }),
+                ...(canary && {
+                  canary: true,
+                  trafficPercent: version.trafficPercent,
+                  ...(canary.rollout && { rollout: canary.rollout }),
+                }),
                 ...(endedCanary && {
                   endedCanary: { versionId: endedCanary.id, version: endedCanary.version },
                 }),
@@ -433,7 +440,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                   version: version.version,
                   versionId: version.id,
                   url: version.url,
-                  ...(canary && { canary: true, trafficPercent: canary.trafficPercent }),
+                  ...(canary && { canary: true, trafficPercent: version.trafficPercent }),
                 },
               },
               ...(canary
@@ -444,7 +451,8 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                         module: module.slug,
                         version: version.version,
                         versionId: version.id,
-                        trafficPercent: canary.trafficPercent,
+                        trafficPercent: version.trafficPercent,
+                        ...(canary.rollout && { rollout: canary.rollout }),
                       },
                     },
                   ]
@@ -663,9 +671,10 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                 `No canary of "${module.slug}" in "${env.slug}"; deploy one with a canary or pass versionId`
               );
             }
+            // Setting traffic by hand takes over from a staged rollout.
             const updated = await tx.moduleVersion.update({
               where: { id: current.id },
-              data: { trafficPercent: body.trafficPercent },
+              data: { trafficPercent: body.trafficPercent, ...clearedRollout },
             });
             const change = {
               module: module.slug,
@@ -704,7 +713,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           const ended = await endCanary(tx, module.id, env.id);
           const started = await tx.moduleVersion.update({
             where: { id: target.id },
-            data: { status: 'canary', trafficPercent: body.trafficPercent },
+            data: { status: 'canary', trafficPercent: body.trafficPercent, ...clearedRollout },
           });
           const change = {
             module: module.slug,
@@ -753,7 +762,12 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           await deactivateActive(tx, module.id, env.id);
           const promoted = await tx.moduleVersion.update({
             where: { id: canary.id },
-            data: { status: 'active', trafficPercent: null, activatedAt: new Date() },
+            data: {
+              status: 'active',
+              trafficPercent: null,
+              activatedAt: new Date(),
+              ...clearedRollout,
+            },
           });
           const change = {
             module: module.slug,
@@ -777,6 +791,24 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
             events: [{ name: 'canary.promoted', payload: change }],
           };
         }
+      );
+      return { ...versionDto(result, env.slug), manifestEtag: manifest.etag, snapshotId };
+    }
+  );
+
+  // STG-05: move a staged rollout to its next band now, skipping the gate.
+  fastify.post<{ Params: ModuleParams }>(
+    '/api/workspaces/:workspaceSlug/modules/:moduleRef/canary/advance',
+    { preHandler: fastify.requireWorkspace('module:deploy') },
+    async (request) => {
+      const body = CanaryActionRequestSchema.parse(request.body);
+      const module = await loadModule(request);
+      const env = findEnvironment(module, body.environment);
+      const { result, manifest, snapshotId } = await advanceRollout(
+        { mutations },
+        { workspace: request.workspace!, hostApp: module.hostApp, environment: env, module },
+        actor(request),
+        { manual: true }
       );
       return { ...versionDto(result, env.slug), manifestEtag: manifest.etag, snapshotId };
     }

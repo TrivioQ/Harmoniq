@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { evaluateAlerts } from '../services/alerts';
+import { evaluateRollouts } from '../services/rollout';
 
 export async function registerAlertJobs(fastify: FastifyInstance) {
   const { boss, logger, systemDb, withTenant, mutations, webhooks } = fastify.container;
@@ -23,9 +24,13 @@ export async function registerAlertJobs(fastify: FastifyInstance) {
     if (fired) logger.info(`Alert evaluation: ${fired} of ${evaluated} rules fired`);
   });
 
-  // Rollout Advance - Scheduled (no cron, invoked on demand)
+  // STG-02: staged rollouts, checked every minute (a scan, so nothing is lost when a
+  // replica restarts mid-band).
+  await boss.schedule('rollout.advance', '* * * * *');
   boss.work('rollout.advance', async () => {
-    logger.info('Running rollout.advance job - stub');
-    // Implementation deferred to full Staged Rollout Phase
+    const results = await evaluateRollouts({ systemDb, withTenant, mutations, webhooks, logger });
+    for (const r of results.filter((r) => r.outcome !== 'waiting_for_samples')) {
+      logger.info(`Rollout ${r.versionId}: ${r.outcome}`);
+    }
   });
 }

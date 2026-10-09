@@ -41,6 +41,7 @@ See [`docs/requirements.md §5.4`](../requirements.md).
 - **Pipeline.** Canary start, traffic changes, promote and abort run through `ManifestMutations` like every other change: freeze check (423), audit event, snapshot of the stable manifest, cache refresh, webhooks, CDN publish.
 - **Health.** Host apps post load outcomes to a public, rate-limited endpoint; only versions live in the environment are accepted, and the variant is derived from the version (a client can't mislabel canary data). Raw events (24 h) answer the 5-minute window queries; a job rolls them up hourly every 5 minutes (30 days) for sparklines. The live-version lookup is cached for 30 s per replica and re-read when a report names an unknown version, so a fresh canary's first reports aren't dropped.
 - **Alerts.** `alert.evaluate` runs every minute (pg-boss runs a schedule once across replicas). A rule needs `minSamples` in its window to decide; it fires on the `ok` → `firing` change only, respects a cooldown, and resolves when the metric recovers or the data runs out. Auto-rollback goes through `ManifestMutations` as actor `system`, so it is frozen-environment-aware, audited, snapshotted and published like any change.
+- **Staged rollouts.** The schedule lives on the canary (`rolloutSchedule`, `currentBandIndex`, `bandStartedAt`). `rollout.advance` scans every minute rather than scheduling one delayed job per band, so a restart or a lost job never strands a rollout and a freeze simply pauses it. Each gate check covers the loads of the band that just ran. A band-index check inside the transaction keeps a manual advance and the job from both acting on the same band.
 - **CDN and import maps** stay stable-only: a CDN can't vary by user, and browsers load import maps without custom headers. The SDK therefore asks the registry first whenever it has a user id, and falls back to the CDN.
 
 ### Deviation: `harmoniq_canary` cookie (CAN-02)
@@ -54,6 +55,22 @@ YES (pre-1.0): `CanaryConfigSchema` was removed from `@harmoniq/core` in favour 
 ---
 
 ## Change History
+
+### 2026-10-09 — Staged rollouts (M3.5)
+
+**Type:** feature
+**PR / Branch:** feat/m3-progressive
+**Refs:** STG-01 – STG-05
+
+#### What changed
+
+- `deploy` accepts `canary: { rollout: { bands, gate } }`; `POST …/canary/advance`; the `rollout.advance` job (replacing the stub) advances, promotes at 100% or aborts on a failed gate, as `system`. Manual traffic changes take over from the schedule; promote and abort clear it.
+- CLI: `deploy --rollout 1,10,50,100 --hold 30m` with gate flags; `canary advance`.
+- Dashboard: band progress, next check time and "Advance now" in the canary panel; audit lines for rollout events.
+
+#### Testing
+
+`rollout.test.ts`: schedule validation and gate logic; hold, waiting for samples, advance with a `system` audit and a fresh band clock; manual advance through the 100% band to promotion; abort on a failed gate with webhook; manual traffic taking over; a freeze pausing the rollout. CLI tests for the flags. Dashboard panel exercised in headless Chrome.
 
 ### 2026-10-09 — Alerts and auto-rollback (M3.4)
 

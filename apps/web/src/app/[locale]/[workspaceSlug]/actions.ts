@@ -118,6 +118,27 @@ export async function promoteCanaryAction(
   );
 }
 
+export async function advanceCanaryAction(
+  workspace: string,
+  moduleRef: string,
+  environment: string,
+  _prev: ActionResult
+): Promise<ActionResult> {
+  return run(
+    () => authedFetch(canaryPath(workspace, moduleRef, '/advance'), { body: { environment } }),
+    (t, r) => {
+      const v = r as { version: string; status: string; trafficPercent: number | null };
+      return {
+        status: 'success',
+        message:
+          v.status === 'active'
+            ? t('canaryPromoted', { version: v.version })
+            : t('canaryTraffic', { version: v.version, percent: v.trafficPercent ?? 0 }),
+      };
+    }
+  );
+}
+
 export async function abortCanaryAction(
   workspace: string,
   moduleRef: string,

@@ -167,13 +167,32 @@ Exactly one of `previous: true`, `version: "1.2.2"` or `versionId`. `previous` i
 
 ### Canary releases — `module:deploy`
 
-Start one by deploying with `"canary": { "trafficPercent": 10 }`: the new version runs next to the active one (which must exist, else `409`) and replaces any running canary. A deploy without `canary` ends a running canary (recorded as `endedCanary` in the audit event).
+Start one by deploying with `"canary": { "trafficPercent": 10 }`, or as a **staged rollout** (STG-01):
 
-| Endpoint                                            | Body                                          | Effect                                                                                    | Webhook                             |
-| --------------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------- |
-| `PUT /api/workspaces/:ws/modules/:moduleRef/canary` | `{ environment, trafficPercent, versionId? }` | Change the traffic (1–99); with `versionId`, make that earlier version the canary instead | `canary.updated` / `canary.started` |
-| `POST …/canary/promote`                             | `{ environment, reason? }`                    | The canary becomes the active version for everyone                                        | `canary.promoted`                   |
-| `POST …/canary/abort`                               | `{ environment, reason? }`                    | Everyone goes back to the active version; the canary becomes inactive                     | `canary.rolled_back`                |
+```json
+"canary": {
+  "rollout": {
+    "bands": [
+      { "percent": 1, "holdMinutes": 30 },
+      { "percent": 10, "holdMinutes": 60 },
+      { "percent": 50, "holdMinutes": 60 },
+      { "percent": 100, "holdMinutes": 0 }
+    ],
+    "gate": { "maxErrorRate": 0.02, "maxErrorRateDelta": 0.01, "maxP95Ms": 1500, "minSamples": 50 }
+  }
+}
+```
+
+Bands must increase and end at 100. Every minute, the registry checks canaries whose band has run its `holdMinutes`: with at least `minSamples` canary loads during the band and every gate limit met it moves to the next band (audited `canary.rollout_advance`), and reaching 100 promotes; a failed limit aborts the canary (`canary.rollout_failed`, webhook `canary.auto_rolled_back`); with too few loads it waits. Setting traffic by hand (`PUT …/canary`) stops following the schedule; a frozen environment pauses it. Versions carry `rollout` (`bands`, `gate`, `bandStartedAt`, `currentBandIndex`) while a schedule runs.
+
+A plain canary: the new version runs next to the active one (which must exist, else `409`) and replaces any running canary. A deploy without `canary` ends a running canary (recorded as `endedCanary` in the audit event).
+
+| Endpoint                                            | Body                                          | Effect                                                                                        | Webhook                              |
+| --------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------ |
+| `PUT /api/workspaces/:ws/modules/:moduleRef/canary` | `{ environment, trafficPercent, versionId? }` | Change the traffic (1–99); with `versionId`, make that earlier version the canary instead     | `canary.updated` / `canary.started`  |
+| `POST …/canary/advance`                             | `{ environment }`                             | Staged rollout: move to the next band now, skipping the gate (STG-05); the 100% band promotes | `canary.updated` / `canary.promoted` |
+| `POST …/canary/promote`                             | `{ environment, reason? }`                    | The canary becomes the active version for everyone                                            | `canary.promoted`                    |
+| `POST …/canary/abort`                               | `{ environment, reason? }`                    | Everyone goes back to the active version; the canary becomes inactive                         | `canary.rolled_back`                 |
 
 All three return the version, `manifestEtag` and `snapshotId`, are audited (`canary.update`, `canary.start`, `canary.promote`, `canary.abort`) and return `423` in a frozen environment. `GET /api/workspaces/:ws/modules` lists each environment's `canary` next to `active`.
 

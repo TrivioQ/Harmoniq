@@ -7,6 +7,7 @@ import { RegistryError } from '@/lib/registry';
 import { HealthStats, roleAtLeast, workspaceApi } from '@/lib/workspaceApi';
 import {
   abortCanaryAction,
+  advanceCanaryAction,
   promoteAction,
   promoteCanaryAction,
   rollbackAction,
@@ -171,8 +172,53 @@ export default async function ModuleDetailPage(props: {
                 active: active?.version ?? '—',
               })}
             </p>
+            {canary.rollout && (
+              <div className="space-y-2">
+                <ol
+                  className="flex flex-wrap items-center gap-1 text-xs"
+                  aria-label={t('rolloutTitle')}
+                >
+                  {canary.rollout.bands.map((band, i) => (
+                    <li
+                      key={band.percent}
+                      className={`rounded px-2 py-0.5 ${
+                        i < canary.rollout!.currentBandIndex
+                          ? 'bg-amber-200 text-amber-900'
+                          : i === canary.rollout!.currentBandIndex
+                            ? 'bg-amber-500 text-white font-medium'
+                            : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {band.percent}%
+                    </li>
+                  ))}
+                </ol>
+                <p className="text-sm text-muted-foreground">
+                  {t('rolloutStatus', {
+                    band: canary.rollout.currentBandIndex + 1,
+                    bands: canary.rollout.bands.length,
+                    next: format.dateTime(
+                      new Date(
+                        new Date(canary.rollout.bandStartedAt).getTime() +
+                          canary.rollout.bands[canary.rollout.currentBandIndex].holdMinutes * 60_000
+                      ),
+                      { hour: '2-digit', minute: '2-digit' }
+                    ),
+                    samples: canary.rollout.gate.minSamples,
+                  })}
+                </p>
+              </div>
+            )}
             {canManageCanary && (
               <div className="flex flex-wrap items-start gap-3">
+                {canary.rollout && (
+                  <ActionForm
+                    action={advanceCanaryAction.bind(null, workspaceSlug, module.id, env.slug)}
+                    submitLabel={t('rolloutAdvance')}
+                    confirm={t('rolloutAdvanceConfirm')}
+                    variant="outline"
+                  />
+                )}
                 <ActionForm
                   action={setCanaryAction.bind(null, workspaceSlug, module.id, env.slug, null)}
                   submitLabel={t('canaryUpdate')}

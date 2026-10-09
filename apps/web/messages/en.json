@@ -215,7 +215,9 @@
       "module_auto_rollback": "Rolled back {module} {version} in {environment} after alert “{rule}”",
       "alert_create": "Created alert rule {name}",
       "alert_update": "Updated an alert rule",
-      "alert_delete": "Deleted alert rule {name}"
+      "alert_delete": "Deleted alert rule {name}",
+      "canary_rollout_advance": "Advanced the rollout of {module} {version} in {environment} to {percent}%",
+      "canary_rollout_failed": "Stopped the rollout of {module} {version} in {environment}: health gate failed"
     },
     "systemActor": "automatic"
   },
@@ -265,7 +267,11 @@
       "degrading": "degrading",
       "steady": "steady",
       "insufficient_data": "not enough data for a trend"
-    }
+    },
+    "rolloutTitle": "Rollout bands",
+    "rolloutStatus": "Staged rollout: band {band} of {bands}. The health gate is checked after {next} (needs {samples} canary loads); a failed gate aborts the canary.",
+    "rolloutAdvance": "Advance now",
+    "rolloutAdvanceConfirm": "Move to the next band without waiting for the health gate?"
   },
   "EnvironmentHistory": {
     "back": "Environments",

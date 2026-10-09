@@ -16,6 +16,49 @@ export function parsePercent(value: string): number {
   return percent;
 }
 
+/** `30m`, `2h`, `1d` or plain minutes. */
+export function parseMinutes(value: string): number {
+  const match = /^(\d+)\s*(m|h|d)?$/.exec(value.trim());
+  if (!match)
+    throw new CliError(`Expected a duration like 30m, 2h or 1d, got "${value}"`, EXIT.validation);
+  return Number(match[1]) * ({ m: 1, h: 60, d: 1440 }[match[2] as 'm' | 'h' | 'd'] ?? 1);
+}
+
+/** `--rollout 1,10,50,100 --hold 30m` → bands; the last band must be 100. */
+export function parseRollout(opts: {
+  rollout: string;
+  hold?: string;
+  maxErrorRate?: string;
+  maxErrorDelta?: string;
+  maxP95?: string;
+  minSamples?: string;
+}) {
+  const percents = opts.rollout.split(',').map((p) => Number(p.trim()));
+  if (
+    percents.length < 2 ||
+    percents.some(
+      (p, i) => !Number.isInteger(p) || p < 1 || p > 100 || (i && p <= percents[i - 1])
+    ) ||
+    percents[percents.length - 1] !== 100
+  ) {
+    throw new CliError(
+      `--rollout needs increasing percentages ending at 100, e.g. 1,10,50,100 (got "${opts.rollout}")`,
+      EXIT.validation
+    );
+  }
+  const holdMinutes = parseMinutes(opts.hold ?? '30m');
+  const num = (v?: string) => (v === undefined ? undefined : Number(v));
+  return {
+    bands: percents.map((percent) => ({ percent, holdMinutes: percent === 100 ? 0 : holdMinutes })),
+    gate: {
+      ...(opts.maxErrorRate !== undefined && { maxErrorRate: num(opts.maxErrorRate) }),
+      ...(opts.maxErrorDelta !== undefined && { maxErrorRateDelta: num(opts.maxErrorDelta) }),
+      ...(opts.maxP95 !== undefined && { maxP95Ms: num(opts.maxP95) }),
+      ...(opts.minSamples !== undefined && { minSamples: num(opts.minSamples) }),
+    },
+  };
+}
+
 const target = (cmd: Command) =>
   cmd
     .requiredOption('--module <module>', 'Module slug or id')
@@ -56,6 +99,24 @@ const promote = target(new Command('promote'))
     emit(ctx, result, `Promoted canary ${opts.module} ${result.version} in ${opts.env}`);
   });
 
+const advance = target(new Command('advance'))
+  .description('Move a staged rollout to its next band now, without waiting for its gate')
+  .action(async (opts, command: Command) => {
+    const ctx = await resolveContext(command);
+    const workspace = requireWorkspace(ctx);
+    const result = await authedClient(ctx).post<CanaryResult>(
+      path(workspace, opts.module, '/advance'),
+      { environment: opts.env }
+    );
+    emit(
+      ctx,
+      result,
+      result.status === 'active'
+        ? `Rollout of ${opts.module} ${result.version} in ${opts.env} complete: promoted`
+        : `Rollout of ${opts.module} ${result.version} in ${opts.env}: ${result.trafficPercent}% of users`
+    );
+  });
+
 const abort = target(new Command('abort'))
   .description('Stop the canary; everyone goes back to the active version')
   .option('--reason <text>', 'Recorded in the audit log')
@@ -73,4 +134,5 @@ export const canaryCommand = new Command('canary')
   .description('Manage canary releases (start one with `deploy --canary <percent>`)')
   .addCommand(setTraffic)
   .addCommand(promote)
+  .addCommand(advance)
   .addCommand(abort);

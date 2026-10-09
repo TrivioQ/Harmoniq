@@ -4,7 +4,7 @@ import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
 import { CliError, EXIT } from '../lib/errors';
 import { resolveIntegrity } from '../lib/integrity';
 import { emit, enc } from '../lib/output';
-import { parsePercent } from './canary';
+import { parsePercent, parseRollout } from './canary';
 
 const collect = (value: string, previous: string[] = []) => [...previous, value];
 
@@ -25,13 +25,35 @@ export const deployCommand = new Command('deploy')
     'Deploy as a canary for this share of users (1–99); the active version keeps the rest'
   )
   .option(
+    '--rollout <percents>',
+    'Staged canary rollout, e.g. 1,10,50,100: each band runs for --hold, then advances if healthy; 100 promotes'
+  )
+  .option('--hold <duration>', 'Time per rollout band, e.g. 30m, 2h (default 30m)')
+  .option(
+    '--max-error-rate <rate>',
+    'Rollout gate: abort if the canary error rate exceeds this (0–1)'
+  )
+  .option(
+    '--max-error-delta <rate>',
+    'Rollout gate: abort if canary errors exceed stable by this (0–1)'
+  )
+  .option('--max-p95 <ms>', 'Rollout gate: abort if the canary p95 load time exceeds this')
+  .option(
+    '--min-samples <n>',
+    'Rollout gate: canary loads needed per band before deciding (default 20)'
+  )
+  .option(
     '--preview-ttl <hours>',
     'Create --env as a preview environment (e.g. pr-123) that expires after this many hours'
   )
   .action(async (opts, command: Command) => {
     const ctx = await resolveContext(command);
     const workspace = requireWorkspace(ctx);
+    if (opts.canary !== undefined && opts.rollout !== undefined) {
+      throw new CliError('Use either --canary or --rollout', EXIT.validation);
+    }
     const canary = opts.canary !== undefined ? parsePercent(opts.canary) : undefined;
+    const rollout = opts.rollout !== undefined ? parseRollout(opts) : undefined;
     const integrity = await resolveIntegrity(opts);
 
     if (opts.validate) {
@@ -67,6 +89,7 @@ export const deployCommand = new Command('deploy')
         dryRun: !!opts.dryRun,
         ...(opts.previewTtl && { ephemeral: { ttlHours: Number(opts.previewTtl) } }),
         ...(canary && { canary: { trafficPercent: canary } }),
+        ...(rollout && { canary: { rollout } }),
       }
     );
 
@@ -85,9 +108,11 @@ export const deployCommand = new Command('deploy')
     emit(
       ctx,
       result,
-      (canary
-        ? `Deployed ${opts.module} ${opts.release} to ${opts.env} as a canary for ${canary}% of users`
-        : `Deployed ${opts.module} ${opts.release} to ${opts.env}`) +
+      (rollout
+        ? `Deployed ${opts.module} ${opts.release} to ${opts.env} as a staged rollout (${rollout.bands.map((b) => `${b.percent}%`).join(' → ')})`
+        : canary
+          ? `Deployed ${opts.module} ${opts.release} to ${opts.env} as a canary for ${canary}% of users`
+          : `Deployed ${opts.module} ${opts.release} to ${opts.env}`) +
         ` (manifest ${result.manifestEtag})` +
         (result.previewUrl ? `\nPreview: ${result.previewUrl}` : '')
     );

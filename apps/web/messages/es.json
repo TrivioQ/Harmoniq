@@ -215,7 +215,9 @@
       "module_auto_rollback": "Revirtió {module} {version} en {environment} por la alerta «{rule}»",
       "alert_create": "Creó la regla de alerta {name}",
       "alert_update": "Actualizó una regla de alerta",
-      "alert_delete": "Eliminó la regla de alerta {name}"
+      "alert_delete": "Eliminó la regla de alerta {name}",
+      "canary_rollout_advance": "Avanzó el despliegue de {module} {version} en {environment} al {percent}%",
+      "canary_rollout_failed": "Detuvo el despliegue de {module} {version} en {environment}: falló la comprobación de salud"
     },
     "systemActor": "automático"
   },
@@ -265,7 +267,11 @@
       "degrading": "empeorando",
       "steady": "estable",
       "insufficient_data": "datos insuficientes para una tendencia"
-    }
+    },
+    "rolloutTitle": "Tramos del despliegue",
+    "rolloutStatus": "Despliegue escalonado: tramo {band} de {bands}. La comprobación de salud se hace después de las {next} (necesita {samples} cargas del canary); si falla, el canary se aborta.",
+    "rolloutAdvance": "Avanzar ahora",
+    "rolloutAdvanceConfirm": "¿Pasar al siguiente tramo sin esperar la comprobación de salud?"
   },
   "EnvironmentHistory": {
     "back": "Entornos",

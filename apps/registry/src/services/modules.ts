@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import type { Environment, HostApp, ModuleVersion, RemoteModule } from '@prisma/client';
 import type { TenantTx } from '@harmoniq/db';
 import { ConflictError, NotFoundError } from '@harmoniq/core/dist/errors/AppError';
@@ -52,6 +53,11 @@ export function versionDto(v: ModuleVersion, environmentSlug?: string) {
     storagePath: v.storagePath,
     promotedFromId: v.promotedFromId,
     promotedFromEnv: v.promotedFromEnv,
+    // STG-01: staged rollout progress while the version is a canary.
+    rollout:
+      v.rolloutSchedule && v.currentBandIndex !== null
+        ? { ...(v.rolloutSchedule as object), currentBandIndex: v.currentBandIndex }
+        : null,
   };
 }
 
@@ -78,7 +84,12 @@ export async function endCanary(tx: TenantTx, moduleId: string, environmentId: s
   if (canary) {
     await tx.moduleVersion.update({
       where: { id: canary.id },
-      data: { status: 'inactive', trafficPercent: null },
+      data: {
+        status: 'inactive',
+        trafficPercent: null,
+        rolloutSchedule: Prisma.DbNull,
+        currentBandIndex: null,
+      },
     });
   }
   return canary;

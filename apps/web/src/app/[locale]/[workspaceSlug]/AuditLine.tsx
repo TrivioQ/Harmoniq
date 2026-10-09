@@ -24,6 +24,8 @@ const KNOWN = [
   'canary.update',
   'canary.promote',
   'canary.abort',
+  'canary.rollout_advance',
+  'canary.rollout_failed',
   'module.auto_rollback',
   'alert.create',
   'alert.update',

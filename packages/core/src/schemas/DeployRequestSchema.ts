@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { TrafficPercentSchema } from './CanaryRequestSchema';
+import { RolloutScheduleSchema, TrafficPercentSchema } from './CanaryRequestSchema';
 
 export const DeployRequestSchema = z.object({
   /** Target environment slug, e.g. `staging`. */
@@ -21,10 +21,19 @@ export const DeployRequestSchema = z.object({
    */
   ephemeral: z.object({ ttlHours: z.number().int().min(1).max(720) }).optional(),
   /**
-   * Deploy as a canary next to the active version instead of replacing it (CAN-01).
-   * Replaces a running canary of the same module.
+   * Deploy as a canary next to the active version instead of replacing it (CAN-01), at a
+   * fixed `trafficPercent` or as a staged `rollout` (STG-01). Replaces a running canary of
+   * the same module.
    */
-  canary: z.object({ trafficPercent: TrafficPercentSchema }).optional(),
+  canary: z
+    .object({
+      trafficPercent: TrafficPercentSchema.optional(),
+      rollout: RolloutScheduleSchema.optional(),
+    })
+    .refine((c) => !!c.trafficPercent !== !!c.rollout, {
+      message: 'Give either trafficPercent or rollout',
+    })
+    .optional(),
 });
 
 export type DeployRequest = z.infer<typeof DeployRequestSchema>;
