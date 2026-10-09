@@ -30,6 +30,8 @@ pnpm run docker:demo
 
 Builds and starts everything (Postgres, Redis, registry on `:4000`, dashboard on `:3000`) with a demo workspace. Sign in at http://localhost:3000 with **Development sign-in** as `demo@harmoniq.dev`. See [Self-Hosting](./docs/self-hosting.md) for production.
 
+For a minimal end-to-end demo without a bundler, see [`examples/import-map`](./examples/import-map).
+
 ### Quick Start (development)
 
 1. **Clone the repository:**

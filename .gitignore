@@ -53,3 +53,6 @@ scratch/
 
 # Local instance storage (STORAGE_ADAPTER=local): published manifests in development
 data/
+
+# Example state
+examples/**/.demo.env

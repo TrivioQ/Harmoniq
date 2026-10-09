@@ -43,6 +43,20 @@ None.
 
 ## Change History
 
+### 2026-10-09 — Example: import maps without a bundler
+
+**Type:** docs/example
+**PR / Branch:** feat/m2-delivery
+**Refs:** IMP-01, SRI-01
+
+#### What changed
+
+`examples/import-map`: a static HTML host that inlines Harmoniq's import map (browsers don't load external import maps) and imports `@example/greeting`; a tiny CORS static server as the CDN; `demo.sh setup | deploy <v> | rollback`.
+
+#### Testing
+
+Run in headless Chrome against a live registry: the host showed 1.0.0, then 2.0.0 after a deploy, then 1.0.0 after a rollback, all without changing the host; a tampered remote was refused by the browser's SRI check.
+
 ### 2026-10-09 — Module Federation 2.0 runtime plugin (M2.4)
 
 **Type:** feature

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Harmoniq import-map host</title>
+    <script>
+      // Browsers don't load external import maps (`<script type="importmap" src>`), so the
+      // host fetches the map from Harmoniq and inlines it before any module is resolved.
+      // The map's `integrity` section makes the browser verify every remote (SRI).
+      const params = new URLSearchParams(location.search);
+      const registry = params.get('registry') ?? 'http://localhost:4000';
+      const ws = params.get('workspace');
+      const host = params.get('host') ?? 'default';
+      const env = params.get('env') ?? 'production';
+      const url = `${registry}/api/importmap/${ws}/${host}/${env}`;
+
+      window.harmoniqReady = fetch(url, { cache: 'no-store' })
+        .then((res) => res.json())
+        .then((map) => {
+          const script = document.createElement('script');
+          script.type = 'importmap';
+          script.textContent = JSON.stringify(map);
+          document.head.append(script);
+        });
+    </script>
+  </head>
+  <body>
+    <h1>Host app</h1>
+    <div id="greeting">loading…</div>
+    <script type="module">
+      await window.harmoniqReady;
+      try {
+        const { render } = await import('@example/greeting');
+        render(document.getElementById('greeting'));
+      } catch (err) {
+        document.getElementById('greeting').textContent = `failed: ${err.message}`;
+      }
+    </script>
+  </body>
+</html>
