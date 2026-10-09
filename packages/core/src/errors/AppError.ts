@@ -53,3 +53,9 @@ export class LockedError extends AppError {
     super('LOCKED', message, 423, metadata);
   }
 }
+
+export class BadRequestError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('BAD_REQUEST', message, 400, metadata);
+  }
+}

@@ -5,7 +5,10 @@ import rateLimit from '@fastify/rate-limit';
 import containerPlugin from './plugins/container';
 import authenticatePlugin from './plugins/authenticate';
 import manifestRoutes from './routes/manifest';
-import deployRoutes from './routes/deploy';
+import moduleRoutes from './routes/modules';
+import hostAppRoutes from './routes/hostApps';
+import historyRoutes from './routes/history';
+import accessRoutes from './routes/access';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
 import workspaceRoutes from './routes/workspaces';
@@ -14,6 +17,8 @@ import jobsPlugin from './plugins/jobs';
 import metricsPlugin from './plugins/metrics';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import { ZodError } from 'zod';
+import { AppError } from '@harmoniq/core/dist/errors/AppError';
 import { Config, loadConfig } from './config';
 
 declare module 'fastify' {
@@ -39,6 +44,39 @@ export async function buildApp() {
   });
 
   app.decorate('config', config);
+
+  // Services throw AppError subclasses; this is the only place they become HTTP errors.
+  app.setErrorHandler((err, request, reply) => {
+    if (err instanceof AppError) {
+      return reply.code(err.statusCode).send({
+        error: {
+          code: err.code,
+          message: err.message,
+          ...(err.metadata && { details: err.metadata }),
+        },
+      });
+    }
+    // Structural check: core and the registry may resolve different copies of zod.
+    if (err instanceof ZodError || (err.name === 'ZodError' && 'flatten' in err)) {
+      return reply.code(400).send({
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'Invalid request',
+          details: (err as unknown as ZodError).flatten(),
+        },
+      });
+    }
+    const status = err.statusCode ?? 500;
+    if (status < 500) {
+      return reply
+        .code(status)
+        .send({ error: { code: err.code ?? 'BAD_REQUEST', message: err.message } });
+    }
+    request.log.error(err);
+    return reply
+      .code(500)
+      .send({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } });
+  });
 
   // Register security plugins
   await app.register(helmet, {
@@ -106,7 +144,10 @@ export async function buildApp() {
 
   // Register routes
   await app.register(manifestRoutes);
-  await app.register(deployRoutes);
+  await app.register(moduleRoutes);
+  await app.register(hostAppRoutes);
+  await app.register(historyRoutes);
+  await app.register(accessRoutes);
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
   await app.register(workspaceRoutes);

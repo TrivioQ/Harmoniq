@@ -47,3 +47,19 @@ export function decryptJson<T>(value: unknown, key: Buffer): T {
 export function maskSecret(secret: string): string {
   return secret.length > 8 ? `••••${secret.slice(-4)}` : '••••';
 }
+
+const SEALED_PREFIX = 'enc:v1:';
+
+/** Encrypts a secret for a plain string column (e.g. webhook signing secrets). */
+export function sealSecret(plain: string, key: Buffer): string {
+  return SEALED_PREFIX + Buffer.from(JSON.stringify(encryptJson(plain, key))).toString('base64');
+}
+
+/** Reverses sealSecret. Values stored before encryption existed are returned as-is. */
+export function openSecret(stored: string, key: Buffer): string {
+  if (!stored.startsWith(SEALED_PREFIX)) return stored;
+  const envelope = JSON.parse(
+    Buffer.from(stored.slice(SEALED_PREFIX.length), 'base64').toString('utf8')
+  );
+  return decryptJson<string>(envelope, key);
+}

@@ -13,3 +13,6 @@ export * from './schemas/ApiKeyCreateSchema';
 export * from './schemas/WebhookEventSchema';
 export * from './schemas/WorkspaceStorageConfigSchema';
 export * from './schemas/AuthSchemas';
+export * from './manifest/diff';
+export * from './validation/bundle';
+export * from './schemas/ResourceSchemas';

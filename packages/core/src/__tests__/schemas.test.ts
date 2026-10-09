@@ -13,11 +13,20 @@ import {
 describe('Zod Schemas', () => {
   it('should validate a valid DeployRequest', () => {
     const validData = {
+      environment: 'staging',
       url: 'https://cdn.example.com/remoteEntry.js',
       version: '1.0.0',
       integrity: 'sha384-xyz',
     };
     expect(() => DeploySchema.parse(validData)).not.toThrow();
+  });
+
+  it('should fail DeployRequest without an environment or with a non-SRI integrity', () => {
+    const base = { url: 'https://cdn.example.com/remoteEntry.js', version: '1.0.0' };
+    expect(() => DeploySchema.parse({ ...base, integrity: 'sha384-xyz' })).toThrow();
+    expect(() =>
+      DeploySchema.parse({ ...base, environment: 'staging', integrity: 'md5-abc' })
+    ).toThrow();
   });
 
   it('should fail DeployRequest without url', () => {

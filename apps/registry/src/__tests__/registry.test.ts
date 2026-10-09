@@ -37,7 +37,7 @@ describe('Registry Endpoints', () => {
     if (response.statusCode === 200) {
       const payload = JSON.parse(response.payload);
       expect(payload.schemaVersion).toBe(2);
-      expect(payload.hostApp).toBe('consumer-portal');
+      expect(payload.hostApp.slug).toBe('consumer-portal');
     }
   });
 

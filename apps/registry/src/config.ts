@@ -24,6 +24,8 @@ const EnvSchema = z.object({
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   HARMONIQ_DEV_LOGIN: z.string().optional(),
+  HARMONIQ_VALIDATE_BUNDLES: z.string().optional(),
+  HARMONIQ_MANIFEST_RATE_LIMIT: z.coerce.number().int().positive().default(600),
 });
 
 export interface Config {
@@ -42,6 +44,10 @@ export interface Config {
   github?: { clientId: string; clientSecret: string };
   /** Passwordless sign-in as any email. Development only; refused in production. */
   devLogin: boolean;
+  /** Fetch and verify every bundle on deploy (dry runs always validate). */
+  validateBundles: boolean;
+  /** RL-01: manifest requests per minute per (workspace, client IP). */
+  manifestRateLimit: number;
 }
 
 export class ConfigError extends Error {}
@@ -102,5 +108,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }
         : undefined,
     devLogin,
+    manifestRateLimit: e.HARMONIQ_MANIFEST_RATE_LIMIT,
+    validateBundles: e.HARMONIQ_VALIDATE_BUNDLES === '1' || e.HARMONIQ_VALIDATE_BUNDLES === 'true',
   };
 }

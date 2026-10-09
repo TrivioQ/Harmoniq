@@ -42,6 +42,7 @@ export class Fixtures {
         workspaceId: workspace.id,
         name: 'Portal',
         slug: 'portal',
+        isDefault: true,
         Environments: {
           create: [
             { name: 'Staging', slug: 'staging' },

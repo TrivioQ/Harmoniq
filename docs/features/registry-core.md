@@ -15,6 +15,32 @@ The Registry Core implements the Fastify-based backend application responsible f
 
 ## Change History
 
+### 2026-10-09 — M1 core loop: env-aware deploy, rollback, promote, history
+
+**Type:** feature
+**PR / Branch:** feat/m1-core-loop
+**Refs:** MAN-01–MAN-06, HST-01–HST-04, VER-01–VER-05, PRO-01–PRO-06, SNAP-01–SNAP-05, DIFF-01, AUD-01–AUD-03, ENV-FRZ-01/02/06, KEY-01–KEY-05, MT-03, WHK-01–WHK-10, VAL-02/03/05, RL-01/02/05; product-analysis §4.1–§4.9
+
+#### What changed
+
+- **Manifest contract**: responses match `ManifestSchema` (modules array, `workspaceSlug`, `hostApp` object, `etag`, `variant`, `cohortId`). Strong content-hash ETag identical across replicas; proper `If-None-Match` (weak and lists). Cache-first by URL slugs; last-known-good fallback on database failure (`X-Harmoniq-Stale`). Legacy `/api/manifest/:ws/:env` via `HostApp.isDefault`. `?pretty=true` outside production. Rate limit 600/min per workspace + IP (configurable via `HARMONIQ_MANIFEST_RATE_LIMIT`).
+- **One mutation pipeline** (`services/manifestMutation.ts`): freeze check in-transaction → operation → audit event → manifest snapshot → cache refresh → webhooks.
+- **Deploy** honours `environment` and persists commit, metadata, dependencies, exposes and storage path. **Rollback** to previous / version / id. **Promote** copies the exact artifact. **Freeze/unfreeze** environments (423 on changes, reads unaffected).
+- **Dry-run validation** (reachability, SRI, CORS, content type, projected diff) with an SSRF guard: public HTTPS only, no redirects. Optional on real deploys (`HARMONIQ_VALIDATE_BUNDLES`).
+- **History APIs**: audit log with filters, snapshots, snapshot diff.
+- **Workspace admin APIs**: workspace creation, host apps, environments, API keys (create/revoke/rotate with grace), members (invite, roles, last-owner protection), webhook endpoints (SSRF-checked URLs, encrypted signing secrets, deliveries, dead letters).
+- Errors are thrown as `AppError`s and mapped in one handler.
+
+#### Testing
+
+`coreLoop.test.ts` (13), `workspaceAdmin.test.ts` (11), `bundleValidator.test.ts`, core `bundle.test.ts` / `diff.test.ts`. Cached manifest p99 measured at ~11ms over 2,000 requests (`performance.test.ts` asserts < 50ms).
+
+#### Breaking changes
+
+- Manifest `modules` is an array of `{ name, url, integrity, version, … }` (was an object keyed by name); `timestamp` → `generatedAt`; `hostApp` is an object.
+- `POST …/deploy` requires `environment`; module path segment accepts id or slug.
+- Webhook event `module.deployed` is now `deploy.success`; every change also emits `manifest.updated`.
+
 ### 2026-10-08 — M0 safety: tenant isolation, unified auth, encrypted credentials
 
 **Type:** security fix

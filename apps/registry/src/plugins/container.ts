@@ -8,6 +8,8 @@ import { InMemoryLRUCache } from '../adapters/InMemoryLRUCache';
 import { PrismaClient } from '@prisma/client';
 import { createDbClients, withTenant, TenantTx } from '@harmoniq/db';
 import { PgBoss } from 'pg-boss';
+import { WebhookDispatcher, createWebhookDispatcher } from '../services/webhookDispatcher';
+import { ManifestMutations } from '../services/manifestMutation';
 
 export interface AppContainer {
   cache: ICache;
@@ -18,6 +20,9 @@ export interface AppContainer {
   systemDb: PrismaClient;
   withTenant: <T>(workspaceId: string, fn: (tx: TenantTx) => Promise<T>) => Promise<T>;
   boss: PgBoss | null;
+  webhooks: WebhookDispatcher;
+  /** The single path for manifest-changing operations. */
+  mutations: ManifestMutations;
 }
 
 declare module 'fastify' {
@@ -52,13 +57,18 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     logger.info('pg-boss started');
   }
 
+  const tenant: AppContainer['withTenant'] = (workspaceId, fn) => withTenant(db, workspaceId, fn);
+  const webhooks = createWebhookDispatcher({ boss, logger, withTenant: tenant });
+
   fastify.decorate('container', {
     cache,
     logger,
     db,
     systemDb,
-    withTenant: (workspaceId, fn) => withTenant(db, workspaceId, fn),
+    withTenant: tenant,
     boss,
+    webhooks,
+    mutations: new ManifestMutations({ withTenant: tenant, cache, webhooks, logger }),
   });
 
   fastify.addHook('onClose', async (instance) => {

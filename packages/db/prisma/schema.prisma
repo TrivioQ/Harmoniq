@@ -82,6 +82,8 @@ model HostApp {
   name              String
   slug              String
   description       String?
+  /// Served by the legacy `GET /api/manifest/:workspaceSlug/:env` endpoint (HST-02).
+  isDefault         Boolean            @default(false)
   createdAt         DateTime           @default(now())
   workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   Environments      Environment[]

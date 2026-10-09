@@ -10,6 +10,7 @@ declare module 'fastify' {
       manifestCacheHits: Counter;
       manifestCacheMisses: Counter;
       deployCount: Counter;
+      manifestRateLimited: Counter;
     };
   }
 }
@@ -36,7 +37,13 @@ const metricsPlugin: FastifyPluginAsync = async (fastify, _options) => {
     description: 'Number of successful module deployments',
   });
 
+  // RL-05.
+  const manifestRateLimited = meter.createCounter('harmoniq.manifest.rate_limited_total', {
+    description: 'Manifest requests rejected by the rate limiter, by workspace slug',
+  });
+
   fastify.decorate('metricMeters', {
+    manifestRateLimited,
     manifestCacheHits,
     manifestCacheMisses,
     deployCount,

@@ -1,381 +1,226 @@
 # Harmoniq — REST API Reference
 
-> **Version**: 1.0.0  
-> **Base URL**: `https://your-registry.example.com`  
-> **Auth**: API key via `Authorization: Bearer hq_<key>` header (write endpoints only)  
-> **Format**: All requests and responses are `application/json`
+> **Base URL**: `http://localhost:4000` (registry)
+> **Format**: JSON requests and responses
+> **Interactive docs**: `GET /docs` (Swagger UI), `GET /docs/json` (OpenAPI)
+
+This page documents the endpoints that are implemented. Planned endpoints are listed at the end with their milestone.
 
 ---
 
 ## Authentication
 
-Write endpoints require an API key with the appropriate scope. Read endpoints (manifest fetch) are public.
-
-**Header format**:
+Every endpoint except manifest reads, `/health`, `/ready` and sign-in requires a bearer token:
 
 ```
-Authorization: Bearer hq_<base62-encoded-32-bytes>
+Authorization: Bearer <token>
 ```
 
-**Scopes**:
+| Caller         | Token                                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| CI / CLI       | API key `hq_<keyId>_<secret>`, created in workspace settings. Only valid for its own workspace. |
+| Dashboard user | 15-minute access token issued by the sign-in endpoints (the dashboard handles this).            |
 
-| Scope           | Description                                 |
-| --------------- | ------------------------------------------- |
-| `manifest:read` | Read manifests (also public without a key)  |
-| `deploy:write`  | Deploy, rollback, canary operations         |
-| `admin`         | Key management, member management, settings |
+**API key scopes**
 
-**Error response (401)**:
+| Scope           | Grants                                                                                    |
+| --------------- | ----------------------------------------------------------------------------------------- |
+| `manifest:read` | Read workspace data (modules, versions, audit, snapshots)                                 |
+| `deploy:write`  | The above, plus deploy / rollback / promote / upload                                      |
+| `admin`         | The above, plus environments, keys, members, webhooks, storage (never owner-only actions) |
+
+Keys may be restricted to specific modules (`moduleIds`). Creating keys and managing members requires a signed-in user.
+
+**User roles**: `viewer` (read) < `developer` (deploy/rollback/promote) < `admin` (settings) < `owner` (manage owners). Non-members get `404` for a workspace.
+
+## Errors
 
 ```json
 {
   "error": {
-    "code": "UNAUTHORIZED",
-    "message": "Missing or invalid API key",
-    "requestId": "req_abc123"
+    "code": "LOCKED",
+    "message": "Environment \"production\" is frozen: Black Friday",
+    "details": {}
   }
 }
 ```
 
+| Status | Code               | When                                                                      |
+| ------ | ------------------ | ------------------------------------------------------------------------- |
+| 400    | `BAD_REQUEST`      | Invalid body (`details` has field errors)                                 |
+| 401    | `UNAUTHORIZED`     | Missing, invalid, expired or revoked credentials                          |
+| 403    | `FORBIDDEN`        | Valid caller, insufficient role/scope, or key for another workspace       |
+| 404    | `NOT_FOUND`        | Unknown resource, or workspace you are not a member of                    |
+| 409    | `CONFLICT`         | Duplicate slug, already-active version, ambiguous module slug, last owner |
+| 422    | `VALIDATION_ERROR` | Bundle failed validation (`details.validation`)                           |
+| 423    | `LOCKED`           | Target environment is frozen                                              |
+| 429    | —                  | Rate limited (`Retry-After` header)                                       |
+
 ---
 
-## Manifest Endpoints (Public Read)
+## Manifests (public)
 
-### GET /api/manifest/:workspaceSlug/:env
+### `GET /api/manifest/:workspaceSlug/:hostAppSlug/:env`
 
-Fetch the active manifest for a workspace environment.
-
-**Auth**: None (public)
-
-**Headers (optional)**:
-
-```
-If-None-Match: "sha256-abc123"
-X-Harmoniq-User-Id: user-123        # for canary sticky assignment
-```
-
-**Response 200**:
+Returns the manifest for one host app environment. No authentication. Rate limited to 600 requests/minute per workspace and client IP.
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "workspaceSlug": "acme-corp",
+  "hostApp": { "slug": "consumer-portal", "name": "Consumer Portal" },
   "environment": "production",
-  "generatedAt": "2026-09-13T00:00:00Z",
-  "etag": "sha256-abc123",
+  "variant": "stable",
+  "cohortId": "stable",
+  "generatedAt": "2026-10-09T10:00:00.000Z",
+  "etag": "sha256-…",
   "modules": [
     {
       "name": "checkout",
       "url": "https://cdn.example.com/checkout/1.2.3/remoteEntry.js",
-      "integrity": "sha256-xyz789",
+      "integrity": "sha384-…",
       "version": "1.2.3",
-      "metadata": {
-        "deployedBy": "ci-bot",
-        "deployedAt": "2026-09-12T22:00:00Z",
-        "commitSha": "a1b2c3d4"
-      }
+      "metadata": { "deployedBy": "…", "deployedAt": "…", "commitSha": "a1b2c3d" }
     }
   ]
 }
 ```
 
-**Response headers**:
+- `ETag` header and `If-None-Match` → `304 Not Modified`. The ETag depends only on content, so it is identical across registry replicas.
+- If the database is unavailable, the last-known-good manifest is served with `X-Harmoniq-Stale: true`.
+- `?pretty=true` pretty-prints outside production.
+- Headers `X-Harmoniq-Variant` / `X-Harmoniq-Cohort-Id` (always `stable` until canary releases land).
 
-```
-ETag: "sha256-abc123"
-Cache-Control: no-cache
-X-Harmoniq-Stale: true   # only present when serving stale cache due to DB failure
-```
+### `GET /api/manifest/:workspaceSlug/:env`
 
-**Response 304**: Empty body; ETag matches `If-None-Match`.
+Legacy form: resolves to the workspace's default host app.
 
-**Response 404**:
+### History (auth: `workspace:read`)
 
-```json
-{ "error": { "code": "WORKSPACE_NOT_FOUND", "message": "Workspace 'acme-corp' not found" } }
-```
-
----
-
-### GET /api/manifest/:workspaceSlug/:env/canary
-
-Fetch the canary manifest for a workspace environment. Returns the canary variant manifest if the requester is in the canary cohort; otherwise returns the standard manifest.
-
-**Auth**: None (public)
-
-**Headers**:
-
-```
-X-Harmoniq-User-Id: user-123    # Used for deterministic canary assignment
-```
-
-**Response**: Same schema as standard manifest. Canary modules will have `"status": "canary"` in the `metadata` field.
-
-**Cookie set on response** (if no `X-Harmoniq-User-Id` provided):
-
-```
-Set-Cookie: harmoniq_canary=<uuid>; Path=/; Max-Age=2592000; SameSite=Lax
-```
+| Endpoint                                                     | Returns                                                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `GET /api/manifest/:ws/:hostApp/:env/snapshots?cursor&limit` | Every manifest change, newest first, with the audit action that caused it |
+| `GET /api/manifest/:ws/:hostApp/:env/snapshots/:snapshotId`  | The exact manifest at that point                                          |
+| `GET /api/manifest/:ws/:hostApp/:env/diff?from=<id>&to=<id>` | `{ added, removed, changed }`; `to` defaults to the latest snapshot       |
 
 ---
 
-## Deploy & Version Management
+## Modules and versions
 
-### POST /api/workspaces/:workspaceSlug/modules/:moduleId/deploy
+Modules are addressed by id **or** slug (`:moduleRef`). A slug used in several host apps returns `409`; use the id.
 
-Deploy a new version of a module to an environment.
-
-**Auth**: `deploy:write`
-
-**Request body**:
+### `POST /api/workspaces/:ws/modules/:moduleRef/deploy` — `module:deploy`
 
 ```json
 {
-  "environmentSlug": "production",
-  "version": "1.2.3",
+  "environment": "staging",
   "url": "https://cdn.example.com/checkout/1.2.3/remoteEntry.js",
-  "integrity": "sha256-xyz789",
-  "commitSha": "a1b2c3d4",
-  "metadata": {
-    "buildId": "ci-1234"
-  }
-}
-```
-
-**Response 201**:
-
-```json
-{
-  "id": "clx123",
   "version": "1.2.3",
-  "status": "active",
-  "url": "https://cdn.example.com/checkout/1.2.3/remoteEntry.js",
-  "deployedAt": "2026-09-13T00:00:00Z",
-  "deployedBy": "key_abc"
+  "integrity": "sha384-…",
+  "commitSha": "a1b2c3d",
+  "metadata": { "pr": 42 },
+  "dependencies": { "react": "^18.0.0" },
+  "exposes": { "./Checkout": "./src/Checkout" },
+  "dryRun": false
 }
 ```
+
+Creates an active version in that environment (the previous one becomes inactive), writes an audit event and a manifest snapshot, refreshes caches and emits `deploy.success` + `manifest.updated` webhooks. Returns `201` with the version, `manifestEtag` and `snapshotId`.
+
+`dryRun: true` validates without deploying and returns the bundle checks (reachable, SRI match, CORS, content type) and the projected manifest diff. With `HARMONIQ_VALIDATE_BUNDLES=1`, real deploys are validated too and rejected with `422` on failure. The registry only fetches public HTTPS URLs and never follows redirects.
+
+### `POST /api/workspaces/:ws/modules/:moduleRef/rollback` — `module:deploy`
+
+```json
+{ "environment": "production", "previous": true }
+```
+
+Exactly one of `previous: true`, `version: "1.2.2"` or `versionId`. Emits `rollback.executed`.
+
+### `POST /api/workspaces/:ws/modules/:moduleRef/promote` — `module:deploy`
+
+```json
+{ "fromEnvironment": "staging", "toEnvironment": "production" }
+```
+
+Copies the exact artifact (URL, integrity, metadata) active in `fromEnvironment` (or `versionId`). Emits `module.promoted`.
+
+### Other module endpoints
+
+| Endpoint                                                                       | Permission | Description                                     |
+| ------------------------------------------------------------------------------ | ---------- | ----------------------------------------------- |
+| `GET /api/workspaces/:ws/modules`                                              | read       | Modules with the active version per environment |
+| `GET /api/workspaces/:ws/modules/:moduleRef`                                   | read       | Module and its environments                     |
+| `GET /api/workspaces/:ws/modules/:moduleRef/versions?environment&cursor&limit` | read       | Deployment history, newest first                |
+| `POST /api/workspaces/:ws/modules`                                             | admin      | `{ hostApp, name, slug, description? }`         |
+| `POST /api/workspaces/:ws/modules/:moduleRef/upload-url`                       | deploy     | Pre-signed upload URL in the workspace bucket   |
+
+All changes to a frozen environment return `423`. Manifest reads are never blocked.
 
 ---
 
-### POST /api/workspaces/:workspaceSlug/modules/:moduleId/rollback
+## Workspaces, host apps, environments
 
-Roll back a module to a specific previous version.
+| Endpoint                                                               | Permission                | Description                                                                                       |
+| ---------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `POST /api/workspaces`                                                 | signed-in user            | `{ name, slug }`; creator becomes owner; creates host app `default` with `staging` + `production` |
+| `GET /api/workspaces/:ws`                                              | read                      | Workspace, your role, host apps and environments (with freeze state)                              |
+| `POST /api/workspaces/:ws/host-apps`                                   | admin                     | `{ name, slug, environments? }`                                                                   |
+| `POST /api/workspaces/:ws/host-apps/:hostApp/environments`             | admin                     | `{ name, slug }`                                                                                  |
+| `PUT /api/workspaces/:ws/host-apps/:hostApp/environments/:env/freeze`  | admin                     | `{ reason, until? }`; emits `env.frozen`                                                          |
+| `DELETE …/freeze`                                                      | admin                     | Unfreeze; emits `env.unfrozen`                                                                    |
+| `GET /api/workspaces/:ws/audit?actor&action&resourceId&from&to&cursor` | read                      | Audit log; `action=module.` matches a prefix                                                      |
+| `GET/POST /api/workspaces/:ws/storage`                                 | admin (or instance admin) | Workspace bucket; credentials are write-only and returned masked                                  |
 
-**Auth**: `deploy:write`
+Slugs: lowercase letters, digits and inner hyphens.
 
-**Request body**:
+## API keys and members (signed-in admins)
 
-```json
-{
-  "versionId": "clx001",
-  "environmentSlug": "production"
-}
-```
+| Endpoint                                          | Description                                                               |
+| ------------------------------------------------- | ------------------------------------------------------------------------- |
+| `GET /api/workspaces/:ws/api-keys`                | List (never includes secrets)                                             |
+| `POST /api/workspaces/:ws/api-keys`               | `{ name, scopes?, moduleIds?, expiresAt? }`; response `key` is shown once |
+| `DELETE /api/workspaces/:ws/api-keys/:keyId`      | Revoke (effective immediately)                                            |
+| `POST /api/workspaces/:ws/api-keys/:keyId/rotate` | `{ gracePeriodHours = 24 }`; old key keeps working until then             |
+| `GET /api/workspaces/:ws/members`                 | Members and pending invitations                                           |
+| `POST /api/workspaces/:ws/members`                | `{ email, role }`; accepted on the invitee's first verified sign-in       |
+| `PATCH /api/workspaces/:ws/members/:memberId`     | `{ role }`                                                                |
+| `DELETE /api/workspaces/:ws/members/:memberId`    | Remove. Only owners manage owners; the last owner cannot be removed.      |
 
-**Response 200**:
+## Webhooks (admin)
 
-```json
-{
-  "rolledBackTo": { "id": "clx001", "version": "1.1.0" },
-  "previousActive": { "id": "clx123", "version": "1.2.3" }
-}
-```
+| Endpoint                                                   | Description                                                              |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `GET /api/workspaces/:ws/webhooks`                         | Endpoints (secrets never returned)                                       |
+| `POST /api/workspaces/:ws/webhooks`                        | `{ url, events, maxRetries?, backoffCeilingMs? }`; returns `secret` once |
+| `PATCH /api/workspaces/:ws/webhooks/:id`                   | `{ url?, events?, active?, paused? }`                                    |
+| `DELETE /api/workspaces/:ws/webhooks/:id`                  | Delete                                                                   |
+| `GET /api/workspaces/:ws/webhooks/:id/deliveries`          | Delivery attempts                                                        |
+| `GET /api/workspaces/:ws/webhooks/dead-letters`            | Exhausted deliveries                                                     |
+| `POST /api/workspaces/:ws/webhooks/dead-letters/:id/retry` | Re-enqueue                                                               |
 
----
+Events: `manifest.updated`, `deploy.success`, `rollback.executed`, `module.promoted`, `env.frozen`, `env.unfrozen` (and later `canary.*`, `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
 
-### PUT /api/workspaces/:workspaceSlug/modules/:moduleId/canary
+## Sign-in (used by the dashboard)
 
-Configure a canary release.
+`GET /api/auth/providers`, `POST /api/auth/:provider/start`, `POST /api/auth/:provider/callback`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/me`. See [`features/authentication.md`](./features/authentication.md).
 
-**Auth**: `deploy:write`
+## Health
 
-**Request body**:
-
-```json
-{
-  "versionId": "clx123",
-  "environmentSlug": "production",
-  "trafficPercent": 10
-}
-```
-
-**Response 200**:
-
-```json
-{
-  "id": "clx123",
-  "status": "canary",
-  "trafficPercent": 10
-}
-```
-
----
-
-### POST /api/workspaces/:workspaceSlug/modules/:moduleId/canary/promote
-
-Promote the current canary version to `active`.
-
-**Auth**: `deploy:write`
-
-**Request body**:
-
-```json
-{
-  "environmentSlug": "production"
-}
-```
-
-**Response 200**:
-
-```json
-{
-  "promoted": { "id": "clx123", "version": "1.2.3", "status": "active" }
-}
-```
+| Endpoint       | Description                                                                    |
+| -------------- | ------------------------------------------------------------------------------ |
+| `GET /health`  | Always `{ "status": "ok" }`                                                    |
+| `GET /ready`   | Checks both database roles and the cache; `503` if not ready                   |
+| `GET /metrics` | Prometheus: cache hits/misses, deploys, `harmoniq.manifest.rate_limited_total` |
 
 ---
 
-## Module Management
+## Planned
 
-### GET /api/workspaces/:workspaceSlug/modules
-
-List all remote modules in a workspace.
-
-**Auth**: `manifest:read`
-
-**Response 200**:
-
-```json
-{
-  "modules": [
-    {
-      "id": "mod_abc",
-      "name": "checkout",
-      "slug": "checkout",
-      "hostApp": { "id": "app_xyz", "name": "Main Shell" },
-      "activeVersions": {
-        "production": { "version": "1.2.3", "url": "..." },
-        "staging": { "version": "1.3.0-beta", "url": "..." }
-      }
-    }
-  ]
-}
-```
-
----
-
-### GET /api/workspaces/:workspaceSlug/modules/:moduleId/versions
-
-List all versions of a module (deployment history).
-
-**Auth**: `manifest:read`
-
-**Query params**:
-
-- `environment`: filter by environment slug
-- `status`: filter by `active | inactive | canary`
-- `limit`: default 50, max 200
-- `cursor`: pagination cursor
-
-**Response 200**:
-
-```json
-{
-  "versions": [
-    {
-      "id": "clx123",
-      "version": "1.2.3",
-      "status": "active",
-      "url": "...",
-      "integrity": "sha256-...",
-      "deployedBy": "user_abc",
-      "deployedAt": "2026-09-13T00:00:00Z",
-      "commitSha": "a1b2c3d4"
-    }
-  ],
-  "nextCursor": "clx100"
-}
-```
-
----
-
-## Health & Observability
-
-### GET /health
-
-Liveness check. Always returns 200 if the process is running.
-
-**Auth**: None
-
-**Response 200**:
-
-```json
-{ "status": "ok", "timestamp": "2026-09-13T00:00:00Z" }
-```
-
----
-
-### GET /ready
-
-Readiness check. Verifies DB and cache connectivity.
-
-**Auth**: None
-
-**Response 200**:
-
-```json
-{
-  "status": "ready",
-  "checks": {
-    "database": "ok",
-    "cache": "ok"
-  }
-}
-```
-
-**Response 503**:
-
-```json
-{
-  "status": "unavailable",
-  "checks": {
-    "database": "error",
-    "cache": "ok"
-  }
-}
-```
-
----
-
-### GET /metrics
-
-Prometheus-compatible metrics.
-
-**Auth**: None (consider restricting to internal network in production)
-
-**Response 200**: Prometheus text format
-
-```
-# HELP harmoniq_manifest_requests_total Total manifest requests
-# TYPE harmoniq_manifest_requests_total counter
-harmoniq_manifest_requests_total{workspace="acme-corp",env="production",cache="hit"} 1042
-...
-```
-
----
-
-## Error Codes Reference
-
-| Code                    | HTTP Status | Description                                |
-| ----------------------- | ----------- | ------------------------------------------ |
-| `UNAUTHORIZED`          | 401         | Missing or invalid API key                 |
-| `FORBIDDEN`             | 403         | Valid key, insufficient scope              |
-| `WORKSPACE_NOT_FOUND`   | 404         | Workspace slug not found                   |
-| `MODULE_NOT_FOUND`      | 404         | Module ID not found                        |
-| `VERSION_NOT_FOUND`     | 404         | Version ID not found                       |
-| `ENVIRONMENT_NOT_FOUND` | 404         | Environment slug not found                 |
-| `VALIDATION_ERROR`      | 422         | Request body failed Zod validation         |
-| `CONFLICT`              | 409         | Duplicate version already exists           |
-| `RATE_LIMITED`          | 429         | Too many requests (auth endpoints: 10/min) |
-| `INTERNAL_ERROR`        | 500         | Unexpected server error                    |
-| `SERVICE_UNAVAILABLE`   | 503         | Registry degraded (DB/cache down)          |
+| Endpoint                                                                        | Milestone |
+| ------------------------------------------------------------------------------- | --------- |
+| `GET /api/importmap/:ws/:hostApp/:env`, Native Federation manifest              | M2.3      |
+| Canary: `PUT …/modules/:moduleRef/canary`, `…/canary/promote`, `…/canary/abort` | M3.1      |
+| Health ingest and aggregation                                                   | M3.2      |
+| Alert rules                                                                     | M3.4      |
+| Approvals, organizations, SSO, SCIM, GitOps `apply`                             | M4        |

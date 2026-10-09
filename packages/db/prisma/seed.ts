@@ -48,6 +48,7 @@ async function main() {
           workspaceId: ws.id,
           name: 'Consumer Portal',
           slug: 'consumer-portal',
+          isDefault: true,
           Environments: {
             create: [
               { name: 'Production', slug: 'production', isDefault: true },

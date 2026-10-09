@@ -1,123 +1,151 @@
-import { FastifyPluginAsync } from 'fastify';
+import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';
+import { BuiltManifest, buildManifest } from '../services/manifestBuilder';
+import { lastKnownGoodKey, manifestKey } from '../services/cacheKeys';
+import { MANIFEST_CACHE_TTL_SECONDS } from '../services/manifestMutation';
 
-const manifestRoutes: FastifyPluginAsync = async (fastify, _options) => {
-  // HST-01: Canonical GET /api/manifest/:workspaceSlug/:hostAppSlug/:env
-  fastify.get<{
-    Params: { workspaceSlug: string; hostAppSlug: string; env: string };
-  }>('/api/manifest/:workspaceSlug/:hostAppSlug/:env', async (request, reply) => {
-    const { workspaceSlug, hostAppSlug, env } = request.params;
-    const cacheKey = `manifest:${workspaceSlug}:${hostAppSlug}:${env}`;
+type CanonicalParams = { workspaceSlug: string; hostAppSlug: string; env: string };
+type LegacyParams = { workspaceSlug: string; env: string };
 
-    try {
-      // 1. Check cache
-      const cached = await fastify.container.cache.get(cacheKey);
+/** `If-None-Match` may hold several, possibly weak, quoted ETags. */
+function etagMatches(header: string | undefined, etag: string): boolean {
+  if (!header) return false;
+  if (header.trim() === '*') return true;
+  return header
+    .split(',')
+    .map((t) => t.trim().replace(/^W\//, '').replace(/^"|"$/g, ''))
+    .includes(etag);
+}
+
+const manifestRoutes: FastifyPluginAsync = async (fastify) => {
+  const { cache, systemDb, withTenant, logger } = fastify.container;
+  const { isProduction } = fastify.config;
+
+  // RL-01/02: per (workspace, client IP). In-memory per replica for now; RL-03 (shared
+  // store) moves this to Redis.
+  const rateLimit = {
+    rateLimit: {
+      max: fastify.config.manifestRateLimit,
+      timeWindow: '1 minute',
+      keyGenerator: (req: FastifyRequest) =>
+        `${(req.params as { workspaceSlug?: string }).workspaceSlug}:${req.ip}`,
+      onExceeded: (req: FastifyRequest) => {
+        fastify.metricMeters.manifestRateLimited.add(1, {
+          workspace: (req.params as { workspaceSlug?: string }).workspaceSlug ?? '',
+        });
+      },
+    },
+  };
+
+  function send(
+    request: FastifyRequest<{ Querystring: { pretty?: string } }>,
+    reply: FastifyReply,
+    built: BuiltManifest,
+    stale = false
+  ) {
+    reply.header('ETag', `"${built.etag}"`);
+    reply.header('Cache-Control', 'no-cache');
+    reply.header('X-Harmoniq-Variant', built.manifest.variant);
+    reply.header('X-Harmoniq-Cohort-Id', built.manifest.cohortId);
+    if (stale) reply.header('X-Harmoniq-Stale', 'true');
+
+    if (etagMatches(request.headers['if-none-match'], built.etag)) {
+      return reply.code(304).send();
+    }
+    // DX-03: human-readable output for local debugging only.
+    if (!isProduction && request.query.pretty === 'true') {
+      return reply.type('application/json').send(JSON.stringify(built.manifest, null, 2));
+    }
+    return reply.send(built.manifest);
+  }
+
+  /** Resolves the tenant and builds from the database (cache miss). */
+  async function load(workspaceSlug: string, hostAppSlug: string | null, envSlug: string) {
+    const workspace = await systemDb.workspace.findUnique({
+      where: { slug: workspaceSlug },
+      include: {
+        HostApps: {
+          where: hostAppSlug ? { slug: hostAppSlug } : {},
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          include: { Environments: { where: { slug: envSlug } } },
+        },
+      },
+    });
+    // Legacy endpoint: the default host app, or the only one (HST-02).
+    const hostApp =
+      hostAppSlug !== null
+        ? workspace?.HostApps[0]
+        : (workspace?.HostApps.find((h) => h.isDefault) ??
+          (workspace?.HostApps.length === 1 ? workspace.HostApps[0] : undefined));
+    const environment = hostApp?.Environments[0];
+    if (!workspace || !hostApp || !environment) {
+      throw new NotFoundError('Manifest not found');
+    }
+
+    const built = await withTenant(workspace.id, (tx) =>
+      buildManifest(tx, { workspaceSlug, hostApp, environment })
+    );
+    return { built, hostAppSlug: hostApp.slug };
+  }
+
+  async function serve(
+    request: FastifyRequest<{ Querystring: { pretty?: string } }>,
+    reply: FastifyReply,
+    workspaceSlug: string,
+    hostAppSlug: string | null,
+    envSlug: string
+  ) {
+    // Cache first, keyed only by URL slugs: a hit never touches the database.
+    if (hostAppSlug) {
+      const cached = await cache.get(manifestKey(workspaceSlug, hostAppSlug, envSlug));
       if (cached) {
         fastify.metricMeters.manifestCacheHits.add(1);
-        const manifestObj = JSON.parse(cached);
-        // ETag handling
-        const etag = manifestObj.integrity || 'W/"cached"'; // Simplification for now
-        if (request.headers['if-none-match'] === etag) {
-          reply.code(304).send();
-          return;
-        }
-
-        reply.header('ETag', etag);
-        reply.header('Cache-Control', 'no-cache');
-        reply.header('X-Harmoniq-Variant', 'stable');
-        return reply.send(manifestObj);
+        return send(request, reply, JSON.parse(cached) as BuiltManifest);
       }
-
-      // 2. Cache miss -> DB Query
-      fastify.metricMeters.manifestCacheMisses.add(1);
-
-      // Resolve the tenant (system role); everything after runs RLS-scoped.
-      const workspace = await fastify.container.systemDb.workspace.findUnique({
-        where: { slug: workspaceSlug },
-        include: {
-          HostApps: {
-            where: { slug: hostAppSlug },
-            include: {
-              Environments: {
-                where: { slug: env },
-              },
-            },
-          },
-        },
-      });
-
-      if (
-        !workspace ||
-        workspace.HostApps.length === 0 ||
-        workspace.HostApps[0].Environments.length === 0
-      ) {
-        reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Manifest not found' } });
-        return;
-      }
-
-      const hostApp = workspace.HostApps[0];
-      const environment = hostApp.Environments[0];
-
-      // Get active module versions
-      const activeVersions = await fastify.container.withTenant(workspace.id, (tx) =>
-        tx.moduleVersion.findMany({
-          where: {
-            environmentId: environment.id,
-            status: 'active',
-          },
-          include: {
-            remoteModule: true,
-          },
-        })
-      );
-
-      // Build manifest JSON
-      const manifest = {
-        schemaVersion: 2,
-        hostApp: hostApp.slug,
-        environment: environment.slug,
-        modules: activeVersions.reduce(
-          (acc, v) => {
-            acc[v.remoteModule.slug] = {
-              version: v.version,
-              url: v.url,
-              integrity: v.integrity,
-            };
-            return acc;
-          },
-          {} as Record<string, { version: string; url: string; integrity: string }>
-        ),
-        timestamp: new Date().toISOString(),
-      };
-
-      const manifestStr = JSON.stringify(manifest);
-
-      // We should really generate a real ETag hash here.
-      // Using a simple Base64 or hash would be better, but for MVP:
-      const etag = `W/"${Buffer.from(manifestStr).toString('base64').substring(0, 27)}"`;
-
-      // Save to cache
-      await fastify.container.cache.set(
-        cacheKey,
-        JSON.stringify({ ...manifest, _etag: etag }),
-        3600
-      );
-
-      if (request.headers['if-none-match'] === etag) {
-        reply.code(304).send();
-        return;
-      }
-
-      reply.header('ETag', etag);
-      reply.header('Cache-Control', 'no-cache');
-      reply.header('X-Harmoniq-Variant', 'stable');
-      return reply.send(manifest);
-    } catch (error) {
-      fastify.container.logger.error('Error fetching manifest', error as Error);
-      reply
-        .code(500)
-        .send({ error: { code: 'INTERNAL_ERROR', message: 'Failed to build manifest' } });
     }
-  });
+    fastify.metricMeters.manifestCacheMisses.add(1);
+
+    try {
+      const { built, hostAppSlug: resolvedHost } = await load(workspaceSlug, hostAppSlug, envSlug);
+      const value = JSON.stringify(built);
+      await cache.set(
+        manifestKey(workspaceSlug, resolvedHost, envSlug),
+        value,
+        MANIFEST_CACHE_TTL_SECONDS
+      );
+      await cache.set(lastKnownGoodKey(workspaceSlug, resolvedHost, envSlug), value);
+      return send(request, reply, built);
+    } catch (err) {
+      if (err instanceof NotFoundError || !hostAppSlug) throw err;
+      // MAN-06: on database failure serve the last manifest we know was correct.
+      const lkg = await cache.get(lastKnownGoodKey(workspaceSlug, hostAppSlug, envSlug));
+      if (!lkg) throw err;
+      logger.error('Serving last-known-good manifest after build failure', err as Error);
+      return send(request, reply, JSON.parse(lkg) as BuiltManifest, true);
+    }
+  }
+
+  // HST-01: canonical endpoint. Public (MAN-05).
+  fastify.get<{ Params: CanonicalParams; Querystring: { pretty?: string } }>(
+    '/api/manifest/:workspaceSlug/:hostAppSlug/:env',
+    { config: rateLimit },
+    (request, reply) =>
+      serve(
+        request,
+        reply,
+        request.params.workspaceSlug,
+        request.params.hostAppSlug,
+        request.params.env
+      )
+  );
+
+  // HST-02: legacy endpoint, resolves to the workspace's default host app.
+  fastify.get<{ Params: LegacyParams; Querystring: { pretty?: string } }>(
+    '/api/manifest/:workspaceSlug/:env',
+    { config: rateLimit },
+    (request, reply) =>
+      serve(request, reply, request.params.workspaceSlug, null, request.params.env)
+  );
 };
 
 export default manifestRoutes;
