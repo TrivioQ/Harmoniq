@@ -14,6 +14,16 @@ export interface EnvironmentSummary {
   freezeReason: string | null;
   freezeUntil: string | null;
   frozenBy: string | null;
+  ephemeral: boolean;
+  expiresAt: string | null;
+  /** Published (CDN) copy; null when no storage is configured. */
+  published: {
+    manifestUrl: string | null;
+    importMapUrl: string | null;
+    etag: string | null;
+    at: string | null;
+    error: string | null;
+  } | null;
 }
 
 export interface WorkspaceDetail {

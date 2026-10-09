@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "schema:generate": "tsx scripts/generate-manifest-schema.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",
@@ -36,12 +37,14 @@
     "nodemailer": "^6.9.16",
     "pg-boss": "^12.31.1",
     "pino": "^8.21.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "zod-to-json-schema": "^3.24.0"
   },
   "devDependencies": {
     "@harmoniq/tsconfig": "workspace:*",
     "@types/node": "^20.12.7",
     "@types/nodemailer": "^6.4.17",
+    "ajv": "^8.17.1",
     "eslint": "^9.0.0",
     "msw": "^2.4.0",
     "pino-pretty": "^11.3.0",

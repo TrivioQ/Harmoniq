@@ -18,7 +18,8 @@
     "environments": "Environments",
     "settings": "Settings",
     "signOut": "Sign out",
-    "audit": "Audit log"
+    "audit": "Audit log",
+    "quickstart": "Integrate"
   },
   "WorkspaceOverview": {
     "title": "Overview",
@@ -303,5 +304,25 @@
     "continue": "Continue",
     "missingToken": "This page needs the link from your sign-in email.",
     "back": "Back to sign in"
+  },
+  "QuickstartPage": {
+    "title": "Integrate",
+    "description": "Copy-paste setup for deploying modules and loading them in a host app. Snippets use this workspace's real URLs.",
+    "noHostApps": "Create a host app first.",
+    "target": "Host app and environment",
+    "manifestUrl": "Manifest (registry)",
+    "publishedUrl": "Published copy (CDN)",
+    "copy": "Copy",
+    "copied": "Copied",
+    "sections": {
+      "ci": "Deploy from CI (CLI)",
+      "action": "Deploy from GitHub Actions",
+      "mf": "Module Federation 2.0",
+      "importMap": "Import map (no bundler)"
+    },
+    "hints": {
+      "ci": "Upload the build output to your CDN first; --file computes the integrity hash.",
+      "importMap": "Works with plain ES modules; es-module-shims adds import map and integrity support where browsers lack it."
+    }
   }
 }

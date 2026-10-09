@@ -99,7 +99,7 @@ export async function buildApp() {
       const method = (req.headers['access-control-request-method'] as string) || req.method;
       const isPublicRead =
         (method === 'GET' || method === 'HEAD') &&
-        /^\/(api\/manifest|api\/importmap|api\/federation-manifest|static|health|ready|docs)(\/|$|\?)/.test(
+        /^\/(api\/manifest|api\/importmap|api\/federation-manifest|api\/schema|static|health|ready|docs)(\/|$|\?)/.test(
           req.url ?? ''
         );
       callback(

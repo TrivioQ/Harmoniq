@@ -2,6 +2,7 @@ import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';
 import { toFederationManifest, toImportMap } from '@harmoniq/core/dist/manifest/formats';
 import { BuiltManifest, buildManifest } from '../services/manifestBuilder';
+import { manifestJsonSchema } from '../services/manifestJsonSchema';
 import { lastKnownGoodKey, manifestKey } from '../services/cacheKeys';
 import { MANIFEST_CACHE_TTL_SECONDS } from '../services/manifestMutation';
 
@@ -155,6 +156,15 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     if (etagMatches(request.headers['if-none-match'], etag)) return reply.code(304).send();
     return reply.type(contentType).send(JSON.stringify(toBody(built.manifest)));
   }
+
+  // Public JSON Schema for validating manifests in other tools.
+  const schema = manifestJsonSchema();
+  fastify.get('/api/schema/manifest.json', async (_request, reply) =>
+    reply
+      .header('Cache-Control', 'public, max-age=3600')
+      .type('application/schema+json')
+      .send(schema)
+  );
 
   // HST-01: canonical endpoint. Public (MAN-05).
   fastify.get<{ Params: CanonicalParams; Querystring: { pretty?: string } }>(

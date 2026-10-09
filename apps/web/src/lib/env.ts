@@ -46,3 +46,8 @@ export function getRegistryUrl(): string {
 export function getAppUrl(): string {
   return process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 }
+
+/** Registry URL as browsers and CI see it (shown in snippets); may differ from REGISTRY_URL. */
+export function getPublicRegistryUrl(): string {
+  return process.env.PUBLIC_REGISTRY_URL || getRegistryUrl();
+}

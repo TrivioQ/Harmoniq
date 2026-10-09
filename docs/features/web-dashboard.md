@@ -31,6 +31,20 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 
 ## Change History
 
+### 2026-10-09 — Integrate (quickstart) page
+
+**Type:** feature
+**PR / Branch:** feat/m2-delivery
+**Refs:** DX-04, ADP-05
+
+#### What changed
+
+`/[workspace]/quickstart` ("Integrate" in the nav) shows copy-paste snippets for the selected host app and environment — CLI, GitHub Action, React, Module Federation plugin, Vue, Angular, import map and Native Federation — filled in with the workspace's registry URL and, when available, its published CDN base (`PUBLIC_REGISTRY_URL` overrides the URL shown).
+
+#### Testing
+
+Rendered against a live registry; all sections present with the real URLs.
+
 ### 2026-10-09 — Dashboard on the registry API: module history, rollback, promote, freezes, settings
 
 **Type:** feature

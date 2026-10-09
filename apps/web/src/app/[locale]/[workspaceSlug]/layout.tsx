@@ -40,6 +40,9 @@ export default async function WorkspaceLayout(props: {
             <Link href={`/${workspace.slug}/audit`} className="hover:text-primary">
               {t('audit')}
             </Link>
+            <Link href={`/${workspace.slug}/quickstart`} className="hover:text-primary">
+              {t('quickstart')}
+            </Link>
             <Link
               href={`/${workspace.slug}/settings`}
               className="hover:text-primary text-muted-foreground"

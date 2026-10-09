@@ -108,6 +108,10 @@ Keys are the module `specifier` (set with `PATCH /api/workspaces/:ws/modules/:mo
 
 Native Federation format: `{ "checkout": "https://…/remoteEntry.js" }`.
 
+### `GET /api/schema/manifest.json`
+
+JSON Schema for manifest `schemaVersion` 2 (also committed as [`docs/schema/manifest.v2.json`](./schema/manifest.v2.json); regenerate with `pnpm --filter @harmoniq/registry schema:generate`). Generated from the registry's own Zod schema; unknown properties are allowed so validators accept manifests from newer registries.
+
 ### Published copies
 
 After every change the registry writes the manifest and import map to storage, readable without the registry (see [manifest delivery](./features/manifest-delivery.md)). `GET /api/workspaces/:ws` lists their URLs and publish status per environment; `POST /api/workspaces/:ws/host-apps/:hostApp/environments/:env/publish` re-publishes (admin).

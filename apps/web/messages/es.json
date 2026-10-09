@@ -18,7 +18,8 @@
     "environments": "Entornos",
     "settings": "Configuración",
     "signOut": "Cerrar sesión",
-    "audit": "Auditoría"
+    "audit": "Auditoría",
+    "quickstart": "Integrar"
   },
   "WorkspaceOverview": {
     "title": "Resumen",
@@ -303,5 +304,25 @@
     "continue": "Continuar",
     "missingToken": "Esta página necesita el enlace de tu correo de acceso.",
     "back": "Volver a iniciar sesión"
+  },
+  "QuickstartPage": {
+    "title": "Integrar",
+    "description": "Configuración lista para copiar para desplegar módulos y cargarlos en una aplicación anfitriona. Los fragmentos usan las URL reales de este espacio de trabajo.",
+    "noHostApps": "Primero crea una aplicación anfitriona.",
+    "target": "Aplicación anfitriona y entorno",
+    "manifestUrl": "Manifiesto (registro)",
+    "publishedUrl": "Copia publicada (CDN)",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "sections": {
+      "ci": "Desplegar desde CI (CLI)",
+      "action": "Desplegar desde GitHub Actions",
+      "mf": "Module Federation 2.0",
+      "importMap": "Import map (sin bundler)"
+    },
+    "hints": {
+      "ci": "Sube primero el resultado del build a tu CDN; --file calcula el hash de integridad.",
+      "importMap": "Funciona con módulos ES simples; es-module-shims añade soporte de import maps e integridad donde los navegadores no lo tienen."
+    }
   }
 }
