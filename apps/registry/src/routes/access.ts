@@ -26,8 +26,17 @@ const RotateSchema = z.object({
     .default(24),
 });
 
+/** Whether the key works right now, so clients don't need to compare timestamps. */
+function keyStatus(k: ApiKey, now = Date.now()): 'active' | 'rotating' | 'expired' | 'revoked' {
+  if (k.revokedAt) return 'revoked';
+  if (k.expiresAt && k.expiresAt.getTime() <= now) return 'expired';
+  if (k.gracePeriodEnd) return k.gracePeriodEnd.getTime() <= now ? 'expired' : 'rotating';
+  return 'active';
+}
+
 function keyDto(k: ApiKey) {
   return {
+    status: keyStatus(k),
     id: k.id,
     name: k.name,
     prefix: k.prefix,

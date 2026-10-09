@@ -150,9 +150,6 @@ importers:
       '@harmoniq/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@harmoniq/db':
-        specifier: workspace:^
-        version: link:../../packages/db
       '@scalar/api-reference-react':
         specifier: ^0.9.67
         version: 0.9.67(react@19.2.8)(tailwindcss@4.3.3)(typescript@5.9.3)(zod@3.25.76)

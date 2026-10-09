@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
-import { Button } from '@/components/ui/button';
+import { ActionForm } from '@/components/ActionForm';
+import { createWorkspaceAction } from './[workspaceSlug]/actions';
 import { getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
 
@@ -29,10 +30,34 @@ export default async function WorkspaceSelector() {
           ))}
           {workspaces.length === 0 && (
             <div className="p-8 border border-dashed rounded-xl text-center">
-              <p className="text-muted-foreground mb-4">{t('noWorkspaces')}</p>
-              <Button>{t('createWorkspace')}</Button>
+              <p className="text-muted-foreground">{t('noWorkspaces')}</p>
             </div>
           )}
+        </div>
+
+        <div className="rounded-xl border bg-card p-6 space-y-3">
+          <h2 className="font-semibold">{t('createWorkspace')}</h2>
+          <ActionForm
+            action={createWorkspaceAction}
+            submitLabel={t('create')}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <input
+              name="name"
+              required
+              placeholder="Acme Corp"
+              aria-label={t('name')}
+              className="rounded-md border px-3 py-1.5 text-sm"
+            />
+            <input
+              name="slug"
+              required
+              pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?"
+              placeholder="acme-corp"
+              aria-label={t('slug')}
+              className="rounded-md border px-3 py-1.5 text-sm font-mono"
+            />
+          </ActionForm>
         </div>
       </div>
     </div>

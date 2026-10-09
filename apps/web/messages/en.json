@@ -7,44 +7,66 @@
     "title": "Select a Workspace",
     "description": "Choose a workspace to view modules and deployments.",
     "noWorkspaces": "No workspaces found.",
-    "createWorkspace": "Create Workspace"
+    "createWorkspace": "Create Workspace",
+    "create": "Create",
+    "name": "Name",
+    "slug": "Slug"
   },
   "WorkspaceLayout": {
     "overview": "Overview",
     "modules": "Modules",
     "environments": "Environments",
     "settings": "Settings",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "audit": "Audit log"
   },
   "WorkspaceOverview": {
     "title": "Overview",
     "description": "At-a-glance metrics for the {workspaceName} workspace.",
     "hostApps": "Host Applications",
     "remoteModules": "Remote Modules",
-    "healthStatus": "Health Status",
-    "healthy": "Healthy",
     "recentActivity": "Recent Activity",
-    "noActivity": "No recent deployment activity."
+    "noActivity": "No recent deployment activity.",
+    "environments": "Environments",
+    "frozenEnvironments": "Frozen environments",
+    "viewAll": "View all"
   },
   "ModulesPage": {
     "title": "Modules",
     "description": "Manage your Micro Frontends.",
     "hostedOn": "Hosted on {hostAppName}",
-    "noModules": "No modules deployed yet."
+    "noModules": "No modules deployed yet.",
+    "addModule": "Add a module",
+    "create": "Create",
+    "hostApp": "Host app",
+    "name": "Name",
+    "namePlaceholder": "Checkout",
+    "slug": "Slug"
   },
   "EnvironmentsPage": {
     "title": "Environments",
     "description": "View and manage deployment environments.",
     "hostApp": "Host App: {hostAppName}",
     "default": "Default",
-    "noEnvironments": "No environments configured yet."
+    "noEnvironments": "No environments configured yet.",
+    "frozenBadge": "FROZEN",
+    "history": "History",
+    "frozenReason": "Frozen: {reason}",
+    "frozenUntil": "until {until}",
+    "unfreeze": "Unfreeze",
+    "freeze": "Freeze",
+    "reasonPlaceholder": "Reason, e.g. Black Friday",
+    "reason": "Reason",
+    "until": "Frozen until (optional)"
   },
   "SettingsPage": {
     "title": "Settings",
     "description": "Manage workspace configuration and API keys.",
     "apiKeys": "API Keys",
-    "apiKeysDescription": "API keys allow other services to authenticate with this workspace.",
-    "generateKey": "Generate New Key"
+    "storage": "Storage",
+    "members": "Members",
+    "webhooks": "Webhooks",
+    "adminOnly": "Only workspace admins and owners can change settings."
   },
   "LoginPage": {
     "title": "Sign in to Harmoniq",
@@ -124,5 +146,147 @@
     "instanceDefaultHint": "Without a workspace bucket, bundles use the instance default storage.",
     "credentialsKeepHint": "Leave credential fields blank to keep the stored credentials.",
     "credentialsRequiredHint": "Credentials are encrypted at rest and never shown again."
+  },
+  "Actions": {
+    "unexpectedError": "Something went wrong. Please try again.",
+    "rolledBack": "Rolled back to {version}.",
+    "promoted": "Promoted {version} to {environment}.",
+    "moduleCreated": "Module created.",
+    "frozen": "{environment} is frozen.",
+    "unfrozen": "{environment} is unfrozen.",
+    "workspaceCreated": "Workspace created.",
+    "keyCreated": "API key created.",
+    "keyRevoked": "API key revoked.",
+    "keyRotated": "New key created. The old key keeps working for 24 hours.",
+    "memberInvited": "Invitation sent. It is accepted when they first sign in with this email.",
+    "roleChanged": "Role updated.",
+    "memberRemoved": "Member removed.",
+    "webhookCreated": "Webhook added.",
+    "webhookPaused": "Webhook paused.",
+    "webhookResumed": "Webhook resumed.",
+    "webhookDeleted": "Webhook deleted.",
+    "deadLetterRetried": "Delivery queued for retry."
+  },
+  "Audit": {
+    "apiKeyActor": "API key",
+    "userActor": "user",
+    "actions": {
+      "module_deploy": "Deployed {module} {version} to {environment}",
+      "module_rollback": "Rolled back {module} in {environment} to {version}",
+      "module_promote": "Promoted {module} {version} from {from} to {environment}",
+      "module_create": "Created module {name}",
+      "env_freeze": "Froze {environment}",
+      "env_unfreeze": "Unfroze {environment}",
+      "apiKey_create": "Created API key {name}",
+      "apiKey_revoke": "Revoked API key {name}",
+      "apiKey_rotate": "Rotated an API key",
+      "member_invite": "Invited {name} as {role}",
+      "member_role_change": "Changed a member role to {role}",
+      "member_remove": "Removed a member",
+      "webhook_create": "Added webhook {name}",
+      "webhook_update": "Updated a webhook",
+      "webhook_delete": "Deleted webhook {name}",
+      "workspace_create": "Created the workspace",
+      "hostApp_create": "Created host app {name}",
+      "environment_create": "Created environment {name}"
+    }
+  },
+  "ModuleDetail": {
+    "back": "All modules",
+    "environments": "Environments",
+    "frozen": "This environment is frozen: {reason}. Deploys, rollbacks and promotions are blocked.",
+    "promote": "Promote {version}",
+    "promoteConfirm": "Promote {version}? It will replace the active version in the target environment.",
+    "promoteTo": "to",
+    "version": "Version",
+    "status": "Status",
+    "deployed": "Deployed",
+    "source": "Source",
+    "statuses": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "canary": "Canary",
+      "orphaned": "Orphaned"
+    },
+    "byApiKey": "via API key",
+    "byUser": "via dashboard",
+    "promotedFrom": "Promoted from {environment}",
+    "rollback": "Roll back",
+    "rollingBack": "Rolling back…",
+    "rollbackConfirm": "Make {version} the active version in {environment}?",
+    "noVersions": "Nothing deployed to this environment yet."
+  },
+  "EnvironmentHistory": {
+    "back": "Environments",
+    "title": "{hostApp} / {env} history",
+    "unknownChange": "Change",
+    "noChange": "Manifest content unchanged",
+    "empty": "No changes yet."
+  },
+  "AuditPage": {
+    "title": "Audit log",
+    "description": "Every change in this workspace, newest first.",
+    "filter": "Filter",
+    "filters": {
+      "all": "All",
+      "module": "Modules",
+      "env": "Environments",
+      "apiKey": "API keys",
+      "member": "Members",
+      "webhook": "Webhooks"
+    },
+    "empty": "No events.",
+    "older": "Older events →"
+  },
+  "ApiKeysPage": {
+    "create": "Create an API key",
+    "description": "Keys let CI pipelines and the CLI deploy to this workspace. Use deploy:write for CI.",
+    "createSubmit": "Create key",
+    "copyOnce": "Copy this key now. It will not be shown again.",
+    "name": "Name",
+    "scopes": "Scopes",
+    "lastUsed": "last used {when}",
+    "neverUsed": "never used",
+    "revoked": "revoked",
+    "expiresAfterRotation": "stops working {when}",
+    "rotate": "Rotate",
+    "rotateConfirm": "Create a replacement key? The current key keeps working for 24 hours.",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke {name}? Anything using it stops working immediately.",
+    "empty": "No API keys yet."
+  },
+  "MembersPage": {
+    "invite": "Invite a member",
+    "inviteSubmit": "Invite",
+    "email": "Email",
+    "role": "Role",
+    "inviteHint": "They join when they first sign in with this email address.",
+    "roles": {
+      "viewer": "Viewer",
+      "developer": "Developer",
+      "admin": "Admin",
+      "owner": "Owner"
+    },
+    "pending": "invitation pending",
+    "save": "Save",
+    "remove": "Remove",
+    "removeConfirm": "Remove {email} from this workspace?"
+  },
+  "WebhooksPage": {
+    "add": "Add a webhook",
+    "addSubmit": "Add webhook",
+    "secretHint": "Copy the signing secret now. Use it to verify the X-Harmoniq-Signature header (HMAC-SHA256). It will not be shown again.",
+    "url": "URL",
+    "eventsHint": "Events (none selected = all events)",
+    "paused": "paused",
+    "resume": "Resume",
+    "pause": "Pause",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this webhook?",
+    "empty": "No webhooks yet.",
+    "deadLetters": "Failed deliveries",
+    "failedAfter": "failed after {attempts} attempts (HTTP {status})",
+    "retry": "Retry",
+    "noDeadLetters": "No failed deliveries."
   }
 }

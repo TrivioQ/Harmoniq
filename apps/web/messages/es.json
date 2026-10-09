@@ -7,44 +7,66 @@
     "title": "Seleccione un espacio de trabajo",
     "description": "Elija un espacio de trabajo para ver módulos y despliegues.",
     "noWorkspaces": "No se encontraron espacios de trabajo.",
-    "createWorkspace": "Crear espacio de trabajo"
+    "createWorkspace": "Crear espacio de trabajo",
+    "create": "Crear",
+    "name": "Nombre",
+    "slug": "Identificador"
   },
   "WorkspaceLayout": {
     "overview": "Resumen",
     "modules": "Módulos",
     "environments": "Entornos",
     "settings": "Configuración",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "audit": "Auditoría"
   },
   "WorkspaceOverview": {
     "title": "Resumen",
     "description": "Métricas de un vistazo para el espacio de trabajo {workspaceName}.",
     "hostApps": "Aplicaciones anfitrionas",
     "remoteModules": "Módulos remotos",
-    "healthStatus": "Estado de salud",
-    "healthy": "Saludable",
     "recentActivity": "Actividad reciente",
-    "noActivity": "No hay actividad de despliegue reciente."
+    "noActivity": "No hay actividad de despliegue reciente.",
+    "environments": "Entornos",
+    "frozenEnvironments": "Entornos congelados",
+    "viewAll": "Ver todo"
   },
   "ModulesPage": {
     "title": "Módulos",
     "description": "Gestione sus Micro Frontends.",
     "hostedOn": "Alojado en {hostAppName}",
-    "noModules": "Aún no se han desplegado módulos."
+    "noModules": "Aún no se han desplegado módulos.",
+    "addModule": "Añadir un módulo",
+    "create": "Crear",
+    "hostApp": "Aplicación anfitriona",
+    "name": "Nombre",
+    "namePlaceholder": "Checkout",
+    "slug": "Identificador"
   },
   "EnvironmentsPage": {
     "title": "Entornos",
     "description": "Vea y gestione los entornos de despliegue.",
     "hostApp": "Aplicación anfitriona: {hostAppName}",
     "default": "Por defecto",
-    "noEnvironments": "Aún no hay entornos configurados."
+    "noEnvironments": "Aún no hay entornos configurados.",
+    "frozenBadge": "CONGELADO",
+    "history": "Historial",
+    "frozenReason": "Congelado: {reason}",
+    "frozenUntil": "hasta {until}",
+    "unfreeze": "Descongelar",
+    "freeze": "Congelar",
+    "reasonPlaceholder": "Motivo, p. ej. Black Friday",
+    "reason": "Motivo",
+    "until": "Congelado hasta (opcional)"
   },
   "SettingsPage": {
     "title": "Configuración",
     "description": "Gestione la configuración del espacio de trabajo y las claves API.",
     "apiKeys": "Claves API",
-    "apiKeysDescription": "Las claves API permiten que otros servicios se autentiquen con este espacio de trabajo.",
-    "generateKey": "Generar nueva clave"
+    "storage": "Almacenamiento",
+    "members": "Miembros",
+    "webhooks": "Webhooks",
+    "adminOnly": "Solo los administradores y propietarios pueden cambiar la configuración."
   },
   "LoginPage": {
     "title": "Iniciar sesión en Harmoniq",
@@ -124,5 +146,147 @@
     "instanceDefaultHint": "Sin un bucket del espacio de trabajo, los paquetes usan el almacenamiento predeterminado de la instancia.",
     "credentialsKeepHint": "Deja vacíos los campos de credenciales para conservar las guardadas.",
     "credentialsRequiredHint": "Las credenciales se cifran en reposo y no se vuelven a mostrar."
+  },
+  "Actions": {
+    "unexpectedError": "Algo salió mal. Inténtalo de nuevo.",
+    "rolledBack": "Revertido a {version}.",
+    "promoted": "{version} promovido a {environment}.",
+    "moduleCreated": "Módulo creado.",
+    "frozen": "{environment} está congelado.",
+    "unfrozen": "{environment} ya no está congelado.",
+    "workspaceCreated": "Espacio de trabajo creado.",
+    "keyCreated": "Clave de API creada.",
+    "keyRevoked": "Clave de API revocada.",
+    "keyRotated": "Nueva clave creada. La anterior funcionará 24 horas más.",
+    "memberInvited": "Invitación enviada. Se acepta cuando inicie sesión con este correo.",
+    "roleChanged": "Rol actualizado.",
+    "memberRemoved": "Miembro eliminado.",
+    "webhookCreated": "Webhook añadido.",
+    "webhookPaused": "Webhook pausado.",
+    "webhookResumed": "Webhook reanudado.",
+    "webhookDeleted": "Webhook eliminado.",
+    "deadLetterRetried": "Entrega en cola para reintentar."
+  },
+  "Audit": {
+    "apiKeyActor": "clave de API",
+    "userActor": "usuario",
+    "actions": {
+      "module_deploy": "Desplegó {module} {version} en {environment}",
+      "module_rollback": "Revirtió {module} en {environment} a {version}",
+      "module_promote": "Promovió {module} {version} de {from} a {environment}",
+      "module_create": "Creó el módulo {name}",
+      "env_freeze": "Congeló {environment}",
+      "env_unfreeze": "Descongeló {environment}",
+      "apiKey_create": "Creó la clave de API {name}",
+      "apiKey_revoke": "Revocó la clave de API {name}",
+      "apiKey_rotate": "Rotó una clave de API",
+      "member_invite": "Invitó a {name} como {role}",
+      "member_role_change": "Cambió el rol de un miembro a {role}",
+      "member_remove": "Eliminó a un miembro",
+      "webhook_create": "Añadió el webhook {name}",
+      "webhook_update": "Actualizó un webhook",
+      "webhook_delete": "Eliminó el webhook {name}",
+      "workspace_create": "Creó el espacio de trabajo",
+      "hostApp_create": "Creó la aplicación anfitriona {name}",
+      "environment_create": "Creó el entorno {name}"
+    }
+  },
+  "ModuleDetail": {
+    "back": "Todos los módulos",
+    "environments": "Entornos",
+    "frozen": "Este entorno está congelado: {reason}. Los despliegues, reversiones y promociones están bloqueados.",
+    "promote": "Promover {version}",
+    "promoteConfirm": "¿Promover {version}? Reemplazará la versión activa en el entorno de destino.",
+    "promoteTo": "a",
+    "version": "Versión",
+    "status": "Estado",
+    "deployed": "Desplegado",
+    "source": "Origen",
+    "statuses": {
+      "active": "Activa",
+      "inactive": "Inactiva",
+      "canary": "Canary",
+      "orphaned": "Huérfana"
+    },
+    "byApiKey": "vía clave de API",
+    "byUser": "vía panel",
+    "promotedFrom": "Promovida desde {environment}",
+    "rollback": "Revertir",
+    "rollingBack": "Revirtiendo…",
+    "rollbackConfirm": "¿Hacer de {version} la versión activa en {environment}?",
+    "noVersions": "Aún no hay nada desplegado en este entorno."
+  },
+  "EnvironmentHistory": {
+    "back": "Entornos",
+    "title": "Historial de {hostApp} / {env}",
+    "unknownChange": "Cambio",
+    "noChange": "Contenido del manifiesto sin cambios",
+    "empty": "Aún no hay cambios."
+  },
+  "AuditPage": {
+    "title": "Auditoría",
+    "description": "Todos los cambios de este espacio de trabajo, del más reciente al más antiguo.",
+    "filter": "Filtro",
+    "filters": {
+      "all": "Todo",
+      "module": "Módulos",
+      "env": "Entornos",
+      "apiKey": "Claves de API",
+      "member": "Miembros",
+      "webhook": "Webhooks"
+    },
+    "empty": "Sin eventos.",
+    "older": "Eventos anteriores →"
+  },
+  "ApiKeysPage": {
+    "create": "Crear una clave de API",
+    "description": "Las claves permiten que los pipelines de CI y la CLI desplieguen en este espacio de trabajo. Usa deploy:write para CI.",
+    "createSubmit": "Crear clave",
+    "copyOnce": "Copia esta clave ahora. No se volverá a mostrar.",
+    "name": "Nombre",
+    "scopes": "Permisos",
+    "lastUsed": "usada {when}",
+    "neverUsed": "nunca usada",
+    "revoked": "revocada",
+    "expiresAfterRotation": "deja de funcionar {when}",
+    "rotate": "Rotar",
+    "rotateConfirm": "¿Crear una clave de reemplazo? La actual funcionará 24 horas más.",
+    "revoke": "Revocar",
+    "revokeConfirm": "¿Revocar {name}? Todo lo que la use dejará de funcionar de inmediato.",
+    "empty": "Aún no hay claves de API."
+  },
+  "MembersPage": {
+    "invite": "Invitar a un miembro",
+    "inviteSubmit": "Invitar",
+    "email": "Correo",
+    "role": "Rol",
+    "inviteHint": "Se une cuando inicia sesión por primera vez con este correo.",
+    "roles": {
+      "viewer": "Lector",
+      "developer": "Desarrollador",
+      "admin": "Administrador",
+      "owner": "Propietario"
+    },
+    "pending": "invitación pendiente",
+    "save": "Guardar",
+    "remove": "Eliminar",
+    "removeConfirm": "¿Eliminar a {email} de este espacio de trabajo?"
+  },
+  "WebhooksPage": {
+    "add": "Añadir un webhook",
+    "addSubmit": "Añadir webhook",
+    "secretHint": "Copia ahora el secreto de firma. Úsalo para verificar la cabecera X-Harmoniq-Signature (HMAC-SHA256). No se volverá a mostrar.",
+    "url": "URL",
+    "eventsHint": "Eventos (ninguno seleccionado = todos)",
+    "paused": "pausado",
+    "resume": "Reanudar",
+    "pause": "Pausar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar este webhook?",
+    "empty": "Aún no hay webhooks.",
+    "deadLetters": "Entregas fallidas",
+    "failedAfter": "falló tras {attempts} intentos (HTTP {status})",
+    "retry": "Reintentar",
+    "noDeadLetters": "Sin entregas fallidas."
   }
 }
