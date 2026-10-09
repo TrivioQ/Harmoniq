@@ -95,6 +95,17 @@ harmoniq disable --module checkout --env production --reason "payment errors sin
 harmoniq enable --module checkout --env production
 ```
 
+### Scheduling (`--at`)
+
+`deploy`, `promote`, `rollback`, `canary set-traffic|promote|abort` and `disable`/`enable` accept `--at` with an ISO time or an offset. The command is registered and runs then, as you, with your access checked again at that time.
+
+```bash
+harmoniq promote --module checkout --from staging --to production --at 2026-10-12T09:00:00Z
+harmoniq disable --module checkout --env production --reason "maintenance" --at +8h
+harmoniq schedule list [--status pending]
+harmoniq schedule cancel <id>
+```
+
 ### `harmoniq promote`
 
 Copies the exact artifact (URL and integrity) running in one environment to another — production only ever runs what was tested.

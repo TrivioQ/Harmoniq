@@ -1,5 +1,5 @@
 import fp from 'fastify-plugin';
-import { createHash } from 'crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import argon2 from 'argon2';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { Role, Workspace } from '@prisma/client';
@@ -33,6 +33,12 @@ declare module 'fastify' {
     requireInstanceAdmin: Handler;
     /** Drop cached verifications for a key, e.g. after revocation. */
     forgetApiKey: (keyId: string) => void;
+    /**
+     * Headers for an in-process call (`fastify.inject`) made on behalf of a user or API
+     * key, e.g. a scheduled operation. The principal is reloaded from the database, so
+     * memberships, scopes and revocations apply as for a direct call.
+     */
+    internalHeaders: (runAs: { type: 'user' | 'apiKey'; id: string }) => Record<string, string>;
   }
 }
 
@@ -144,9 +150,55 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     };
   }
 
+  // Proves a request came from this process (inject), never from the network.
+  const internalSecret = randomBytes(32).toString('base64url');
+  const INTERNAL = 'x-harmoniq-internal';
+  const RUN_AS = 'x-harmoniq-run-as';
+
+  async function resolveInternal(request: FastifyRequest): Promise<Principal | null> {
+    const secret = request.headers[INTERNAL];
+    if (typeof secret !== 'string') return null;
+    const given = Buffer.from(secret);
+    const expected = Buffer.from(internalSecret);
+    if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
+
+    const [type, id] = String(request.headers[RUN_AS] ?? '').split(':');
+    if (type === 'user' && id) {
+      const user = await systemDb.user.findUnique({
+        where: { id },
+        include: { InstanceAdmin: true },
+      });
+      return user
+        ? {
+            type: 'user',
+            id: user.id,
+            email: user.email,
+            isInstanceAdmin: !!user.InstanceAdmin && !user.InstanceAdmin.revokedAt,
+          }
+        : null;
+    }
+    if (type === 'apiKey' && id) {
+      const key = await systemDb.apiKey.findUnique({ where: { id } });
+      if (!key || key.revokedAt || !keyIsUsable(key, Date.now())) return null;
+      return {
+        type: 'apiKey',
+        id: key.id,
+        workspaceId: key.workspaceId,
+        scopes: key.scopes,
+        moduleIds: key.moduleIds,
+      };
+    }
+    return null;
+  }
+
   /** Resolves and memoizes the caller. Returns null when credentials are missing or invalid. */
   async function resolvePrincipal(request: FastifyRequest): Promise<Principal | null> {
     if (request.principal) return request.principal;
+    if (request.headers[INTERNAL]) {
+      const principal = await resolveInternal(request);
+      if (principal) request.principal = principal;
+      return principal;
+    }
     const header = request.headers.authorization;
     if (!header?.startsWith('Bearer ')) return null;
     const token = header.slice('Bearer '.length).trim();
@@ -220,6 +272,10 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
   fastify.decorate('requireWorkspace', requireWorkspace);
   fastify.decorate('requireInstanceAdmin', requireInstanceAdmin);
   fastify.decorate('forgetApiKey', forgetApiKey);
+  fastify.decorate('internalHeaders', (runAs: { type: 'user' | 'apiKey'; id: string }) => ({
+    [INTERNAL]: internalSecret,
+    [RUN_AS]: `${runAs.type}:${runAs.id}`,
+  }));
 };
 
 /** API keys may be restricted to specific modules (RBAC-04). Users are checked by role. */

@@ -19,7 +19,8 @@
     "settings": "Settings",
     "signOut": "Sign out",
     "audit": "Audit log",
-    "quickstart": "Integrate"
+    "quickstart": "Integrate",
+    "scheduled": "Scheduled"
   },
   "WorkspaceOverview": {
     "title": "Overview",
@@ -187,7 +188,8 @@
     "alertDisabled": "Alert rule disabled.",
     "alertDeleted": "Alert rule deleted.",
     "moduleDisabled": "Module disabled. Hosts stop loading it at their next manifest fetch.",
-    "moduleEnabled": "Module enabled again."
+    "moduleEnabled": "Module enabled again.",
+    "scheduleCancelled": "Scheduled operation cancelled."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -222,7 +224,11 @@
       "canary_rollout_advance": "Advanced the rollout of {module} {version} in {environment} to {percent}%",
       "canary_rollout_failed": "Stopped the rollout of {module} {version} in {environment}: health gate failed",
       "module_disable": "Disabled {module} in {environment}: {reason}",
-      "module_enable": "Enabled {module} in {environment} again"
+      "module_enable": "Enabled {module} in {environment} again",
+      "schedule_create": "Scheduled {name} of {module} for {environment}",
+      "schedule_cancel": "Cancelled a scheduled {name} of {module}",
+      "schedule_executed": "Ran a scheduled {name} of {module} in {environment}",
+      "schedule_failed": "A scheduled {name} of {module} in {environment} failed"
     },
     "systemActor": "automatic"
   },
@@ -423,6 +429,30 @@
     "actions": {
       "webhook": "Notify (webhook)",
       "auto_rollback": "Notify and roll back automatically"
+    }
+  },
+  "ScheduledPage": {
+    "title": "Scheduled operations",
+    "description": "Deploys, promotions and other changes set to run later. They run as the person or API key that scheduled them, with their access checked again at that time.",
+    "hint": "Schedule from the CLI with --at, e.g. harmoniq promote --module checkout --from staging --to production --at 2026-10-12T09:00:00Z, or with POST /api/workspaces/{workspace}/scheduled-operations.",
+    "empty": "Nothing scheduled.",
+    "cancel": "Cancel",
+    "cancelConfirm": "Cancel this scheduled operation?",
+    "statuses": {
+      "pending": "Pending",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "types": {
+      "deploy": "Deploy",
+      "promote": "Promote",
+      "rollback": "Roll back",
+      "canary_traffic": "Canary traffic",
+      "canary_promote": "Promote canary",
+      "canary_abort": "Abort canary",
+      "kill_switch": "Kill switch"
     }
   }
 }

@@ -263,7 +263,7 @@ Slugs: lowercase letters, digits and inner hyphens.
 | `GET /api/workspaces/:ws/webhooks/dead-letters`            | Exhausted deliveries                                                     |
 | `POST /api/workspaces/:ws/webhooks/dead-letters/:id/retry` | Re-enqueue                                                               |
 
-Events: `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollback.executed`, `module.promoted`, `module.disabled`, `module.enabled`, `canary.started`, `canary.updated`, `canary.promoted`, `canary.rolled_back`, `canary.auto_rolled_back`, `module.auto_rolled_back`, `alert.triggered`, `alert.resolved`, `env.frozen`, `env.unfrozen` (and later `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
+Events: `manifest.updated`, `manifest.publish_failed`, `deploy.success`, `rollback.executed`, `module.promoted`, `module.disabled`, `module.enabled`, `canary.started`, `canary.updated`, `canary.promoted`, `canary.rolled_back`, `canary.auto_rolled_back`, `module.auto_rolled_back`, `alert.triggered`, `alert.resolved`, `schedule.executed`, `schedule.failed`, `env.frozen`, `env.unfrozen` (and later `deploy.failed`), or `*`. Deliveries are signed: `X-Harmoniq-Signature: hex(HMAC-SHA256(secret, body))`, with `X-Harmoniq-Event`. Webhook URLs must be public HTTPS.
 
 ## Sign-in (used by the dashboard)
 
@@ -294,6 +294,29 @@ HLT-02/03: the last 5 minutes. `loadSuccessRate` (0–1), `p50LoadMs`, `p95LoadM
 ### `GET /api/workspaces/:ws/health?hours=24` — read
 
 Hourly `{ hour, sampleCount, errorCount }` series per module and environment, for sparklines.
+
+## Scheduled operations
+
+M3.6. Any of these calls can be scheduled; it runs at `runAt` through the same route, as the user or API key that scheduled it, with its access checked again at that time (a removed member's or revoked key's operations fail).
+
+| Endpoint                                              | Permission | Description                                            |
+| ----------------------------------------------------- | ---------- | ------------------------------------------------------ |
+| `GET /api/workspaces/:ws/scheduled-operations?status` | read       | Newest first (100)                                     |
+| `POST /api/workspaces/:ws/scheduled-operations`       | deploy     | `{ runAt, description?, operation }` → `201`           |
+| `DELETE /api/workspaces/:ws/scheduled-operations/:id` | deploy     | Cancel a pending operation (`409` once it has started) |
+
+```json
+{
+  "runAt": "2026-10-12T09:00:00Z",
+  "operation": {
+    "type": "promote",
+    "module": "checkout",
+    "request": { "fromEnvironment": "staging", "toEnvironment": "production" }
+  }
+}
+```
+
+`type` is `deploy`, `promote`, `rollback`, `canary_traffic`, `canary_promote`, `canary_abort` or `kill_switch`; `request` is the body of that endpoint, validated when scheduling. `runAt` may be at most a year ahead. A job checks every minute; each operation runs once (`FOR UPDATE SKIP LOCKED` across replicas) and records `status` (`done`/`failed`), `result` (`{ statusCode, body }`) and `error`, audited as `schedule.executed` / `schedule.failed` with webhooks of the same names. Operations interrupted by a restart are marked failed after 10 minutes.
 
 ## Alerts
 

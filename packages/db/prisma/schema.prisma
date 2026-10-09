@@ -54,6 +54,7 @@ model Workspace {
   ModuleHealthEvents         ModuleHealthEvent[]
   ModuleHealthRollups        ModuleHealthRollup[]
   ModuleEnvStates            ModuleEnvState[]
+  ScheduledOperations        ScheduledOperation[]
   ScimAuditEvents            ScimAuditEvent[]
   ApprovalPolicies           ApprovalPolicy[]
   DeploymentRequests         DeploymentRequest[]
@@ -612,4 +613,34 @@ model ModuleEnvState {
 
   @@unique([remoteModuleId, environmentId])
   @@index([environmentId])
+}
+
+/// Scheduled operations (M3.6): an API call (deploy, promote, canary…) run at `runAt`,
+/// as its creator, through the same route and checks as a manual call.
+model ScheduledOperation {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  type          String
+  /// For listings; the call itself is `method` + `path` + `body`.
+  module        String?
+  environment   String?
+  description   String?
+  method        String
+  path          String
+  body          Json
+  runAt         DateTime
+  /// `pending`, `running`, `done`, `failed` or `cancelled`.
+  status        String    @default("pending")
+  createdById   String
+  createdByType ActorType
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  /// `{ statusCode, body }` of the call.
+  result        Json?
+  error         String?
+  createdAt     DateTime  @default(now())
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([workspaceId, runAt])
 }

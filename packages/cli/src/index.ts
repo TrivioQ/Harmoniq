@@ -7,6 +7,7 @@ import { deployCommand } from './commands/deploy';
 import { promoteCommand } from './commands/promote';
 import { canaryCommand } from './commands/canary';
 import { disableCommand, enableCommand } from './commands/killSwitch';
+import { scheduleCommand } from './commands/schedule';
 import { rollbackCommand } from './commands/rollback';
 import { validateCommand } from './commands/validate';
 import { manifestCommand } from './commands/manifest';
@@ -31,6 +32,7 @@ export function buildProgram() {
     .addCommand(canaryCommand)
     .addCommand(disableCommand)
     .addCommand(enableCommand)
+    .addCommand(scheduleCommand)
     .addCommand(validateCommand)
     .addCommand(manifestCommand)
     .addCommand(doctorCommand);

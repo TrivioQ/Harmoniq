@@ -216,6 +216,19 @@ export interface AlertRuleSummary {
   lastError: string | null;
 }
 
+export interface ScheduledOperationSummary {
+  id: string;
+  type: string;
+  module: string | null;
+  environment: string | null;
+  description: string | null;
+  runAt: string;
+  status: 'pending' | 'running' | 'done' | 'failed' | 'cancelled';
+  createdBy: { type: string; id: string };
+  finishedAt: string | null;
+  error: string | null;
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
@@ -253,6 +266,8 @@ export const workspaceApi = {
       hours: number;
       series: Array<{ moduleId: string; environment: string; hourly: HourlyHealth[] }>;
     }>(`${ws(slug)}/health?hours=24`),
+  scheduled: (slug: string) =>
+    authedFetch<{ operations: ScheduledOperationSummary[] }>(`${ws(slug)}/scheduled-operations`),
   alerts: (slug: string) => authedFetch<{ rules: AlertRuleSummary[] }>(`${ws(slug)}/alerts`),
   moduleHealth: (slug: string, ref: string, env: string) =>
     authedFetch<ModuleHealth>(`${ws(slug)}/modules/${enc(ref)}/health?environment=${enc(env)}`),

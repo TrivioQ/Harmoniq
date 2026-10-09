@@ -44,6 +44,7 @@ See [`docs/requirements.md §5.4`](../requirements.md).
 - **Staged rollouts.** The schedule lives on the canary (`rolloutSchedule`, `currentBandIndex`, `bandStartedAt`). `rollout.advance` scans every minute rather than scheduling one delayed job per band, so a restart or a lost job never strands a rollout and a freeze simply pauses it. Each gate check covers the loads of the band that just ran. A band-index check inside the transaction keeps a manual advance and the job from both acting on the same band.
 - **Targeting.** Rules live on the canary version (`targeting`) and are cached with the running canaries, so matching needs no database. A match puts the user in the canary before the percentage is considered; without a user key only targeting applies. `X-Harmoniq-Context` is parsed defensively (size and key limits; bad input is ignored, never an error) and is part of `Vary`.
 - **Kill switch.** `ModuleEnvState` per module and environment; the manifest keeps the module (so hosts can tell "disabled" from "missing") with `disabled` and a reason, and the derived import-map and federation formats drop it. It runs through the mutation pipeline (audit, snapshot, CDN publish) with `ignoreFreeze`, the one change allowed in a frozen environment.
+- **Scheduled operations.** A schedule stores the exact API call (validated with the route's schema) and runs it with `fastify.inject` as its creator: the request carries a per-process random secret and the creator's id, and the authenticate plugin reloads that user or key from the database, so membership, scopes, module scoping, revocation, freezes, audit and webhooks behave exactly as for a manual call. Claiming uses `FOR UPDATE SKIP LOCKED`, so each operation runs once across replicas.
 - **CDN and import maps** stay stable-only: a CDN can't vary by user, and browsers load import maps without custom headers. The SDK therefore asks the registry first whenever it has a user id, and falls back to the CDN.
 
 ### Deviation: `harmoniq_canary` cookie (CAN-02)
@@ -57,6 +58,23 @@ YES (pre-1.0): `CanaryConfigSchema` was removed from `@harmoniq/core` in favour 
 ---
 
 ## Change History
+
+### 2026-10-09 — Scheduled operations (M3.6)
+
+**Type:** feature
+**PR / Branch:** feat/m3-progressive
+**Refs:** report §5.7
+
+#### What changed
+
+- `ScheduledOperation` table (RLS); `GET/POST/DELETE …/scheduled-operations`; the `schedule.run` job (every minute); audit and webhooks `schedule.executed` / `schedule.failed`.
+- Internal run-as authentication for in-process calls (random per-process secret; principal reloaded from the database).
+- CLI `--at` on deploy, promote, rollback, canary and kill-switch commands; `harmoniq schedule list|cancel`.
+- Dashboard "Scheduled" page with cancel; audit lines.
+
+#### Testing
+
+`scheduled.test.ts`: validation, a deploy run once at its time as its creator, cancel and the cancel/claim race, a frozen environment failing a deploy but not a kill switch, access re-checked at run time (removed member, module-scoped and revoked API keys), forged internal headers rejected. CLI tests. On a running registry: a CLI deploy scheduled 5 s ahead ran through the real pg-boss job; the dashboard listed and cancelled operations. That run also caught a CommonJS crash (a top-level `module` constant) that unit tests don't see.
 
 ### 2026-10-09 — Kill switch (M3.6)
 

@@ -19,7 +19,8 @@
     "settings": "Configuración",
     "signOut": "Cerrar sesión",
     "audit": "Auditoría",
-    "quickstart": "Integrar"
+    "quickstart": "Integrar",
+    "scheduled": "Programado"
   },
   "WorkspaceOverview": {
     "title": "Resumen",
@@ -187,7 +188,8 @@
     "alertDisabled": "Regla de alerta desactivada.",
     "alertDeleted": "Regla de alerta eliminada.",
     "moduleDisabled": "Módulo desactivado. Los hosts dejan de cargarlo en su próxima lectura del manifiesto.",
-    "moduleEnabled": "Módulo activado de nuevo."
+    "moduleEnabled": "Módulo activado de nuevo.",
+    "scheduleCancelled": "Operación programada cancelada."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -222,7 +224,11 @@
       "canary_rollout_advance": "Avanzó el despliegue de {module} {version} en {environment} al {percent}%",
       "canary_rollout_failed": "Detuvo el despliegue de {module} {version} en {environment}: falló la comprobación de salud",
       "module_disable": "Desactivó {module} en {environment}: {reason}",
-      "module_enable": "Activó de nuevo {module} en {environment}"
+      "module_enable": "Activó de nuevo {module} en {environment}",
+      "schedule_create": "Programó {name} de {module} para {environment}",
+      "schedule_cancel": "Canceló {name} programado de {module}",
+      "schedule_executed": "Ejecutó {name} programado de {module} en {environment}",
+      "schedule_failed": "Falló {name} programado de {module} en {environment}"
     },
     "systemActor": "automático"
   },
@@ -423,6 +429,30 @@
     "actions": {
       "webhook": "Notificar (webhook)",
       "auto_rollback": "Notificar y revertir automáticamente"
+    }
+  },
+  "ScheduledPage": {
+    "title": "Operaciones programadas",
+    "description": "Despliegues, promociones y otros cambios que se ejecutarán más tarde. Se ejecutan como la persona o la clave de API que los programó, y su acceso se vuelve a comprobar en ese momento.",
+    "hint": "Programa desde la CLI con --at, p. ej. harmoniq promote --module checkout --from staging --to production --at 2026-10-12T09:00:00Z, o con POST /api/workspaces/{workspace}/scheduled-operations.",
+    "empty": "No hay nada programado.",
+    "cancel": "Cancelar",
+    "cancelConfirm": "¿Cancelar esta operación programada?",
+    "statuses": {
+      "pending": "Pendiente",
+      "running": "En curso",
+      "done": "Hecha",
+      "failed": "Fallida",
+      "cancelled": "Cancelada"
+    },
+    "types": {
+      "deploy": "Despliegue",
+      "promote": "Promoción",
+      "rollback": "Reversión",
+      "canary_traffic": "Tráfico del canary",
+      "canary_promote": "Promover canary",
+      "canary_abort": "Abortar canary",
+      "kill_switch": "Interruptor de emergencia"
     }
   }
 }

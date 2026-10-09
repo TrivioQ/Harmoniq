@@ -4,6 +4,7 @@ import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
 import { CliError, EXIT } from '../lib/errors';
 import { resolveIntegrity } from '../lib/integrity';
 import { emit, enc } from '../lib/output';
+import { AT_OPTION, scheduleIfRequested } from '../lib/schedule';
 import { collectTarget, parsePercent, parseRollout, parseTargets } from './canary';
 
 const collect = (value: string, previous: string[] = []) => [...previous, value];
@@ -47,6 +48,7 @@ export const deployCommand = new Command('deploy')
     '--min-samples <n>',
     'Rollout gate: canary loads needed per band before deciding (default 20)'
   )
+  .option(...AT_OPTION)
   .option(
     '--preview-ttl <hours>',
     'Create --env as a preview environment (e.g. pr-123) that expires after this many hours'
@@ -84,20 +86,25 @@ export const deployCommand = new Command('deploy')
     );
     const commitSha = opts.commit ?? process.env.GITHUB_SHA ?? process.env.CI_COMMIT_SHA;
 
+    if (opts.at && opts.dryRun)
+      throw new CliError('--at and --dry-run exclude each other', EXIT.validation);
+    const request = {
+      environment: opts.env,
+      url: opts.url,
+      version: opts.release,
+      integrity,
+      ...(commitSha && { commitSha }),
+      ...(Object.keys(metadata).length && { metadata }),
+      dryRun: !!opts.dryRun,
+      ...(opts.previewTtl && { ephemeral: { ttlHours: Number(opts.previewTtl) } }),
+      ...(canary !== undefined && { canary: { trafficPercent: canary, targeting } }),
+      ...(rollout && { canary: { rollout, targeting } }),
+    };
+    const op = { type: 'deploy', module: opts.module, request };
+    if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
     const result = await authedClient(ctx).post<Record<string, unknown>>(
       `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/deploy`,
-      {
-        environment: opts.env,
-        url: opts.url,
-        version: opts.release,
-        integrity,
-        ...(commitSha && { commitSha }),
-        ...(Object.keys(metadata).length && { metadata }),
-        dryRun: !!opts.dryRun,
-        ...(opts.previewTtl && { ephemeral: { ttlHours: Number(opts.previewTtl) } }),
-        ...(canary !== undefined && { canary: { trafficPercent: canary, targeting } }),
-        ...(rollout && { canary: { rollout, targeting } }),
-      }
+      request
     );
 
     if (opts.dryRun) {

@@ -69,6 +69,35 @@ const server = setupServer(
       });
     }
   ),
+  http.post(`${REGISTRY}/api/workspaces/acme/scheduled-operations`, async ({ request }) => {
+    const body = (await request.json()) as Record<string, unknown>;
+    received['schedule'] = { body, auth: request.headers.get('authorization') };
+    return HttpResponse.json({ id: 'op1', runAt: body.runAt, status: 'pending' }, { status: 201 });
+  }),
+  http.get(`${REGISTRY}/api/workspaces/acme/scheduled-operations`, () =>
+    HttpResponse.json({
+      operations: [
+        {
+          id: 'op1',
+          type: 'promote',
+          module: 'checkout',
+          environment: 'production',
+          runAt: '2026-10-12T09:00:00.000Z',
+          status: 'pending',
+          error: null,
+        },
+      ],
+    })
+  ),
+  http.delete(`${REGISTRY}/api/workspaces/acme/scheduled-operations/:id`, ({ params }) =>
+    HttpResponse.json({
+      id: params.id,
+      type: 'promote',
+      module: 'checkout',
+      runAt: '2026-10-12T09:00:00.000Z',
+      status: 'cancelled',
+    })
+  ),
   http.get(`${REGISTRY}/api/workspaces/acme`, ({ request }) =>
     request.headers.get('authorization') === `Bearer ${KEY}`
       ? HttpResponse.json({ name: 'Acme', hostApps: [{ slug: 'portal' }] })
@@ -356,6 +385,77 @@ describe('harmoniq CLI', () => {
     expect(received['checkout/kill-switch'].body).toEqual({
       environment: 'production',
       disabled: false,
+    });
+  });
+
+  describe('scheduling (--at)', () => {
+    it('schedules a promote at an ISO time instead of running it', async () => {
+      const code = await cli(
+        ...withKey,
+        'promote',
+        '--module',
+        'checkout',
+        '--from',
+        'staging',
+        '--to',
+        'production',
+        '--at',
+        '2026-10-12T09:00:00Z'
+      );
+      expect(code).toBe(0);
+      expect(received['checkout/promote']).toBeUndefined();
+      expect(received['schedule'].body).toEqual({
+        runAt: '2026-10-12T09:00:00.000Z',
+        operation: {
+          type: 'promote',
+          module: 'checkout',
+          request: { fromEnvironment: 'staging', toEnvironment: 'production' },
+        },
+      });
+      expect(stdout.join('\n')).toContain('harmoniq schedule cancel op1');
+    });
+
+    it('accepts offsets and rejects nonsense', async () => {
+      const before = Date.now();
+      expect(
+        await cli(
+          ...withKey,
+          'disable',
+          '--module',
+          'checkout',
+          '--env',
+          'production',
+          '--reason',
+          'night',
+          '--at',
+          '+2h'
+        )
+      ).toBe(0);
+      const runAt = Date.parse((received['schedule'].body as { runAt: string }).runAt);
+      expect(runAt - before).toBeGreaterThanOrEqual(2 * 3_600_000 - 1000);
+      expect((received['schedule'].body as { operation: { type: string } }).operation.type).toBe(
+        'kill_switch'
+      );
+      expect(
+        await cli(
+          ...withKey,
+          'canary',
+          'promote',
+          '--module',
+          'checkout',
+          '--env',
+          'production',
+          '--at',
+          'tomorrow'
+        )
+      ).toBe(2);
+    });
+
+    it('lists and cancels', async () => {
+      expect(await cli(...withKey, 'schedule', 'list')).toBe(0);
+      expect(stdout.join('\n')).toMatch(/op1 .*pending .*promote checkout → production/);
+      expect(await cli(...withKey, 'schedule', 'cancel', 'op1')).toBe(0);
+      expect(stdout.join('\n')).toContain('Cancelled promote of checkout');
     });
   });
 

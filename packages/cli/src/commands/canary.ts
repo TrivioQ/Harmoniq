@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
 import { CliError, EXIT } from '../lib/errors';
 import { emit, enc } from '../lib/output';
+import { AT_OPTION, scheduleIfRequested } from '../lib/schedule';
 
 type CanaryResult = { version: string; status: string; trafficPercent: number | null };
 
@@ -98,16 +99,20 @@ const setTraffic = target(new Command('set-traffic'))
     'Always give the canary to matching users, e.g. plan=beta or userId=u1,u2 (repeatable; replaces existing rules)',
     collectTarget
   )
+  .option(...AT_OPTION)
   .action(async (percent: string, opts, command: Command) => {
     const ctx = await resolveContext(command);
     const workspace = requireWorkspace(ctx);
     const targeting = opts.target ? parseTargets(opts.target) : undefined;
-    const result = await authedClient(ctx).put<CanaryResult>(path(workspace, opts.module), {
+    const request = {
       environment: opts.env,
       trafficPercent: parsePercent(percent, !!targeting?.length),
       ...(opts.versionId && { versionId: opts.versionId }),
       ...(targeting && { targeting }),
-    });
+    };
+    const op = { type: 'canary_traffic', module: opts.module, request };
+    if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
+    const result = await authedClient(ctx).put<CanaryResult>(path(workspace, opts.module), request);
     emit(
       ctx,
       result,
@@ -118,12 +123,16 @@ const setTraffic = target(new Command('set-traffic'))
 const promote = target(new Command('promote'))
   .description('Make the canary the active version for everyone')
   .option('--reason <text>', 'Recorded in the audit log')
+  .option(...AT_OPTION)
   .action(async (opts, command: Command) => {
     const ctx = await resolveContext(command);
     const workspace = requireWorkspace(ctx);
+    const request = { environment: opts.env, ...(opts.reason && { reason: opts.reason }) };
+    const op = { type: 'canary_promote', module: opts.module, request };
+    if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
     const result = await authedClient(ctx).post<CanaryResult>(
       path(workspace, opts.module, '/promote'),
-      { environment: opts.env, ...(opts.reason && { reason: opts.reason }) }
+      request
     );
     emit(ctx, result, `Promoted canary ${opts.module} ${result.version} in ${opts.env}`);
   });
@@ -149,12 +158,16 @@ const advance = target(new Command('advance'))
 const abort = target(new Command('abort'))
   .description('Stop the canary; everyone goes back to the active version')
   .option('--reason <text>', 'Recorded in the audit log')
+  .option(...AT_OPTION)
   .action(async (opts, command: Command) => {
     const ctx = await resolveContext(command);
     const workspace = requireWorkspace(ctx);
+    const request = { environment: opts.env, ...(opts.reason && { reason: opts.reason }) };
+    const op = { type: 'canary_abort', module: opts.module, request };
+    if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
     const result = await authedClient(ctx).post<CanaryResult>(
       path(workspace, opts.module, '/abort'),
-      { environment: opts.env, ...(opts.reason && { reason: opts.reason }) }
+      request
     );
     emit(ctx, result, `Aborted canary ${opts.module} ${result.version} in ${opts.env}`);
   });

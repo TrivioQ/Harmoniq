@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { evaluateAlerts } from '../services/alerts';
 import { evaluateRollouts } from '../services/rollout';
+import { runScheduled } from '../services/scheduler';
 
 export async function registerAlertJobs(fastify: FastifyInstance) {
   const { boss, logger, systemDb, withTenant, mutations, webhooks } = fastify.container;
@@ -10,6 +11,7 @@ export async function registerAlertJobs(fastify: FastifyInstance) {
   // pg-boss 10+ requires queues to exist before schedule()/work(). Idempotent.
   await boss.createQueue('alert.evaluate');
   await boss.createQueue('rollout.advance');
+  await boss.createQueue('schedule.run');
 
   // ALT-05: every rule, every minute. pg-boss runs a schedule once across replicas.
   await boss.schedule('alert.evaluate', '* * * * *');
@@ -31,6 +33,14 @@ export async function registerAlertJobs(fastify: FastifyInstance) {
     const results = await evaluateRollouts({ systemDb, withTenant, mutations, webhooks, logger });
     for (const r of results.filter((r) => r.outcome !== 'waiting_for_samples')) {
       logger.info(`Rollout ${r.versionId}: ${r.outcome}`);
+    }
+  });
+
+  // M3.6: scheduled operations that are due.
+  await boss.schedule('schedule.run', '* * * * *');
+  boss.work('schedule.run', async () => {
+    for (const r of await runScheduled(fastify)) {
+      logger.info(`Scheduled operation ${r.id}: ${r.status} (${r.statusCode})`);
     }
   });
 }

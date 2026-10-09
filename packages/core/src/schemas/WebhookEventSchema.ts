@@ -18,6 +18,8 @@ export const WebhookEventNameSchema = z.enum([
   'module.auto_rolled_back',
   'alert.triggered',
   'alert.resolved',
+  'schedule.executed',
+  'schedule.failed',
   'env.frozen',
   'env.unfrozen',
 ]);

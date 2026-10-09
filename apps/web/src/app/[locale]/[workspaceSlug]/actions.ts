@@ -430,3 +430,15 @@ export async function setKillSwitchAction(
     (t) => ({ status: 'success', message: t(disabled ? 'moduleDisabled' : 'moduleEnabled') })
   );
 }
+
+// ─── Scheduled operations (M3.6) ────────────────────────────────────────────
+
+export async function cancelScheduledAction(workspace: string, id: string, _prev: ActionResult) {
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/scheduled-operations/${enc(id)}`, {
+        method: 'DELETE',
+      }),
+    (t) => ({ status: 'success', message: t('scheduleCancelled') })
+  );
+}

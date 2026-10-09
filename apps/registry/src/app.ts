@@ -8,6 +8,7 @@ import manifestRoutes from './routes/manifest';
 import moduleRoutes from './routes/modules';
 import healthRoutes from './routes/health';
 import alertRoutes from './routes/alerts';
+import scheduledRoutes from './routes/scheduled';
 import hostAppRoutes from './routes/hostApps';
 import historyRoutes from './routes/history';
 import accessRoutes from './routes/access';
@@ -167,6 +168,7 @@ export async function buildApp() {
   await app.register(moduleRoutes);
   await app.register(healthRoutes);
   await app.register(alertRoutes);
+  await app.register(scheduledRoutes);
   await app.register(hostAppRoutes);
   await app.register(historyRoutes);
   await app.register(accessRoutes);

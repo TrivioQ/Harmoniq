@@ -12,6 +12,7 @@ export * from './schemas/RollbackRequestSchema';
 export * from './schemas/CanaryRequestSchema';
 export * from './schemas/HealthReportSchema';
 export * from './schemas/AlertRuleSchema';
+export * from './schemas/ScheduledOperationSchema';
 export * from './schemas/ApiKeyCreateSchema';
 export * from './schemas/WebhookEventSchema';
 export * from './schemas/WorkspaceStorageConfigSchema';

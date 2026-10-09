@@ -377,6 +377,27 @@ Kill switch per module and environment (M3.6).
 
 ---
 
+### `ScheduledOperation`
+
+An API call to run later (M3.6), as its creator.
+
+| Column                                       | Type       | Notes                                                      |
+| -------------------------------------------- | ---------- | ---------------------------------------------------------- |
+| `id`                                         | `CUID`     | Primary key                                                |
+| `workspaceId`                                | `CUID`     | FK → Workspace (RLS key)                                   |
+| `type`                                       | `String`   | `deploy`, `promote`, `rollback`, `canary_*`, `kill_switch` |
+| `module`, `environment`                      | `String?`  | For listings                                               |
+| `method`, `path`, `body`                     |            | The call; the path uses the module id                      |
+| `runAt`                                      | `DateTime` |                                                            |
+| `status`                                     | `String`   | `pending`, `running`, `done`, `failed`, `cancelled`        |
+| `createdById`, `createdByType`               |            | Who it runs as                                             |
+| `startedAt`, `finishedAt`, `result`, `error` |            | Outcome                                                    |
+
+**Index**: `(status, runAt)`, `(workspaceId, runAt)`  
+**RLS**: enabled, policy on `workspaceId`
+
+---
+
 ### `ManifestSnapshot`
 
 | Column          | Type        | Notes                                        |
