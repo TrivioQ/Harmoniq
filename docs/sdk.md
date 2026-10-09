@@ -112,6 +112,27 @@ constructor(harmoniq: HarmoniqService) {
 
 `HarmoniqService.manifest$` emits every new manifest.
 
+## Module Federation 2.0
+
+`@harmoniq/mf-plugin` resolves remotes from the manifest inside the MF runtime, so components keep using `loadRemote('checkout/Page')` (or static `import`s) unchanged.
+
+```ts
+import { init, loadRemote } from '@module-federation/enhanced/runtime';
+import { HarmoniqClient } from '@harmoniq/client';
+import { harmoniqPlugin } from '@harmoniq/mf-plugin';
+
+const client = new HarmoniqClient({ ...options, pollIntervalMs: 30_000 });
+init({ name: 'host', remotes: [], plugins: [harmoniqPlugin(client)] });
+
+const { CheckoutPage } = await loadRemote('checkout/CheckoutPage');
+```
+
+- Each request is resolved against the current manifest; remotes missing from your static config are added.
+- New deploys and rollbacks are hot-swapped (`registerRemotes(…, { force: true })`); the next `loadRemote` gets the new version.
+- Remote entry scripts get `integrity` and `crossorigin` from the manifest (SRI-04).
+- Options: `remoteNames` (MF remote name → Harmoniq module name), `strict` (refuse remotes not in the manifest).
+- `harmoniqRemotes(client)` returns `{ name, entry }[]` for `init({ remotes })` when you prefer static registration.
+
 ## Planned
 
 | Feature                                                      | Milestone |

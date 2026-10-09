@@ -1,0 +1,33 @@
+{
+  "name": "@harmoniq/mf-plugin",
+  "version": "0.1.0",
+  "description": "Module Federation 2.0 runtime plugin that resolves remotes from Harmoniq",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@harmoniq/client": "workspace:^",
+    "@module-federation/runtime": ">=0.8.0"
+  },
+  "devDependencies": {
+    "@harmoniq/client": "workspace:*",
+    "@harmoniq/tsconfig": "workspace:*",
+    "@module-federation/runtime": "^2.9.2",
+    "eslint": "^9.10.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.0"
+  }
+}

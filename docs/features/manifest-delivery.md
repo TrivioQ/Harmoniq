@@ -43,6 +43,20 @@ None.
 
 ## Change History
 
+### 2026-10-09 — Module Federation 2.0 runtime plugin (M2.4)
+
+**Type:** feature
+**PR / Branch:** feat/m2-delivery
+**Refs:** SRI-04; product-analysis §5.3
+
+#### What changed
+
+New package `@harmoniq/mf-plugin`: a Module Federation runtime plugin that rewrites remote entries from the Harmoniq manifest in `beforeRequest`, hot-swaps remotes on manifest updates, and creates remote entry scripts with `integrity`/`crossorigin`. Attaches to the MF instance from `beforeRequest` as well as `beforeInit` (the latter can run before plugins are registered).
+
+#### Testing
+
+`plugin.test.ts` (6) runs the real `@module-federation/runtime` 2.9 hook chain: static and Harmoniq-only remotes, name mapping, strict mode, hot swap and SRI script creation.
+
 ### 2026-10-09 — SDK survives registry outages (M2.2)
 
 **Type:** feature

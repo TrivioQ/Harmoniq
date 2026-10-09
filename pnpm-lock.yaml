@@ -356,6 +356,30 @@ importers:
         specifier: ^1.5.0
         version: 1.6.1(@types/node@20.19.43)(lightningcss@1.32.0)
 
+  packages/mf-plugin:
+    devDependencies:
+      '@harmoniq/client':
+        specifier: workspace:*
+        version: link:../client
+      '@harmoniq/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@module-federation/runtime':
+        specifier: ^2.9.2
+        version: 2.9.2
+      eslint:
+        specifier: ^9.10.0
+        version: 9.39.5(jiti@2.7.0)
+      tsup:
+        specifier: ^8.3.0
+        version: 8.5.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.13)(typescript@5.9.3)(yaml@2.9.1)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.43)(lightningcss@1.32.0)(msw@2.15.0(@types/node@20.19.43)(typescript@5.9.3))
+
   packages/tsconfig: {}
 
 packages:
@@ -1723,6 +1747,18 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@module-federation/error-codes@2.9.2':
+    resolution: {integrity: sha512-MTpKubqsJSBgnuw+2Pli1kHL4INeHD5cGnHL84oRANwQAWK7b6lN3ZZTmL3FL6lYn65ImineqZNqGWBv5GQVLQ==}
+
+  '@module-federation/runtime-core@2.9.2':
+    resolution: {integrity: sha512-S9roTDqLtAWaaDBuug69ZnXXGEx0pUq/yG06J759bjRgfAg2P9+dWEv1q7rB2eMIp7HH4L6s3ColDRYdL6tJ9w==}
+
+  '@module-federation/runtime@2.9.2':
+    resolution: {integrity: sha512-1lPZVy7TkMTTBMkkjgQt7jA+9FAx226yQqEz+X0lFAIbpxIWfpzNQLD+7IydEe83ZhDJpK3cv/9bn3jjQBZeqQ==}
+
+  '@module-federation/sdk@2.9.2':
+    resolution: {integrity: sha512-ILtBFPuYpVcRA/Qay1lJ2hMtZI8fDE/v1n7xiN17e5qx5rSBR3FaamTsmRpN1hIt+gVnoa76CzOP/Y73d8hHNg==}
 
   '@mswjs/interceptors@0.36.10':
     resolution: {integrity: sha512-GXrJgakgJW3DWKueebkvtYgGKkxA7s0u5B0P5syJM5rvQUnrpLPigvci8Hukl7yEM+sU06l+er2Fgvx/gmiRgg==}
@@ -8972,6 +9008,21 @@ snapshots:
       zod-to-json-schema: 3.25.2(zod@3.25.76)
     transitivePeerDependencies:
       - supports-color
+
+  '@module-federation/error-codes@2.9.2': {}
+
+  '@module-federation/runtime-core@2.9.2':
+    dependencies:
+      '@module-federation/error-codes': 2.9.2
+      '@module-federation/sdk': 2.9.2
+
+  '@module-federation/runtime@2.9.2':
+    dependencies:
+      '@module-federation/error-codes': 2.9.2
+      '@module-federation/runtime-core': 2.9.2
+      '@module-federation/sdk': 2.9.2
+
+  '@module-federation/sdk@2.9.2': {}
 
   '@mswjs/interceptors@0.36.10':
     dependencies:
