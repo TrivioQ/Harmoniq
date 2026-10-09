@@ -1,10 +1,7 @@
 import { createHash } from 'crypto';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
-import {
-  IdentityError,
-  RedirectIdentityProvider,
-} from '@harmoniq/core/dist/ports/IdentityProvider';
+import { IdentityError } from '@harmoniq/core/dist/ports/IdentityProvider';
 import {
   AuthCallbackRequestSchema,
   AuthProviderSummary,
@@ -15,9 +12,11 @@ import {
   MeResponse,
   RefreshRequestSchema,
 } from '@harmoniq/core/dist/schemas/AuthSchemas';
-import { GitHubIdentityProvider } from '../adapters/identity/GitHubIdentityProvider';
 import { EmailIdentityProvider } from '../adapters/identity/EmailIdentityProvider';
 import { AuthService } from '../services/authService';
+import { provisionSsoMember, workspaceProviderId } from '../services/sso';
+import { openSecret, sealSecret } from '../services/crypto';
+import { Prisma } from '@prisma/client';
 
 const LOGIN_RATE_LIMIT = { rateLimit: { max: 20, timeWindow: '1 minute' } };
 // Per session, not per IP: every refresh arrives from the dashboard's server, so an IP
@@ -39,15 +38,13 @@ const REFRESH_RATE_LIMIT = {
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const { config } = fastify;
   const { systemDb, logger, mailer } = fastify.container;
-  const auth = new AuthService(systemDb, config.jwtSecret, logger);
-
-  const redirectProviders = new Map<string, RedirectIdentityProvider>();
-  if (config.github) {
-    redirectProviders.set(
-      'github',
-      new GitHubIdentityProvider(config.github.clientId, config.github.clientSecret)
-    );
-  }
+  // GitHub, instance OIDC and per-workspace OIDC (`oidc:<workspace>`).
+  const providers = fastify.ssoProviders;
+  const auth = new AuthService(systemDb, config.jwtSecret, logger, {
+    seal: (plain) => sealSecret(plain, config.encryptionKey),
+    open: (sealed) => openSecret(sealed, config.encryptionKey),
+    check: (provider, token) => providers.checkSession(provider, token),
+  });
 
   // Email sign-in needs a way to send mail (SMTP, or the console mailer outside production).
   const email = mailer ? new EmailIdentityProvider(systemDb, mailer) : null;
@@ -81,23 +78,51 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   };
 
   fastify.get('/api/auth/providers', async () => {
-    const providers: AuthProviderSummary[] = [...redirectProviders.values()].map((p) => ({
+    const list: AuthProviderSummary[] = providers.list().map((p) => ({
       id: p.id,
       kind: p.kind,
       displayName: p.displayName,
     }));
-    if (email) providers.push({ id: email.id, kind: email.kind, displayName: email.displayName });
+    if (email) list.push({ id: email.id, kind: email.kind, displayName: email.displayName });
     if (config.devLogin) {
-      providers.push({ id: 'dev', kind: 'dev', displayName: 'Development login' });
+      list.push({ id: 'dev', kind: 'dev', displayName: 'Development login' });
     }
-    return { providers };
+    return { providers: list };
   });
+
+  // "Sign in with SSO": the workspace whose OIDC trusts this email's domain (SSO discovery).
+  fastify.get<{ Querystring: { email?: string } }>(
+    '/api/auth/sso/discover',
+    { config: LOGIN_RATE_LIMIT },
+    async (request, reply) => {
+      const domain = request.query.email?.trim().toLowerCase().split('@')[1];
+      if (!domain) return badRequest(reply, 'email is required');
+      const configs = await systemDb.workspaceConfig.findMany({
+        where: { oidcConfig: { not: Prisma.DbNull } },
+        include: { workspace: { select: { slug: true, name: true } } },
+      });
+      const match = configs.find((c) =>
+        ((c.oidcConfig as { trustedDomains?: string[] } | null)?.trustedDomains ?? []).includes(
+          domain
+        )
+      );
+      if (!match) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'NOT_FOUND', message: 'No single sign-on for this domain' } });
+      }
+      return {
+        provider: workspaceProviderId(match.workspace.slug),
+        workspace: { slug: match.workspace.slug, name: match.workspace.name },
+      };
+    }
+  );
 
   fastify.post<{ Params: { provider: string } }>(
     '/api/auth/:provider/start',
     { config: LOGIN_RATE_LIMIT },
     async (request, reply) => {
-      const provider = redirectProviders.get(request.params.provider);
+      const provider = await providers.get(request.params.provider);
       if (!provider) {
         return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Unknown provider' } });
       }
@@ -106,7 +131,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (!isAllowedRedirect(parsed.data.redirectUri)) {
         return badRequest(reply, 'redirectUri must be on the dashboard origin');
       }
-      return { authorizationUrl: provider.getAuthorizationUrl(parsed.data) };
+      try {
+        return { authorizationUrl: await provider.getAuthorizationUrl(parsed.data) };
+      } catch (err) {
+        return identityFailure(reply, err);
+      }
     }
   );
 
@@ -114,7 +143,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/auth/:provider/callback',
     { config: LOGIN_RATE_LIMIT },
     async (request, reply) => {
-      const provider = redirectProviders.get(request.params.provider);
+      const provider = await providers.get(request.params.provider);
       if (!provider) {
         return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Unknown provider' } });
       }
@@ -125,7 +154,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const info = await provider.handleCallback(parsed.data);
-        return await auth.completeLogin(info, provider.id);
+        const { user, response } = await auth.login(info, provider.id);
+        if (provider.id.startsWith('oidc:')) {
+          const slug = provider.id.slice('oidc:'.length);
+          const loaded = await providers.loadWorkspace(slug);
+          if (loaded)
+            await provisionSsoMember(fastify, slug, loaded.config, user.id, info, request.ip);
+        }
+        return response;
       } catch (err) {
         return identityFailure(reply, err);
       }

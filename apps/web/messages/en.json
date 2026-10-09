@@ -84,7 +84,8 @@
     "webhooks": "Webhooks",
     "adminOnly": "Only workspace admins and owners can change settings.",
     "alerts": "Alerts",
-    "approvalRules": "Approval rules"
+    "approvalRules": "Approval rules",
+    "sso": "Single sign-on"
   },
   "LoginPage": {
     "title": "Sign in to Harmoniq",
@@ -108,13 +109,17 @@
       "dev_login_disabled": "Development sign-in is not enabled.",
       "invalid_token": "That sign-in link is invalid, expired or already used. Request a new one.",
       "invalid_code": "That code is incorrect or expired.",
-      "other_browser": "Open the link in the browser where you requested it, or enter the code from the email instead."
+      "other_browser": "Open the link in the browser where you requested it, or enter the code from the email instead.",
+      "sso_not_found": "No single sign-on is set up for that email domain. Use another sign-in method or ask your workspace admin.",
+      "email_required": "Enter your email."
     },
     "emailLabel": "Email",
     "emailSubmit": "Email me a sign-in link",
     "emailSent": "Check {email} for a sign-in link. You can also enter the 6-digit code from that email here.",
     "codeLabel": "Sign-in code",
-    "codeSubmit": "Sign in"
+    "codeSubmit": "Sign in",
+    "ssoLabel": "Work email",
+    "ssoSubmit": "Sign in with SSO"
   },
   "AdminDashboardPage": {
     "errorFetch": "Failed to fetch stats. You may not be authenticated as an admin.",
@@ -210,7 +215,9 @@
     "approvalRejected": "Rejected: the change will not be applied.",
     "approvalBypassed": "Bypassed: the change was applied and flagged.",
     "approvalPolicySaved": "Approval rules for {environment} saved.",
-    "approvalPolicyRemoved": "Changes to {environment} no longer need approval."
+    "approvalPolicyRemoved": "Changes to {environment} no longer need approval.",
+    "ssoSaved": "Single sign-on saved; the identity provider answered.",
+    "ssoRemoved": "Single sign-on removed."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -259,7 +266,10 @@
       "deploy_reject": "Rejected a {name}: {reason}",
       "deploy_emergency_bypass": "⚠️ BYPASSED approval for a {name}: {reason}",
       "approval_policy_set": "Set approval rules for {environment}",
-      "approval_policy_delete": "Removed approval rules for {environment}"
+      "approval_policy_delete": "Removed approval rules for {environment}",
+      "auth_sso_login": "Signed in with single sign-on: {name}",
+      "sso_config_update": "Changed the single sign-on settings",
+      "sso_config_delete": "Removed single sign-on"
     },
     "systemActor": "automatic"
   },
@@ -542,5 +552,23 @@
     "save": "Save rules",
     "remove": "Remove rules",
     "removeConfirm": "Let changes to this environment through without approval?"
+  },
+  "SsoPage": {
+    "description": "Let members sign in with your identity provider (Okta, Entra ID, Google Workspace, Keycloak, Auth0 … any OpenID Connect provider).",
+    "callback": "Redirect URI to register at your identity provider",
+    "issuer": "Issuer URL",
+    "clientId": "Client ID",
+    "clientSecret": "Client secret",
+    "secretKeep": "Leave empty to keep the stored secret ({masked})",
+    "scopes": "Scopes",
+    "groupsClaim": "Groups claim",
+    "roleMapping": "Group → role mapping, one per line: engineers = developer",
+    "trustedDomains": "Trusted email domains (users join automatically)",
+    "defaultRole": "Role for trusted-domain users without a mapped group",
+    "forceSso": "Require single sign-on (owners can still use other methods, as a fallback)",
+    "save": "Save and test",
+    "remove": "Remove single sign-on",
+    "removeConfirm": "Remove single sign-on? Members will sign in with other methods.",
+    "loginHint": "Members start from “Sign in with SSO” on the login page, with their work email."
   }
 }

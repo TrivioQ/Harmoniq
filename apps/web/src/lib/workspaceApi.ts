@@ -293,6 +293,20 @@ export interface ApprovalPolicySummary {
   expiryHours: number;
 }
 
+export interface OidcSettings {
+  issuer: string;
+  clientId: string;
+  /** Masked. */
+  clientSecret: string;
+  scopes: string[];
+  groupsClaim: string;
+  roleMapping: Record<string, Role>;
+  trustedDomains: string[];
+  defaultRole: Role;
+  forceSso: boolean;
+  providerId: string;
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
@@ -340,6 +354,7 @@ export const workspaceApi = {
     authedFetch<{ requests: ApprovalRequest[] }>(`${ws(slug)}/approvals`),
   approvalPolicies: (slug: string) =>
     authedFetch<{ policies: ApprovalPolicySummary[] }>(`${ws(slug)}/approval-policies`),
+  sso: (slug: string) => authedFetch<{ oidc: OidcSettings | null }>(`${ws(slug)}/sso/oidc`),
   alerts: (slug: string) => authedFetch<{ rules: AlertRuleSummary[] }>(`${ws(slug)}/alerts`),
   moduleHealth: (slug: string, ref: string, env: string) =>
     authedFetch<ModuleHealth>(`${ws(slug)}/modules/${enc(ref)}/health?environment=${enc(env)}`),

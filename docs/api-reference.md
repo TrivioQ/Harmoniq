@@ -311,6 +311,23 @@ HLT-02/03: the last 5 minutes. `loadSuccessRate` (0–1), `p50LoadMs`, `p95LoadM
 
 Hourly `{ hour, sampleCount, errorCount }` series per module and environment, for sparklines.
 
+## Single sign-on (OIDC)
+
+M4.4, SSO-01..08, 21..28. Any OpenID Connect provider (Okta, Entra ID, Google Workspace, Keycloak, Auth0, Cognito …).
+
+| Endpoint                              | Permission | Description                                                                                                                                                                                                                 |
+| ------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/workspaces/:ws/sso/oidc`    | admin      | Settings; the client secret masked                                                                                                                                                                                          |
+| `PUT /api/workspaces/:ws/sso/oidc`    | admin      | `{ issuer, clientId, clientSecret (write-only; omit to keep), scopes, groupsClaim, roleMapping: { group: role }, trustedDomains, defaultRole, forceSso }`; checks the issuer's discovery document first (`400` if it fails) |
+| `DELETE /api/workspaces/:ws/sso/oidc` | admin      | Removes it (and forced SSO)                                                                                                                                                                                                 |
+| `GET /api/auth/sso/discover?email=`   | public     | `{ provider: "oidc:<workspace>" }` for the workspace that trusts the email's domain, else `404`                                                                                                                             |
+
+Sign-in uses the usual `POST /api/auth/:provider/start` and `/callback` with provider `oidc:<workspace>` (redirect URI on the dashboard: `…/api/auth/callback/oidc%3A<workspace>`). The registry discovers the provider's metadata (cached 1 h), uses authorization code + PKCE with a nonce derived from the PKCE challenge, and validates the ID token's signature (JWKS), issuer, audience, expiry, age and nonce. First sign-in creates the user; users join the workspace when an IdP group maps to a role (the most permissive mapping wins, and is re-applied at every login; owners are never demoted) or when their email domain is trusted (`defaultRole`). Emails from trusted domains count as verified. Logins are audited as `auth.sso_login`.
+
+**Forced SSO**: with `forceSso`, members signed in any other way get `403 SSO_REQUIRED` in this workspace (owners are exempt, as a fallback if the IdP fails). **Session lifetime**: when the IdP issues a refresh token, the registry keeps it (sealed) and re-checks it hourly on session refresh; if the IdP refuses, the Harmoniq session ends.
+
+Self-hosters can also set one instance-wide provider (`oidc`) with `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_DISPLAY_NAME`. Workspace issuers must be public HTTPS in production unless `HARMONIQ_SSO_ALLOW_PRIVATE_ISSUERS=1` (IdPs on internal networks).
+
 ## Approvals
 
 APR-01..18. An environment with an approval policy holds back deploys, rollbacks, promotions (into it) and canary changes: the call returns **`202`** with `{ status: "pending_approval", requestId, requiredApprovers, expiresAt, changeTicket }` instead of applying the change (dry runs and the kill switch are not held back). Send `X-Harmoniq-Change-Ticket: <id>` when the policy requires a ticket (`400` without it).

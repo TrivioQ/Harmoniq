@@ -18,17 +18,22 @@ Large enterprises operating in regulated industries require three capabilities t
 
 ## Requirements
 
-| ID                  | Requirement                                     | Status         |
-| ------------------- | ----------------------------------------------- | -------------- |
-| `RBAC-01`–`RBAC-06` | Module ownership and module-scoped access       | ✅ Done (M4.1) |
-| `ENV-FRZ-03`–`04`   | Owner freeze override, scheduled freeze windows | ✅ Done (M4.2) |
-| `APR-01`–`APR-18`   | Change Approval Workflows                       | 📋 Planned     |
-| `ORG-01`–`ORG-15`   | Organization Hierarchy                          | 📋 Planned     |
-| `IaC-01`–`IaC-14`   | GitOps / Infrastructure as Code                 | 📋 Planned     |
+| ID                                                      | Requirement                                                                            | Status         |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------- |
+| `RBAC-01`–`RBAC-06`                                     | Module ownership and module-scoped access                                              | ✅ Done (M4.1) |
+| `SSO-01`–`SSO-08`, `SSO-21`–`SSO-23`, `SSO-26`–`SSO-28` | OIDC single sign-on, JIT, domain join, group mapping, forced SSO, IdP session lifetime | ✅ Done (M4.4) |
+| `ENV-FRZ-03`–`04`                                       | Owner freeze override, scheduled freeze windows                                        | ✅ Done (M4.2) |
+| `APR-01`–`APR-18`                                       | Change Approval Workflows                                                              | 📋 Planned     |
+| `ORG-01`–`ORG-15`                                       | Organization Hierarchy                                                                 | 📋 Planned     |
+| `IaC-01`–`IaC-14`                                       | GitOps / Infrastructure as Code                                                        | 📋 Planned     |
 
 See [`docs/requirements.md §16`](../requirements.md) for the full specification.
 
 ## Architecture Notes
+
+### Single sign-on (OIDC)
+
+Workspace providers (`oidc:<workspace>`) are built from `WorkspaceConfig.oidcConfig` (client secret sealed) and cached for five minutes; saving the settings invalidates the cache. The nonce is derived from the PKCE challenge, so it needs no server-side storage and binds the ID token to the browser holding the verifier. The login's provider is carried in the access token (`prv`) and on the refresh-token family, which is what forced SSO checks; in-process calls (scheduled operations, approved requests) are exempt because their creator was checked at creation. A workspace admin picks the issuer, so the registry refuses private and non-HTTPS issuer, token and JWKS URLs in production unless the instance allows private issuers.
 
 ### Change approvals (APR-01..18)
 
@@ -91,6 +96,22 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-09 — OIDC single sign-on (M4.4)
+
+**Type:** feature
+**PR / Branch:** feat/m4-enterprise
+**Refs:** SSO-01 – SSO-08, SSO-21 – SSO-23, SSO-26 – SSO-28
+
+#### What changed
+
+- `OidcIdentityProvider` (discovery cache, PKCE + nonce, `jose` ID-token validation, userinfo fallback, refresh check); per-workspace config API with the secret sealed; instance-wide provider from env vars; SSO discovery by email domain.
+- JIT users, trusted-domain auto-join, group → role mapping resynced at login, `auth.sso_login` audit; forced SSO (owners exempt); IdP refresh token re-checked hourly to end sessions the IdP ended.
+- Dashboard: "Sign in with SSO" on the login page (replacing the disabled SAML button), Settings → Single sign-on.
+
+#### Testing
+
+`oidc.test.ts` runs against an in-process OIDC provider (RS256 JWKS, PKCE-checking token endpoint, refresh): config validation and secret handling, discovery, login with JIT and group mapping, resync, trusted-domain default and owner protection, PKCE and nonce tampering, forced SSO, IdP session end. In headless Chrome with a standalone mock IdP: the owner configured SSO in Settings and a new user signed in through “Sign in with SSO”, landing in the workspace as admin via group mapping.
 
 ### 2026-10-09 — Change approvals (M4.3)
 

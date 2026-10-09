@@ -145,9 +145,23 @@ export default async function LoginPage(props: {
             </div>
           </div>
 
-          <Button className="w-full" variant="outline" disabled>
-            <span>{t('continueWithSaml')}</span>
-          </Button>
+          {/* SSO-01: enterprise single sign-on, found by the email's domain. */}
+          <form action="/api/auth/sso" method="get" className="space-y-2">
+            <label htmlFor="sso-email" className="text-sm font-medium">
+              {t('ssoLabel')}
+            </label>
+            <input
+              id="sso-email"
+              name="email"
+              type="email"
+              required
+              placeholder="you@company.com"
+              className="block w-full rounded-md border px-3 py-2 text-sm"
+            />
+            <Button type="submit" variant="outline" className="w-full">
+              {t('ssoSubmit')}
+            </Button>
+          </form>
         </div>
       </div>
     </div>

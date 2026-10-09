@@ -6,6 +6,11 @@ import { SessionResponse, SessionUser } from '@harmoniq/core/dist/schemas/AuthSc
 import { ACCESS_TOKEN_TTL_SECONDS, signAccessToken } from '../auth/tokens';
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/** SSO-27: how often a session re-checks the IdP session with its refresh token. */
+const SSO_RECHECK_MS = 60 * 60 * 1000;
+
+/** Asks the IdP whether a session is still valid; returns its new refresh token or null. */
+export type SsoSessionCheck = (provider: string, refreshToken: string) => Promise<string | null>;
 // Two tabs refreshing at once both present the same token; the loser is not an attack.
 const CONCURRENT_REFRESH_GRACE_MS = 10_000;
 
@@ -19,7 +24,12 @@ export class AuthService {
   constructor(
     private db: PrismaClient,
     private jwtSecret: string,
-    private logger: ILogger
+    private logger: ILogger,
+    private sso?: {
+      seal: (plain: string) => string;
+      open: (sealed: string) => string;
+      check: SsoSessionCheck;
+    }
   ) {}
 
   /**
@@ -28,6 +38,15 @@ export class AuthService {
    * an unverified address and take over the account when its owner signs in.
    */
   async completeLogin(info: IdentityUserInfo, provider: string): Promise<SessionResponse> {
+    const session = await this.login(info, provider);
+    return session.response;
+  }
+
+  /** Like `completeLogin`, also returning the user (for SSO provisioning). */
+  async login(
+    info: IdentityUserInfo,
+    provider: string
+  ): Promise<{ user: User; response: SessionResponse }> {
     if (!info.emailVerified) {
       throw new IdentityError('email_not_verified', 'Sign-in requires a verified email address');
     }
@@ -95,7 +114,16 @@ export class AuthService {
     }
 
     this.logger.info(`auth.login user=${user.id} provider=${provider}`);
-    return this.issue(user, randomUUID());
+    const ssoRefreshToken =
+      info.refreshToken && this.sso ? this.sso.seal(info.refreshToken) : undefined;
+    return {
+      user,
+      response: await this.issue(user, randomUUID(), {
+        provider,
+        ssoRefreshToken,
+        ssoCheckedAt: ssoRefreshToken ? new Date() : undefined,
+      }),
+    };
   }
 
   /**
@@ -125,7 +153,32 @@ export class AuthService {
 
     const user = await this.db.user.findUnique({ where: { id: record.userId } });
     if (!user) return null;
-    return this.issue(user, record.familyId);
+
+    // SSO-08/27: an SSO session lives only as long as the IdP agrees.
+    let ssoRefreshToken = record.ssoRefreshToken ?? undefined;
+    let ssoCheckedAt = record.ssoCheckedAt ?? undefined;
+    if (
+      ssoRefreshToken &&
+      record.provider &&
+      this.sso &&
+      (!ssoCheckedAt || now - ssoCheckedAt.getTime() > SSO_RECHECK_MS)
+    ) {
+      const renewed = await this.sso
+        .check(record.provider, this.sso.open(ssoRefreshToken))
+        .catch(() => null);
+      if (!renewed) {
+        await this.revokeFamily(record.familyId);
+        this.logger.info(`auth.sso_session_ended user=${record.userId}`);
+        return null;
+      }
+      ssoRefreshToken = this.sso.seal(renewed);
+      ssoCheckedAt = new Date(now);
+    }
+    return this.issue(user, record.familyId, {
+      provider: record.provider ?? undefined,
+      ssoRefreshToken,
+      ssoCheckedAt,
+    });
   }
 
   async logout(rawToken: string): Promise<void> {
@@ -157,7 +210,11 @@ export class AuthService {
     });
   }
 
-  private async issue(user: User, familyId: string): Promise<SessionResponse> {
+  private async issue(
+    user: User,
+    familyId: string,
+    session: { provider?: string; ssoRefreshToken?: string; ssoCheckedAt?: Date } = {}
+  ): Promise<SessionResponse> {
     const now = Date.now();
     const refreshToken = randomBytes(32).toString('base64url');
     const refreshTokenExpiresAt = new Date(now + REFRESH_TOKEN_TTL_MS);
@@ -167,12 +224,18 @@ export class AuthService {
         tokenHash: hashToken(refreshToken),
         familyId,
         expiresAt: refreshTokenExpiresAt,
+        provider: session.provider,
+        ssoRefreshToken: session.ssoRefreshToken,
+        ssoCheckedAt: session.ssoCheckedAt,
       },
     });
 
     const sessionUser = await this.sessionUser(user.id);
     return {
-      accessToken: await signAccessToken({ userId: user.id, email: user.email }, this.jwtSecret),
+      accessToken: await signAccessToken(
+        { userId: user.id, email: user.email, provider: session.provider },
+        this.jwtSecret
+      ),
       accessTokenExpiresAt: new Date(now + ACCESS_TOKEN_TTL_SECONDS * 1000).toISOString(),
       refreshToken,
       refreshTokenExpiresAt: refreshTokenExpiresAt.toISOString(),

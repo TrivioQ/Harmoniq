@@ -11,6 +11,10 @@ export interface IdentityUserInfo {
   emailVerified: boolean;
   name?: string;
   avatarUrl?: string;
+  /** SSO-23: IdP groups (OIDC), for role mapping. */
+  groups?: string[];
+  /** SSO-08: the IdP's refresh token, to re-check the IdP session while ours lives. */
+  refreshToken?: string;
 }
 
 interface IdentityProviderBase {
@@ -22,16 +26,22 @@ interface IdentityProviderBase {
 /** Redirect-based providers: GitHub, Google, generic OIDC, SAML. Uses PKCE (S256). */
 export interface RedirectIdentityProvider extends IdentityProviderBase {
   kind: 'redirect';
+  /** May need the provider's metadata first (OIDC discovery). */
   getAuthorizationUrl(params: {
     state: string;
     codeChallenge: string;
     redirectUri: string;
-  }): string;
+  }): string | Promise<string>;
   handleCallback(params: {
     code: string;
     codeVerifier: string;
     redirectUri: string;
   }): Promise<IdentityUserInfo>;
+  /**
+   * SSO-08/27: checks that the IdP session is still valid using its refresh token;
+   * returns the (possibly rotated) refresh token, or throws when the IdP refuses.
+   */
+  refreshSession?(refreshToken: string): Promise<{ refreshToken: string }>;
 }
 
 /** Client-SDK providers that hand the server a signed token: Firebase, Supabase, Clerk. */

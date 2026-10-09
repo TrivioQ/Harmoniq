@@ -9,7 +9,14 @@ import { verifyAccessToken } from '../auth/tokens';
 
 export type Principal =
   | { type: 'apiKey'; id: string; workspaceId: string; scopes: string[]; moduleIds: string[] }
-  | { type: 'user'; id: string; email: string; isInstanceAdmin: boolean };
+  | {
+      type: 'user';
+      id: string;
+      email: string;
+      isInstanceAdmin: boolean;
+      /** How the session signed in, e.g. 'oidc:acme' (forced SSO, SSO-26). */
+      provider?: string;
+    };
 
 type Handler = (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | void>;
 
@@ -149,6 +156,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       id: user.id,
       email: user.email,
       isInstanceAdmin: !!user.InstanceAdmin && !user.InstanceAdmin.revokedAt,
+      ...(claims.provider && { provider: claims.provider }),
     };
   }
 
@@ -267,6 +275,22 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       if (!membership?.joinedAt) return deny(reply, 404, 'NOT_FOUND', 'Workspace not found');
       if (!roleAllows(membership.role, permission)) {
         return deny(reply, 403, 'FORBIDDEN', `Your role does not grant ${permission}`);
+      }
+      // SSO-26: forced SSO. Owners are exempt (break-glass if the IdP breaks); in-process
+      // calls (scheduled, approved) were checked when they were created.
+      if (membership.role !== 'owner' && !request.internal) {
+        const sso = await systemDb.workspaceConfig.findUnique({
+          where: { workspaceId: workspace.id },
+          select: { forceSso: true },
+        });
+        if (sso?.forceSso && principal.provider !== `oidc:${workspace.slug}`) {
+          return deny(
+            reply,
+            403,
+            'SSO_REQUIRED',
+            `This workspace requires signing in with its single sign-on`
+          );
+        }
       }
       request.workspace = workspace;
       request.workspaceRole = membership.role;

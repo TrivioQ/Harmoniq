@@ -579,3 +579,50 @@ export async function deleteApprovalPolicyAction(
     (t) => ({ status: 'success', message: t('approvalPolicyRemoved', { environment }) })
   );
 }
+
+// ─── Single sign-on (SSO-03) ────────────────────────────────────────────────
+
+export async function saveSsoAction(
+  workspace: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const list = (name: string) =>
+    field(form, name)
+      .split(/[\s,]+/)
+      .map((v) => v.trim())
+      .filter(Boolean);
+  // "group = role" per line.
+  const roleMapping = Object.fromEntries(
+    field(form, 'roleMapping')
+      .split('\n')
+      .map((line) => line.split('=').map((part) => part.trim()))
+      .filter(([group, role]) => group && role)
+  );
+  const secret = field(form, 'clientSecret');
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/sso/oidc`, {
+        method: 'PUT',
+        body: {
+          issuer: field(form, 'issuer'),
+          clientId: field(form, 'clientId'),
+          ...(secret && { clientSecret: secret }),
+          scopes: list('scopes').length ? list('scopes') : undefined,
+          groupsClaim: field(form, 'groupsClaim') || undefined,
+          roleMapping,
+          trustedDomains: list('trustedDomains'),
+          defaultRole: field(form, 'defaultRole') || 'viewer',
+          forceSso: form.get('forceSso') === 'on',
+        },
+      }),
+    (t) => ({ status: 'success', message: t('ssoSaved') })
+  );
+}
+
+export async function deleteSsoAction(workspace: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/workspaces/${enc(workspace)}/sso/oidc`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('ssoRemoved') })
+  );
+}

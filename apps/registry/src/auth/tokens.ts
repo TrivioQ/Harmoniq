@@ -7,6 +7,8 @@ export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export interface AccessTokenClaims {
   userId: string;
   email: string;
+  /** How the user signed in (`prv`), e.g. 'github' or 'oidc:acme'; for forced SSO. */
+  provider?: string;
 }
 
 function key(secret: string): Uint8Array {
@@ -14,7 +16,7 @@ function key(secret: string): Uint8Array {
 }
 
 export async function signAccessToken(claims: AccessTokenClaims, secret: string): Promise<string> {
-  return new SignJWT({ email: claims.email })
+  return new SignJWT({ email: claims.email, ...(claims.provider && { prv: claims.provider }) })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(claims.userId)
     .setAudience(SESSION_AUDIENCE)
@@ -32,5 +34,9 @@ export async function verifyAccessToken(token: string, secret: string): Promise<
   if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') {
     throw new Error('Malformed access token');
   }
-  return { userId: payload.sub, email: payload.email };
+  return {
+    userId: payload.sub,
+    email: payload.email,
+    ...(typeof payload.prv === 'string' && { provider: payload.prv }),
+  };
 }

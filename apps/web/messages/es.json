@@ -84,7 +84,8 @@
     "webhooks": "Webhooks",
     "adminOnly": "Solo los administradores y propietarios pueden cambiar la configuración.",
     "alerts": "Alertas",
-    "approvalRules": "Reglas de aprobación"
+    "approvalRules": "Reglas de aprobación",
+    "sso": "Inicio de sesión único"
   },
   "LoginPage": {
     "title": "Iniciar sesión en Harmoniq",
@@ -108,13 +109,17 @@
       "dev_login_disabled": "El inicio de sesión de desarrollo no está habilitado.",
       "invalid_token": "Ese enlace no es válido, caducó o ya se usó. Solicita uno nuevo.",
       "invalid_code": "El código es incorrecto o caducó.",
-      "other_browser": "Abre el enlace en el navegador donde lo solicitaste, o introduce el código del correo."
+      "other_browser": "Abre el enlace en el navegador donde lo solicitaste, o introduce el código del correo.",
+      "sso_not_found": "No hay inicio de sesión único para ese dominio. Usa otro método o pregunta a tu administrador.",
+      "email_required": "Introduce tu correo."
     },
     "emailLabel": "Correo",
     "emailSubmit": "Enviarme un enlace de acceso",
     "emailSent": "Revisa {email}: te enviamos un enlace de acceso. También puedes introducir aquí el código de 6 dígitos de ese correo.",
     "codeLabel": "Código de acceso",
-    "codeSubmit": "Iniciar sesión"
+    "codeSubmit": "Iniciar sesión",
+    "ssoLabel": "Correo del trabajo",
+    "ssoSubmit": "Entrar con SSO"
   },
   "AdminDashboardPage": {
     "errorFetch": "No se pudieron obtener las estadísticas. Es posible que no esté autenticado como administrador.",
@@ -210,7 +215,9 @@
     "approvalRejected": "Rechazado: el cambio no se aplicará.",
     "approvalBypassed": "Omitido: el cambio se aplicó y quedó marcado.",
     "approvalPolicySaved": "Reglas de aprobación de {environment} guardadas.",
-    "approvalPolicyRemoved": "Los cambios en {environment} ya no necesitan aprobación."
+    "approvalPolicyRemoved": "Los cambios en {environment} ya no necesitan aprobación.",
+    "ssoSaved": "Inicio de sesión único guardado; el proveedor respondió.",
+    "ssoRemoved": "Inicio de sesión único eliminado."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -259,7 +266,10 @@
       "deploy_reject": "Rechazó {name}: {reason}",
       "deploy_emergency_bypass": "⚠️ OMITIÓ la aprobación de {name}: {reason}",
       "approval_policy_set": "Fijó reglas de aprobación para {environment}",
-      "approval_policy_delete": "Quitó las reglas de aprobación de {environment}"
+      "approval_policy_delete": "Quitó las reglas de aprobación de {environment}",
+      "auth_sso_login": "Entró con inicio de sesión único: {name}",
+      "sso_config_update": "Cambió el inicio de sesión único",
+      "sso_config_delete": "Quitó el inicio de sesión único"
     },
     "systemActor": "automático"
   },
@@ -542,5 +552,23 @@
     "save": "Guardar reglas",
     "remove": "Quitar reglas",
     "removeConfirm": "¿Dejar pasar los cambios a este entorno sin aprobación?"
+  },
+  "SsoPage": {
+    "description": "Permite que los miembros entren con tu proveedor de identidad (Okta, Entra ID, Google Workspace, Keycloak, Auth0… cualquier proveedor OpenID Connect).",
+    "callback": "URI de redirección para registrar en tu proveedor",
+    "issuer": "URL del emisor",
+    "clientId": "ID de cliente",
+    "clientSecret": "Secreto de cliente",
+    "secretKeep": "Déjalo vacío para conservar el secreto guardado ({masked})",
+    "scopes": "Ámbitos",
+    "groupsClaim": "Reclamo de grupos",
+    "roleMapping": "Grupo → rol, uno por línea: engineers = developer",
+    "trustedDomains": "Dominios de correo de confianza (los usuarios se unen solos)",
+    "defaultRole": "Rol para usuarios de dominios de confianza sin grupo asignado",
+    "forceSso": "Exigir inicio de sesión único (los propietarios pueden usar otros métodos como respaldo)",
+    "save": "Guardar y probar",
+    "remove": "Quitar inicio de sesión único",
+    "removeConfirm": "¿Quitar el inicio de sesión único? Los miembros entrarán con otros métodos.",
+    "loginHint": "Los miembros empiezan en «Entrar con SSO» en la página de acceso, con su correo del trabajo."
   }
 }

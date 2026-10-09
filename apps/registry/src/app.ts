@@ -10,6 +10,8 @@ import healthRoutes from './routes/health';
 import alertRoutes from './routes/alerts';
 import scheduledRoutes from './routes/scheduled';
 import approvalRoutes from './routes/approvals';
+import ssoRoutes from './routes/sso';
+import { SsoProviders } from './services/sso';
 import hostAppRoutes from './routes/hostApps';
 import historyRoutes from './routes/history';
 import accessRoutes from './routes/access';
@@ -165,12 +167,14 @@ export async function buildApp() {
   await app.register(jobsPlugin);
 
   // Register routes
+  app.decorate('ssoProviders', new SsoProviders(app));
   await app.register(manifestRoutes);
   await app.register(moduleRoutes);
   await app.register(healthRoutes);
   await app.register(alertRoutes);
   await app.register(scheduledRoutes);
   await app.register(approvalRoutes);
+  await app.register(ssoRoutes);
   await app.register(hostAppRoutes);
   await app.register(historyRoutes);
   await app.register(accessRoutes);

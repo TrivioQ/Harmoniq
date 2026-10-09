@@ -38,6 +38,11 @@ const EnvSchema = z.object({
   MAIL_FROM: z.string().default('Harmoniq <no-reply@harmoniq.local>'),
   HARMONIQ_MANIFEST_RATE_LIMIT: z.coerce.number().int().positive().default(600),
   TRUST_PROXY: z.string().optional(),
+  OIDC_ISSUER: z.string().url().optional(),
+  OIDC_CLIENT_ID: z.string().optional(),
+  OIDC_CLIENT_SECRET: z.string().optional(),
+  OIDC_DISPLAY_NAME: z.string().default('Single sign-on'),
+  HARMONIQ_SSO_ALLOW_PRIVATE_ISSUERS: z.string().optional(),
 });
 
 export interface Config {
@@ -60,6 +65,10 @@ export interface Config {
   /** Newest versions kept per module+environment regardless of age, so rollback always works. */
   gcKeepVersions: number;
   github?: { clientId: string; clientSecret: string };
+  /** SSO-03: instance-wide OIDC sign-in from env vars (provider id `oidc`). */
+  oidc?: { issuer: string; clientId: string; clientSecret: string; displayName: string };
+  /** Workspace OIDC issuers may be private / http (self-hosted IdPs on internal networks). */
+  ssoAllowPrivateIssuers: boolean;
   /** Passwordless sign-in as any email. Development only; refused in production. */
   devLogin: boolean;
   /** Fetch and verify every bundle on deploy (dry runs always validate). */
@@ -184,6 +193,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         : undefined,
     devLogin,
     manifestRateLimit: e.HARMONIQ_MANIFEST_RATE_LIMIT,
+    oidc:
+      e.OIDC_ISSUER && e.OIDC_CLIENT_ID && e.OIDC_CLIENT_SECRET
+        ? {
+            issuer: e.OIDC_ISSUER,
+            clientId: e.OIDC_CLIENT_ID,
+            clientSecret: e.OIDC_CLIENT_SECRET,
+            displayName: e.OIDC_DISPLAY_NAME,
+          }
+        : undefined,
+    ssoAllowPrivateIssuers:
+      !isProduction ||
+      e.HARMONIQ_SSO_ALLOW_PRIVATE_ISSUERS === '1' ||
+      e.HARMONIQ_SSO_ALLOW_PRIVATE_ISSUERS === 'true',
     mail: { smtpUrl: e.SMTP_URL, from: e.MAIL_FROM },
     publicUrl: (e.PUBLIC_URL ?? `http://localhost:${e.PORT}`).replace(/\/$/, ''),
     storage: resolveStorage(e, isProduction),

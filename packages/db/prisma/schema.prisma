@@ -233,17 +233,22 @@ model ApiKey {
 }
 
 model RefreshToken {
-  id        String    @id @default(cuid())
-  userId    String
+  id              String    @id @default(cuid())
+  userId          String
   /// sha256 of the raw token (high-entropy, so a fast hash is sufficient).
-  tokenHash String    @unique
+  tokenHash       String    @unique
   /// All tokens descending from one login. Reuse of a rotated token revokes the family.
-  familyId  String
-  expiresAt DateTime
-  usedAt    DateTime?
-  revokedAt DateTime?
-  createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyId        String
+  expiresAt       DateTime
+  usedAt          DateTime?
+  revokedAt       DateTime?
+  /// The identity provider of the login, e.g. 'github' or 'oidc:acme' (forced SSO).
+  provider        String?
+  /// SSO-08/27: the IdP's refresh token (sealed), re-checked while the session lives.
+  ssoRefreshToken String?
+  ssoCheckedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([familyId])
 }

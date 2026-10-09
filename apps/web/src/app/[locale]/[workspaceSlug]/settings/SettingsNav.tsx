@@ -14,6 +14,7 @@ export function SettingsNav({
     webhooks: string;
     alerts: string;
     approvals: string;
+    sso: string;
   };
 }) {
   const pathname = usePathname();
@@ -25,6 +26,7 @@ export function SettingsNav({
     [`${base}/webhooks`, labels.webhooks],
     [`${base}/alerts`, labels.alerts],
     [`${base}/approvals`, labels.approvals],
+    [`${base}/sso`, labels.sso],
   ] as const;
   return (
     <nav className="flex md:flex-col gap-1 text-sm">
