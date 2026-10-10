@@ -5,8 +5,7 @@
     "SYSTEM_DATABASE_URL",
     "REDIS_URL",
     "CACHE_ADAPTER",
-    "STORAGE_ADAPTER",
-    "NODE_ENV"
+    "STORAGE_ADAPTER"
   ],
   "tasks": {
     "build": {
