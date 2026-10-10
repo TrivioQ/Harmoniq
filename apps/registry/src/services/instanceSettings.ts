@@ -21,7 +21,7 @@ import { maskSecret, openSecret, sealSecret } from './crypto';
 
 /** Write-only fields per setting, sealed at rest (INST-15). */
 const SECRETS: Record<InstanceSettingKey, string[]> = {
-  storage: ['secretAccessKey', 'privateKey'],
+  storage: ['secretAccessKey', 'privateKey', 'connectionString'],
   email: ['password'],
   auth: ['github.clientSecret'],
   branding: [],

@@ -732,8 +732,11 @@ model WorkspaceStorageConfig {
   bucket               String
   region               String
   credentialsEncrypted Json
+  /// BYOB-02: S3-compatible endpoint (MinIO, R2 …).
+  endpoint             String?
   cdnPrefix            String?
   pathPrefix           String?
+  /// BYOB-04/05: the last successful write-read-delete check.
   lastVerifiedAt       DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt

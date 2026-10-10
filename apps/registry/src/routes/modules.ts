@@ -6,6 +6,7 @@ import {
   ForbiddenError,
   NotFoundError,
   ValidationError,
+  StorageUnavailableError,
 } from '@harmoniq/core/dist/errors/AppError';
 import { DeployRequestSchema } from '@harmoniq/core/dist/schemas/DeployRequestSchema';
 import {
@@ -31,7 +32,7 @@ import { roleAllows, scopesAllow } from '../auth/permissions';
 import { advanceRollout, clearedRollout, startRollout } from '../services/rollout';
 import { GateResult, checkGate, enforceGate } from '../services/dependencyGate';
 import { isValidBundle } from '@harmoniq/core/dist/validation/bundle';
-import { createWorkspaceStorage } from '../adapters/storage/createStorage';
+import { workspaceStorageTarget } from '../adapters/storage/createStorage';
 import { canAccessModule } from '../plugins/authenticate';
 import { validateBundleSafely } from '../services/bundleValidator';
 import { isFrozen } from '../services/manifestMutation';
@@ -452,25 +453,50 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── Upload ───────────────────────────────────────────────────────────────
 
+  /**
+   * BYOB-07/09: the workspace's own bucket when it has one, otherwise the instance
+   * default. A workspace bucket that can't be built is a 503, never a fallback.
+   */
+  async function deployStorage(workspaceId: string) {
+    const byob = await withTenant(workspaceId, (tx) =>
+      tx.workspaceStorageConfig.findUnique({ where: { workspaceId } })
+    );
+    if (!byob) return { target: fastify.container.instanceStorage, byob: null };
+    try {
+      return { target: workspaceStorageTarget(byob, config.encryptionKey), byob };
+    } catch (err) {
+      throw new StorageUnavailableError(`Workspace storage: ${(err as Error).message}`);
+    }
+  }
+
   fastify.post<{ Params: ModuleParams; Body: { contentType?: string; extension?: string } }>(
     '/api/workspaces/:workspaceSlug/modules/:moduleRef/upload-url',
     { preHandler: fastify.requireWorkspace('module:deploy') },
     async (request) => {
       const module = await loadModule(request, { write: true });
-      const workspace = request.workspace!;
-      const storageConfig = await withTenant(workspace.id, (tx) =>
-        tx.workspaceStorageConfig.findUnique({ where: { workspaceId: workspace.id } })
-      );
-      if (!storageConfig) throw new BadRequestError('Storage not configured for workspace');
+      const { target, byob } = await deployStorage(request.workspace!.id);
+      if (!target) throw new BadRequestError('No storage is configured for this workspace');
 
       // `extension` becomes part of an object key: allow only a short alphanumeric suffix.
       const { contentType, extension } = request.body ?? {};
       const safeExtension = /^[a-z0-9]{1,8}$/i.test(extension ?? '') ? extension : 'js';
-      const key = `modules/${module.id}/${Date.now()}.${safeExtension}`;
-      const storage = createWorkspaceStorage(storageConfig, config.encryptionKey);
+      const key = `${target.prefix}modules/${module.id}/${Date.now()}.${safeExtension}`;
+      let uploadUrl: string;
+      try {
+        uploadUrl = await target.storage.getUploadUrl(key, contentType || 'application/javascript');
+      } catch (err) {
+        // BYOB-09: the workspace's bucket failed; never fall back to shared storage.
+        if (byob) throw new StorageUnavailableError(`Workspace storage: ${(err as Error).message}`);
+        throw new BadRequestError(
+          `The instance storage can't issue upload URLs: ${(err as Error).message}`
+        );
+      }
       return {
-        uploadUrl: await storage.getUploadUrl(key, contentType || 'application/javascript'),
+        uploadUrl,
         key,
+        // BYOB-08: where the object is served (CDN prefix), to deploy with.
+        url: target.publicUrl(key),
+        ...(byob?.provider === 'AZURE' && { headers: { 'x-ms-blob-type': 'BlockBlob' } }),
       };
     }
   );
@@ -487,6 +513,20 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       const body = DeployRequestSchema.parse(request.body);
       const module = await loadModule(request, { write: true });
       const workspace = request.workspace!;
+      // BYOB-08/10/14: bundles uploaded to the workspace bucket are served from its CDN
+      // prefix; a URL elsewhere is allowed but flagged; the deploy records where it went.
+      const { byob } = await deployStorage(workspace.id);
+      const storageWarnings: string[] = [];
+      if (byob?.cdnPrefix) {
+        const cdn = byob.cdnPrefix.replace(/\/$/, '');
+        if (body.storagePath) {
+          body.url = `${cdn}/${body.storagePath.replace(/^\//, '')}`;
+        } else if (!body.url.startsWith(`${cdn}/`)) {
+          storageWarnings.push(
+            `The URL is not under the workspace's CDN prefix (${cdn}); is it the right bucket?`
+          );
+        }
+      }
       const env =
         body.ephemeral && !body.dryRun
           ? await ensurePreviewEnvironment(
@@ -632,6 +672,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
                   dependencyConflicts: gate.dependencyConflicts,
                 }),
                 ...(gate.removedExposes.length && { removedExposes: gate.removedExposes }),
+                ...(byob && { storageProvider: byob.provider, storageRegion: byob.region }),
               },
             },
             events: [
@@ -674,6 +715,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           ? [`Removes exposed modules: ${gate.removedExposes.join(', ')}`]
           : []),
         ...(gate.blocking ? ['Deployed despite the dependency gate (forced)'] : []),
+        ...storageWarnings,
       ];
       return reply.code(201).send({
         ...versionDto(result, env.slug),

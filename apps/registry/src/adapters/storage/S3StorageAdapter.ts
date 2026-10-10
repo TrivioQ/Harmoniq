@@ -7,6 +7,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
 
 export class S3StorageAdapter implements IStorage {
   private client: S3Client;
@@ -17,14 +18,27 @@ export class S3StorageAdapter implements IStorage {
     bucket: string,
     accessKeyId: string | undefined,
     secretAccessKey: string | undefined,
-    endpoint?: string
+    endpoint?: string,
+    /** BYOB-03: a role in the bucket owner's account, assumed with the registry's identity. */
+    assumeRole?: { roleArn: string; externalId?: string }
   ) {
     this.bucket = bucket;
     this.client = new S3Client({
       region,
       endpoint,
       // Without static keys the SDK's default chain applies (env, ECS task role, IMDS).
-      credentials: accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined,
+      credentials: assumeRole
+        ? fromTemporaryCredentials({
+            params: {
+              RoleArn: assumeRole.roleArn,
+              RoleSessionName: 'harmoniq-registry',
+              ...(assumeRole.externalId && { ExternalId: assumeRole.externalId }),
+            },
+            clientConfig: { region },
+          })
+        : accessKeyId && secretAccessKey
+          ? { accessKeyId, secretAccessKey }
+          : undefined,
       forcePathStyle: !!endpoint, // Often required for MinIO/custom endpoints
     });
   }

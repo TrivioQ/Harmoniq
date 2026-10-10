@@ -227,7 +227,27 @@
     "cdnPrefix": "Prefijo de CDN (opcional)",
     "instanceDefaultHint": "Sin un bucket del espacio de trabajo, los paquetes usan el almacenamiento predeterminado de la instancia.",
     "credentialsKeepHint": "Deja vacíos los campos de credenciales para conservar las guardadas.",
-    "credentialsRequiredHint": "Las credenciales se cifran en reposo y no se vuelven a mostrar."
+    "credentialsRequiredHint": "Las credenciales se cifran en reposo y no se vuelven a mostrar.",
+    "azure": "Azure Blob Storage",
+    "bucket": "Bucket (contenedor en Azure)",
+    "endpoint": "Endpoint compatible con S3 (opcional: MinIO, R2 …)",
+    "pathPrefix": "Prefijo de ruta (opcional)",
+    "roleArn": "ARN del rol IAM",
+    "externalId": "External ID (opcional)",
+    "orRole": "…o un rol de tu cuenta de AWS que el registro asume (sin claves permanentes).",
+    "serviceAccountJson": "Clave de la cuenta de servicio (JSON)",
+    "connectionString": "Cadena de conexión",
+    "byobActive": "Los paquetes y manifiestos de este espacio van solo a este bucket; si falla, los despliegues fallan en lugar de usar el almacenamiento compartido.",
+    "lastVerified": "Última verificación: {when}",
+    "verifyHint": "Al guardar se escribe, lee y borra antes un objeto de prueba; si falla, no se guarda nada.",
+    "testConnection": "Probar conexión",
+    "testing": "Probando…",
+    "testOk": "El bucket funciona ({ms} ms).",
+    "testFailed": "La prueba falló: {error}",
+    "migrationAdvisory": "Los módulos ya desplegados siguen sirviéndose desde donde están (el almacenamiento de la instancia) hasta que los vuelvas a desplegar. Los nuevos despliegues usan este bucket.",
+    "remove": "Quitar bucket",
+    "removeConfirm": "¿Quitar este bucket? Los nuevos despliegues irán al almacenamiento de la instancia; los módulos desplegados conservan sus URL.",
+    "removed": "Bucket quitado; los nuevos despliegues usan el almacenamiento de la instancia."
   },
   "Actions": {
     "unexpectedError": "Algo salió mal. Inténtalo de nuevo.",
@@ -883,6 +903,8 @@
     "brandName": "Nombre de la instancia",
     "brandAccent": "Color de acento",
     "brandLogo": "URL del logotipo",
-    "brandSupport": "URL de soporte"
+    "brandSupport": "URL de soporte",
+    "container": "Contenedor",
+    "connectionString": "Cadena de conexión"
   }
 }

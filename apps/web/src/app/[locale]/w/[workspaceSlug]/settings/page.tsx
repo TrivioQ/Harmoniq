@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import type { WorkspaceStorageConfigResponse } from '@harmoniq/core/dist/schemas/WorkspaceStorageConfigSchema';
 import { authedFetch } from '@/lib/registry';
-import { StorageForm } from '@/app/[locale]/admin/(panel)/workspaces/[slug]/StorageForm';
+import { StorageForm } from '@/components/StorageForm';
 
 export default async function StorageSettingsPage(props: {
   params: Promise<{ workspaceSlug: string }>;

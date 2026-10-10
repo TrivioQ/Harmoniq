@@ -227,7 +227,27 @@
     "cdnPrefix": "CDN prefix (optional)",
     "instanceDefaultHint": "Without a workspace bucket, bundles use the instance default storage.",
     "credentialsKeepHint": "Leave credential fields blank to keep the stored credentials.",
-    "credentialsRequiredHint": "Credentials are encrypted at rest and never shown again."
+    "credentialsRequiredHint": "Credentials are encrypted at rest and never shown again.",
+    "azure": "Azure Blob Storage",
+    "bucket": "Bucket (container for Azure)",
+    "endpoint": "S3-compatible endpoint (optional: MinIO, R2 …)",
+    "pathPrefix": "Path prefix (optional)",
+    "roleArn": "IAM role ARN",
+    "externalId": "External ID (optional)",
+    "orRole": "…or a role in your AWS account that the registry assumes (no long-lived keys).",
+    "serviceAccountJson": "Service account key (JSON)",
+    "connectionString": "Connection string",
+    "byobActive": "Bundles and published manifests of this workspace go to this bucket only; if it fails, deploys fail rather than use shared storage.",
+    "lastVerified": "Last verified: {when}",
+    "verifyHint": "Saving writes, reads back and deletes a test object first; nothing is saved if that fails.",
+    "testConnection": "Test connection",
+    "testing": "Testing…",
+    "testOk": "The bucket works ({ms} ms).",
+    "testFailed": "Test failed: {error}",
+    "migrationAdvisory": "Modules already deployed keep serving from where they are (the instance storage) until you deploy them again. New deploys use this bucket.",
+    "remove": "Remove bucket",
+    "removeConfirm": "Remove this bucket? New deploys go to the instance storage; deployed modules keep their URLs.",
+    "removed": "Bucket removed; new deploys use the instance storage."
   },
   "Actions": {
     "unexpectedError": "Something went wrong. Please try again.",
@@ -883,6 +903,8 @@
     "brandName": "Instance name",
     "brandAccent": "Accent colour",
     "brandLogo": "Logo URL",
-    "brandSupport": "Support URL"
+    "brandSupport": "Support URL",
+    "container": "Container",
+    "connectionString": "Connection string"
   }
 }

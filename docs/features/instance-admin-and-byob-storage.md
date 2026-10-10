@@ -1,7 +1,7 @@
 # Feature: Instance Admin UI & BYOB Storage
 
 > **Requirement IDs:** `INST-01`–`INST-18`, `BYOB-01`–`BYOB-14`  
-> **Status:** `planned`  
+> **Status:** `active`  
 > **Phase:** Phase 7 (§7.4 + §7.5)
 
 Addresses two enterprise self-hosting requirements: a first-class instance admin panel that eliminates direct `.env` editing, and per-workspace bring-your-own-bucket storage for data residency compliance (HIPAA, FedRAMP, GDPR).
@@ -17,10 +17,11 @@ Self-hosted enterprise deployments have two distinct operator roles — the _ser
 
 ## Requirements
 
-| ID                  | Requirement                   | Status     |
-| ------------------- | ----------------------------- | ---------- |
-| `INST-01`–`INST-18` | Instance Admin UI             | 📋 Planned |
-| `BYOB-01`–`BYOB-14` | Bring-Your-Own-Bucket Storage | 📋 Planned |
+| ID                  | Requirement                                                                                                                  | Status                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `INST-01`–`INST-18` | Instance Admin UI                                                                                                            | ✅ Done (M4.8; see [enterprise governance](./enterprise-governance.md)) |
+| `BYOB-02`–`BYOB-14` | Bring-Your-Own-Bucket Storage: S3 (keys or IAM role, S3-compatible endpoints), GCS, Azure; verification, fail-closed deploys | ✅ Done (M4.9)                                                          |
+| `BYOB-01`           | Plan gating (startup / enterprise only)                                                                                      | 📋 Planned (M4.11)                                                      |
 
 See [`docs/requirements.md §17`](../requirements.md) and [`§18`](../requirements.md) for the full specification.
 
@@ -59,6 +60,30 @@ None. `STORAGE_ADAPTER` env var continues to work as the bootstrap default. Exis
 ---
 
 ## Change History
+
+### 2026-10-09 — Bring-your-own-bucket storage (M4.9)
+
+**Type:** Feature
+**Author:** Shashi Kumar Dhandapani
+**Refs:** BYOB-02 – BYOB-14
+
+**Summary:**
+
+- Providers (BYOB-02/03): S3 with access keys or an IAM role assumed with the registry's own identity (`roleArn`, `externalId`) and optional S3-compatible `endpoint` (MinIO, R2; public HTTPS only in production), GCS with a service-account key file, and Azure Blob with a connection string (new `AzureBlobStorageAdapter`; SAS upload URLs). Credentials are validated per provider and never carry over to another provider.
+- Verification (BYOB-04/05/06): every save writes, reads back and deletes a probe object under the path prefix first (`400` with the storage's error otherwise, nothing saved); `POST /api/workspaces/:ws/storage/test` tests the saved config or a candidate without saving; `lastVerifiedAt` records the last success; `DELETE /api/workspaces/:ws/storage` returns to the instance default.
+- Deploys (BYOB-07..10, 14): `upload-url` issues the pre-signed URL in the workspace bucket (or the instance default) and returns the object's CDN `url`; deploying with `storagePath` serves the bundle from the workspace's CDN prefix; a URL outside the prefix gets a warning (printed by `harmoniq deploy`); deploy audit events carry `storageProvider` and `storageRegion`. A workspace bucket that can't be used is a `503 STORAGE_UNAVAILABLE`, never a fallback to shared storage.
+- Dashboard (BYOB-12): Settings → Storage (also in the admin panel) with all providers, path prefix, Test Connection, Remove, last verification and the advisory that deployed modules stay where they are until redeployed.
+- Azure Blob is also an instance storage adapter (INST-11).
+- Migration `20261009180000_byob_endpoint` (`WorkspaceStorageConfig.endpoint`).
+
+**Tests:** `byob.test.ts` against an S3-compatible test server: refused and accepted saves with the probe cycle under the path prefix, Test Connection of saved and candidate configs, rotated credentials re-verified, per-provider credential validation, upload URLs and CDN URLs, manifests served and published from the workspace bucket, warnings and audit metadata, fail-closed `503`, removal. `storage.test.ts`: Azure SAS upload URLs. `storageConfig.test.ts` now saves against the test server.
+
+### 2026-10-09 — Instance admin (M4.8)
+
+**Type:** Feature
+**Refs:** INST-01 – INST-18
+
+Setup wizard, health, workspaces, users, instance admins, instance settings with hot reload. See the [enterprise governance change history](./enterprise-governance.md#change-history).
 
 ### 2026-09-13 — Requirements, DB schema, and implementation plan added (Phase 7.4 + 7.5)
 

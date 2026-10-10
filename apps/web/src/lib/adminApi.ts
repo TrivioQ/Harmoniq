@@ -77,7 +77,9 @@ export interface SettingView<T = Record<string, unknown>> {
 
 export interface InstanceSettingsView {
   storage: SettingView<{
-    adapter: 'none' | 'local' | 's3' | 'gcs';
+    adapter: 'none' | 'local' | 's3' | 'gcs' | 'azure';
+    container?: string;
+    connectionString?: string;
     bucket?: string;
     region?: string;
     endpoint?: string;

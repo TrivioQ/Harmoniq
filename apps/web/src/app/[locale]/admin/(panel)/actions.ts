@@ -133,6 +133,14 @@ function settingBody(key: SettingKey, form: FormData) {
           publicUrl: optional(form, 'gcsPublicUrl'),
         };
       }
+      if (adapter === 'azure') {
+        return {
+          adapter,
+          container: field(form, 'azureContainer'),
+          connectionString: optional(form, 'azureConnectionString'),
+          publicUrl: optional(form, 'azurePublicUrl'),
+        };
+      }
       return { adapter };
     }
     case 'email':

@@ -31,6 +31,13 @@ export const StorageSettingsSchema = z.discriminatedUnion('adapter', [
     privateKey: z.string().min(1).max(10_000).optional(),
     publicUrl: httpsUrl.optional(),
   }),
+  z.object({
+    adapter: z.literal('azure'),
+    /** Blob container. */
+    container: z.string().min(3).max(63),
+    connectionString: z.string().min(1).max(2000).optional(),
+    publicUrl: httpsUrl.optional(),
+  }),
 ]);
 export type StorageSettings = z.infer<typeof StorageSettingsSchema>;
 

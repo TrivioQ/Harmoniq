@@ -23,6 +23,7 @@ export default async function AdminStoragePage() {
   const v = storage.value;
   const s3: Partial<typeof v> = v.adapter === 's3' ? v : {};
   const gcs: Partial<typeof v> = v.adapter === 'gcs' ? v : {};
+  const azure: Partial<typeof v> = v.adapter === 'azure' ? v : {};
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -42,6 +43,7 @@ export default async function AdminStoragePage() {
               <option value="local">{t('adapterLocal')}</option>
               <option value="s3">Amazon S3 / S3-compatible</option>
               <option value="gcs">Google Cloud Storage</option>
+              <option value="azure">Azure Blob Storage</option>
             </select>
           </label>
           <fieldset className="grid gap-3 sm:grid-cols-2 border rounded-md p-3">
@@ -76,6 +78,20 @@ export default async function AdminStoragePage() {
                 placeholder={gcs.privateKey ? t('keepSecret', { masked: gcs.privateKey }) : ''}
               />
             </label>
+          </fieldset>
+          <fieldset className="grid gap-3 sm:grid-cols-2 border rounded-md p-3">
+            <legend className="text-xs text-gray-500 px-1">Azure Blob Storage</legend>
+            <Field name="azureContainer" label={t('container')} defaultValue={azure.container} />
+            <Field name="azurePublicUrl" label={t('publicUrl')} defaultValue={azure.publicUrl} />
+            <Field
+              name="azureConnectionString"
+              type="password"
+              autoComplete="off"
+              label={t('connectionString')}
+              placeholder={
+                azure.connectionString ? t('keepSecret', { masked: azure.connectionString }) : ''
+              }
+            />
           </fieldset>
           <p className="text-xs text-gray-500">{t('storageTestHint')}</p>
         </ActionForm>

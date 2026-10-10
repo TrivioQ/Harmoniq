@@ -59,3 +59,10 @@ export class BadRequestError extends AppError {
     super('BAD_REQUEST', message, 400, metadata);
   }
 }
+
+/** BYOB-09: a workspace's own bucket failed; the registry never falls back to shared storage. */
+export class StorageUnavailableError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('STORAGE_UNAVAILABLE', message, 503, metadata);
+  }
+}

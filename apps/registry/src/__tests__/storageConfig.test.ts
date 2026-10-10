@@ -3,6 +3,7 @@ import { FastifyInstance } from 'fastify';
 import { buildApp } from '../app';
 import { decryptJson, encryptJson, isEncryptedValue } from '../services/crypto';
 import { Fixtures, bearer } from './helpers/fixtures';
+import { MockS3, mockS3 } from './helpers/mockS3';
 
 describe('crypto', () => {
   const key = Buffer.alloc(32, 3);
@@ -25,10 +26,12 @@ describe('Workspace storage config', () => {
   let slug: string;
   let workspaceId: string;
   let token: string;
+  let s3: MockS3;
 
   const secret = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
 
   beforeAll(async () => {
+    s3 = await mockS3();
     app = await buildApp();
     await app.ready();
     fx = new Fixtures(app);
@@ -43,6 +46,7 @@ describe('Workspace storage config', () => {
   afterAll(async () => {
     await fx.cleanup();
     await app.close();
+    await s3.close();
   });
 
   const save = (payload: object) =>
@@ -58,6 +62,7 @@ describe('Workspace storage config', () => {
       provider: 'S3',
       bucket: 'acme-mfe',
       region: 'eu-west-1',
+      endpoint: s3.endpoint,
       credentials: { accessKeyId: 'AKIAEXAMPLE1234', secretAccessKey: secret },
     });
     expect(res.statusCode).toBe(200);
@@ -83,7 +88,12 @@ describe('Workspace storage config', () => {
   });
 
   it('keeps stored credentials when an update omits them', async () => {
-    const res = await save({ provider: 'S3', bucket: 'acme-mfe-v2', region: 'eu-west-1' });
+    const res = await save({
+      provider: 'S3',
+      bucket: 'acme-mfe-v2',
+      region: 'eu-west-1',
+      endpoint: s3.endpoint,
+    });
     expect(res.statusCode).toBe(200);
     expect(res.json().storageConfig).toMatchObject({
       bucket: 'acme-mfe-v2',

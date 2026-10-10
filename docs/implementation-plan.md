@@ -501,28 +501,28 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 #### Database
 
-- [ ] Add `WorkspaceStorageConfig` model: `workspaceId` (unique FK), `provider`, `bucket`, `region`, `credentialsEncrypted` (Json), `cdnPrefix?`, `pathPrefix?`, `lastVerifiedAt?`, `createdAt`, `updatedAt`
-- [ ] Prisma migration: `WorkspaceStorageConfig` table with RLS
+- [x] Add `WorkspaceStorageConfig` model: `workspaceId` (unique FK), `provider`, `bucket`, `region`, `credentialsEncrypted` (Json), `cdnPrefix?`, `pathPrefix?`, `lastVerifiedAt?`, `createdAt`, `updatedAt`
+- [x] Prisma migration: `WorkspaceStorageConfig` table with RLS
 
 #### Registry — Storage Adapter Resolution
 
-- [ ] Implement storage adapter resolver: check `WorkspaceStorageConfig` first → fall back to `InstanceConfig["storage.adapter"]` → fall back to `STORAGE_ADAPTER` env var (BYOB-07 + INST-16)
-- [ ] Implement `S3StorageAdapter`, `GCSStorageAdapter`, `AzureBlobStorageAdapter` implementing the `IStorage` port interface
-- [ ] Canary verification utility: write a 1-byte probe object, read it back, delete it. Return `{ success, latencyMs, error? }` (BYOB-04)
-- [ ] At deploy-time: if BYOB adapter fails, return `503` and DO NOT fall back to instance storage (BYOB-09)
-- [ ] `POST /api/workspaces/:slug/storage` — save BYOB config: run canary cycle before committing, return `400` with diagnostic on failure (BYOB-04)
-- [ ] `DELETE /api/workspaces/:slug/storage` — remove BYOB config (revert to instance default)
-- [ ] `POST /api/workspaces/:slug/storage/test` — on-demand canary cycle without saving (BYOB-05)
-- [ ] `GET /api/workspaces/:slug/storage` — return config with credentials **redacted** (provider, bucket, region, cdnPrefix, lastVerifiedAt only)
-- [ ] Deploy route: resolve workspace storage adapter; log `storageRegion` in `AuditEvent` metadata (BYOB-14)
-- [ ] CLI warning: compare `--url` against `WorkspaceStorageConfig.cdnPrefix`; emit `warning` to stderr if prefix mismatch (BYOB-10)
+- [x] Implement storage adapter resolver: check `WorkspaceStorageConfig` first → fall back to `InstanceConfig["storage.adapter"]` → fall back to `STORAGE_ADAPTER` env var (BYOB-07 + INST-16)
+- [x] Implement `S3StorageAdapter`, `GCSStorageAdapter`, `AzureBlobStorageAdapter` implementing the `IStorage` port interface
+- [x] Canary verification utility: write a 1-byte probe object, read it back, delete it. Return `{ success, latencyMs, error? }` (BYOB-04)
+- [x] At deploy-time: if BYOB adapter fails, return `503` and DO NOT fall back to instance storage (BYOB-09)
+- [x] `POST /api/workspaces/:slug/storage` — save BYOB config: run canary cycle before committing, return `400` with diagnostic on failure (BYOB-04)
+- [x] `DELETE /api/workspaces/:slug/storage` — remove BYOB config (revert to instance default)
+- [x] `POST /api/workspaces/:slug/storage/test` — on-demand canary cycle without saving (BYOB-05)
+- [x] `GET /api/workspaces/:slug/storage` — return config with credentials **redacted** (provider, bucket, region, cdnPrefix, lastVerifiedAt only)
+- [x] Deploy route: resolve workspace storage adapter; log `storageRegion` in `AuditEvent` metadata (BYOB-14)
+- [x] CLI warning: compare `--url` against `WorkspaceStorageConfig.cdnPrefix`; emit `warning` to stderr if prefix mismatch (BYOB-10)
 
 #### Dashboard — Workspace Storage Settings Page
 
-- [ ] `Workspace Settings → Storage` page: BYOB provider selector, credential form (S3/GCS/Azure fields), CDN prefix, path prefix
-- [ ] Test Connection button (BYOB-05): calls `/storage/test`, displays latency or error message
-- [ ] Migration advisory banner shown when BYOB is first enabled (BYOB-12)
-- [ ] Plan gate: storage page shows upgrade prompt for `hobby` plan (BYOB-01)
+- [x] `Workspace Settings → Storage` page: BYOB provider selector, credential form (S3/GCS/Azure fields), CDN prefix, path prefix
+- [x] Test Connection button (BYOB-05): calls `/storage/test`, displays latency or error message
+- [x] Migration advisory banner shown when BYOB is first enabled (BYOB-12)
+- [ ] Plan gate: storage page shows upgrade prompt for `hobby` plan (BYOB-01) — M4.11
 
 #### Test Suite
 

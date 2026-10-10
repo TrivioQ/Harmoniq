@@ -735,19 +735,20 @@ Grants `InstanceAdmin` privileges to a `User`. Entirely separate from workspace 
 
 Per-workspace BYOB storage adapter override (§18). When present, the registry routes all deploy I/O for that workspace to this adapter instead of the instance default.
 
-| Column                 | Type        | Notes                                                                                       |
-| ---------------------- | ----------- | ------------------------------------------------------------------------------------------- |
-| `id`                   | `CUID`      | Primary key                                                                                 |
-| `workspaceId`          | `CUID`      | Unique FK → Workspace                                                                       |
-| `provider`             | `String`    | `s3 \| gcs \| azure-blob` (BYOB-02)                                                         |
-| `bucket`               | `String`    | Bucket or container name                                                                    |
-| `region`               | `String`    | Cloud region (e.g., `us-east-1`, `eu-west-1`)                                               |
-| `credentialsEncrypted` | `Json`      | Encrypted at rest: IAM role ARN (S3), service account JSON (GCS), connection string (Azure) |
-| `cdnPrefix`            | `String?`   | Optional CDN URL prefix (e.g., `https://cdn.acme.com/mfe`)                                  |
-| `pathPrefix`           | `String?`   | Optional path prefix within the bucket (e.g., `harmoniq/`)                                  |
-| `lastVerifiedAt`       | `DateTime?` | Timestamp of last successful canary write-read-delete cycle (BYOB-04)                       |
-| `createdAt`            | `DateTime`  |                                                                                             |
-| `updatedAt`            | `DateTime`  |                                                                                             |
+| Column                 | Type        | Notes                                                                                                                     |
+| ---------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `id`                   | `CUID`      | Primary key                                                                                                               |
+| `workspaceId`          | `CUID`      | Unique FK → Workspace                                                                                                     |
+| `provider`             | `String`    | `S3 \| GCS \| AZURE` (BYOB-02)                                                                                            |
+| `bucket`               | `String`    | Bucket or container name                                                                                                  |
+| `region`               | `String`    | Cloud region (e.g., `us-east-1`, `eu-west-1`)                                                                             |
+| `credentialsEncrypted` | `Json`      | AES-256-GCM: access keys or `roleArn` (+ `externalId`) for S3, `serviceAccountJson` for GCS, `connectionString` for Azure |
+| `endpoint`             | `String?`   | S3-compatible endpoint (MinIO, R2 …)                                                                                      |
+| `cdnPrefix`            | `String?`   | Optional CDN URL prefix (e.g., `https://cdn.acme.com/mfe`)                                                                |
+| `pathPrefix`           | `String?`   | Optional path prefix within the bucket (e.g., `harmoniq/`)                                                                |
+| `lastVerifiedAt`       | `DateTime?` | Timestamp of last successful canary write-read-delete cycle (BYOB-04)                                                     |
+| `createdAt`            | `DateTime`  |                                                                                                                           |
+| `updatedAt`            | `DateTime`  |                                                                                                                           |
 
 **Unique**: `workspaceId` (one BYOB config per workspace)  
 **RLS**: enabled, policy on `workspaceId`
