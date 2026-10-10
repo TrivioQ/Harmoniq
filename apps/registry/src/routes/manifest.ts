@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { withSpan } from '../services/tracing';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';

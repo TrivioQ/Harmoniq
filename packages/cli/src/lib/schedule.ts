@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { authedClient } from './context';
 import type { Context } from './context';
 import { CliError, EXIT } from './errors';

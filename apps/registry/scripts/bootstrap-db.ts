@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Creates (or re-passwords) the RLS-bound app role before migrations run, using the
  * credentials in DATABASE_URL and the owner connection in SYSTEM_DATABASE_URL.

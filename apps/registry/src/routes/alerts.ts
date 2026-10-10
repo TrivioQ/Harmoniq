@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { AlertRule, Environment, RemoteModule } from '@prisma/client';
 import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';

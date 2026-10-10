@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 declare const __VERSION__: string;
 
 export function mount(el: HTMLElement) {

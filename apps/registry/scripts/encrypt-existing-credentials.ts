@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * One-off: encrypt workspace storage credentials saved before encryption at rest existed.
  * Idempotent — rows already encrypted are skipped.

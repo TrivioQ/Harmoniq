@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { z } from 'zod';
 
 const role = z.enum(['viewer', 'developer', 'admin', 'owner']);

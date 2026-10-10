@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';

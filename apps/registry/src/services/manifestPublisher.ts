@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { Module } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import type { PrismaClient } from '@prisma/client';
 import type { TenantTx } from '@harmoniq/db';

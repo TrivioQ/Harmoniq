@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Inject, Injectable, InjectionToken, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable, combineLatest, map } from 'rxjs';
 import { EVENTS, HarmoniqClient } from '../index';

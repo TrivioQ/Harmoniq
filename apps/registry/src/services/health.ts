@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { PrismaClient } from '@prisma/client';
 import type { TenantTx } from '@harmoniq/db';
 import type { HealthEvent, HealthStats } from '@harmoniq/core/dist/schemas/HealthReportSchema';

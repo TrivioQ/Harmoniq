@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { z } from 'zod';
 
 const base64url = z.string().regex(/^[A-Za-z0-9_-]+$/);

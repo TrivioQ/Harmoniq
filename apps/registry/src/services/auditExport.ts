@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Readable } from 'stream';
 import type { FastifyReply } from 'fastify';
 import { BadRequestError } from '@harmoniq/core/dist/errors/AppError';

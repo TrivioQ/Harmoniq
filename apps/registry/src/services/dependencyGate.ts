@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { HostApp } from '@prisma/client';
 import type { TenantTx } from '@harmoniq/db';
 import { ValidationError } from '@harmoniq/core/dist/errors/AppError';

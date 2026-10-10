@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Proves who a user is. Providers never create sessions: the registry links the returned
  * identity to its own `User` and issues Harmoniq sessions, so no provider is on the

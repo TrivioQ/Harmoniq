@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { Role, ScimGroup, ScimUser } from '@prisma/client';
 import type { TenantTx } from '@harmoniq/db';
 import { audit } from './audit';

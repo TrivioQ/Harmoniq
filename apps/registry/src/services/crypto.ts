@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 /** AES-256-GCM envelope stored in JSON columns. `v` is the format version. */

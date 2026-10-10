@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Link } from '@/i18n/routing';
 import { getBranding } from '@/lib/branding';
 

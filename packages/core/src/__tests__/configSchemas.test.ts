@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect } from 'vitest';
 import type { ZodTypeAny } from 'zod';
 import { GitOpsConfigSchema } from '../schemas/GitOpsConfigSchema';

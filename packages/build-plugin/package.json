@@ -27,5 +27,19 @@
     "typescript": "^5.7.2",
     "vitest": "^4.1.11"
   },
-  "type": "module"
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TrivioQ/Harmoniq.git",
+    "directory": "packages/build-plugin"
+  },
+  "files": [
+    "dist",
+    "!dist/__tests__"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }

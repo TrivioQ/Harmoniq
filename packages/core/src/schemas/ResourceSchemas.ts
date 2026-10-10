@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { z } from 'zod';
 
 /** Lowercase, digits and inner hyphens. Slugs appear in URLs and cache-key patterns. */

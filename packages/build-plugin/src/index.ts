@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { createUnplugin } from 'unplugin';
 import { HarmoniqBuildOptions, harmoniqDeploy } from './deploy';
 

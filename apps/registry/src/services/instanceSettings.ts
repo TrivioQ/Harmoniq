@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import type { IMailer } from '@harmoniq/core/dist/ports/IMailer';

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ModuleFederation } from '@module-federation/runtime';
 import { HarmoniqClient, Manifest } from '@harmoniq/client';

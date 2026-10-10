@@ -61,6 +61,9 @@ jobs:
       - name: Check formatting
         run: pnpm exec prettier --check "**/*.{ts,tsx,md,json}"
 
+      - name: Check license headers
+        run: pnpm run license:check
+
       # What ships (registry, dashboard, SDK, CLI): no high or critical advisories.
       - name: Audit production dependencies
         run: pnpm audit --audit-level high --prod

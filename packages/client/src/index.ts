@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 // @harmoniq/client — zero runtime dependencies (DX-05). Types mirror ManifestSchema in
 // @harmoniq/core (schemaVersion 2); they are duplicated here so the SDK stays standalone.
 

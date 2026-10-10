@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { NextRequest } from 'next/server';
 import { isSameOrigin, redirectTo } from '@/lib/http';
 import { registryFetch } from '@/lib/registry';

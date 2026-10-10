@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { z } from 'zod';
 
 // KEY-02. `admin` never grants owner-only operations.

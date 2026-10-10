@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect } from 'vitest';
 import { DeployRequestSchema as DeploySchema } from '../schemas/DeployRequestSchema';
 import { SetCanaryRequestSchema } from '../schemas/CanaryRequestSchema';

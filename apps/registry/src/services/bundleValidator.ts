@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { lookup } from 'dns/promises';
 import { isIP } from 'net';
 import { BundleValidation, validateBundle } from '@harmoniq/core/dist/validation/bundle';

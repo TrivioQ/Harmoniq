@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { ManifestSchema } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import { GitOpsConfigSchema } from '@harmoniq/core/dist/schemas/GitOpsConfigSchema';

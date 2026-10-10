@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { createHash, randomBytes } from 'crypto';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';

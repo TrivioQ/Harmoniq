@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 // Server/edge only: never import from client components. Mirrors apps/registry/src/config.ts — the web app and registry must share JWT_SECRET.
 const KNOWN_DEFAULT_SECRETS = new Set([
   'changeme',

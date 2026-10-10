@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { rollUpHealth } from '../services/health';
 import { FastifyInstance } from 'fastify';
 import { PrismaClient } from '@prisma/client';

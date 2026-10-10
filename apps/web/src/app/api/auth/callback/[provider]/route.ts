@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { createHash, timingSafeEqual } from 'crypto';
 import { NextRequest } from 'next/server';
 import type { SessionResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';

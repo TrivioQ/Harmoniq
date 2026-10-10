@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Prisma, PrismaClient } from '@prisma/client';
 
 export * from '@prisma/client';

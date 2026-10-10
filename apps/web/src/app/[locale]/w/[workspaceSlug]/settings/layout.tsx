@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { getTranslations } from 'next-intl/server';
 import { roleAtLeast, workspaceApi } from '@/lib/workspaceApi';
 import { SettingsNav } from './SettingsNav';

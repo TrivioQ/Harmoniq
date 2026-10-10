@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 // Stands in for a CDN in front of two origins:
 //   /                       → host/dist (the host app)
 //   /<remote>/<version>/…   → <remote>/dist/<version>/… (immutable remote builds)

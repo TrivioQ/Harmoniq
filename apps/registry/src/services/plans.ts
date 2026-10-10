@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { PrismaClient } from '@prisma/client';
 import { PlanRequiredError } from '@harmoniq/core/dist/errors/AppError';
 import { Plan, PlanFeature, PlanSchema } from '@harmoniq/core/dist/schemas/AdminSchemas';

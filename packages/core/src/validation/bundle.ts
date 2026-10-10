@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * VAL-01/03: checks a remote bundle before it is deployed. Runtime-agnostic (fetch +
  * WebCrypto), so the registry (dry-run deploys) and the CLI (`harmoniq validate`) share it.

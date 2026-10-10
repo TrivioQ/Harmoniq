@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { EVENTS, HarmoniqClient } from '../index';
 
 /** The part of `@datadog/browser-rum` (`datadogRum`) this uses; v5+ or v4 API. */

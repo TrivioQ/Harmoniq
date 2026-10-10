@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import fp from 'fastify-plugin';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import argon2 from 'argon2';

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { z } from 'zod';
 
 // `local` is not tenant-isolatable, so it can't be a workspace bucket (BYOB-02).

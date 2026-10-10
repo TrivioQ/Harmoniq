@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { handleWebhookDelivery, WebhookJobData, WebhookBoss } from '../../jobs/webhooks';
 import { ConsoleLogger } from '../../adapters/ConsoleLogger';

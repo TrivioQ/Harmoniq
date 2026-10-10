@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { FastifyPluginAsync } from 'fastify';
 import { extname } from 'path';
 import { LocalStorageAdapter } from '../adapters/storage/LocalStorageAdapter';

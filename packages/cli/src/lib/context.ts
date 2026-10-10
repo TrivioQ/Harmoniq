@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Command } from 'commander';
 import { CliError, EXIT } from './errors';
 import { readConfig } from './config';

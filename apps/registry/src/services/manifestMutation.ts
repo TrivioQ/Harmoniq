@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { withSpan } from './tracing';
 import type { Environment, HostApp, Prisma, Workspace } from '@prisma/client';
 import type { TenantTx } from '@harmoniq/db';

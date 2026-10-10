@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { EVENTS, HarmoniqClient } from '../index';
 
 /** The part of `@sentry/browser` (or any Sentry SDK) this uses; pass `Sentry` itself. */

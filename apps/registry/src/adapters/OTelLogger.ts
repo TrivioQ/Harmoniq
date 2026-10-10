@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 
 // In a real implementation, this would be wired to @opentelemetry/api-logs

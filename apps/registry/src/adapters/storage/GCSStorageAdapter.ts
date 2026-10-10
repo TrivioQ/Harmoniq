@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { IStorage } from './IStorage';
 import { Storage } from '@google-cloud/storage';
 

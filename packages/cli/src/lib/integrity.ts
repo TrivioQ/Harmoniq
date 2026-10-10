@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { readFile } from 'fs/promises';
 import { computeIntegrity } from '@harmoniq/core/dist/validation/bundle';
 import { CliError, EXIT } from './errors';

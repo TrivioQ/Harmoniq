@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { ICache } from '@harmoniq/core/dist/ports/ICache';
 import Redis, { RedisOptions } from 'ioredis';
 

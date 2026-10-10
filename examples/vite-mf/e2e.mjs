@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 // End-to-end: Vite + Module Federation 2.0 host and remotes delivered through Harmoniq.
 //
 //   1. The build plugin deploys two remotes; the host (built once) loads them via the

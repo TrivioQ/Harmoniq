@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createHash } from 'crypto';
 import { NextRequest } from 'next/server';

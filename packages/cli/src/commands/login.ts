@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Command } from 'commander';
 import { createInterface } from 'readline/promises';
 import { ApiClient } from '../lib/api';

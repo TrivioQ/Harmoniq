@@ -1,3 +1,6 @@
+# Copyright The Harmoniq Authors
+# SPDX-License-Identifier: Apache-2.0
+
 output "alb_dns_name" {
   description = "Point registry_domain and web_domain at this (CNAME or alias)"
   value       = aws_lb.this.dns_name

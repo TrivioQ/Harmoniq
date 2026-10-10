@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { randomUUID } from 'crypto';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'fs/promises';
 import { dirname, resolve, sep } from 'path';

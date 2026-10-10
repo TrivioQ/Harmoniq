@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Command } from 'commander';
 import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
 import { emit, enc } from '../lib/output';

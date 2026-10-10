@@ -33,6 +33,22 @@ This feature completes the MVP phase of the Harmoniq Registry by ensuring it is 
 
 ## Change History
 
+### 2026-10-10 — Contributing guide, license headers, release workflow
+
+**Type:** chore
+**PR / Branch:** feat/m4-enterprise
+**Refs:** Phase 6 documentation; final checklist
+
+#### What changed
+
+- `CONTRIBUTING.md`: setup (`dev:local` or Docker), layout, the pre-PR checks, tests, feature docs, changesets, OpenAPI, migrations, commit messages, releases, private vulnerability reports.
+- SPDX headers (`Copyright The Harmoniq Authors`, `Apache-2.0`) on every tracked source file; `pnpm run license:check` (`--fix` adds them) runs in CI.
+- `.github/workflows/release.yml`: Changesets opens a "Version Packages" PR on `main`; merging it publishes `@harmoniq/client`, `cli`, `mf-plugin` and `build-plugin` to npm with provenance (secret `NPM_TOKEN`). The packages now declare license, repository, published files and public access; peer dependents are bumped only when out of range.
+
+#### Testing
+
+`license:check` clean on 341 files; build, lint and every test suite pass with the headers; `changeset status` lists minor bumps for client and cli; `npm pack --dry-run` ships build output only.
+
 ### 2026-10-10 — Manifest benchmark, SDK API reference, core coverage gate
 
 **Type:** chore

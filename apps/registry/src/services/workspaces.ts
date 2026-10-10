@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ConflictError } from '@harmoniq/core/dist/errors/AppError';
 import type { ICache } from '@harmoniq/core/dist/ports/ICache';

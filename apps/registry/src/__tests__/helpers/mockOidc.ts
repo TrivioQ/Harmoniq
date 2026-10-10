@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { createHash, randomBytes } from 'crypto';
 import Fastify from 'fastify';
 import { SignJWT, exportJWK, generateKeyPair } from 'jose';

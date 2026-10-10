@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { randomBytes } from 'crypto';
 import { inflateRawSync } from 'zlib';
 import { SignedXml } from 'xml-crypto';

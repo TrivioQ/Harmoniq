@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect, vi } from 'vitest';
 import { S3StorageAdapter } from '../adapters/storage/S3StorageAdapter';
 import { GCSStorageAdapter } from '../adapters/storage/GCSStorageAdapter';

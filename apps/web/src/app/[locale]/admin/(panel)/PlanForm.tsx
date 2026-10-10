@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { getTranslations } from 'next-intl/server';
 import { ActionForm } from '@/components/ActionForm';
 import { setPlanAction } from './actions';

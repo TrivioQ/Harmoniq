@@ -100,6 +100,7 @@ Detailed documentation is available in the [`docs/`](./docs) directory:
 
 Please refer to the following guides before contributing:
 
+- **[Contributing](./CONTRIBUTING.md)**: Setup, checks, conventions and releases.
 - **[Implementation Plan](./docs/implementation-plan.md)**: Phased build plan with task checklists.
 - **[Agent & Contributor Rules](./.agents/AGENTS.md)**: Mandatory rules for code standards, documentation, and tooling.
 - **[Feature Docs](./docs/features/)**: Per-feature documentation with design context and change history.

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 'use server';
 
 import { revalidatePath } from 'next/cache';

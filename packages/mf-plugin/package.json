@@ -29,5 +29,19 @@
     "tsup": "^8.3.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.11"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TrivioQ/Harmoniq.git",
+    "directory": "packages/mf-plugin"
+  },
+  "files": [
+    "dist",
+    "!dist/__tests__"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

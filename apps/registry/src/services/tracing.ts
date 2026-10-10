@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { SpanStatusCode, trace, type Attributes } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('harmoniq-registry');

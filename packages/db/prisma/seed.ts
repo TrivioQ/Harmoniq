@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { PrismaClient, Role, ActorType, ModuleVersionStatus } from '@prisma/client';
 
 // Seeding is an administrative task: use the schema owner, which is not subject to RLS.

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
 import { createDbClients } from '@harmoniq/db';

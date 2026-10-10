@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { defineConfig } from 'vite';
 import { federation } from '@module-federation/vite';
 import { harmoniq } from '@harmoniq/build-plugin';

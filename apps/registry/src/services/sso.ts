@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { FastifyInstance } from 'fastify';
 import type { Role } from '@prisma/client';
 import {

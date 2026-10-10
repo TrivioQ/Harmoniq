@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Manifest endpoint benchmark (target: p99 < 50 ms on a cache hit). Builds the registry
  * in-process against the configured database, deploys three modules through the API,

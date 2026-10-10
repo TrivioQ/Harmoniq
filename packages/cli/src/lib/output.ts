@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Context } from './context';
 
 /** `--json` prints exactly one JSON document to stdout; otherwise a human line. */

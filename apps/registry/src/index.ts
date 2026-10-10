@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 // Must come first: instruments modules as they are loaded.
 import './tracing';
 import { buildApp } from './app';

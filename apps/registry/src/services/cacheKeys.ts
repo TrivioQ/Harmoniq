@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { ICache } from '@harmoniq/core/dist/ports/ICache';
 
 // Every cache key lives here so invalidation can never miss a variant. Slugs are

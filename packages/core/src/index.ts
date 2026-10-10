@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 export * from './ports/ICache';
 export * from './ports/IStorage';
 export * from './ports/ILogger';

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { cookies, headers as requestHeaders } from 'next/headers';
 import type { MeResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { getRegistryUrl } from './env';

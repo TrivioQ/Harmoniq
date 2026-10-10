@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { WorkspaceStorageConfig } from '@prisma/client';
 import { IStorage } from './IStorage';
 import { S3StorageAdapter } from './S3StorageAdapter';

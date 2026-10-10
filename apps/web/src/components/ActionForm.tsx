@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 'use client';
 
 import { ReactNode, useActionState } from 'react';

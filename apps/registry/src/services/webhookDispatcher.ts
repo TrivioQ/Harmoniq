@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { PgBoss } from 'pg-boss';
 import type { TenantTx } from '@harmoniq/db';
 import type { ILogger } from '@harmoniq/core/dist/ports/ILogger';

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect, vi } from 'vitest';
 import { HarmoniqClient, Manifest } from '../index';
 import { harmoniqSentry } from '../sentry';

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
 
 import { Command } from 'commander';
 import { loginCommand } from './commands/login';

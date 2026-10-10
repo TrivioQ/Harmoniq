@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { getTranslations } from 'next-intl/server';
 
 /** Compliance export of an audit log (every event matching the filter), as CSV or JSONL. */

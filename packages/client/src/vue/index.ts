@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { App, inject, onScopeDispose, readonly, ref } from 'vue';
 import { EVENTS, HarmoniqClient } from '../index';
 import type { HarmoniqClientOptions } from '../index';

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Writes docs/openapi.json from the registry's routes (OAS-01/02).
  *   pnpm --filter @harmoniq/registry openapi:generate

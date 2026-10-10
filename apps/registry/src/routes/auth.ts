@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { createHash } from 'crypto';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';

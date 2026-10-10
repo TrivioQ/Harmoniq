@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import fp from 'fastify-plugin';
 import { FastifyPluginAsync } from 'fastify';
 import { MeterProvider } from '@opentelemetry/sdk-metrics';

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import type { ModuleFederation } from '@module-federation/runtime';
 import type { ModuleFederationRuntimePlugin } from '@module-federation/runtime/types';
 import { EVENTS, HarmoniqClient, Manifest } from '@harmoniq/client';

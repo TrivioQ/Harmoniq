@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { createHash } from 'crypto';
 import type { TenantTx } from '@harmoniq/db';
 import type { Manifest, Module } from '@harmoniq/core/dist/schemas/ManifestSchema';

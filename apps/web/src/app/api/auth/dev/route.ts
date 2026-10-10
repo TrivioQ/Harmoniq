@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { NextRequest } from 'next/server';
 import type { SessionResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { isSameOrigin, loginErrorRedirect, redirectTo } from '@/lib/http';

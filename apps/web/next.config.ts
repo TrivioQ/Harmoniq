@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import path from 'path';
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';

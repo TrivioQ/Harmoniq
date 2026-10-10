@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 // Minimal static server standing in for a CDN: serves host/ and remotes/ with CORS.
 import { createServer } from 'http';
 import { readFile } from 'fs/promises';

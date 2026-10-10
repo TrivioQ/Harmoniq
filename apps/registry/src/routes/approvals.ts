@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import type { ApprovalPolicy, DeploymentApproval, DeploymentRequest } from '@prisma/client';
 import { ConflictError, ForbiddenError, NotFoundError } from '@harmoniq/core/dist/errors/AppError';

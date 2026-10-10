@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Content-Security-Policy for dashboard pages. Scripts need this request's nonce (Next.js
  * adds it to its own scripts when it sees the policy on the request); `strict-dynamic`

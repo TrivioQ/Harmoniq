@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { SignJWT, jwtVerify } from 'jose';
 
 // Shared with apps/web: both verify the same access tokens.

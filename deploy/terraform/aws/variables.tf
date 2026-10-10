@@ -1,3 +1,6 @@
+# Copyright The Harmoniq Authors
+# SPDX-License-Identifier: Apache-2.0
+
 variable "name" {
   description = "Prefix for all resources"
   type        = string

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 export class AppError extends Error {
   public readonly code: string;
   public readonly statusCode: number;

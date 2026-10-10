@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Command } from 'commander';
 import { isValidBundle, validateBundle } from '@harmoniq/core/dist/validation/bundle';
 import { authedClient, requireWorkspace, resolveContext } from '../lib/context';

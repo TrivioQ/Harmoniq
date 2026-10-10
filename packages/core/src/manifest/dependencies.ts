@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import semver from 'semver';
 
 /** A module (or the host app's shared dependencies) and the ranges it declares. */

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * OpenTelemetry tracing, started before anything else is imported so HTTP, Fastify,
  * Postgres and Redis are instrumented. Off unless an OTLP endpoint is configured

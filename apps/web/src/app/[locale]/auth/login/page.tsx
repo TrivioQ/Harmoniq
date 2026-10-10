@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { getTranslations } from 'next-intl/server';
 import { getBranding } from '@/lib/branding';
 import type { AuthProviderSummary } from '@harmoniq/core/dist/schemas/AuthSchemas';

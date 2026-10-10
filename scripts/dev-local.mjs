@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * DX-02: the registry and the dashboard with nothing installed but Node.js: an embedded
  * Postgres (downloaded as an npm package, data in .harmoniq/dev-local), in-memory cache,

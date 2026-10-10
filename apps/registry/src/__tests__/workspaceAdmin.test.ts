@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createHmac, randomUUID } from 'crypto';
 import { FastifyInstance } from 'fastify';

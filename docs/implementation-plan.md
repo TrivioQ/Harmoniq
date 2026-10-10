@@ -404,16 +404,16 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] `docs/sdk.md`: `@harmoniq/client` usage guide
 - [x] `docs/cli.md`: `@harmoniq/cli` command reference
 - [x] `docs/api-reference.md`: full REST API reference (auto-generated from Fastify + `@fastify/swagger`) (the reference is written by hand; `docs/openapi.json` is the generated one)
-- [ ] `docs/contributing.md`: contribution guide (Conventional Commits, PR checklist, change-doc rule)
+- [x] `docs/contributing.md`: contribution guide (Conventional Commits, PR checklist, change-doc rule) (at the root, `CONTRIBUTING.md`, where GitHub shows it)
 - [x] OpenAPI spec: auto-generated and committed to `docs/openapi.json`
 
 ### Final Checklist
 
 - [x] All phases' integration tests passing in CI
 - [x] `pnpm run docker:up` → 5-minute demo working end-to-end
-- [ ] Apache 2.0 license headers on all source files
+- [x] Apache 2.0 license headers on all source files (SPDX; `pnpm run license:check` in CI)
 - [x] GitHub Actions CI: lint + type-check + test on every PR
-- [ ] GitHub Actions release: changesets → npm publish on merge to main
+- [x] GitHub Actions release: changesets → npm publish on merge to main (`.github/workflows/release.yml`; needs the `NPM_TOKEN` secret)
 
 ---
 

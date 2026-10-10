@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Writes docs/schema/manifest.v2.json and docs/schema/harmoniq.v1.json from the Zod schemas.
  *   pnpm --filter @harmoniq/registry schema:generate

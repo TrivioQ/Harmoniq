@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { FastifyInstance } from 'fastify';
 import { evaluateAlerts } from '../services/alerts';
 import { evaluateRollouts } from '../services/rollout';

@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 export interface IStorage {
   /**
    * Generates a pre-signed URL for uploading a file directly to the storage bucket.

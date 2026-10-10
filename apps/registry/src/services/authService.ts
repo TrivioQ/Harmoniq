@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { createHash, randomBytes, randomUUID } from 'crypto';
 import { Prisma, PrismaClient, User } from '@prisma/client';
 import { ILogger } from '@harmoniq/core/dist/ports/ILogger';

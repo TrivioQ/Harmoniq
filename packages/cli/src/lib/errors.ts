@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 /** Exit codes are part of the CLI contract: CI pipelines branch on them. */
 export const EXIT = {
   ok: 0,
