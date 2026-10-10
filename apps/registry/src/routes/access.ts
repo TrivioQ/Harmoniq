@@ -59,7 +59,7 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
   const actor = (request: FastifyRequest) => ({ principal: request.principal!, ip: request.ip });
   const admin = { preHandler: fastify.requireWorkspace('workspace:admin') };
 
-  /** Keys and memberships are managed by people, not by other keys. */
+  /** Memberships are managed by people, not by keys. */
   function requireUser(request: FastifyRequest) {
     if (request.principal?.type !== 'user') {
       throw new ForbiddenError('This action requires a signed-in user');
@@ -71,7 +71,23 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
     request: FastifyRequest,
     data: Pick<ApiKey, 'name' | 'scopes' | 'moduleIds' | 'expiresAt'>
   ) {
-    const user = requireUser(request);
+    // People issue keys. So can an org key with the admin scope (IaC-01: Terraform runs as
+    // the org's automation), without handing out more than it has. Workspace keys can't,
+    // so a leaked CI key can't mint lasting access.
+    const principal = request.principal!;
+    if (principal.type === 'apiKey') {
+      if (!principal.organizationId || !principal.scopes.includes('admin')) {
+        throw new ForbiddenError('Keys are issued by users or by an org key with the admin scope');
+      }
+      if (
+        principal.moduleIds.length > 0 &&
+        (!data.moduleIds.length || data.moduleIds.some((id) => !principal.moduleIds.includes(id)))
+      ) {
+        throw new ForbiddenError('A key cannot issue a key with more access than itself');
+      }
+    } else {
+      requireUser(request);
+    }
     const workspace = request.workspace!;
     const { secret, keyHash } = await generateApiKeySecret();
     const record = await withTenant(workspace.id, async (tx) => {
@@ -87,7 +103,9 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
           workspaceId: workspace.id,
           keyHash,
           prefix: 'pending',
-          createdBy: user.id,
+          ...(principal.type === 'apiKey'
+            ? { createdByKeyId: principal.id }
+            : { createdBy: principal.id }),
         },
       });
       return tx.apiKey.update({

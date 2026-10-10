@@ -138,20 +138,21 @@ User ─────────────────── WorkspaceMember �
 
 ### `ApiKey`
 
-| Column           | Type        | Notes                                    |
-| ---------------- | ----------- | ---------------------------------------- |
-| `id`             | `CUID`      | Primary key                              |
-| `workspaceId`    | `CUID`      | FK → Workspace (RLS key)                 |
-| `name`           | `String`    | Human-readable label                     |
-| `keyHash`        | `String`    | argon2id hash of raw key                 |
-| `prefix`         | `String`    | First 8 chars of raw key (for display)   |
-| `scopes`         | `String[]`  | `deploy:write`, `manifest:read`, `admin` |
-| `expiresAt`      | `DateTime?` | Null = never expires                     |
-| `gracePeriodEnd` | `DateTime?` | Set during key rotation                  |
-| `lastUsedAt`     | `DateTime?` |                                          |
-| `revokedAt`      | `DateTime?` | Null = active                            |
-| `createdAt`      | `DateTime`  |                                          |
-| `createdBy`      | `CUID`      | FK → User                                |
+| Column           | Type        | Notes                                     |
+| ---------------- | ----------- | ----------------------------------------- |
+| `id`             | `CUID`      | Primary key                               |
+| `workspaceId`    | `CUID`      | FK → Workspace (RLS key)                  |
+| `name`           | `String`    | Human-readable label                      |
+| `keyHash`        | `String`    | argon2id hash of raw key                  |
+| `prefix`         | `String`    | First 8 chars of raw key (for display)    |
+| `scopes`         | `String[]`  | `deploy:write`, `manifest:read`, `admin`  |
+| `expiresAt`      | `DateTime?` | Null = never expires                      |
+| `gracePeriodEnd` | `DateTime?` | Set during key rotation                   |
+| `lastUsedAt`     | `DateTime?` |                                           |
+| `revokedAt`      | `DateTime?` | Null = active                             |
+| `createdAt`      | `DateTime`  |                                           |
+| `createdBy`      | `CUID?`     | FK → User; null when an org key issued it |
+| `createdByKeyId` | `String?`   | The org API key that issued it (IaC-01)   |
 
 **RLS**: enabled, policy on `workspaceId`
 

@@ -237,9 +237,12 @@ model ApiKey {
   lastUsedAt     DateTime?
   revokedAt      DateTime?
   createdAt      DateTime  @default(now())
-  createdBy      String
+  /// The user who created it; null when an admin API key did (IaC-01, e.g. Terraform).
+  createdBy      String?
+  /// The workspace or org API key that created it, when not a user.
+  createdByKeyId String?
   workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  creator        User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  creator        User?     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 }
 
 model RefreshToken {

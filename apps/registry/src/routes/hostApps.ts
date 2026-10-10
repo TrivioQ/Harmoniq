@@ -16,6 +16,7 @@ import {
   CreateEnvironmentSchema,
   CreateHostAppSchema,
   CreateWorkspaceSchema,
+  UpdateEnvironmentSchema,
   UpdateHostAppSchema,
   UpdateWorkspaceSchema,
 } from '@harmoniq/core/dist/schemas/ResourceSchemas';
@@ -28,6 +29,7 @@ import { createWorkspace } from '../services/workspaces';
 import { ssoScope } from '../plugins/authenticate';
 import { isFrozen } from '../services/manifestMutation';
 import { publishedPaths } from '../services/manifestPublisher';
+import { invalidateManifest } from '../services/cacheKeys';
 
 type WsParams = { workspaceSlug: string };
 type EnvParams = WsParams & { hostAppSlug: string; envSlug: string };
@@ -274,6 +276,116 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         return created;
       });
       return reply.code(201).send({ slug: env.slug, name: env.name });
+    }
+  );
+
+  // IaC-02: deletes refuse while anything is live (active or canary versions), as
+  // `harmoniq apply --prune` does; the history goes with the resource.
+  const LIVE = { status: { in: ['active' as const, 'canary' as const] }, deletedAt: null };
+
+  fastify.delete<{ Params: WsParams & { hostAppSlug: string } }>(
+    '/api/workspaces/:workspaceSlug/host-apps/:hostAppSlug',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request, reply) => {
+      const workspace = request.workspace!;
+      await withTenant(workspace.id, async (tx) => {
+        const hostApp = await tx.hostApp.findUnique({
+          where: {
+            workspaceId_slug: { workspaceId: workspace.id, slug: request.params.hostAppSlug },
+          },
+        });
+        if (!hostApp) throw new NotFoundError('Host app not found');
+        if (
+          await tx.moduleVersion.count({
+            where: { environment: { hostAppId: hostApp.id }, ...LIVE },
+          })
+        ) {
+          throw new ConflictError(`"${hostApp.slug}" still serves module versions`);
+        }
+        if (hostApp.isDefault && (await tx.hostApp.count()) > 1) {
+          throw new ConflictError('Make another host app the default before deleting this one');
+        }
+        await tx.hostApp.delete({ where: { id: hostApp.id } });
+        await audit(tx, workspace.id, actor(request), {
+          action: 'hostApp.delete',
+          resourceType: 'hostApp',
+          resourceId: hostApp.id,
+          metadata: { slug: hostApp.slug },
+        });
+      });
+      return reply.code(204).send();
+    }
+  );
+
+  async function findEnvironment(
+    tx: Prisma.TransactionClient,
+    workspaceId: string,
+    params: EnvParams
+  ) {
+    const hostApp = await tx.hostApp.findUnique({
+      where: { workspaceId_slug: { workspaceId, slug: params.hostAppSlug } },
+    });
+    const env =
+      hostApp &&
+      (await tx.environment.findUnique({
+        where: { hostAppId_slug: { hostAppId: hostApp.id, slug: params.envSlug } },
+      }));
+    if (!hostApp || !env) throw new NotFoundError('Environment not found');
+    return { hostApp, env };
+  }
+
+  fastify.patch<{ Params: EnvParams }>(
+    '/api/workspaces/:workspaceSlug/host-apps/:hostAppSlug/environments/:envSlug',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request) => {
+      const body = UpdateEnvironmentSchema.parse(request.body);
+      const workspace = request.workspace!;
+      const updated = await withTenant(workspace.id, async (tx) => {
+        const { hostApp, env } = await findEnvironment(tx, workspace.id, request.params);
+        if (body.isDefault) {
+          await tx.environment.updateMany({
+            where: { hostAppId: hostApp.id, NOT: { id: env.id } },
+            data: { isDefault: false },
+          });
+        }
+        const updated = await tx.environment.update({ where: { id: env.id }, data: body });
+        await audit(tx, workspace.id, actor(request), {
+          action: 'environment.update',
+          resourceType: 'environment',
+          resourceId: env.id,
+          metadata: { hostApp: hostApp.slug, slug: env.slug, ...body },
+        });
+        return updated;
+      });
+      return { slug: updated.slug, name: updated.name, isDefault: updated.isDefault };
+    }
+  );
+
+  fastify.delete<{ Params: EnvParams }>(
+    '/api/workspaces/:workspaceSlug/host-apps/:hostAppSlug/environments/:envSlug',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request, reply) => {
+      const workspace = request.workspace!;
+      await withTenant(workspace.id, async (tx) => {
+        const { hostApp, env } = await findEnvironment(tx, workspace.id, request.params);
+        if (await tx.moduleVersion.count({ where: { environmentId: env.id, ...LIVE } })) {
+          throw new ConflictError(`"${env.slug}" still serves module versions`);
+        }
+        await tx.environment.delete({ where: { id: env.id } });
+        await audit(tx, workspace.id, actor(request), {
+          action: 'environment.delete',
+          resourceType: 'environment',
+          resourceId: env.id,
+          metadata: { hostApp: hostApp.slug, slug: env.slug },
+        });
+      });
+      await invalidateManifest(
+        fastify.container.cache,
+        workspace.slug,
+        request.params.hostAppSlug,
+        request.params.envSlug
+      );
+      return reply.code(204).send();
     }
   );
 

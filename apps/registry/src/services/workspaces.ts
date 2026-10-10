@@ -15,16 +15,19 @@ import type { OrgSharedModules } from './orgShared';
 export async function createWorkspace(
   systemDb: PrismaClient,
   input: { name: string; slug: string; organizationId?: string },
-  creator: { userId: string; ip?: string }
+  /** A user becomes the owner. An org API key (IaC-01) creates it ownerless: org admins administer it. */
+  creator: { userId: string; ip?: string } | { apiKeyId: string; ip?: string }
 ) {
   try {
     return await systemDb.$transaction(async (tx) => {
       const ws = await tx.workspace.create({
         data: { name: input.name, slug: input.slug, organizationId: input.organizationId },
       });
-      await tx.workspaceMember.create({
-        data: { workspaceId: ws.id, userId: creator.userId, role: 'owner', joinedAt: new Date() },
-      });
+      if ('userId' in creator) {
+        await tx.workspaceMember.create({
+          data: { workspaceId: ws.id, userId: creator.userId, role: 'owner', joinedAt: new Date() },
+        });
+      }
       await tx.hostApp.create({
         data: {
           workspaceId: ws.id,
@@ -42,8 +45,9 @@ export async function createWorkspace(
       await tx.auditEvent.create({
         data: {
           workspaceId: ws.id,
-          actorId: creator.userId,
-          actorType: 'user',
+          ...('userId' in creator
+            ? { actorId: creator.userId, actorType: 'user' as const }
+            : { actorId: creator.apiKeyId, actorType: 'apiKey' as const }),
           action: 'workspace.create',
           resourceType: 'workspace',
           resourceId: ws.id,

@@ -49,12 +49,18 @@ export const CreateHostAppSchema = z.object({
   slug: SlugSchema,
   description: z.string().max(500).optional(),
   /** Environments created with the host app. */
-  environments: z.array(SlugSchema).min(1).default(['staging', 'production']),
+  environments: z.array(SlugSchema).default(['staging', 'production']),
 });
 
 export const CreateEnvironmentSchema = z.object({
   name: z.string().min(1).max(120),
   slug: SlugSchema,
+});
+
+/** Rename an environment, or make it the host app's default (the others stop being it). */
+export const UpdateEnvironmentSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  isDefault: z.literal(true).optional(),
 });
 
 export const CreateModuleSchema = z.object({

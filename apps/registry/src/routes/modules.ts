@@ -248,6 +248,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
         name: m.name,
         slug: m.slug,
         description: m.description,
+        specifier: m.specifier,
         owners,
         canWrite,
         // ORG-10: shared with the organization's other workspaces; owners decide.
@@ -452,6 +453,38 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
         description: updated.description,
         specifier: updated.specifier,
       };
+    }
+  );
+
+  // IaC-02: delete a module that serves nothing (no active or canary version anywhere).
+  fastify.delete<{ Params: ModuleParams }>(
+    '/api/workspaces/:workspaceSlug/modules/:moduleRef',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request, reply) => {
+      const module = await loadModule(request);
+      const workspace = request.workspace!;
+      await withTenant(workspace.id, async (tx) => {
+        const live = await tx.moduleVersion.count({
+          where: {
+            remoteModuleId: module.id,
+            status: { in: ['active', 'canary'] },
+            deletedAt: null,
+          },
+        });
+        if (live) {
+          throw new ConflictError(
+            `"${module.slug}" still serves versions; roll it back or switch it off everywhere first`
+          );
+        }
+        await tx.remoteModule.delete({ where: { id: module.id } });
+        await audit(tx, workspace.id, actor(request), {
+          action: 'module.delete',
+          resourceType: 'module',
+          resourceId: module.id,
+          metadata: { slug: module.slug, hostApp: module.hostApp.slug },
+        });
+      });
+      return reply.code(204).send();
     }
   );
 

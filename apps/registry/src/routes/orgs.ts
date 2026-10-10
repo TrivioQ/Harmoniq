@@ -53,11 +53,34 @@ type OrgWsParams = OrgParams & { workspaceSlug: string };
 const orgRoutes: FastifyPluginAsync = async (fastify) => {
   const { systemDb, cache, orgShared } = fastify.container;
 
-  function requireOrg(level: 'member' | 'admin') {
+  function requireOrg(level: 'member' | 'admin', opts: { allowOrgKey?: boolean } = {}) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
       await fastify.authenticate(request, reply);
       if (reply.sent) return;
       const principal = request.principal!;
+      // IaC-01: Terraform and other automation manage the org's workspaces with an org key
+      // that has the `admin` scope and isn't limited to some workspaces.
+      if (opts.allowOrgKey && principal.type === 'apiKey' && principal.organizationId) {
+        const org = await systemDb.organization.findFirst({
+          where: { slug: (request.params as OrgParams).orgSlug, deletedAt: null },
+        });
+        if (!org || org.id !== principal.organizationId) {
+          return reply.code(403).send({
+            error: { code: 'FORBIDDEN', message: 'API key is not valid for this organization' },
+          });
+        }
+        if (!principal.scopes.includes('admin') || principal.workspaceIds?.length) {
+          return reply.code(403).send({
+            error: {
+              code: 'FORBIDDEN',
+              message:
+                'Managing workspaces needs an org key with the admin scope for all workspaces',
+            },
+          });
+        }
+        request.org = org;
+        return;
+      }
       if (principal.type !== 'user') {
         return reply
           .code(403)
@@ -100,6 +123,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   }
   const member = { preHandler: requireOrg('member') };
   const admin = { preHandler: requireOrg('admin') };
+  const adminOrOrgKey = { preHandler: requireOrg('admin', { allowOrgKey: true }) };
 
   const orgAudit = (
     request: FastifyRequest,
@@ -113,7 +137,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     systemDb.organizationAuditEvent.create({
       data: {
         organizationId: request.org!.id,
-        actorType: 'user',
+        actorType: request.principal!.type === 'apiKey' ? 'apiKey' : 'user',
         actorId: request.principal!.id,
         ip: request.ip,
         ...event,
@@ -390,13 +414,16 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post<{ Params: OrgParams }>(
     '/api/orgs/:orgSlug/workspaces',
-    admin,
+    adminOrOrgKey,
     async (request, reply) => {
       const body = CreateWorkspaceSchema.parse(request.body);
+      const principal = request.principal!;
       const workspace = await createWorkspace(
         systemDb,
         { ...body, organizationId: request.org!.id },
-        { userId: request.principal!.id, ip: request.ip }
+        principal.type === 'apiKey'
+          ? { apiKeyId: principal.id, ip: request.ip }
+          : { userId: principal.id, ip: request.ip }
       );
       await orgAudit(request, {
         action: 'org.workspace_create',
@@ -457,7 +484,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   /** Makes the workspace standalone again. Org keys and org admins lose access to it. */
   fastify.delete<{ Params: OrgWsParams; Querystring: { delete?: string; confirm?: string } }>(
     '/api/orgs/:orgSlug/workspaces/:workspaceSlug',
-    admin,
+    adminOrOrgKey,
     async (request, reply) => {
       const org = request.org!;
       const workspace = await workspaceIn(org, request.params.workspaceSlug);
