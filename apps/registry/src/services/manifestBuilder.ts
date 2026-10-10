@@ -87,7 +87,8 @@ export async function buildManifest(
     ...(v.exposes && { exposes: v.exposes as Record<string, string> }),
     metadata: {
       ...((v.metadata as Record<string, unknown> | null) ?? {}),
-      deployedBy: v.deployedBy,
+      // Who deployed stays in the authenticated history and audit log: manifests are
+      // public, and internal user and key ids don't belong in them.
       deployedAt: v.deployedAt.toISOString(),
       ...(v.commitSha && { commitSha: v.commitSha }),
       ...(v.promotedFromEnv && { promotedFrom: v.promotedFromEnv }),

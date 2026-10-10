@@ -79,11 +79,30 @@ export async function handleHardDelete(db: PrismaClient, logger: ILogger, purge?
       select: { id: true, workspaceId: true, storagePath: true },
     });
 
+    // A promotion (or a redeploy of the same upload) gives several versions one storage
+    // object. Only purge objects no surviving version uses: the expired staging row of a
+    // promoted version must not take production's bundle with it.
+    const doomedIds = new Set(doomed.map((v) => v.id));
+    const doomedPaths = [
+      ...new Set(doomed.map((v) => v.storagePath).filter((p): p is string => !!p)),
+    ];
+    const sharers = doomedPaths.length
+      ? await db.moduleVersion.findMany({
+          where: { storagePath: { in: doomedPaths } },
+          select: { id: true, workspaceId: true, storagePath: true },
+        })
+      : [];
+    const pathKey = (workspaceId: string, path: string) => `${workspaceId}\u0000${path}`;
+    const stillUsed = new Set(
+      sharers.filter((v) => !doomedIds.has(v.id)).map((v) => pathKey(v.workspaceId, v.storagePath!))
+    );
+
     const failedWorkspaces = new Set<string>();
     if (purge) {
       const pathsByWorkspace = new Map<string, string[]>();
       for (const v of doomed) {
-        if (!v.storagePath) continue;
+        if (!v.storagePath || stillUsed.has(pathKey(v.workspaceId, v.storagePath))) continue;
+        if (pathsByWorkspace.get(v.workspaceId)?.includes(v.storagePath)) continue;
         pathsByWorkspace.set(v.workspaceId, [
           ...(pathsByWorkspace.get(v.workspaceId) ?? []),
           v.storagePath,

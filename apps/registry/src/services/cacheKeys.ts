@@ -17,6 +17,28 @@ export const manifestKey = (ws: string, host: string, env: string, variant = 'st
 export const lastKnownGoodKey = (ws: string, host: string, env: string) =>
   `manifest-lkg:${ws}:${host}:${env}`;
 
+/**
+ * "Not found" for one environment, cached briefly so unknown slugs don't reach the
+ * database on every request. Inside the `manifest:` namespace on purpose: every
+ * invalidation of the environment (a deploy, a promotion) clears it with the manifest.
+ */
+export const missingManifestKey = (ws: string, host: string, env: string) =>
+  manifestKey(ws, host, env, 'missing');
+
+/**
+ * The host app the legacy endpoint (`/api/manifest/:ws/:env`, HST-02) resolves to: the
+ * workspace's default, or its only host app. An empty value caches "none".
+ */
+export const defaultHostKey = (ws: string) => `manifest-default-host:${ws}`;
+
+/** Last-known-good default host app, for the legacy endpoint during an outage (MAN-06). */
+export const lastKnownDefaultHostKey = (ws: string) => `manifest-lkg-default-host:${ws}`;
+
+/** After host apps are created, deleted or change which one is the default. */
+export async function invalidateDefaultHost(cache: ICache, ws: string) {
+  await cache.del(defaultHostKey(ws));
+}
+
 export const importMapKey = (ws: string, host: string, env: string) =>
   `importmap:${ws}:${host}:${env}`;
 

@@ -32,6 +32,8 @@ export interface OidcProviderOptions {
   /** Discovery cache lifetime (SSO-04). */
   discoveryTtlMs?: number;
   fetch?: typeof fetch;
+  /** Agent for the JWKS download (jose uses Node's https), e.g. with a guarded lookup. */
+  jwksAgent?: import('https').Agent;
 }
 
 /**
@@ -89,7 +91,9 @@ export class OidcIdentityProvider implements RedirectIdentityProvider {
       if (endpoint) await this.guarded(endpoint);
     }
     this.discovery = { value, expires: Date.now() + (this.options.discoveryTtlMs ?? 3_600_000) };
-    this.jwks = createRemoteJWKSet(new URL(value.jwks_uri));
+    this.jwks = createRemoteJWKSet(new URL(value.jwks_uri), {
+      ...(this.options.jwksAgent && { agent: this.options.jwksAgent }),
+    });
     return value;
   }
 

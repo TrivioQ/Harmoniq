@@ -119,6 +119,28 @@ describe('GC jobs', () => {
     expect(await systemDb.moduleVersion.findUnique({ where: { id: v.id } })).toBeNull();
   });
 
+  it('keeps a bundle that a surviving version still uses (promotion shares the object)', async () => {
+    // The staging row expired; production runs the promoted copy of the same object.
+    const expired = await version(1, 'inactive', daysAgo(400));
+    await systemDb.moduleVersion.update({
+      where: { id: expired.id },
+      data: { deletedAt: daysAgo(8), storagePath: 'modules/x/shared.js' },
+    });
+    const live = await version(2, 'active', daysAgo(1));
+    await systemDb.moduleVersion.update({
+      where: { id: live.id },
+      data: { storagePath: 'modules/x/shared.js' },
+    });
+
+    const purged: string[] = [];
+    await handleHardDelete(systemDb, logger, async (_ws, paths) => {
+      purged.push(...paths);
+    });
+    expect(purged).not.toContain('modules/x/shared.js');
+    expect(await systemDb.moduleVersion.findUnique({ where: { id: expired.id } })).toBeNull();
+    expect(await systemDb.moduleVersion.findUnique({ where: { id: live.id } })).not.toBeNull();
+  });
+
   it('purges old health events', async () => {
     await expect(handleHealthEventPurge(systemDb, logger)).resolves.toBeUndefined();
   });

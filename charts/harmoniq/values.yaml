@@ -40,6 +40,11 @@ env:
   REDIS_URL: redis://redis:6379
   # none | local | s3; instance settings in the admin panel override it.
   STORAGE_ADAPTER: none
+  # Sign-in methods allowed on the instance, e.g. "oidc" or "oidc,email". Empty: every
+  # configured method. Values: github, email, oidc, sso-oidc, sso-saml (see .env.example).
+  # OIDC_ISSUER / OIDC_CLIENT_ID go here too; put OIDC_CLIENT_SECRET in a Secret and
+  # reference it with registry.extraEnvFrom.
+  HARMONIQ_AUTH_METHODS: ""
 
 # Runs `prisma migrate deploy` before installs and upgrades (Helm hook).
 migrations:

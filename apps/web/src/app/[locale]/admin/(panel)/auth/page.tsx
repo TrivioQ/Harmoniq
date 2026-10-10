@@ -14,10 +14,18 @@ export default async function AdminAuthPage() {
   const t = await getTranslations('AdminSettings');
   const { auth } = await adminApi.settings();
   const v = auth.value;
-  const toggle = (name: string, label: string, on: boolean | undefined) => (
+  const locked = new Set<string>(auth.locked ?? []);
+  // A locked switch is disabled, so the form posts it as off, as the registry requires.
+  const toggle = (name: 'email' | 'github' | 'oidc' | 'saml', label: string, on?: boolean) => (
     <label className="flex items-center gap-2 text-sm">
-      <input type="checkbox" name={name} defaultChecked={on ?? true} />
-      {label}
+      <input
+        type="checkbox"
+        name={name}
+        defaultChecked={!locked.has(name) && (on ?? true)}
+        disabled={locked.has(name)}
+      />
+      <span className={locked.has(name) ? 'text-gray-400' : undefined}>{label}</span>
+      {locked.has(name) && <span className="text-xs text-gray-500">{t('authLocked')}</span>}
     </label>
   );
 
@@ -26,6 +34,11 @@ export default async function AdminAuthPage() {
       <h1 className="text-2xl font-bold text-gray-900">{t('authTitle')}</h1>
       <p className="text-sm text-gray-600">{t('authDescription')}</p>
       <SettingSource settingKey="auth" source={auth.source} />
+      {auth.methodsFromEnvironment && (
+        <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-md p-3">
+          {t('authFromEnvironment', { methods: auth.allowedMethods.join(', ') })}
+        </p>
+      )}
       <section className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
         <ActionForm
           action={saveSettingAction.bind(null, 'auth')}

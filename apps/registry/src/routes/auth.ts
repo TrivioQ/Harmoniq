@@ -46,11 +46,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   const { systemDb, logger, settings } = fastify.container;
   // GitHub, instance OIDC and per-workspace OIDC (`oidc:<workspace>`).
   const providers = fastify.ssoProviders;
-  const auth = new AuthService(systemDb, config.jwtSecret, logger, {
-    seal: (plain) => sealSecret(plain, config.encryptionKey),
-    open: (sealed) => openSecret(sealed, config.encryptionKey),
-    check: (provider, token) => providers.checkSession(provider, token),
-  });
+  const auth = new AuthService(
+    systemDb,
+    config.jwtSecret,
+    logger,
+    {
+      seal: (plain) => sealSecret(plain, config.encryptionKey),
+      open: (sealed) => openSecret(sealed, config.encryptionKey),
+      check: (provider, token) => providers.checkSession(provider, token),
+    },
+    (provider) => settings.sessionProviderEnabled(provider)
+  );
 
   // Email sign-in needs a way to send mail (SMTP, or the console mailer outside production)
   // and the instance to allow it (INST-13); both can change at runtime.
@@ -102,7 +108,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     if (emailEnabled()) {
       list.push({ id: email.id, kind: email.kind, displayName: email.displayName });
     }
-    if (config.devLogin) {
+    if (settings.auth().dev) {
       list.push({ id: 'dev', kind: 'dev', displayName: 'Development login' });
     }
     return { providers: list };
@@ -122,12 +128,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         },
         include: { workspace: { select: { slug: true, name: true } } },
       });
-      const trusts = (config: unknown) =>
+      const domainTrusted = (config: unknown) =>
         ((config as { trustedDomains?: string[] } | null)?.trustedDomains ?? []).includes(domain);
+      // Only protocols the instance allows (HARMONIQ_AUTH_METHODS, admin panel).
+      const oidcOn = providers.protocolEnabled('oidc');
+      const samlOn = providers.protocolEnabled('saml');
+      const trustsOidc = (c: { oidcConfig: unknown }) => oidcOn && domainTrusted(c.oidcConfig);
+      const trustsSaml = (c: { samlConfig: unknown }) => samlOn && domainTrusted(c.samlConfig);
       // OIDC when both are set up.
       const providerFor = (c: { oidcConfig: unknown }, subject: SsoSubject) =>
-        ssoProviderId(trusts(c.oidcConfig) ? 'oidc' : 'saml', subject);
-      const match = configs.find((c) => trusts(c.oidcConfig) || trusts(c.samlConfig));
+        ssoProviderId(trustsOidc(c) ? 'oidc' : 'saml', subject);
+      const match = configs.find((c) => trustsOidc(c) || trustsSaml(c));
       if (match) {
         return {
           provider: providerFor(match, { kind: 'workspace', slug: match.workspace.slug }),
@@ -141,7 +152,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         },
         select: { slug: true, name: true, oidcConfig: true, samlConfig: true },
       });
-      const org = orgs.find((o) => trusts(o.oidcConfig) || trusts(o.samlConfig));
+      const org = orgs.find((o) => trustsOidc(o) || trustsSaml(o));
       if (!org) {
         return reply
           .code(404)

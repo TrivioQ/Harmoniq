@@ -100,6 +100,18 @@ describe('Tenant isolation', () => {
       expect((await deploy(a.workspace.slug, a.module.id, key)).statusCode).toBe(401);
     });
 
+    it('stops a cached key as soon as it is revoked elsewhere (another replica, SCIM)', async () => {
+      const key = await fx.apiKey(a.workspace.id, { scopes: ['deploy:write'] });
+      // First use verifies the secret and caches it.
+      expect((await deploy(a.workspace.slug, a.module.id, key.raw)).statusCode).not.toBe(401);
+      // Revoked straight in the database: this process's cache was not told.
+      await app.container.systemDb.apiKey.update({
+        where: { id: key.record.id },
+        data: { revokedAt: new Date() },
+      });
+      expect((await deploy(a.workspace.slug, a.module.id, key.raw)).statusCode).toBe(401);
+    });
+
     it('rejects a key with the wrong secret', async () => {
       const tampered = keyA.slice(0, -4) + 'XXXX';
       expect((await deploy(a.workspace.slug, a.module.id, tampered)).statusCode).toBe(401);

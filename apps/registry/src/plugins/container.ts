@@ -15,7 +15,7 @@ import { WebhookDispatcher, createWebhookDispatcher } from '../services/webhookD
 import { OrgSharedModules } from '../services/orgShared';
 import { ManifestMutations, MutationTarget } from '../services/manifestMutation';
 import { ManifestPublisher } from '../services/manifestPublisher';
-import { StorageTarget } from '../adapters/storage/createStorage';
+import { StorageTarget, guardWorkspaceEndpoints } from '../adapters/storage/createStorage';
 import { IMailer } from '@harmoniq/core/dist/ports/IMailer';
 import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
 import { InstanceSettings } from '../services/instanceSettings';
@@ -62,6 +62,8 @@ declare module 'fastify' {
 
 const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
   const logger = new PinoLogger({ service: 'registry' });
+  // Matches the save-time check in routes/workspaces.ts: production endpoints are public.
+  guardWorkspaceEndpoints(fastify.config.isProduction);
 
   // Resolve Cache
   let cache: ICache;
@@ -112,6 +114,11 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     fallbackMailer: fastify.config.isProduction ? null : new ConsoleMailer(logger),
   });
   await settings.start();
+  const { authMethods } = fastify.config;
+  logger.info(
+    `Sign-in methods allowed${authMethods.fromEnvironment ? ' by HARMONIQ_AUTH_METHODS' : ''}: ${authMethods.allowed.join(', ')}`
+  );
+  for (const warning of settings.authWarnings()) logger.warn(warning);
 
   // eslint-disable-next-line prefer-const -- used by the publisher before it is created
   let orgShared: OrgSharedModules;

@@ -70,7 +70,7 @@ const entry = client.getModuleEntry('checkout');
 | ----------------- | ------------------------------------------------------------------------------------------------------------ |
 | `'esm'` (default) | Native `import()`, after a `<link rel="modulepreload" integrity>` so browsers that support it check the hash |
 | `'systemjs'`      | `System.import()` (load SystemJS yourself); the hash is added to SystemJS's import map (`integrity`)         |
-| `'amd'`           | A RequireJS-style `require([url], …)`; AMD loaders don't check hashes                                        |
+| `'amd'`           | A RequireJS-style `require([url], …)`; AMD loaders can't check hashes (see `strictIntegrity`)                |
 | a function        | Your own loader: `(entry: { name, url, integrity, version }) => Promise<exports>`                            |
 
 ```ts
@@ -80,6 +80,8 @@ const { mount } = await client.loadModule<{ mount: (el: Element) => void }>('che
 ```
 
 It rejects for modules that aren't in the manifest or are switched off, and reports the load time or the failure to module health when `reportHealth` is on. Module Federation hosts keep using `@harmoniq/mf-plugin`.
+
+With `loaderMode: 'amd'`, a module that has an integrity hash loads unverified with one console warning. Set `strictIntegrity: true` to refuse such loads instead. In every mode the hash covers the module's entry file, not the chunks it imports.
 
 ### Canary releases
 

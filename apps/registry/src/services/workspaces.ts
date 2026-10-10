@@ -4,7 +4,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ConflictError } from '@harmoniq/core/dist/errors/AppError';
 import type { ICache } from '@harmoniq/core/dist/ports/ICache';
-import { invalidateManifest } from './cacheKeys';
+import { invalidateDefaultHost, invalidateManifest } from './cacheKeys';
 import type { OrgSharedModules } from './orgShared';
 
 /**
@@ -16,10 +16,13 @@ export async function createWorkspace(
   systemDb: PrismaClient,
   input: { name: string; slug: string; organizationId?: string },
   /** A user becomes the owner. An org API key (IaC-01) creates it ownerless: org admins administer it. */
-  creator: { userId: string; ip?: string } | { apiKeyId: string; ip?: string }
+  creator: { userId: string; ip?: string } | { apiKeyId: string; ip?: string },
+  /** Drops "not found" answers cached for the slug before it existed. */
+  cache?: ICache
 ) {
+  let created;
   try {
-    return await systemDb.$transaction(async (tx) => {
+    created = await systemDb.$transaction(async (tx) => {
       const ws = await tx.workspace.create({
         data: { name: input.name, slug: input.slug, organizationId: input.organizationId },
       });
@@ -63,6 +66,13 @@ export async function createWorkspace(
     }
     throw err;
   }
+  if (cache) {
+    await invalidateDefaultHost(cache, created.slug);
+    for (const env of ['staging', 'production']) {
+      await invalidateManifest(cache, created.slug, 'default', env);
+    }
+  }
+  return created;
 }
 
 /**

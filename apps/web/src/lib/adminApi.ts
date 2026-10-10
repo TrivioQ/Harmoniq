@@ -109,7 +109,12 @@ export interface InstanceSettingsView {
     github?: { enabled: boolean; clientId?: string; clientSecret?: string };
     oidc?: { enabled: boolean };
     saml?: { enabled: boolean };
-  }>;
+  }> & {
+    /** Switches HARMONIQ_AUTH_METHODS keeps off; the panel can't turn them on. */
+    locked: Array<'email' | 'github' | 'oidc' | 'saml'>;
+    allowedMethods: string[];
+    methodsFromEnvironment: boolean;
+  };
   branding: SettingView<{
     name: string;
     logoUrl?: string;

@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { PrismaClient } from '@prisma/client';
+import { LRUCache } from 'lru-cache';
 import { PlanRequiredError } from '@harmoniq/core/dist/errors/AppError';
 import { Plan, PlanFeature, PlanSchema } from '@harmoniq/core/dist/schemas/AdminSchemas';
 import type { Config } from '../config';
 
 const RANK: Record<Plan, number> = { hobby: 0, startup: 1, enterprise: 2 };
 const CACHE_MS = 60_000;
+// Bounded: manifest requests look plans up by a slug from the URL, which anyone can vary.
+const CACHE_MAX = 10_000;
 const LABEL: Record<PlanFeature, string> = {
   byob: 'Bring-your-own-bucket storage',
   approvals: 'Change approvals',
@@ -25,7 +28,7 @@ const higher = (a: Plan, b: Plan) => (RANK[a] >= RANK[b] ? a : b);
  * rate limit tiers apply either way. Plans are cached for a minute per replica.
  */
 export class Plans {
-  private cache = new Map<string, { plan: Plan; expires: number }>();
+  private cache = new LRUCache<string, { plan: Plan; expires: number }>({ max: CACHE_MAX });
 
   constructor(
     private deps: { systemDb: PrismaClient; config: Pick<Config, 'plans' | 'manifestRateLimits'> }

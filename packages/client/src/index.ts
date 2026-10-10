@@ -117,6 +117,12 @@ export interface HarmoniqClientOptions {
    * `require`. Or a function, for any other loader.
    */
   loaderMode?: LoaderMode | ModuleLoader;
+  /**
+   * Refuse to load a module whose integrity hash the loader can't enforce, instead of
+   * loading it with a console warning. Only the `amd` loader can't enforce integrity
+   * (RequireJS has no SRI support); `esm` and `systemjs` check the entry file.
+   */
+  strictIntegrity?: boolean;
 }
 
 export type LoaderMode = 'esm' | 'systemjs' | 'amd';
@@ -268,6 +274,8 @@ export class HarmoniqClient {
     error?: string;
   }> = [];
   private healthTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Modules already warned about an integrity hash the loader can't enforce. */
+  private readonly unverifiedWarned = new Set<string>();
   private readonly onPageHide = () => {
     if (typeof document === 'undefined' || document.visibilityState === 'hidden') {
       this.flushHealth();
@@ -529,6 +537,18 @@ export class HarmoniqClient {
     const mode = this.options.loaderMode ?? 'esm';
     const loader = typeof mode === 'function' ? mode : LOADERS[mode];
     if (!loader) throw new Error(`Unknown loaderMode "${String(mode)}"`);
+    if (mode === 'amd' && entry.integrity) {
+      const message = `Module "${name}" has an integrity hash, but the "amd" loader can't enforce it`;
+      if (this.options.strictIntegrity) {
+        const error = new Error(`${message} (strictIntegrity is on)`);
+        this.reportModuleError(name, error);
+        throw error;
+      }
+      if (!this.unverifiedWarned.has(name)) {
+        this.unverifiedWarned.add(name);
+        console.warn(`[harmoniq] ${message}; loading it unverified.`);
+      }
+    }
     const started = now();
     try {
       const exports = await loader({ name, ...entry });

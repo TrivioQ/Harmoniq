@@ -8,7 +8,7 @@ import {
   GitOpsConfigSchema,
 } from '@harmoniq/core/dist/schemas/GitOpsConfigSchema';
 import { audit } from '../services/audit';
-import { invalidateManifest } from '../services/cacheKeys';
+import { invalidateDefaultHost, invalidateManifest } from '../services/cacheKeys';
 import { exportConfig, reconcile } from '../services/gitops';
 import { gitopsJsonSchema } from '../services/manifestJsonSchema';
 
@@ -71,6 +71,10 @@ const gitopsRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       if (!body.dryRun) {
+        // Host apps may have been created, deleted or made the default (legacy endpoint).
+        if (outcome.changes.some((c) => c.type === 'hostApp' && !c.blocked)) {
+          await invalidateDefaultHost(cache, workspace.slug);
+        }
         // Manifests and import maps of changed host apps (e.g. a new specifier).
         for (const slug of outcome.touchedHostApps) {
           const envs = await systemDb.environment.findMany({

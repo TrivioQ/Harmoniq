@@ -141,7 +141,6 @@ harmoniq/
         "./CheckoutApp": "./src/CheckoutApp"
       },
       "metadata": {
-        "deployedBy": "ci-bot",
         "deployedAt": "2026-09-12T22:00:00Z",
         "commitSha": "a1b2c3d4"
       }

@@ -15,6 +15,22 @@ The Registry Core implements the Fastify-based backend application responsible f
 
 ## Change History
 
+### 2026-10-10 — SSRF guard rewrite; API key revocation applies at once
+
+**Type:** security
+**PR / Branch:** feat/m4-enterprise
+**Refs:** VAL-02, KEY-02, KEY-05, SSO-25
+
+#### What changed
+
+- The SSRF guard (`services/outbound.ts`) classifies addresses with `ipaddr.js` and allows only public unicast. The previous check let IPv4-mapped IPv6 literals through in the hex form `new URL()` produces (`http://[::ffff:169.254.169.254]/` reached cloud metadata), and missed NAT64, 6to4, Teredo, IPv4-compatible, reserved, benchmarking and multicast ranges.
+- Outbound requests to caller-chosen URLs re-check every resolved address at connect time (undici agent and Node agents with a guarded `lookup`): bundle validation, webhooks, workspace and organization OIDC discovery, token, userinfo and JWKS calls, and in production the custom S3 endpoint of a workspace bucket. Redirects are never followed.
+- API keys: the cache now only skips the argon2 check. The key row is re-read on every request, so revocation (dashboard, rotation, SCIM deprovisioning, any replica), expiry and scope changes apply to the next request. SCIM deprovisioning didn't clear the cache at all, so revoked keys kept working for up to a minute.
+
+#### Testing
+
+`bundleValidator.test.ts`: the bypass addresses, other embedded-IPv4 forms and reserved ranges; the guarded lookup and fetch refuse internal targets. `tenancy.test.ts`: a cached key revoked directly in the database is refused on the next request.
+
 ### 2026-10-09 — M1 core loop: env-aware deploy, rollback, promote, history
 
 **Type:** feature

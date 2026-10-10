@@ -27,6 +27,22 @@ None.
 
 ## Change History
 
+### 2026-10-10 — AMD loader is explicit about integrity
+
+**Type:** feature
+**PR / Branch:** feat/m4-enterprise
+**Refs:** SRI-01, SYS-03
+
+#### What changed
+
+- `loadModule()` with `loaderMode: 'amd'` warns once per module that RequireJS can't enforce its integrity hash. It loaded such modules silently.
+- New option `strictIntegrity`: refuse to load a module whose integrity the loader can't enforce.
+- Integrity still covers a module's entry file only, not the chunks it loads. Chunk integrity needs the build plugin to hash every chunk and is planned as a feature.
+
+#### Testing
+
+`client.test.ts`: one warning for repeated loads; refusal with `strictIntegrity`.
+
 ### 2026-10-10 — Go and Python clients from the OpenAPI document (OAS-03)
 
 **Type:** feature

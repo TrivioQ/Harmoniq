@@ -95,4 +95,53 @@ describe('instance storage config', () => {
       }).storage.adapter
     ).toBe('none');
   });
+
+  describe('HARMONIQ_AUTH_METHODS', () => {
+    it('allows every method but dev when unset, and dev with HARMONIQ_DEV_LOGIN', () => {
+      expect(loadConfig({}).authMethods).toEqual({
+        allowed: ['github', 'email', 'oidc', 'sso-oidc', 'sso-saml'],
+        fromEnvironment: false,
+      });
+      const dev = loadConfig({ HARMONIQ_DEV_LOGIN: '1' });
+      expect(dev.authMethods.allowed).toContain('dev');
+      expect(dev.devLogin).toBe(true);
+      expect(loadConfig({ HARMONIQ_AUTH_METHODS: '  ' }).authMethods.fromEnvironment).toBe(false);
+    });
+
+    it('is an allowlist, case and spacing tolerant', () => {
+      const config = loadConfig({ HARMONIQ_AUTH_METHODS: ' SSO-SAML, github ' });
+      expect(config.authMethods).toEqual({
+        allowed: ['github', 'sso-saml'],
+        fromEnvironment: true,
+      });
+      expect(config.devLogin).toBe(false);
+    });
+
+    it('turns development login on with "dev"', () => {
+      expect(loadConfig({ HARMONIQ_AUTH_METHODS: 'email,dev' }).devLogin).toBe(true);
+    });
+
+    it.each([
+      ['an unknown method', { HARMONIQ_AUTH_METHODS: 'github,ldap' }, /unknown method "ldap"/],
+      ['only separators', { HARMONIQ_AUTH_METHODS: ', ,' }, /at least one/],
+      [
+        'HARMONIQ_DEV_LOGIN without "dev" in the list',
+        { HARMONIQ_AUTH_METHODS: 'email', HARMONIQ_DEV_LOGIN: '1' },
+        /does not list "dev"/,
+      ],
+    ])('refuses %s', (_label, env, message) => {
+      expect(() => loadConfig(env)).toThrow(message);
+    });
+
+    it('refuses dev in production', () => {
+      expect(() =>
+        loadConfig({
+          NODE_ENV: 'production',
+          JWT_SECRET: strongSecret,
+          HARMONIQ_ENCRYPTION_KEY: validKey,
+          HARMONIQ_AUTH_METHODS: 'oidc,dev',
+        })
+      ).toThrow(/Development login/);
+    });
+  });
 });

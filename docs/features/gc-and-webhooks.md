@@ -32,6 +32,21 @@ None.
 
 ## Change History
 
+### 2026-10-10 — GC keeps shared bundles; webhooks re-check addresses on connect
+
+**Type:** bug fix, security
+**PR / Branch:** feat/m4-enterprise
+**Refs:** GC-04, GC-06, WHK-01
+
+#### What changed
+
+- `gc.hardDelete` only purges storage objects that no surviving version uses. A promotion copies the source version's `storagePath`, so purging the expired staging row deleted the bundle production was serving.
+- Webhook delivery uses the guarded fetch from `services/outbound.ts`: every connection re-checks the resolved address, so an endpoint whose DNS changes to an internal address after the check (DNS rebinding) is refused.
+
+#### Testing
+
+`jobs/gc.test.ts`: an expired row sharing its object with an active row is deleted without purging the object (fails on the previous code).
+
 ### 2026-10-08 — GC keeps rollback history and honours retention
 
 **Type:** bug fix

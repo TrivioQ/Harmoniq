@@ -138,6 +138,23 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     } satisfies CachedKey;
   }
 
+  /** A workspace key as a cache entry (null when unknown or revoked). */
+  async function loadWorkspaceKey(keyId: string, secret: string | null, now: number) {
+    const record = await systemDb.apiKey.findUnique({ where: { id: keyId } });
+    if (!record || record.revokedAt) return null;
+    if (secret !== null && !(await argon2.verify(record.keyHash, secret))) return null;
+    return {
+      keyId: record.id,
+      workspaceId: record.workspaceId,
+      scopes: record.scopes,
+      moduleIds: record.moduleIds,
+      expiresAt: record.expiresAt,
+      gracePeriodEnd: record.gracePeriodEnd,
+      lastUsedWrite: record.lastUsedAt?.getTime() ?? 0,
+      cachedUntil: now + KEY_CACHE_TTL_MS,
+    } satisfies CachedKey;
+  }
+
   const toPrincipal = (entry: CachedKey): Principal => ({
     type: 'apiKey',
     id: entry.keyId,
@@ -153,44 +170,39 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
   async function resolveApiKey(raw: string): Promise<Principal | null> {
     const now = Date.now();
     const tokenHash = createHash('sha256').update(raw).digest('hex');
+    const cached = keyCache.get(tokenHash);
 
-    let entry = keyCache.get(tokenHash);
-    if (!entry || entry.cachedUntil <= now) {
-      keyCache.delete(tokenHash);
+    let entry: CachedKey | null;
+    if (cached && cached.cachedUntil > now) {
+      // The cache only saves the argon2 hash. The key row is re-read on every request, so
+      // a revocation (dashboard, rotation, SCIM deprovisioning, on any replica), a new
+      // expiry or a scope change applies to the very next request.
+      entry = cached.organizationId
+        ? await loadOrgKey(cached.keyId, null, now)
+        : await loadWorkspaceKey(cached.keyId, null, now);
+      if (entry) {
+        entry.cachedUntil = cached.cachedUntil;
+        entry.lastUsedWrite = Math.max(entry.lastUsedWrite, cached.lastUsedWrite);
+      }
+    } else {
       const orgKey = parseOrgApiKey(raw);
       const parsed = orgKey ?? parseApiKey(raw);
-      if (!parsed) return null;
-
-      if (orgKey) {
-        const loaded = await loadOrgKey(orgKey.keyId, orgKey.secret, now);
-        if (!loaded) return null;
-        entry = loaded;
-        if (keyCache.size >= KEY_CACHE_MAX) keyCache.clear();
-        keyCache.set(tokenHash, entry);
-        if (!keyIsUsable(entry, now)) return null;
-        touchLastUsed(entry, now);
-        return toPrincipal(entry);
-      }
-
-      const record = await systemDb.apiKey.findUnique({ where: { id: parsed.keyId } });
-      if (!record || record.revokedAt) return null;
-      if (!(await argon2.verify(record.keyHash, parsed.secret))) return null;
-
-      entry = {
-        keyId: record.id,
-        workspaceId: record.workspaceId,
-        scopes: record.scopes,
-        moduleIds: record.moduleIds,
-        expiresAt: record.expiresAt,
-        gracePeriodEnd: record.gracePeriodEnd,
-        lastUsedWrite: record.lastUsedAt?.getTime() ?? 0,
-        cachedUntil: now + KEY_CACHE_TTL_MS,
-      };
-      if (keyCache.size >= KEY_CACHE_MAX) keyCache.clear();
-      keyCache.set(tokenHash, entry);
+      entry = !parsed
+        ? null
+        : orgKey
+          ? await loadOrgKey(orgKey.keyId, orgKey.secret, now)
+          : await loadWorkspaceKey(parsed.keyId, parsed.secret, now);
     }
 
-    // Re-checked on every request so a cached key still stops working on time.
+    if (!entry) {
+      keyCache.delete(tokenHash);
+      return null;
+    }
+    if (!cached || cached.cachedUntil <= now) {
+      if (keyCache.size >= KEY_CACHE_MAX) keyCache.clear();
+    }
+    keyCache.set(tokenHash, entry);
+
     if (!keyIsUsable(entry, now)) return null;
     touchLastUsed(entry, now);
     return toPrincipal(entry);
@@ -201,6 +213,11 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     try {
       claims = await verifyAccessToken(token, jwtSecret);
     } catch {
+      return null;
+    }
+    // The sign-in method was turned off (HARMONIQ_AUTH_METHODS or the admin panel): its
+    // sessions stop now, not when the access token expires.
+    if (claims.provider && !fastify.container.settings.sessionProviderEnabled(claims.provider)) {
       return null;
     }
     const user = await systemDb.user.findUnique({

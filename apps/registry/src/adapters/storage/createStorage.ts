@@ -10,6 +10,18 @@ import { LocalStorageAdapter } from './LocalStorageAdapter';
 import { AzureBlobStorageAdapter } from './AzureBlobStorageAdapter';
 import type { StorageSettings } from '@harmoniq/core/dist/schemas/InstanceSettingsSchemas';
 import type { Config } from '../../config';
+import { guardedHttpAgent, guardedHttpsAgent } from '../../services/outbound';
+
+let guardEndpoints = false;
+
+/**
+ * In production a workspace's custom S3 endpoint must be public (checked when it is
+ * saved). With this on, every connection to it is checked again at connect time, so the
+ * host can't later re-resolve to an internal address. Called once at startup.
+ */
+export function guardWorkspaceEndpoints(enabled: boolean) {
+  guardEndpoints = enabled;
+}
 
 /** Builds the adapter for a workspace's own bucket (BYOB-02/03) from plain credentials. */
 export function workspaceStorage(
@@ -24,7 +36,10 @@ export function workspaceStorage(
         creds.accessKeyId,
         creds.secretAccessKey,
         config.endpoint ?? undefined,
-        creds.roleArn ? { roleArn: creds.roleArn, externalId: creds.externalId } : undefined
+        creds.roleArn ? { roleArn: creds.roleArn, externalId: creds.externalId } : undefined,
+        guardEndpoints && config.endpoint
+          ? { httpAgent: guardedHttpAgent(), httpsAgent: guardedHttpsAgent() }
+          : undefined
       );
     case 'GCS': {
       const key = creds.serviceAccountJson

@@ -63,7 +63,7 @@ Keys may be restricted to specific modules (`moduleIds`). Creating keys and mana
 
 ### `GET /api/manifest/:workspaceSlug/:hostAppSlug/:env`
 
-Returns the manifest for one host app environment. No authentication. Rate limited to 600 requests/minute per workspace and client IP.
+Returns the manifest for one host app environment. No authentication. Rate limited to 600 requests/minute per workspace and client IP. A client IP with more than 120 not-found answers in a minute, across all workspaces, gets `429` with `Retry-After` until the minute ends (`HARMONIQ_MANIFEST_MISS_LIMIT`).
 
 ```json
 {
@@ -81,7 +81,7 @@ Returns the manifest for one host app environment. No authentication. Rate limit
       "url": "https://cdn.example.com/checkout/1.2.3/remoteEntry.js",
       "integrity": "sha384-…",
       "version": "1.2.3",
-      "metadata": { "deployedBy": "…", "deployedAt": "…", "commitSha": "a1b2c3d" }
+      "metadata": { "deployedAt": "…", "commitSha": "a1b2c3d" }
     }
   ]
 }
@@ -121,7 +121,7 @@ After every change the registry writes the manifest and import map to storage, r
 
 ### `GET /api/manifest/:workspaceSlug/:env`
 
-Legacy form: resolves to the workspace's default host app.
+Legacy form: resolves to the workspace's default host app, with the same caching and last-known-good fallback as the canonical form.
 
 ### History (auth: `workspace:read`)
 

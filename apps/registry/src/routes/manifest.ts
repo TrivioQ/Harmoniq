@@ -7,7 +7,14 @@ import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';
 import { toFederationManifest, toImportMap } from '@harmoniq/core/dist/manifest/formats';
 import { BuiltManifest, buildManifest } from '../services/manifestBuilder';
 import { manifestJsonSchema } from '../services/manifestJsonSchema';
-import { lastKnownGoodKey, manifestKey } from '../services/cacheKeys';
+import { LRUCache } from 'lru-cache';
+import {
+  defaultHostKey,
+  lastKnownDefaultHostKey,
+  lastKnownGoodKey,
+  manifestKey,
+  missingManifestKey,
+} from '../services/cacheKeys';
 import {
   assignCanaries,
   attributesFrom,
@@ -20,6 +27,10 @@ import { MANIFEST_CACHE_TTL_SECONDS } from '../services/manifestMutation';
 type CanonicalParams = { workspaceSlug: string; hostAppSlug: string; env: string };
 type LegacyParams = { workspaceSlug: string; env: string };
 type Resolved = { built: BuiltManifest; stale: boolean; cohortId?: string };
+
+/** How long "not found" is cached for an environment or a workspace's default host. */
+const MISSING_TTL_SECONDS = 10;
+const MISS_WINDOW_MS = 60_000;
 
 /** `If-None-Match` may hold several, possibly weak, quoted ETags. */
 function etagMatches(header: string | undefined, etag: string): boolean {
@@ -35,14 +46,39 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   const { cache, systemDb, withTenant, logger, orgShared } = fastify.container;
   const { isProduction } = fastify.config;
 
+  const { manifestMissLimit, manifestRateLimits } = fastify.config;
+
+  // Per-IP count of not-found responses, across all workspaces: the rate limit below is
+  // keyed by workspace slug, so made-up slugs would each get a fresh quota. Per replica.
+  const misses = new LRUCache<string, { count: number; resetAt: number }>({ max: 50_000 });
+  const missRetryAfter = (ip: string): number => {
+    const entry = misses.get(ip);
+    if (!entry) return 0;
+    const now = Date.now();
+    if (entry.resetAt <= now) {
+      misses.delete(ip);
+      return 0;
+    }
+    return entry.count >= manifestMissLimit ? Math.ceil((entry.resetAt - now) / 1000) : 0;
+  };
+  const recordMiss = (ip: string) => {
+    const now = Date.now();
+    const entry = misses.get(ip);
+    if (!entry || entry.resetAt <= now) misses.set(ip, { count: 1, resetAt: now + MISS_WINDOW_MS });
+    else entry.count++;
+  };
+
   // RL-01/02: per (workspace, client IP); shared across replicas with Redis (RL-03).
   // RL-04: the limit depends on the workspace's plan.
   const rateLimit = {
     rateLimit: {
-      max: (req: FastifyRequest) =>
-        fastify.container.plans.manifestRateLimit(
-          (req.params as { workspaceSlug?: string }).workspaceSlug
-        ),
+      // An IP over the not-found limit is refused by the handler; don't look its plan up.
+      max: async (req: FastifyRequest) =>
+        missRetryAfter(req.ip)
+          ? manifestRateLimits.hobby
+          : fastify.container.plans.manifestRateLimit(
+              (req.params as { workspaceSlug?: string }).workspaceSlug
+            ),
       timeWindow: '1 minute',
       keyGenerator: (req: FastifyRequest) =>
         `${(req.params as { workspaceSlug?: string }).workspaceSlug}:${req.ip}`,
@@ -89,7 +125,7 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   /** Resolves the tenant and builds from the database (cache miss). */
   async function load(
     workspaceSlug: string,
-    hostAppSlug: string | null,
+    hostAppSlug: string,
     envSlug: string,
     canaryModuleIds?: string[]
   ) {
@@ -97,18 +133,12 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
       where: { slug: workspaceSlug },
       include: {
         HostApps: {
-          where: hostAppSlug ? { slug: hostAppSlug } : {},
-          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          where: { slug: hostAppSlug },
           include: { Environments: { where: { slug: envSlug } } },
         },
       },
     });
-    // Legacy endpoint: the default host app, or the only one (HST-02).
-    const hostApp =
-      hostAppSlug !== null
-        ? workspace?.HostApps[0]
-        : (workspace?.HostApps.find((h) => h.isDefault) ??
-          (workspace?.HostApps.length === 1 ? workspace.HostApps[0] : undefined));
+    const hostApp = workspace?.HostApps[0];
     const environment = hostApp?.Environments[0];
     if (!workspace || !hostApp || !environment) {
       throw new NotFoundError('Manifest not found');
@@ -121,41 +151,102 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     return { built, hostAppSlug: hostApp.slug };
   }
 
+  // Concurrent cache misses for one key share a single build (per replica), so an expired
+  // or invalidated popular manifest doesn't send every waiting request to the database.
+  const inflight = new Map<string, Promise<Resolved>>();
+  function once(key: string, build: () => Promise<Resolved>): Promise<Resolved> {
+    let pending = inflight.get(key);
+    if (!pending) {
+      pending = build().finally(() => inflight.delete(key));
+      inflight.set(key, pending);
+    }
+    return pending;
+  }
+
+  /**
+   * HST-02: the host app the legacy endpoint serves, the workspace's default (or only)
+   * host app. Cached like a manifest; the last known value is used while the database
+   * is unreachable, so the legacy endpoint keeps its stale fallback too.
+   */
+  async function defaultHost(workspaceSlug: string): Promise<string> {
+    const cached = await cache.get(defaultHostKey(workspaceSlug));
+    if (cached !== null) {
+      if (!cached) throw new NotFoundError('Manifest not found');
+      return cached;
+    }
+    let host: string;
+    try {
+      const workspace = await systemDb.workspace.findUnique({
+        where: { slug: workspaceSlug },
+        select: {
+          HostApps: {
+            select: { slug: true, isDefault: true },
+            orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          },
+        },
+      });
+      const hosts = workspace?.HostApps ?? [];
+      host = hosts.find((h) => h.isDefault)?.slug ?? (hosts.length === 1 ? hosts[0].slug : '');
+    } catch (err) {
+      const lkg = await cache.get(lastKnownDefaultHostKey(workspaceSlug));
+      if (lkg) return lkg;
+      throw err;
+    }
+    await cache.set(
+      defaultHostKey(workspaceSlug),
+      host,
+      host ? MANIFEST_CACHE_TTL_SECONDS : MISSING_TTL_SECONDS
+    );
+    if (!host) throw new NotFoundError('Manifest not found');
+    await cache.set(lastKnownDefaultHostKey(workspaceSlug), host);
+    return host;
+  }
+
   /**
    * The current manifest: cache first (keyed only by URL slugs, so a hit never touches
    * the database), rebuilt on a miss, last-known-good when the database fails (MAN-06).
+   * The legacy endpoint (no host app in the URL) resolves its host app first and then
+   * takes exactly the same path.
    */
   async function resolveStable(
     workspaceSlug: string,
     hostAppSlug: string | null,
     envSlug: string
   ): Promise<Resolved> {
-    if (hostAppSlug) {
-      const cached = await cache.get(manifestKey(workspaceSlug, hostAppSlug, envSlug));
-      if (cached) {
-        fastify.metricMeters.manifestCacheHits.add(1);
-        return { built: JSON.parse(cached) as BuiltManifest, stale: false };
-      }
+    const host = hostAppSlug ?? (await defaultHost(workspaceSlug));
+    const key = manifestKey(workspaceSlug, host, envSlug);
+    const cached = await cache.get(key);
+    if (cached) {
+      fastify.metricMeters.manifestCacheHits.add(1);
+      return { built: JSON.parse(cached) as BuiltManifest, stale: false };
+    }
+    if (await cache.get(missingManifestKey(workspaceSlug, host, envSlug))) {
+      throw new NotFoundError('Manifest not found');
     }
     fastify.metricMeters.manifestCacheMisses.add(1);
 
-    try {
-      const { built, hostAppSlug: resolvedHost } = await load(workspaceSlug, hostAppSlug, envSlug);
-      const value = JSON.stringify(built);
-      await cache.set(
-        manifestKey(workspaceSlug, resolvedHost, envSlug),
-        value,
-        MANIFEST_CACHE_TTL_SECONDS
-      );
-      await cache.set(lastKnownGoodKey(workspaceSlug, resolvedHost, envSlug), value);
-      return { built, stale: false };
-    } catch (err) {
-      if (err instanceof NotFoundError || !hostAppSlug) throw err;
-      const lkg = await cache.get(lastKnownGoodKey(workspaceSlug, hostAppSlug, envSlug));
-      if (!lkg) throw err;
-      logger.error('Serving last-known-good manifest after build failure', err as Error);
-      return { built: JSON.parse(lkg) as BuiltManifest, stale: true };
-    }
+    return once(key, async () => {
+      try {
+        const { built } = await load(workspaceSlug, host, envSlug);
+        const value = JSON.stringify(built);
+        await cache.set(key, value, MANIFEST_CACHE_TTL_SECONDS);
+        await cache.set(lastKnownGoodKey(workspaceSlug, host, envSlug), value);
+        return { built, stale: false };
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          await cache.set(
+            missingManifestKey(workspaceSlug, host, envSlug),
+            '1',
+            MISSING_TTL_SECONDS
+          );
+          throw err;
+        }
+        const lkg = await cache.get(lastKnownGoodKey(workspaceSlug, host, envSlug));
+        if (!lkg) throw err;
+        logger.error('Serving last-known-good manifest after build failure', err as Error);
+        return { built: JSON.parse(lkg) as BuiltManifest, stale: true };
+      }
+    });
   }
 
   /**
@@ -203,19 +294,49 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     if (cached) {
       return { built: JSON.parse(cached) as BuiltManifest, stale: false, ...withCohort };
     }
+    const variant = await once(key, async () => {
+      try {
+        const { built } = await load(
+          workspaceSlug,
+          host,
+          envSlug,
+          assigned.map((c) => c.moduleId)
+        );
+        await cache.set(key, JSON.stringify(built), MANIFEST_CACHE_TTL_SECONDS);
+        return { built, stale: false };
+      } catch (err) {
+        // Stable beats broken: canary users fall back to the stable variant.
+        logger.error('Canary variant build failed; serving stable', err as Error);
+        return stable;
+      }
+    });
+    return { ...variant, ...withCohort };
+  }
+
+  /** Refuses IPs over the not-found limit before any lookup, and counts not-found answers. */
+  async function limitMisses(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    handle: () => Promise<FastifyReply>
+  ) {
+    const retryAfter = missRetryAfter(request.ip);
+    if (retryAfter) {
+      fastify.metricMeters.manifestRateLimited.add(1, { workspace: '' });
+      return reply
+        .code(429)
+        .header('Retry-After', String(retryAfter))
+        .send({
+          error: {
+            code: 'RATE_LIMITED',
+            message: 'Too many requests for manifests that do not exist; try again later',
+          },
+        });
+    }
     try {
-      const { built } = await load(
-        workspaceSlug,
-        host,
-        envSlug,
-        assigned.map((c) => c.moduleId)
-      );
-      await cache.set(key, JSON.stringify(built), MANIFEST_CACHE_TTL_SECONDS);
-      return { built, stale: false, ...withCohort };
+      return await handle();
     } catch (err) {
-      // Stable beats broken: canary users fall back to the stable variant.
-      logger.error('Canary variant build failed; serving stable', err as Error);
-      return { ...stable, ...withCohort };
+      if (err instanceof NotFoundError) recordMiss(request.ip);
+      throw err;
     }
   }
 
@@ -226,7 +347,9 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     hostAppSlug: string | null,
     envSlug: string
   ) {
-    return send(request, reply, await resolve(request, workspaceSlug, hostAppSlug, envSlug));
+    return limitMisses(request, reply, async () =>
+      send(request, reply, await resolve(request, workspaceSlug, hostAppSlug, envSlug))
+    );
   }
 
   /** Derived formats (import map, federation manifest) share the manifest's caching. */
@@ -238,15 +361,17 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     toBody: (manifest: BuiltManifest['manifest']) => unknown
   ) {
     const { workspaceSlug, hostAppSlug, env } = request.params;
-    // Import maps are loaded by the browser itself (no user header): always stable.
-    const { built, stale } = await resolveStable(workspaceSlug, hostAppSlug, env);
-    // Derived from the manifest ETag: changes exactly when the manifest does (IMP-04).
-    const etag = `${built.etag}.${format}`;
-    reply.header('ETag', `"${etag}"`);
-    reply.header('Cache-Control', 'no-cache');
-    if (stale) reply.header('X-Harmoniq-Stale', 'true');
-    if (etagMatches(request.headers['if-none-match'], etag)) return reply.code(304).send();
-    return reply.type(contentType).send(JSON.stringify(toBody(built.manifest)));
+    return limitMisses(request, reply, async () => {
+      // Import maps are loaded by the browser itself (no user header): always stable.
+      const { built, stale } = await resolveStable(workspaceSlug, hostAppSlug, env);
+      // Derived from the manifest ETag: changes exactly when the manifest does (IMP-04).
+      const etag = `${built.etag}.${format}`;
+      reply.header('ETag', `"${etag}"`);
+      reply.header('Cache-Control', 'no-cache');
+      if (stale) reply.header('X-Harmoniq-Stale', 'true');
+      if (etagMatches(request.headers['if-none-match'], etag)) return reply.code(304).send();
+      return reply.type(contentType).send(JSON.stringify(toBody(built.manifest)));
+    });
   }
 
   // Public JSON Schema for validating manifests in other tools.

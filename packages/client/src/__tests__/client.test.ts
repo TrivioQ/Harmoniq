@@ -593,6 +593,26 @@ describe('loadModule (SYS-03)', () => {
     await expect(system.loadModule('checkout')).rejects.toThrow('needs SystemJS');
   });
 
+  it('warns once that AMD cannot enforce integrity, or refuses with strictIntegrity', async () => {
+    g.require = (deps: string[], ok: (m: unknown) => void) => ok({ from: deps[0] });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    warn.mockClear(); // an earlier test may have left calls on the same spy
+    try {
+      const client = await ready({ loaderMode: 'amd' });
+      await client.loadModule('checkout');
+      await client.loadModule('checkout');
+      const integrityWarnings = warn.mock.calls.filter((c) =>
+        String(c[0]).includes("can't enforce")
+      );
+      expect(integrityWarnings).toHaveLength(1);
+
+      const strict = await ready({ loaderMode: 'amd', strictIntegrity: true });
+      await expect(strict.loadModule('checkout')).rejects.toThrow('strictIntegrity');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('accepts a custom loader and reports load outcomes to health', async () => {
     const health: unknown[] = [];
     const { fetchImpl } = fakeRegistry([manifest('1.0.0')]);

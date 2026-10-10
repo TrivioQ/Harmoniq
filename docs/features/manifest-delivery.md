@@ -43,6 +43,25 @@ None.
 
 ## Change History
 
+### 2026-10-10 — Manifest endpoint robustness
+
+**Type:** bug fix, performance, security
+**PR / Branch:** feat/m4-enterprise
+**Refs:** MAN-05, MAN-06, HST-02, CAN-02, RL-01
+
+#### What changed
+
+- A malformed `harmoniq_canary` cookie (bad percent-encoding) is treated as no user key. It returned 500.
+- The legacy endpoint (`/api/manifest/:ws/:env`) caches which host app it serves and then takes the canonical path, so it is served from the cache and has the last-known-good fallback. It rebuilt from the database on every request and returned 500 during an outage.
+- Concurrent cache misses for the same manifest or canary variant share one build per replica.
+- "Not found" is cached for 10 seconds under the manifest key, so deploys, new environments, host apps and workspaces clear it.
+- Not-found answers are limited per client IP across all workspaces (`HARMONIQ_MANIFEST_MISS_LIMIT`, default 120 per minute, then 429 with `Retry-After`). The per-workspace limit gave every made-up slug a fresh quota. Requests from a limited IP skip the plan lookup, and the plan cache is now a bounded LRU.
+- **Breaking (manifest content):** module `metadata` no longer carries `deployedBy`, an internal user or API key id on a public endpoint. History and audit APIs still have it. Every manifest's ETag changes once.
+
+#### Testing
+
+`manifestLimits.test.ts`: per-IP miss limit without database lookups, cached not-found cleared by a new environment, one build for eight concurrent misses (fails without the deduplication), malformed cookie. `coreLoop.test.ts`: legacy endpoint served from the cache and stale during an outage. `canary.test.ts`: malformed cookies.
+
 ### 2026-10-09 — Example and e2e: Vite + Module Federation 2.0
 
 **Type:** test/example

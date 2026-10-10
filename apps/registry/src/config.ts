@@ -16,6 +16,14 @@ const KNOWN_DEFAULT_SECRETS = new Set([
   'super-secret-key-for-development-only',
 ]);
 
+/**
+ * Sign-in methods `HARMONIQ_AUTH_METHODS` can allow. `oidc` is the instance IdP from the
+ * `OIDC_*` variables; `sso-oidc` and `sso-saml` are the single sign-on that workspaces
+ * and organizations configure themselves.
+ */
+export const AUTH_METHODS = ['github', 'email', 'oidc', 'sso-oidc', 'sso-saml', 'dev'] as const;
+export type AuthMethod = (typeof AUTH_METHODS)[number];
+
 const DEV_JWT_SECRET = 'harmoniq-dev-only-jwt-secret-do-not-use-in-production';
 // 32 zero-ish bytes, base64. Only ever used outside production.
 const DEV_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
@@ -33,6 +41,7 @@ const EnvSchema = z.object({
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   HARMONIQ_DEV_LOGIN: z.string().optional(),
+  HARMONIQ_AUTH_METHODS: z.string().optional(),
   HARMONIQ_VALIDATE_BUNDLES: z.string().optional(),
   STORAGE_ADAPTER: z.enum(['local', 's3', 'none']).optional(),
   LOCAL_STORAGE_DIR: z.string().default('./data/storage'),
@@ -49,6 +58,7 @@ const EnvSchema = z.object({
   HARMONIQ_MANIFEST_RATE_LIMIT_STARTUP: z.coerce.number().int().positive().default(3000),
   HARMONIQ_MANIFEST_RATE_LIMIT_ENTERPRISE: z.coerce.number().int().positive().default(10000),
   HARMONIQ_WRITE_RATE_LIMIT: z.coerce.number().int().positive().default(300),
+  HARMONIQ_MANIFEST_MISS_LIMIT: z.coerce.number().int().positive().default(120),
   TLS_CERT_FILE: z.string().optional(),
   TLS_KEY_FILE: z.string().optional(),
   /** PLN-03: gate features by plan (hosted). Off: every plan has every feature (PLN-02). */
@@ -89,12 +99,24 @@ export interface Config {
   ssoAllowPrivateIssuers: boolean;
   /** Passwordless sign-in as any email. Development only; refused in production. */
   devLogin: boolean;
+  /**
+   * Sign-in methods the environment allows. The admin panel can turn allowed methods
+   * off but never on beyond this. `fromEnvironment` is false when `HARMONIQ_AUTH_METHODS`
+   * is unset: then every method except `dev` is allowed, and `dev` follows
+   * `HARMONIQ_DEV_LOGIN`.
+   */
+  authMethods: { allowed: AuthMethod[]; fromEnvironment: boolean };
   /** Fetch and verify every bundle on deploy (dry runs always validate). */
   validateBundles: boolean;
   /** RL-01: manifest requests per minute per (workspace, client IP). */
   /** RL-01/04: manifest requests per minute per (workspace, IP), by plan. */
   manifestRateLimit: number;
   manifestRateLimits: Record<Plan, number>;
+  /**
+   * Not-found manifest responses per minute per client IP, across all workspaces. Limits
+   * that are keyed by workspace can't stop requests that invent a new slug every time.
+   */
+  manifestMissLimit: number;
   /** Writes (POST/PUT/PATCH/DELETE) per minute per credential (or IP), unless a route sets its own. */
   writeRateLimit: number;
   /** HTTP/2 over TLS (HTTP/1.1 still accepted) when both files are set. */
@@ -149,6 +171,37 @@ function planFeatures(json: string | undefined): Record<Plan, PlanFeature[]> {
     throw new ConfigError(`HARMONIQ_PLAN_FEATURES: ${result.error.issues[0].message}`);
   }
   return { ...DEFAULT_PLAN_FEATURES, ...result.data };
+}
+
+/** `HARMONIQ_AUTH_METHODS`: a comma-separated allowlist; unset or blank keeps the defaults. */
+export function parseAuthMethods(
+  raw: string | undefined,
+  devLoginFlag: boolean
+): Config['authMethods'] {
+  if (raw === undefined || raw.trim() === '') {
+    const allowed = AUTH_METHODS.filter((m) => m !== 'dev' || devLoginFlag);
+    return { allowed, fromEnvironment: false };
+  }
+  const tokens = raw
+    .split(',')
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+  const unknown = tokens.filter((t) => !(AUTH_METHODS as readonly string[]).includes(t));
+  if (unknown.length) {
+    throw new ConfigError(
+      `HARMONIQ_AUTH_METHODS: unknown method ${unknown.map((u) => `"${u}"`).join(', ')}; use ${AUTH_METHODS.join(', ')}`
+    );
+  }
+  if (!tokens.length) {
+    throw new ConfigError('HARMONIQ_AUTH_METHODS must name at least one sign-in method');
+  }
+  const allowed = AUTH_METHODS.filter((m) => tokens.includes(m));
+  if (devLoginFlag && !allowed.includes('dev')) {
+    throw new ConfigError(
+      'HARMONIQ_DEV_LOGIN is on but HARMONIQ_AUTH_METHODS does not list "dev"; add it or unset HARMONIQ_DEV_LOGIN'
+    );
+  }
+  return { allowed, fromEnvironment: true };
 }
 
 function resolveStorage(e: z.infer<typeof EnvSchema>, isProduction: boolean): Config['storage'] {
@@ -208,9 +261,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new ConfigError('HARMONIQ_ENCRYPTION_KEY must decode to exactly 32 bytes');
   }
 
-  const devLogin = e.HARMONIQ_DEV_LOGIN === '1' || e.HARMONIQ_DEV_LOGIN === 'true';
+  const devLoginFlag = e.HARMONIQ_DEV_LOGIN === '1' || e.HARMONIQ_DEV_LOGIN === 'true';
+  const authMethods = parseAuthMethods(e.HARMONIQ_AUTH_METHODS, devLoginFlag);
+  const devLogin = authMethods.allowed.includes('dev');
   if (devLogin && isProduction) {
-    throw new ConfigError('HARMONIQ_DEV_LOGIN must not be enabled in production');
+    throw new ConfigError(
+      'Development login must not be enabled in production (HARMONIQ_DEV_LOGIN or "dev" in HARMONIQ_AUTH_METHODS)'
+    );
   }
 
   if (!!e.TLS_CERT_FILE !== !!e.TLS_KEY_FILE) {
@@ -246,8 +303,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }
         : undefined,
     devLogin,
+    authMethods,
     manifestRateLimit: e.HARMONIQ_MANIFEST_RATE_LIMIT,
     writeRateLimit: e.HARMONIQ_WRITE_RATE_LIMIT,
+    manifestMissLimit: e.HARMONIQ_MANIFEST_MISS_LIMIT,
     tls:
       e.TLS_CERT_FILE && e.TLS_KEY_FILE
         ? { certFile: e.TLS_CERT_FILE, keyFile: e.TLS_KEY_FILE }

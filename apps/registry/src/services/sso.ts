@@ -12,7 +12,7 @@ import { ForbiddenError } from '@harmoniq/core/dist/errors/AppError';
 import { OidcConfig } from '@harmoniq/core/dist/schemas/SsoSchema';
 import { OidcIdentityProvider } from '../adapters/identity/OidcIdentityProvider';
 import { GitHubIdentityProvider } from '../adapters/identity/GitHubIdentityProvider';
-import { checkPublicUrl } from './bundleValidator';
+import { checkPublicUrl, createSafeFetch, guardedHttpsAgent } from './outbound';
 import { SamlService } from './saml';
 import { openSecret } from './crypto';
 import { audit } from './audit';
@@ -81,7 +81,7 @@ export class SsoProviders {
         new GitHubIdentityProvider(auth.github.clientId, auth.github.clientSecret)
       );
     }
-    if (oidc && auth.oidc) {
+    if (oidc && auth.instanceOidc) {
       fixed.set(
         'oidc',
         new OidcIdentityProvider({
@@ -168,6 +168,11 @@ export class SsoProviders {
       trustedDomains: config.trustedDomains,
       // A workspace or org admin chooses this URL: refuse internal targets unless allowed.
       checkUrl: allowPrivate ? undefined : (url) => checkPublicUrl(url, { allowHttp: false }),
+      // Every connection is re-checked too, so the issuer can't re-resolve internally.
+      ...(!allowPrivate && {
+        fetch: createSafeFetch({ allowHttp: false }),
+        jwksAgent: guardedHttpsAgent(),
+      }),
     });
   }
 

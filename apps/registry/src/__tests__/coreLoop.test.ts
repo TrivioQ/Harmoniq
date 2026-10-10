@@ -220,6 +220,26 @@ describe('Core loop', () => {
     expect(ManifestSchema.parse(res.json()).modules[0].version).toBe('3.0.0');
   });
 
+  it('serves the legacy endpoint from the cache, and last-known-good during an outage', async () => {
+    const legacy = () => app.inject({ method: 'GET', url: `/api/manifest/${ws}/production` });
+    expect((await legacy()).statusCode).toBe(200); // warms the cache
+    // A cache hit never reaches the database.
+    failWorkspaceLookup = true;
+    const hit = await legacy();
+    expect(hit.statusCode).toBe(200);
+    expect(hit.headers['x-harmoniq-stale']).toBeUndefined();
+    failWorkspaceLookup = false;
+
+    // Manifest evicted and the database down: the stale fallback, as on the canonical URL.
+    await app.container.cache.invalidatePattern(`manifest:${ws}:*`);
+    failWorkspaceLookup = true;
+    const res = await legacy();
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['x-harmoniq-stale']).toBe('true');
+    expect(ManifestSchema.parse(res.json()).hostApp.slug).toBe('portal');
+    failWorkspaceLookup = false;
+  });
+
   it('validates on dry run without deploying, refusing internal URLs', async () => {
     const res = await deploy('production', '9.9.9', {
       url: 'http://169.254.169.254/latest/meta-data',

@@ -423,7 +423,8 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         { ...body, organizationId: request.org!.id },
         principal.type === 'apiKey'
           ? { apiKeyId: principal.id, ip: request.ip }
-          : { userId: principal.id, ip: request.ip }
+          : { userId: principal.id, ip: request.ip },
+        fastify.container.cache
       );
       await orgAudit(request, {
         action: 'org.workspace_create',

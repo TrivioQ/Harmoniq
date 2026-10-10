@@ -12,6 +12,8 @@
 #   HARMONIQ_SETUP_TOKEN=<random>      # then open http://localhost:3000/admin/setup
 #   SMTP_URL=smtps://user:pass@smtp.example.com:465   # email sign-in
 #   GITHUB_CLIENT_ID=... GITHUB_CLIENT_SECRET=...       # GitHub sign-in
+#   OIDC_ISSUER=... OIDC_CLIENT_ID=... OIDC_CLIENT_SECRET=...   # company IdP sign-in
+#   HARMONIQ_AUTH_METHODS=oidc,email    # only these sign-in methods (see .env.example)
 #   SEED=0
 # and change the database passwords in init.sql and below.
 
@@ -86,6 +88,11 @@ services:
       MAIL_FROM: ${MAIL_FROM:-Harmoniq <no-reply@harmoniq.local>}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_DISPLAY_NAME: ${OIDC_DISPLAY_NAME:-Single sign-on}
+      HARMONIQ_AUTH_METHODS: ${HARMONIQ_AUTH_METHODS:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

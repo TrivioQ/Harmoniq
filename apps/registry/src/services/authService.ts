@@ -32,7 +32,12 @@ export class AuthService {
       seal: (plain: string) => string;
       open: (sealed: string) => string;
       check: SsoSessionCheck;
-    }
+    },
+    /**
+     * Whether sessions from this sign-in method may continue. A session from a method
+     * turned off since sign-in (HARMONIQ_AUTH_METHODS or the admin panel) is ended.
+     */
+    private providerEnabled: (provider: string) => boolean = () => true
   ) {}
 
   /**
@@ -139,6 +144,13 @@ export class AuthService {
       where: { tokenHash: hashToken(rawToken) },
     });
     if (!record || record.revokedAt || record.expiresAt.getTime() <= now) return null;
+    if (record.provider && !this.providerEnabled(record.provider)) {
+      await this.revokeFamily(record.familyId);
+      this.logger.info(
+        `auth.session_ended user=${record.userId} reason=method_disabled provider=${record.provider}`
+      );
+      return null;
+    }
 
     const claimed = await this.db.refreshToken.updateMany({
       where: { id: record.id, usedAt: null },

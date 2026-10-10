@@ -66,6 +66,11 @@ describe('Canary assignment', () => {
     expect(userKeyFrom({ cookie: 'a=1; harmoniq_canary=abc%20d' })).toBe('abc d');
     expect(userKeyFrom({ 'x-harmoniq-user-id': '', cookie: 'other=1' })).toBeNull();
   });
+
+  it('treats a malformed cookie as no user key instead of failing', () => {
+    expect(userKeyFrom({ cookie: 'harmoniq_canary=%E0%A4%A' })).toBeNull();
+    expect(userKeyFrom({ cookie: 'harmoniq_canary=%' })).toBeNull();
+  });
 });
 
 describe('Canary targeting (M3.6)', () => {

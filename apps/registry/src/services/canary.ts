@@ -112,5 +112,12 @@ export function userKeyFrom(headers: Record<string, string | string[] | undefine
   const cookie = headers.cookie;
   const raw = Array.isArray(cookie) ? cookie.join(';') : cookie;
   const match = raw?.match(new RegExp(`(?:^|;\\s*)${CANARY_COOKIE}=([^;]+)`));
-  return match ? decodeURIComponent(match[1]).slice(0, MAX_USER_KEY_LENGTH) : null;
+  if (!match) return null;
+  // A malformed cookie (bad percent-encoding) means "no user key", never an error: the
+  // manifest must always be served.
+  try {
+    return decodeURIComponent(match[1]).slice(0, MAX_USER_KEY_LENGTH) || null;
+  } catch {
+    return null;
+  }
 }

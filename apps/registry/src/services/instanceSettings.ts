@@ -3,6 +3,7 @@
 
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { ILogger } from '@harmoniq/core/dist/ports/ILogger';
+import { BadRequestError } from '@harmoniq/core/dist/errors/AppError';
 import type { IMailer } from '@harmoniq/core/dist/ports/IMailer';
 import {
   AuthSettingsSchema,
@@ -13,7 +14,7 @@ import {
   INSTANCE_SETTING_KEYS,
   StorageSettings,
 } from '@harmoniq/core/dist/schemas/InstanceSettingsSchemas';
-import type { Config } from '../config';
+import type { AuthMethod, Config } from '../config';
 import {
   StorageTarget,
   instanceStorageTarget,
@@ -47,8 +48,34 @@ function setPath(obj: Json, path: string, value: unknown) {
 export interface EffectiveAuth {
   email: boolean;
   github: { clientId: string; clientSecret: string } | null;
+  /** The instance IdP from the `OIDC_*` variables (provider id `oidc`). */
+  instanceOidc: boolean;
+  /** OIDC that workspaces and organizations configure (`oidc:<ws>`, `org-oidc:<org>`). */
   oidc: boolean;
+  /** SAML that workspaces and organizations configure. */
   saml: boolean;
+  /** Development login (never in production). */
+  dev: boolean;
+}
+
+/**
+ * Which `HARMONIQ_AUTH_METHODS` entries each admin-panel switch maps to: the panel can
+ * only turn a switch on when the environment allows at least one of them.
+ */
+export const AUTH_SETTING_METHODS: Record<'email' | 'github' | 'oidc' | 'saml', AuthMethod[]> = {
+  email: ['email'],
+  github: ['github'],
+  oidc: ['oidc', 'sso-oidc'],
+  saml: ['sso-saml'],
+};
+
+/** The method behind a session's provider id, e.g. `org-saml:acme` → `sso-saml`. */
+export function methodOfProvider(provider: string): AuthMethod | null {
+  if (provider === 'github' || provider === 'email' || provider === 'dev' || provider === 'oidc') {
+    return provider;
+  }
+  const protocol = /^(?:org-)?(oidc|saml):/.exec(provider)?.[1];
+  return protocol ? (`sso-${protocol}` as AuthMethod) : null;
 }
 
 /**
@@ -184,17 +211,82 @@ export class InstanceSettings {
   auth(): EffectiveAuth {
     const stored = this.plain('auth');
     const value = AuthSettingsSchema.parse(stored ?? {});
-    const env = this.deps.config.github;
+    const { config } = this.deps;
+    const allowed = (m: AuthMethod) => config.authMethods.allowed.includes(m);
+    const env = config.github;
     const githubCreds =
       value.github.clientId && value.github.clientSecret
         ? { clientId: value.github.clientId, clientSecret: value.github.clientSecret }
         : (env ?? null);
+    // A method needs the environment's permission (HARMONIQ_AUTH_METHODS) and the admin
+    // panel's switch; the panel can turn methods off, never on beyond the environment.
     return {
-      email: value.email.enabled,
-      github: value.github.enabled ? githubCreds : null,
-      oidc: value.oidc.enabled,
-      saml: value.saml.enabled,
+      email: allowed('email') && value.email.enabled,
+      github: allowed('github') && value.github.enabled ? githubCreds : null,
+      instanceOidc: allowed('oidc') && value.oidc.enabled && !!config.oidc,
+      oidc: allowed('sso-oidc') && value.oidc.enabled,
+      saml: allowed('sso-saml') && value.saml.enabled,
+      dev: config.devLogin,
     };
+  }
+
+  /**
+   * Whether sessions from this provider may still be used: false once its method is
+   * turned off (environment or admin panel), so they end at the next request.
+   */
+  sessionProviderEnabled(provider: string): boolean {
+    const method = methodOfProvider(provider);
+    if (!method) return true; // older or unknown ids: not ours to judge
+    const auth = this.auth();
+    switch (method) {
+      case 'github':
+        return !!auth.github;
+      case 'email':
+        return auth.email;
+      case 'oidc':
+        return auth.instanceOidc;
+      case 'sso-oidc':
+        return auth.oidc;
+      case 'sso-saml':
+        return auth.saml;
+      case 'dev':
+        return auth.dev;
+    }
+  }
+
+  /**
+   * Admin-panel switches the environment forbids (`HARMONIQ_AUTH_METHODS`), so the panel
+   * shows them as locked and refuses to turn them on.
+   */
+  lockedAuthSettings(): Array<keyof typeof AUTH_SETTING_METHODS> {
+    const { allowed } = this.deps.config.authMethods;
+    return (Object.keys(AUTH_SETTING_METHODS) as Array<keyof typeof AUTH_SETTING_METHODS>).filter(
+      (k) => !AUTH_SETTING_METHODS[k].some((m) => allowed.includes(m))
+    );
+  }
+
+  /** Startup warnings: allowed methods that can't work for lack of credentials. */
+  authWarnings(): string[] {
+    const { config } = this.deps;
+    const listed = config.authMethods.fromEnvironment ? config.authMethods.allowed : [];
+    const auth = this.auth();
+    const warnings: string[] = [];
+    if (listed.includes('github') && !auth.github) {
+      warnings.push(
+        'HARMONIQ_AUTH_METHODS lists "github" but no GitHub OAuth app is configured (GITHUB_CLIENT_ID/SECRET or the admin panel)'
+      );
+    }
+    if (listed.includes('oidc') && !config.oidc) {
+      warnings.push(
+        'HARMONIQ_AUTH_METHODS lists "oidc" but OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET are not all set'
+      );
+    }
+    if (listed.includes('email') && auth.email && !this.mailer()) {
+      warnings.push(
+        'HARMONIQ_AUTH_METHODS lists "email" but no outbound email is configured (SMTP_URL or the admin panel)'
+      );
+    }
+    return warnings;
   }
 
   /** INST-14. */
@@ -229,7 +321,8 @@ export class InstanceSettings {
       },
       branding: { name: 'Harmoniq' },
     };
-    return Object.fromEntries(
+    const locked = this.lockedAuthSettings();
+    const view = Object.fromEntries(
       INSTANCE_SETTING_KEYS.map((key) => [
         key,
         {
@@ -238,6 +331,20 @@ export class InstanceSettings {
         },
       ])
     ) as Record<InstanceSettingKey, { source: 'database' | 'environment'; value: Json }>;
+    // Switches the environment forbids show as off, whatever is stored.
+    for (const k of locked) {
+      view.auth.value[k] = { ...((view.auth.value[k] as Json | undefined) ?? {}), enabled: false };
+    }
+    return {
+      ...view,
+      auth: {
+        ...view.auth,
+        /** Switches locked off by HARMONIQ_AUTH_METHODS. */
+        locked,
+        allowedMethods: config.authMethods.allowed,
+        methodsFromEnvironment: config.authMethods.fromEnvironment,
+      },
+    };
   }
 
   /**
@@ -246,6 +353,16 @@ export class InstanceSettings {
    */
   prepare(key: InstanceSettingKey, input: unknown) {
     const parsed = InstanceSettingSchemas[key].parse(input) as Json;
+    if (key === 'auth') {
+      const turnedOn = this.lockedAuthSettings().filter(
+        (k) => (parsed[k] as { enabled?: boolean } | undefined)?.enabled
+      );
+      if (turnedOn.length) {
+        throw new BadRequestError(
+          `Sign-in methods not allowed by HARMONIQ_AUTH_METHODS can't be enabled: ${turnedOn.join(', ')}`
+        );
+      }
+    }
     const previous = this.plain(key);
     const sameShape = key !== 'storage' || previous?.adapter === parsed.adapter;
     const plain = structuredClone(parsed);

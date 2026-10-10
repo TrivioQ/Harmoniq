@@ -30,7 +30,7 @@ How people and CI systems prove who they are to Harmoniq. Identity providers onl
 | `SSO-01`–`08` | OIDC                                             | ✅ Done (M4.4; see [governance](./enterprise-governance.md)) |
 | `SSO-09`–`20` | SAML                                             | ✅ Done (M4.5; see [governance](./enterprise-governance.md)) |
 
-See [`docs/requirements.md §5.21`](../requirements.md) and [`docs/product-analysis.md §5.11`](../product-analysis.md).
+See [`docs/requirements.md §5.21`](../requirements.md).
 
 ## Architecture Notes
 
@@ -63,6 +63,29 @@ YES — see the change history entry below.
 ---
 
 ## Change History
+
+### 2026-10-10 — Sign-in methods controlled by the environment
+
+**Type:** feature, security
+**PR / Branch:** feat/m4-enterprise
+**Refs:** INST-13, SSO-26
+
+#### What changed
+
+- `HARMONIQ_AUTH_METHODS`: a comma-separated allowlist of sign-in methods, `github`, `email`, `oidc` (the instance IdP from `OIDC_*`), `sso-oidc` and `sso-saml` (configured by workspaces and organizations) and `dev`. Unset or blank keeps the previous behavior: every configured method, plus `dev` with `HARMONIQ_DEV_LOGIN`.
+- A method needs the environment's permission and the admin panel's switch. The admin API refuses to turn on a switch the environment forbids (400), and the admin page shows it locked with the reason.
+- Sessions from a method that is no longer allowed end at their next request: access tokens are refused and refresh revokes the session family. Previously they lasted until the refresh token expired.
+- SSO discovery by email domain only returns protocols that are enabled.
+- Startup refuses unknown methods, an empty list, `dev` in production and `HARMONIQ_DEV_LOGIN` without `dev` in a set list. It logs the allowed methods and warns about listed methods without credentials.
+- `.env.example`, Docker Compose and the Helm values document the variable and the instance `OIDC_*` variables, which were missing.
+
+#### Why
+
+Enterprises need to pin sign-in to their IdP from configuration they control (Helm values, a secret store), not from a database setting that any instance admin can change, and to know that removing a method actually ends its sessions.
+
+#### Testing
+
+`config.test.ts` covers parsing and startup refusals. `authMethods.test.ts` starts the registry with `email,sso-oidc` and checks the provider list, the locked admin switches, refused access tokens per provider and refused, revoked refresh.
 
 ### 2026-10-09 — Rate limits per user, not per dashboard
 

@@ -29,7 +29,7 @@ import { createWorkspace } from '../services/workspaces';
 import { ssoScope } from '../plugins/authenticate';
 import { isFrozen } from '../services/manifestMutation';
 import { publishedPaths } from '../services/manifestPublisher';
-import { invalidateManifest } from '../services/cacheKeys';
+import { invalidateDefaultHost, invalidateManifest } from '../services/cacheKeys';
 
 type WsParams = { workspaceSlug: string };
 type EnvParams = WsParams & { hostAppSlug: string; envSlug: string };
@@ -52,10 +52,12 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
       );
     }
     const body = CreateWorkspaceSchema.parse(request.body);
-    const workspace = await createWorkspace(systemDb, body, {
-      userId: principal.id,
-      ip: request.ip,
-    });
+    const workspace = await createWorkspace(
+      systemDb,
+      body,
+      { userId: principal.id, ip: request.ip },
+      fastify.container.cache
+    );
     return reply.code(201).send({ slug: workspace.slug, name: workspace.name });
   });
 
@@ -243,6 +245,11 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return created;
       });
+      // The first host app becomes the default; drop any cached "not found" for it too.
+      await invalidateDefaultHost(fastify.container.cache, workspace.slug);
+      for (const env of body.environments) {
+        await invalidateManifest(fastify.container.cache, workspace.slug, hostApp.slug, env);
+      }
       return reply.code(201).send({ slug: hostApp.slug, name: hostApp.name });
     }
   );
@@ -275,6 +282,13 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return created;
       });
+      // A request just before this may have cached "not found" for the new environment.
+      await invalidateManifest(
+        fastify.container.cache,
+        workspace.slug,
+        request.params.hostAppSlug,
+        env.slug
+      );
       return reply.code(201).send({ slug: env.slug, name: env.name });
     }
   );
@@ -313,6 +327,7 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
           metadata: { slug: hostApp.slug },
         });
       });
+      await invalidateDefaultHost(fastify.container.cache, workspace.slug);
       return reply.code(204).send();
     }
   );

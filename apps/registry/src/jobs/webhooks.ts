@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client';
 import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import { PgBoss } from 'pg-boss';
 import { openSecret } from '../services/crypto';
-import { checkPublicUrl } from '../services/bundleValidator';
+import { checkPublicUrl, createSafeFetch } from '../services/outbound';
 
 export type WebhookJobData = {
   workspaceId: string;
@@ -45,6 +45,12 @@ export interface WebhookDeliveryOptions {
   encryptionKey?: Buffer;
   /** SSRF guard re-run on every attempt (DNS can change after the endpoint was created). */
   checkUrl?: (url: string) => Promise<string | null>;
+  /**
+   * Performs the POST. The registry passes a guarded fetch that re-checks every resolved
+   * address at connect time, so the host can't re-resolve to an internal one after
+   * `checkUrl` (DNS rebinding). Defaults to the global fetch.
+   */
+  fetchImpl?: typeof fetch;
 }
 
 export async function handleWebhookDelivery(
@@ -83,7 +89,7 @@ export async function handleWebhookDelivery(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-    const res = await fetch(endpoint.url, {
+    const res = await (opts.fetchImpl ?? fetch)(endpoint.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -174,13 +180,16 @@ export async function registerWebhookJobs(fastify: FastifyInstance) {
   // pg-boss 10+ requires queues to exist before schedule()/work(). Idempotent.
   await boss.createQueue('webhook.deliver');
 
+  const allowHttp = !fastify.config.isProduction;
+  const safeFetch = createSafeFetch({ allowHttp });
   boss.work<WebhookJobData>('webhook.deliver', (jobs) => {
     const jobList = Array.isArray(jobs) ? jobs : [jobs];
     return Promise.all(
       jobList.map((job) =>
         handleWebhookDelivery(job, db, logger, boss, {
           encryptionKey: fastify.config.encryptionKey,
-          checkUrl: (url) => checkPublicUrl(url, { allowHttp: !fastify.config.isProduction }),
+          checkUrl: (url) => checkPublicUrl(url, { allowHttp }),
+          fetchImpl: safeFetch,
         })
       )
     );
