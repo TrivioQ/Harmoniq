@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "harmoniq-client"
+version = "0.1.0"
+description = "Thin client for the Harmoniq micro frontend registry API"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.urls]
+Source = "https://github.com/TrivioQ/Harmoniq"
+
+[tool.setuptools]
+packages = ["harmoniq"]

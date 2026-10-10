@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import fp from 'fastify-plugin';
 import { FastifyPluginAsync } from 'fastify';
 import { MeterProvider } from '@opentelemetry/sdk-metrics';
@@ -10,6 +13,7 @@ declare module 'fastify' {
       manifestCacheHits: Counter;
       manifestCacheMisses: Counter;
       deployCount: Counter;
+      manifestRateLimited: Counter;
     };
   }
 }
@@ -36,7 +40,28 @@ const metricsPlugin: FastifyPluginAsync = async (fastify, _options) => {
     description: 'Number of successful module deployments',
   });
 
+  // RL-05.
+  const manifestRateLimited = meter.createCounter('harmoniq.manifest.rate_limited_total', {
+    description: 'Manifest requests rejected by the rate limiter, by workspace slug',
+  });
+
+  // Request durations by route and status, for latency dashboards and alerts.
+  const requestDuration = meter.createHistogram('harmoniq_http_request_duration_ms', {
+    description: 'HTTP request duration in milliseconds',
+    unit: 'ms',
+  });
+  fastify.addHook('onResponse', async (request, reply) => {
+    const route = request.routeOptions.url;
+    if (!route || route === '/metrics') return;
+    requestDuration.record(reply.elapsedTime, {
+      method: request.method,
+      route,
+      status: reply.statusCode,
+    });
+  });
+
   fastify.decorate('metricMeters', {
+    manifestRateLimited,
     manifestCacheHits,
     manifestCacheMisses,
     deployCount,

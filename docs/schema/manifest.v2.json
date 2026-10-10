@@ -1,0 +1,108 @@
+{
+  "$id": "urn:harmoniq:schema:manifest:v2",
+  "title": "Harmoniq manifest (schemaVersion 2)",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 2
+    },
+    "workspaceSlug": {
+      "type": "string"
+    },
+    "hostApp": {
+      "type": "object",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": ["slug", "name"]
+    },
+    "environment": {
+      "type": "string"
+    },
+    "variant": {
+      "type": "string",
+      "enum": ["stable", "canary"]
+    },
+    "cohortId": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "etag": {
+      "type": "string"
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "specifier": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "integrity": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "dependencies": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "exposes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "disabledReason": {
+            "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          },
+          "ownerWorkspace": {
+            "type": "string"
+          }
+        },
+        "required": ["name", "url", "integrity", "version"]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "workspaceSlug",
+    "hostApp",
+    "environment",
+    "variant",
+    "cohortId",
+    "generatedAt",
+    "etag",
+    "modules"
+  ],
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

@@ -32,6 +32,42 @@ None.
 
 ## Change History
 
+### 2026-10-10 — GC keeps shared bundles; webhooks re-check addresses on connect
+
+**Type:** bug fix, security
+**PR / Branch:** feat/m4-enterprise
+**Refs:** GC-04, GC-06, WHK-01
+
+#### What changed
+
+- `gc.hardDelete` only purges storage objects that no surviving version uses. A promotion copies the source version's `storagePath`, so purging the expired staging row deleted the bundle production was serving.
+- Webhook delivery uses the guarded fetch from `services/outbound.ts`: every connection re-checks the resolved address, so an endpoint whose DNS changes to an internal address after the check (DNS rebinding) is refused.
+
+#### Testing
+
+`jobs/gc.test.ts`: an expired row sharing its object with an active row is deleted without purging the object (fails on the previous code).
+
+### 2026-10-08 — GC keeps rollback history and honours retention
+
+**Type:** bug fix
+**PR / Branch:** feat/m0-safety-foundations
+**Refs:** GC-02–GC-07, SNAP-04; product-analysis §3.7
+
+#### What changed
+
+- `gc.softDelete` uses each workspace's `retentionDays` (was a fixed 30 days) and always keeps the newest `HARMONIQ_GC_KEEP_VERSIONS` (default 10) versions per module+environment. `active` and `canary` are never touched.
+- Snapshots follow the workspace retention window.
+- `gc.hardDelete` purges bundle objects from the workspace's bucket before deleting rows; if purging fails, rows are kept and retried next run.
+- Jobs and pg-boss use the schema-owner connection (`SYSTEM_DATABASE_URL`).
+
+#### Why
+
+A module not deployed for ~5 weeks lost its entire rollback history, contradicting "instant rollback to any previous version".
+
+#### Testing
+
+`jobs/gc.test.ts` now runs against real, aged data: keep-N floor, retention window, canary protection, purge-failure retry.
+
 ### 2026-09-13 — Implemented GC and Webhooks
 
 **Type:** feature

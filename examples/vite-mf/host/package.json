@@ -1,0 +1,16 @@
+{
+  "name": "@harmoniq-example/host",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@harmoniq/client": "workspace:*",
+    "@harmoniq/mf-plugin": "workspace:*",
+    "@module-federation/runtime": "2.9.2"
+  },
+  "devDependencies": {
+    "vite": "^7.3.6"
+  }
+}

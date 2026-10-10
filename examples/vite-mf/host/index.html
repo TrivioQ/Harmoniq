@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Harmoniq · Vite MF host</title>
+    <style>
+      body {
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+        margin: 2rem;
+      }
+      section {
+        border: 1px dashed #999;
+        padding: 1rem;
+        margin: 0.5rem 0;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 1rem;
+      }
+    </style>
+  </head>
+  <body data-state="loading">
+    <h1>Vite + Module Federation host</h1>
+    <p>The host is built once. Remotes are deployed, upgraded and rolled back through Harmoniq.</p>
+    <section id="greeting"></section>
+    <section id="cart"></section>
+    <pre id="status"></pre>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

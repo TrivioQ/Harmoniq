@@ -1,61 +1,156 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Command } from 'commander';
+import { isValidBundle, validateBundle } from '@harmoniq/core/dist/validation/bundle';
+import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
+import { CliError, EXIT } from '../lib/errors';
+import { resolveIntegrity } from '../lib/integrity';
+import { emit, enc } from '../lib/output';
+import { settleApproval } from '../lib/approval';
+import { AT_OPTION, scheduleIfRequested } from '../lib/schedule';
+import { printGate, withGateReport } from '../lib/gate';
+import { collectTarget, parsePercent, parseRollout, parseTargets } from './canary';
+
+const collect = (value: string, previous: string[] = []) => [...previous, value];
 
 export const deployCommand = new Command('deploy')
   .description('Deploy a module version to an environment')
-  .requiredOption('--workspace <slug>', 'Workspace slug')
-  .requiredOption('--module <id>', 'Module ID')
-  .requiredOption('--env <env>', 'Environment')
-  .requiredOption('--url <url>', 'Module bundle URL')
-  .requiredOption('--version-id <id>', 'Module version ID (semver)')
-  .requiredOption('--integrity <hash>', 'Subresource integrity hash')
-  .option('--dry-run', 'Validate without committing')
-  .action(async (options, command) => {
-    const parentOpts = command.parent?.opts() || {};
-    const apiKey = parentOpts.apiKey;
-    const registryUrl = parentOpts.registryUrl;
-
-    if (!apiKey) {
-      console.error('Error: --api-key is required');
-      process.exit(1);
+  .requiredOption('--module <module>', 'Module slug or id')
+  .requiredOption('--env <environment>', 'Target environment, e.g. staging')
+  .requiredOption('--url <url>', 'Public URL of the bundle (remoteEntry.js)')
+  .requiredOption('--release <version>', 'Version being deployed, e.g. 1.2.3')
+  .option('--integrity <sri>', 'SRI hash, e.g. sha384-… (default: computed from --file or --url)')
+  .option('--file <path>', 'Local copy of the bundle; computes --integrity')
+  .option('--commit <sha>', 'Commit SHA (defaults to GITHUB_SHA / CI_COMMIT_SHA)')
+  .option('--meta <key=value>', 'Metadata entry (repeatable)', collect)
+  .option('--validate', 'Check the bundle URL and integrity locally before deploying')
+  .option('--dry-run', 'Validate on the registry and show the projected change; deploy nothing')
+  .option('--force', 'Deploy despite dependency conflicts or removed exposes (audited)')
+  .option(
+    '--canary <percent>',
+    'Deploy as a canary for this share of users (1–99); the active version keeps the rest'
+  )
+  .option(
+    '--target <attribute=values>',
+    'With --canary or --rollout: always give the canary to matching users, e.g. plan=beta (repeatable)',
+    collectTarget
+  )
+  .option(
+    '--rollout <percents>',
+    'Staged canary rollout, e.g. 1,10,50,100: each band runs for --hold, then advances if healthy; 100 promotes'
+  )
+  .option('--hold <duration>', 'Time per rollout band, e.g. 30m, 2h (default 30m)')
+  .option(
+    '--max-error-rate <rate>',
+    'Rollout gate: abort if the canary error rate exceeds this (0–1)'
+  )
+  .option(
+    '--max-error-delta <rate>',
+    'Rollout gate: abort if canary errors exceed stable by this (0–1)'
+  )
+  .option('--max-p95 <ms>', 'Rollout gate: abort if the canary p95 load time exceeds this')
+  .option(
+    '--min-samples <n>',
+    'Rollout gate: canary loads needed per band before deciding (default 20)'
+  )
+  .option(...AT_OPTION)
+  .option(
+    '--preview-ttl <hours>',
+    'Create --env as a preview environment (e.g. pr-123) that expires after this many hours'
+  )
+  .action(async (opts, command: Command) => {
+    const ctx = await resolveContext(command);
+    const workspace = requireWorkspace(ctx);
+    if (opts.canary !== undefined && opts.rollout !== undefined) {
+      throw new CliError('Use either --canary or --rollout', EXIT.validation);
     }
+    const targeting = opts.target ? parseTargets(opts.target) : undefined;
+    const canary =
+      opts.canary !== undefined ? parsePercent(opts.canary, !!targeting?.length) : undefined;
+    const rollout = opts.rollout !== undefined ? parseRollout(opts) : undefined;
+    const integrity = await resolveIntegrity(opts);
 
-    const payload = {
-      environment: options.env,
-      version: options.versionId,
-      url: options.url,
-      integrity: options.integrity,
-      dryRun: options.dryRun || false,
-    };
-
-    try {
-      const res = await fetch(
-        `${registryUrl}/api/workspaces/${options.workspace}/modules/${options.module}/deploy`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error(`Deploy failed: ${res.status}`, err);
-        process.exit(1);
-      }
-
-      const data = await res.json();
-      if (parentOpts.json) {
-        console.log(JSON.stringify(data));
-      } else {
-        console.log(
-          `Successfully deployed ${options.module} version ${options.versionId} to ${options.env}`
+    if (opts.validate) {
+      const validation = await validateBundle(opts.url, integrity);
+      validation.warnings.forEach((w) => console.error(`warning: ${w}`));
+      if (!isValidBundle(validation)) {
+        throw new CliError(
+          `Bundle failed validation: ${validation.errors.join('; ')}`,
+          EXIT.validation,
+          validation
         );
       }
-    } catch (e) {
-      console.error('Network error during deploy', e);
-      process.exit(1);
     }
+
+    const metadata = Object.fromEntries(
+      (opts.meta ?? []).map((pair: string) => {
+        const i = pair.indexOf('=');
+        if (i < 1) throw new CliError(`--meta must be key=value, got "${pair}"`, EXIT.validation);
+        return [pair.slice(0, i), pair.slice(i + 1)];
+      })
+    );
+    const commitSha = opts.commit ?? process.env.GITHUB_SHA ?? process.env.CI_COMMIT_SHA;
+
+    if (opts.at && opts.dryRun)
+      throw new CliError('--at and --dry-run exclude each other', EXIT.validation);
+    const request = {
+      environment: opts.env,
+      url: opts.url,
+      version: opts.release,
+      integrity,
+      ...(commitSha && { commitSha }),
+      ...(Object.keys(metadata).length && { metadata }),
+      dryRun: !!opts.dryRun,
+      ...(opts.force && { force: true }),
+      ...(opts.previewTtl && { ephemeral: { ttlHours: Number(opts.previewTtl) } }),
+      ...(canary !== undefined && { canary: { trafficPercent: canary, targeting } }),
+      ...(rollout && { canary: { rollout, targeting } }),
+    };
+    const op = { type: 'deploy', module: opts.module, request };
+    if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
+    const result = await settleApproval(
+      ctx,
+      workspace,
+      await withGateReport(() =>
+        authedClient(ctx).post<Record<string, unknown>>(
+          `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/deploy`,
+          request
+        )
+      )
+    );
+    if (!result) return;
+
+    if (opts.dryRun) {
+      const validation = result.validation as {
+        errors: string[];
+        warnings: string[];
+        blockedByGate?: boolean;
+      };
+      validation.warnings.forEach((w) => console.error(`warning: ${w}`));
+      printGate(validation);
+      if (validation.blockedByGate) {
+        validation.errors.push('blocked by the dependency gate (use --force to deploy anyway)');
+      }
+      emit(ctx, result, () =>
+        validation.errors.length
+          ? `Dry run: bundle failed validation: ${validation.errors.join('; ')}`
+          : `Dry run OK: ${opts.module} ${opts.release} would be deployed to ${opts.env}${result.frozen ? ' (environment is FROZEN)' : ''}`
+      );
+      if (validation.errors.length) process.exitCode = EXIT.validation;
+      return;
+    }
+
+    (result.warnings as string[] | undefined)?.forEach((w) => console.error(`warning: ${w}`));
+    emit(
+      ctx,
+      result,
+      (rollout
+        ? `Deployed ${opts.module} ${opts.release} to ${opts.env} as a staged rollout (${rollout.bands.map((b) => `${b.percent}%`).join(' → ')})`
+        : canary !== undefined
+          ? `Deployed ${opts.module} ${opts.release} to ${opts.env} as a canary for ${canary}% of users`
+          : `Deployed ${opts.module} ${opts.release} to ${opts.env}`) +
+        ` (manifest ${result.manifestEtag})` +
+        (result.previewUrl ? `\nPreview: ${result.previewUrl}` : '')
+    );
   });

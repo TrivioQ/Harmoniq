@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import pino from 'pino';
 

@@ -3,8 +3,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Runtime tenant role (harmoniq_app): always subject to Row-Level Security.
+  url       = env("DATABASE_URL")
+  // Schema owner (harmoniq): used by `prisma migrate` and by systemDb at runtime.
+  directUrl = env("SYSTEM_DATABASE_URL")
 }
 
 model User {
@@ -12,42 +15,55 @@ model User {
   email               String               @unique
   name                String?
   avatarUrl           String?
+  lastLoginAt         DateTime?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+  Identities          Identity[]
   WorkspaceMembers    WorkspaceMember[]
   ApiKeys             ApiKey[]
   RefreshTokens       RefreshToken[]
   OrganizationMembers OrganizationMember[]
   InstanceAdmin       InstanceAdmin?
+  ScimUsers           ScimUser[]
 }
 
 model Workspace {
-  id                     String                  @id @default(cuid())
-  slug                   String                  @unique
-  name                   String
-  organizationId         String?
-  retentionDays          Int                     @default(90)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
-  organization           Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  WorkspaceMembers       WorkspaceMember[]
-  HostApps               HostApp[]
-  RemoteModules          RemoteModule[]
-  ModuleVersions         ModuleVersion[]
-  ApiKeys                ApiKey[]
-  WebhookEndpoints       WebhookEndpoint[]
-  WebhookDeliveries      WebhookDelivery[]
-  AuditEvents            AuditEvent[]
-  WorkspaceConfig        WorkspaceConfig?
-  WorkspaceStorageConfig WorkspaceStorageConfig?
-  ModuleOwnerships       ModuleOwnership[]
-  AlertRules             AlertRule[]
-  ManifestSnapshots      ManifestSnapshot[]
-  WebhookDeadLetters     WebhookDeadLetter[]
-  ModuleHealthEvents     ModuleHealthEvent[]
-  ScimAuditEvents        ScimAuditEvent[]
-  ApprovalPolicies       ApprovalPolicy[]
-  DeploymentRequests     DeploymentRequest[]
+  id                         String                  @id @default(cuid())
+  slug                       String                  @unique
+  name                       String
+  organizationId             String?
+  retentionDays              Int                     @default(90)
+  /// Let deploys create short-lived preview environments (e.g. `pr-123`).
+  allowEphemeralEnvironments Boolean                 @default(false)
+  /// INST-09: set by an instance admin; writes are refused, manifests are still served.
+  suspendedAt                DateTime?
+  suspendedReason            String?
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  organization               Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  WorkspaceMembers           WorkspaceMember[]
+  HostApps                   HostApp[]
+  RemoteModules              RemoteModule[]
+  ModuleVersions             ModuleVersion[]
+  ApiKeys                    ApiKey[]
+  WebhookEndpoints           WebhookEndpoint[]
+  WebhookDeliveries          WebhookDelivery[]
+  AuditEvents                AuditEvent[]
+  WorkspaceConfig            WorkspaceConfig?
+  WorkspaceStorageConfig     WorkspaceStorageConfig?
+  ModuleOwnerships           ModuleOwnership[]
+  AlertRules                 AlertRule[]
+  ManifestSnapshots          ManifestSnapshot[]
+  WebhookDeadLetters         WebhookDeadLetter[]
+  ModuleHealthEvents         ModuleHealthEvent[]
+  ModuleHealthRollups        ModuleHealthRollup[]
+  ModuleEnvStates            ModuleEnvState[]
+  ScheduledOperations        ScheduledOperation[]
+  ScimAuditEvents            ScimAuditEvent[]
+  ScimUsers                  ScimUser[]
+  ScimGroups                 ScimGroup[]
+  ApprovalPolicies           ApprovalPolicy[]
+  DeploymentRequests         DeploymentRequest[]
 }
 
 enum Role {
@@ -64,6 +80,8 @@ model WorkspaceMember {
   role             Role
   invitedAt        DateTime          @default(now())
   joinedAt         DateTime?
+  /// ORG-07: granted by the organization's group rules (SSO or SCIM), which also remove it.
+  orgProvisioned   Boolean           @default(false)
   workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   ModuleOwnerships ModuleOwnership[]
@@ -72,51 +90,83 @@ model WorkspaceMember {
 }
 
 model HostApp {
-  id                String             @id @default(cuid())
-  workspaceId       String
-  name              String
-  slug              String
-  description       String?
-  createdAt         DateTime           @default(now())
-  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  Environments      Environment[]
-  RemoteModules     RemoteModule[]
-  ManifestSnapshots ManifestSnapshot[]
+  id                 String             @id @default(cuid())
+  workspaceId        String
+  name               String
+  slug               String
+  description        String?
+  /// Served by the legacy `GET /api/manifest/:workspaceSlug/:env` endpoint (HST-02).
+  isDefault          Boolean            @default(false)
+  /// Link to a preview of the host, e.g. `https://staging.acme.com/?harmoniq-env={environment}`.
+  previewUrlTemplate String?
+  /// M3.7: dependencies the host shares with every module (package → semver range).
+  sharedDependencies Json?
+  /// M3.7: reject deploys that drop an exposed module the active version had.
+  strictExposes      Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  Environments       Environment[]
+  RemoteModules      RemoteModule[]
+  ManifestSnapshots  ManifestSnapshot[]
 
   @@unique([workspaceId, slug])
 }
 
 model Environment {
-  id                 String              @id @default(cuid())
-  hostAppId          String
-  name               String
-  slug               String
-  isDefault          Boolean             @default(false)
-  frozenAt           DateTime?
-  frozenBy           String?
-  freezeReason       String?
-  freezeUntil        DateTime?
-  hostApp            HostApp             @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
-  ModuleVersions     ModuleVersion[]
-  ManifestSnapshots  ManifestSnapshot[]
-  ModuleHealthEvents ModuleHealthEvent[]
+  id                   String               @id @default(cuid())
+  hostAppId            String
+  name                 String
+  slug                 String
+  isDefault            Boolean              @default(false)
+  frozenAt             DateTime?
+  frozenBy             String?
+  freezeReason         String?
+  /// ENV-FRZ-04: a scheduled freeze starts here (null: as soon as it is set).
+  freezeFrom           DateTime?
+  freezeUntil          DateTime?
+  /// ENV-FRZ-03: an owner lets changes through a freeze until then, for a reason.
+  freezeOverrideUntil  DateTime?
+  freezeOverrideReason String?
+  freezeOverrideBy     String?
+  /// Last manifest copy written to storage/CDN (M2.1); hosts can read it without the registry.
+  lastPublishedEtag    String?
+  lastPublishedAt      DateTime?
+  lastPublishError     String?
+  /// Preview environment created by a deploy; deleted after `expiresAt`.
+  ephemeral            Boolean              @default(false)
+  expiresAt            DateTime?
+  hostApp              HostApp              @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
+  ModuleVersions       ModuleVersion[]
+  ManifestSnapshots    ManifestSnapshot[]
+  ModuleHealthEvents   ModuleHealthEvent[]
+  ModuleHealthRollups  ModuleHealthRollup[]
+  AlertRules           AlertRule[]
+  ModuleEnvStates      ModuleEnvState[]
 
   @@unique([hostAppId, slug])
+  @@index([ephemeral, expiresAt])
 }
 
 model RemoteModule {
-  id                 String              @id @default(cuid())
-  workspaceId        String
-  hostAppId          String
-  name               String
-  slug               String
-  description        String?
-  createdAt          DateTime            @default(now())
-  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  hostApp            HostApp             @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
-  ModuleVersions     ModuleVersion[]
-  ModuleOwnerships   ModuleOwnership[]
-  ModuleHealthEvents ModuleHealthEvent[]
+  id                  String               @id @default(cuid())
+  workspaceId         String
+  hostAppId           String
+  name                String
+  slug                String
+  description         String?
+  /// Import-map specifier, e.g. `@acme/checkout` (IMP-03). Defaults to the slug.
+  specifier           String?
+  /// ORG-10: listed in the manifests of the organization's other workspaces.
+  orgShared           Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  hostApp             HostApp              @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
+  ModuleVersions      ModuleVersion[]
+  ModuleOwnerships    ModuleOwnership[]
+  ModuleHealthEvents  ModuleHealthEvent[]
+  ModuleHealthRollups ModuleHealthRollup[]
+  AlertRules          AlertRule[]
+  ModuleEnvStates     ModuleEnvState[]
 
   @@unique([hostAppId, slug])
   @@index([workspaceId, slug])
@@ -132,6 +182,8 @@ enum ModuleVersionStatus {
 enum ActorType {
   user
   apiKey
+  /// Background jobs, e.g. an alert's auto-rollback.
+  system
 }
 
 model ModuleVersion {
@@ -145,6 +197,8 @@ model ModuleVersion {
   storagePath      String?
   status           ModuleVersionStatus
   trafficPercent   Int?
+  /// Canary targeting rules (M3.6): matching users always get the canary.
+  targeting        Json?
   deployedBy       String
   deployedByType   ActorType
   commitSha        String?
@@ -156,6 +210,9 @@ model ModuleVersion {
   rolloutSchedule  Json?
   currentBandIndex Int?
   deployedAt       DateTime            @default(now())
+  /// When the version last became the active one. Never set for a canary that was
+  /// aborted, so "roll back to the previous version" skips it.
+  activatedAt      DateTime?
   deletedAt        DateTime?
   workspace        Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   remoteModule     RemoteModule        @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
@@ -180,35 +237,81 @@ model ApiKey {
   lastUsedAt     DateTime?
   revokedAt      DateTime?
   createdAt      DateTime  @default(now())
-  createdBy      String
+  /// The user who created it; null when an admin API key did (IaC-01, e.g. Terraform).
+  createdBy      String?
+  /// The workspace or org API key that created it, when not a user.
+  createdByKeyId String?
   workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  creator        User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  creator        User?     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
 }
 
 model RefreshToken {
+  id              String    @id @default(cuid())
+  userId          String
+  /// sha256 of the raw token (high-entropy, so a fast hash is sufficient).
+  tokenHash       String    @unique
+  /// All tokens descending from one login. Reuse of a rotated token revokes the family.
+  familyId        String
+  expiresAt       DateTime
+  usedAt          DateTime?
+  revokedAt       DateTime?
+  /// The identity provider of the login, e.g. 'github' or 'oidc:acme' (forced SSO).
+  provider        String?
+  /// SSO-08/27: the IdP's refresh token (sealed), re-checked while the session lives.
+  ssoRefreshToken String?
+  ssoCheckedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+}
+
+/// A login method linked to a user (GitHub account, email, OIDC subject, ...).
+model Identity {
+  id             String    @id @default(cuid())
+  userId         String
+  /// IdentityProvider id, e.g. 'github', 'email', 'oidc:acme'.
+  provider       String
+  /// Stable subject at the provider (GitHub user id, email address, OIDC `sub`).
+  providerUserId String
+  email          String
+  createdAt      DateTime  @default(now())
+  lastUsedAt     DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+/// Passwordless email sign-in (magic link + one-time code).
+model EmailLoginToken {
   id        String    @id @default(cuid())
-  userId    String
-  tokenHash String
+  email     String
+  tokenHash String    @unique
+  codeHash  String
+  /// Binds the link to the browser that requested it (login CSRF protection).
+  nonceHash String
+  attempts  Int       @default(0)
   expiresAt DateTime
   usedAt    DateTime?
-  revokedAt DateTime?
   createdAt DateTime  @default(now())
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, createdAt])
 }
 
 model WebhookEndpoint {
-  id               String              @id @default(cuid())
-  workspaceId      String
-  url              String
-  events           String[]
-  secret           String
-  active           Boolean             @default(true)
-  maxRetries       Int                 @default(5)
-  backoffCeilingMs Int                 @default(300000)
-  paused           Boolean             @default(false)
-  createdAt        DateTime            @default(now())
-  workspace        Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  WebhookDeliveries WebhookDelivery[]
+  id                 String              @id @default(cuid())
+  workspaceId        String
+  url                String
+  events             String[]
+  secret             String
+  active             Boolean             @default(true)
+  maxRetries         Int                 @default(5)
+  backoffCeilingMs   Int                 @default(300000)
+  paused             Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  workspace          Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  WebhookDeliveries  WebhookDelivery[]
   WebhookDeadLetters WebhookDeadLetter[]
 }
 
@@ -263,24 +366,26 @@ model AuditEvent {
 }
 
 model WorkspaceConfig {
-  id              String   @id @default(cuid())
-  workspaceId     String   @unique
-  oauthProvider   String   @default("github")
-  oauthConfig     Json?
-  storageProvider String   @default("local")
-  storageConfig   Json?
-  logProvider     String   @default("console")
-  logConfig       Json?
-  oidcConfig      Json?
-  samlConfig      Json?
-  forceSso        Boolean  @default(false)
-  trustedDomains  String[]
-  defaultSsoRole  String   @default("viewer")
-  scimEnabled     Boolean  @default(false)
-  scimTokenHash   String?
-  plan            String   @default("hobby")
-  updatedAt       DateTime @updatedAt
-  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(cuid())
+  workspaceId        String    @unique
+  oauthProvider      String    @default("github")
+  oauthConfig        Json?
+  storageProvider    String    @default("local")
+  storageConfig      Json?
+  logProvider        String    @default("console")
+  logConfig          Json?
+  oidcConfig         Json?
+  samlConfig         Json?
+  forceSso           Boolean   @default(false)
+  trustedDomains     String[]
+  defaultSsoRole     String    @default("viewer")
+  scimEnabled        Boolean   @default(false)
+  /// sha256 of the SCIM bearer token (SSO-24).
+  scimTokenHash      String?   @unique
+  scimTokenCreatedAt DateTime?
+  plan               String    @default("hobby")
+  updatedAt          DateTime  @updatedAt
+  workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model ModuleOwnership {
@@ -295,18 +400,37 @@ model ModuleOwnership {
   @@unique([remoteModuleId, workspaceMemberId])
 }
 
+/// ALT-01..05: evaluated every minute against module health (or webhook deliveries).
 model AlertRule {
-  id             String    @id @default(cuid())
-  workspaceId    String
-  remoteModuleId String?
-  environmentId  String?
-  condition      String
-  threshold      Float
-  action         String
-  actionConfig   Json
-  enabled        Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  workspaceId     String
+  name            String        @default("")
+  remoteModuleId  String?
+  environmentId   String?
+  condition       String
+  threshold       Float
+  /// `webhook` or `auto_rollback`.
+  action          String
+  actionConfig    Json
+  windowMinutes   Int           @default(5)
+  /// No decision below this many samples in the window.
+  minSamples      Int           @default(20)
+  /// Minimum time between two firings, against flapping.
+  cooldownMinutes Int           @default(15)
+  enabled         Boolean       @default(true)
+  /// `ok` or `firing`.
+  state           String        @default("ok")
+  lastValue       Float?
+  lastEvaluatedAt DateTime?
+  lastTriggeredAt DateTime?
+  /// Why the last action failed (e.g. the environment was frozen).
+  lastError       String?
+  createdAt       DateTime      @default(now())
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  remoteModule    RemoteModule? @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
+  environment     Environment?  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
 }
 
 model ManifestSnapshot {
@@ -331,7 +455,9 @@ model ModuleHealthEvent {
   workspaceId    String
   remoteModuleId String
   environmentId  String
+  /// `stable` or `canary`, derived by the registry from the reported version.
   variant        String
+  version        String?
   success        Boolean
   loadMs         Int?
   errorMessage   String?
@@ -342,19 +468,89 @@ model ModuleHealthEvent {
   environment    Environment  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, remoteModuleId, environmentId, reportedAt])
+  @@index([environmentId, reportedAt])
+}
+
+/// Hourly health per module, environment and variant (HLT-04 sparklines). Raw events are
+/// kept for 24 hours; rollups for 30 days.
+model ModuleHealthRollup {
+  id             String       @id @default(cuid())
+  workspaceId    String
+  remoteModuleId String
+  environmentId  String
+  variant        String
+  hour           DateTime
+  sampleCount    Int
+  errorCount     Int
+  p50LoadMs      Int?
+  p95LoadMs      Int?
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  remoteModule   RemoteModule @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
+  environment    Environment  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([remoteModuleId, environmentId, variant, hour])
+  @@index([workspaceId, hour])
+}
+
+/// SSO-24/25: a user provisioned by the workspace's IdP over SCIM. Kept after
+/// deprovisioning (`active: false` / `deletedAt`) so SSO can't silently re-add them.
+/// SCIM users of a workspace or (ORG-07) of an organization: exactly one is set.
+model ScimUser {
+  id             String        @id @default(cuid())
+  workspaceId    String?
+  organizationId String?
+  userId         String
+  userName       String
+  externalId     String?
+  displayName    String?
+  givenName      String?
+  familyName     String?
+  active         Boolean       @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@unique([workspaceId, userName])
+  @@unique([organizationId, userId])
+  @@unique([organizationId, userName])
+  @@index([workspaceId, externalId])
+}
+
+/// SCIM groups; members are ScimUser ids. Group names map to roles like SSO groups.
+model ScimGroup {
+  id             String        @id @default(cuid())
+  workspaceId    String?
+  organizationId String?
+  displayName    String
+  externalId     String?
+  memberIds      String[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, displayName])
+  @@unique([organizationId, displayName])
 }
 
 model ScimAuditEvent {
-  id          String    @id @default(cuid())
-  workspaceId String
-  operation   String
-  scimUserId  String
-  payload     Json
-  statusCode  Int
-  createdAt   DateTime  @default(now())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  workspaceId    String?
+  organizationId String?
+  operation      String
+  scimUserId     String
+  payload        Json
+  statusCode     Int
+  createdAt      DateTime      @default(now())
+  workspace      Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
 }
 
 model ApprovalPolicy {
@@ -374,26 +570,42 @@ model ApprovalPolicy {
   @@index([workspaceId])
 }
 
+/// APR-04: a change waiting for approval. It is the API call itself (`method`, `path`,
+/// `payload`), executed as the requester once approved, like a scheduled operation.
 model DeploymentRequest {
   id                  String               @id @default(cuid())
   workspaceId         String
   moduleId            String
   environmentId       String
+  /// `deploy`, `rollback`, `promote`, `canary_traffic`, `canary_promote`, `canary_abort`.
   type                String
   requestedBy         String
+  requestedByType     ActorType            @default(user)
+  method              String               @default("POST")
+  path                String               @default("")
   payload             Json
+  /// `pending_approval`, `executing`, `executed`, `failed`, `rejected` or `expired`.
   status              String
+  requiredApprovers   Int                  @default(1)
   changeTicketId      String?
   changeTicketUrl     String?
   expiresAt           DateTime
   resolvedAt          DateTime?
   resolvedBy          String?
+  /// APR-10: an owner executed it without the approvals.
+  bypassed            Boolean              @default(false)
   bypassJustification String?
+  /// `{ statusCode, body }` of the executed call.
+  result              Json?
+  /// The version the executed deploy or promote created (APR-18).
+  resultVersionId     String?
   createdAt           DateTime             @default(now())
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   DeploymentApprovals DeploymentApproval[]
 
   @@index([workspaceId])
+  @@index([status, expiresAt])
+  @@index([resultVersionId])
 }
 
 model DeploymentApproval {
@@ -404,20 +616,35 @@ model DeploymentApproval {
   comment             String?
   decidedAt           DateTime          @default(now())
   deploymentRequest   DeploymentRequest @relation(fields: [deploymentRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([deploymentRequestId, approverId])
 }
 
 model Organization {
-  id         String               @id @default(cuid())
-  slug       String               @unique
-  name       String
-  plan       String               @default("hobby")
-  oidcConfig Json?
-  samlConfig Json?
-  createdAt  DateTime             @default(now())
-  deletedAt  DateTime?
-  Workspaces Workspace[]
-  Members    OrganizationMember[]
-  OrgApiKeys OrgApiKey[]
+  id                 String                   @id @default(cuid())
+  slug               String                   @unique
+  name               String
+  plan               String                   @default("hobby")
+  /// ORG-05: inherited by workspaces without their own SSO.
+  oidcConfig         Json?
+  samlConfig         Json?
+  forceSso           Boolean                  @default(false)
+  trustedDomains     String[]                 @default([])
+  /// ORG-07: `{ rules: [{ group, workspace, role }], adminGroups }`.
+  provisioning       Json?
+  scimEnabled        Boolean                  @default(false)
+  /// sha256 of the org SCIM bearer token.
+  scimTokenHash      String?                  @unique
+  scimTokenCreatedAt DateTime?
+  createdAt          DateTime                 @default(now())
+  deletedAt          DateTime?
+  Workspaces         Workspace[]
+  Members            OrganizationMember[]
+  OrgApiKeys         OrgApiKey[]
+  AuditEvents        OrganizationAuditEvent[]
+  ScimUsers          ScimUser[]
+  ScimGroups         ScimGroup[]
+  ScimAuditEvents    ScimAuditEvent[]
 }
 
 model OrganizationMember {
@@ -432,16 +659,41 @@ model OrganizationMember {
   @@unique([organizationId, userId])
 }
 
+/// ORG-13: `hq_org_<id>_<secret>`; empty scopes mean every workspace / module of the org.
 model OrgApiKey {
   id             String       @id @default(cuid())
   organizationId String
   keyHash        String
   name           String
+  prefix         String       @default("")
+  scopes         String[]     @default([])
+  /// Workspace ids.
   workspaceScope String[]
+  /// Module ids.
   moduleScope    String[]
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  createdBy      String?
   createdAt      DateTime     @default(now())
   revokedAt      DateTime?
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+/// Org-level changes (members, workspaces, keys); workspace changes stay in AuditEvent.
+model OrganizationAuditEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorType      ActorType
+  actorId        String
+  action         String
+  resourceType   String
+  resourceId     String
+  metadata       Json?
+  ip             String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
 }
 
 model InstanceConfig {
@@ -450,6 +702,21 @@ model InstanceConfig {
   value     Json
   updatedAt DateTime @updatedAt
   updatedBy String
+}
+
+/// INST-18: instance-level changes (config, admins, workspace suspension, users). Append-only.
+model InstanceAuditEvent {
+  id           String    @id @default(cuid())
+  actorType    ActorType
+  actorId      String
+  action       String
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  ip           String?
+  createdAt    DateTime  @default(now())
+
+  @@index([createdAt(sort: Desc)])
 }
 
 model InstanceAdmin {
@@ -468,12 +735,64 @@ model WorkspaceStorageConfig {
   bucket               String
   region               String
   credentialsEncrypted Json
+  /// BYOB-02: S3-compatible endpoint (MinIO, R2 …).
+  endpoint             String?
   cdnPrefix            String?
   pathPrefix           String?
+  /// BYOB-04/05: the last successful write-read-delete check.
   lastVerifiedAt       DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId])
+}
+
+/// Kill switch (M3.6): a module disabled in one environment is marked `disabled` in the
+/// manifest, so hosts stop loading it at once.
+model ModuleEnvState {
+  id             String       @id @default(cuid())
+  workspaceId    String
+  remoteModuleId String
+  environmentId  String
+  disabled       Boolean      @default(false)
+  reason         String?
+  updatedBy      String
+  updatedAt      DateTime     @updatedAt
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  remoteModule   RemoteModule @relation(fields: [remoteModuleId], references: [id], onDelete: Cascade)
+  environment    Environment  @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([remoteModuleId, environmentId])
+  @@index([environmentId])
+}
+
+/// Scheduled operations (M3.6): an API call (deploy, promote, canary…) run at `runAt`,
+/// as its creator, through the same route and checks as a manual call.
+model ScheduledOperation {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  type          String
+  /// For listings; the call itself is `method` + `path` + `body`.
+  module        String?
+  environment   String?
+  description   String?
+  method        String
+  path          String
+  body          Json
+  runAt         DateTime
+  /// `pending`, `running`, `done`, `failed` or `cancelled`.
+  status        String    @default("pending")
+  createdById   String
+  createdByType ActorType
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  /// `{ statusCode, body }` of the call.
+  result        Json?
+  error         String?
+  createdAt     DateTime  @default(now())
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([workspaceId, runAt])
 }

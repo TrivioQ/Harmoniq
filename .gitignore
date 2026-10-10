@@ -50,3 +50,18 @@ prisma/*.db-journal
 # artifacts
 brain/
 scratch/
+
+# Local instance storage (STORAGE_ADAPTER=local): published manifests in development
+data/
+
+# Example state
+examples/**/.demo.env
+.terraform/
+*.tfstate*
+
+# pnpm run dev:local (embedded Postgres data)
+.harmoniq/
+
+# Python
+__pycache__/
+*.egg-info/

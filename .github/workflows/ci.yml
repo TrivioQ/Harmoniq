@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
@@ -12,14 +14,12 @@ jobs:
   build:
     name: Build & Test
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16-alpine
         env:
-          POSTGRES_USER: harmoniq
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: harmoniq
+          POSTGRES_PASSWORD: postgres
         ports:
           - 5433:5432
         options: >-
@@ -27,50 +27,216 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6380:6379
+
+    env:
+      # Same role split as local Docker (docker/init.sql): owner vs RLS-bound tenant role.
+      DATABASE_URL: postgresql://harmoniq_app:password@localhost:5433/harmoniq
+      SYSTEM_DATABASE_URL: postgresql://harmoniq:password@localhost:5433/harmoniq
+      REDIS_URL: redis://localhost:6380
+      CACHE_ADAPTER: memory
+      NODE_ENV: test
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+        with:
+          fetch-depth: 0 # changelog:check diffs against the base branch
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4 # version comes from package.json `packageManager`
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 8
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - uses: actions/cache@v4
-        name: Setup pnpm cache
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm run typecheck
-        
+      - name: Check formatting
+        run: pnpm exec prettier --check "**/*.{ts,tsx,md,json}"
+
+      - name: Check license headers
+        run: pnpm run license:check
+
+      # What ships (registry, dashboard, SDK, CLI): no high or critical advisories.
+      - name: Audit production dependencies
+        run: pnpm audit --audit-level high --prod
+
+      - name: Check feature docs were updated
+        if: github.event_name == 'pull_request'
+        run: pnpm run changelog:check origin/${{ github.base_ref }}
+
+      - name: Create database roles
+        env:
+          PGPASSWORD: postgres
+        run: psql -h localhost -p 5433 -U postgres -v ON_ERROR_STOP=1 -f docker/init.sql
+
+      - name: Run database migrations
+        run: pnpm --filter @harmoniq/db exec prisma migrate deploy
+
+      - name: Build (includes type checking)
+        run: pnpm run build
+
       - name: Lint
         run: pnpm run lint
-        
-      - name: Run Database Migrations
-        env:
-          DATABASE_URL: postgresql://harmoniq:password@localhost:5433/harmoniq?schema=public
-        run: pnpm --filter @harmoniq/db exec prisma migrate deploy
-        
+
       - name: Test
-        env:
-          DATABASE_URL: postgresql://harmoniq:password@localhost:5433/harmoniq?schema=public
-          CACHE_ADAPTER: memory
         run: pnpm test
+
+      # Fails on undocumented exports leaking into signatures and broken links.
+      - name: Deploy action (stub CLI)
+        run: bash actions/deploy/test.sh
+
+      - name: GitLab component (stub CLI)
+        run: node integrations/gitlab/test.mjs
+
+      - name: SDK API reference (TypeDoc)
+        run: pnpm --filter @harmoniq/client docs:api
+
+      - name: Manifest benchmark (p99 < 50 ms on a cache hit)
+        run: pnpm --filter @harmoniq/registry bench -- --duration 5
+
+      # Remotes built and deployed by the build plugin, loaded by a host through the MF
+      # runtime plugin; also covers rollback, CDN/persisted/fallback manifests and overrides.
+      - name: E2E (examples/vite-mf)
+        env:
+          NODE_ENV: development
+          HARMONIQ_DEV_LOGIN: '1'
+          STORAGE_ADAPTER: local
+        run: |
+          (cd apps/registry && node dist/index.js > "$RUNNER_TEMP/registry.log" 2>&1 &)
+          for i in $(seq 1 30); do curl -sf http://localhost:4000/health && break; sleep 1; done
+          pnpm --filter @harmoniq-example/vite-mf e2e || { cat "$RUNNER_TEMP/registry.log"; exit 1; }
+
+      # IaC-01..03: the Terraform provider against the registry started above.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: integrations/terraform-provider-harmoniq/go.mod
+          cache-dependency-path: integrations/terraform-provider-harmoniq/go.sum
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+      - name: Terraform provider acceptance tests
+        working-directory: integrations/terraform-provider-harmoniq
+        run: |
+          eval "$(scripts/acc-env.sh http://localhost:4000)"
+          TF_ACC=1 go test ./internal/provider -run TestAcc -count=1 -v
+
+  terraform-provider:
+    name: Terraform provider
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/terraform-provider-harmoniq
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: integrations/terraform-provider-harmoniq/go.mod
+          cache-dependency-path: integrations/terraform-provider-harmoniq/go.sum
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+      - name: Vet and unit tests
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+          go vet ./...
+          go test ./...
+      # IaC-04: docs/ must match the schemas and examples.
+      - name: Generated docs are current
+        run: |
+          go generate ./...
+          go tool tfplugindocs validate
+          git diff --exit-code -- docs
+
+  clients:
+    name: Go and Python clients
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: integrations/clients/go/go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # OAS-03: one method per operation of docs/openapi.json.
+      - name: Generated operations are current
+        run: |
+          node scripts/generate-clients.mjs
+          git diff --exit-code -- integrations/clients
+      - name: Go client
+        working-directory: integrations/clients/go
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test ./...
+      - name: Python client
+        working-directory: integrations/clients/python
+        run: python -m unittest discover -s tests -v
+
+  helm:
+    name: Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+      - name: Lint and render
+        run: |
+          set -- --set secrets.databaseUrl=postgresql://app@db/harmoniq \
+                 --set secrets.systemDatabaseUrl=postgresql://owner@db/harmoniq \
+                 --set secrets.jwtSecret=ci-only-0123456789abcdef0123456789 \
+                 --set secrets.encryptionKey=ci-only --set ingress.enabled=true
+          helm lint charts/harmoniq "$@"
+          helm template ci charts/harmoniq "$@" > /dev/null
+          helm template ci charts/harmoniq --set secrets.existingSecret=harmoniq > /dev/null
+
+  docker:
+    name: Docker images
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        app: [registry, web]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Image names must be lowercase.
+      - run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Always built (catches Dockerfile breakage); pushed only for version tags.
+      - name: Build ${{ matrix.app }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tags: ghcr.io/${{ env.OWNER }}/harmoniq-${{ matrix.app }}:${{ github.ref_name }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}

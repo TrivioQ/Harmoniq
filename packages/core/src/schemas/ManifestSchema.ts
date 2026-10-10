@@ -1,13 +1,25 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { z } from 'zod';
 
 export const ModuleSchema = z.object({
   name: z.string(),
+  /** Import-map specifier when it differs from `name`, e.g. `@acme/checkout`. */
+  specifier: z.string().optional(),
   url: z.string().url(),
   integrity: z.string(),
   version: z.string(),
   dependencies: z.record(z.string()).optional(),
   exposes: z.record(z.string()).optional(),
   metadata: z.record(z.unknown()).optional(),
+  /** Kill switch (M3.6): hosts must not load this module. */
+  disabled: z.boolean().optional(),
+  disabledReason: z.string().optional(),
+  /** ORG-11: published by another workspace of the organization (read-only here). */
+  shared: z.boolean().optional(),
+  /** ORG-11: the workspace that owns a shared module. */
+  ownerWorkspace: z.string().optional(),
 });
 
 export const ManifestSchema = z.object({

@@ -1,0 +1,105 @@
+name: Harmoniq Deploy
+description: Deploy or promote a micro frontend with Harmoniq, with a deployment card in the job summary.
+author: Harmoniq
+branding:
+  icon: upload-cloud
+  color: purple
+
+inputs:
+  registry-url:
+    description: Harmoniq registry URL
+    required: true
+  api-key:
+    description: API key with the deploy:write scope (store it as a secret)
+    required: true
+  workspace:
+    description: Workspace slug
+    required: true
+  module:
+    description: Module slug or id
+    required: true
+  environment:
+    description: Target environment (deploy) or destination (promote)
+    required: true
+  version:
+    description: Version being deployed (e.g. a tag or the commit SHA). Deploy only.
+    required: false
+  url:
+    description: Public URL of the uploaded remote entry. Deploy only.
+    required: false
+  integrity:
+    description: SRI hash. Computed from `file` when given, else from the bundle at `url`. Deploy only.
+    required: false
+  file:
+    description: Local remote entry to compute the integrity hash from. Deploy only.
+    required: false
+  promote-from:
+    description: Promote the version running in this environment instead of deploying.
+    required: false
+  preview-ttl-hours:
+    description: Create `environment` (e.g. pr-123) as a preview environment that expires after this many hours. The workspace must allow preview environments.
+    required: false
+  change-ticket:
+    description: Change ticket id, for environments whose approval policy requires one.
+    required: false
+  wait-for-approval:
+    description: When the environment needs approval, wait until the change is decided instead of failing with exit code 6.
+    required: false
+    default: 'false'
+  dry-run:
+    description: Validate and show the projected change without deploying.
+    required: false
+    default: 'false'
+  cli:
+    description: Command used to run the Harmoniq CLI.
+    required: false
+    default: npx --yes @harmoniq/cli@1
+
+outputs:
+  version-id:
+    description: Id of the version record created
+    value: ${{ steps.run.outputs.version-id }}
+  manifest-url:
+    description: URL of the environment's manifest
+    value: ${{ steps.run.outputs.manifest-url }}
+  deployed-at:
+    description: When the version went live (ISO 8601)
+    value: ${{ steps.run.outputs.deployed-at }}
+  status:
+    description: deployed, promoted, dry-run or pending-approval
+    value: ${{ steps.run.outputs.status }}
+  approval-request-id:
+    description: Approval request id, when the change waits (or waited) for approval
+    value: ${{ steps.run.outputs.approval-request-id }}
+  change-url:
+    description: Dashboard link to the change and its manifest diff
+    value: ${{ steps.run.outputs.change-url }}
+  manifest-etag:
+    description: ETag of the manifest after the change
+    value: ${{ steps.run.outputs.manifest-etag }}
+  preview-url:
+    description: Preview link, when the host app defines a preview URL template
+    value: ${{ steps.run.outputs.preview-url }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        HARMONIQ_REGISTRY_URL: ${{ inputs.registry-url }}
+        HARMONIQ_API_KEY: ${{ inputs.api-key }}
+        HARMONIQ_WORKSPACE: ${{ inputs.workspace }}
+        HARMONIQ_CHANGE_TICKET: ${{ inputs.change-ticket }}
+        MODULE: ${{ inputs.module }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        VERSION: ${{ inputs.version }}
+        URL: ${{ inputs.url }}
+        FILE: ${{ inputs.file }}
+        INTEGRITY: ${{ inputs.integrity }}
+        PROMOTE_FROM: ${{ inputs.promote-from }}
+        DRY_RUN: ${{ inputs.dry-run }}
+        WAIT: ${{ inputs.wait-for-approval }}
+        PREVIEW_TTL: ${{ inputs.preview-ttl-hours }}
+        CLI: ${{ inputs.cli }}
+      run: bash "$GITHUB_ACTION_PATH/run.sh"

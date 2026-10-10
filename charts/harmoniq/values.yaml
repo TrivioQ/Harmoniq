@@ -1,34 +1,89 @@
-replicaCount: 1
+# Harmoniq: the registry (API, manifests) and the dashboard.
+#
+# The chart doesn't run Postgres or Redis: point it at yours. Postgres needs two roles
+# (see docker/init.sql): `harmoniq` owns the schema (migrations, SYSTEM_DATABASE_URL)
+# and `harmoniq_app` is the runtime role subject to Row-Level Security (DATABASE_URL).
 
 image:
   registry: harmoniq/registry
   web: harmoniq/web
+  tag: "" # defaults to the chart's appVersion
   pullPolicy: IfNotPresent
-  tag: "latest"
+imagePullSecrets: []
+
+# Public URLs. The dashboard and the registry each get their own host.
+urls:
+  web: https://harmoniq.example.com
+  registry: https://registry.harmoniq.example.com
+
+registry:
+  # More than one replica needs Redis (env.CACHE_ADAPTER=redis), so caches agree.
+  replicaCount: 2
+  port: 4000
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  # Extra environment (e.g. SMTP_URL from a Secret via extraEnvFrom).
+  extraEnv: []
+  extraEnvFrom: []
+
+web:
+  replicaCount: 2
+  port: 3000
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  extraEnv: []
+
+env:
+  CACHE_ADAPTER: redis
+  REDIS_URL: redis://redis:6379
+  # none | local | s3; instance settings in the admin panel override it.
+  STORAGE_ADAPTER: none
+  # Sign-in methods allowed on the instance, e.g. "oidc" or "oidc,email". Empty: every
+  # configured method. Values: github, email, oidc, sso-oidc, sso-saml (see .env.example).
+  # OIDC_ISSUER / OIDC_CLIENT_ID go here too; put OIDC_CLIENT_SECRET in a Secret and
+  # reference it with registry.extraEnvFrom.
+  HARMONIQ_AUTH_METHODS: ""
+
+# Runs `prisma migrate deploy` before installs and upgrades (Helm hook).
+migrations:
+  enabled: true
+  backoffLimit: 3
+
+# Sensitive values. Either set them here (rendered into a Secret) or name an existing
+# Secret with the keys DATABASE_URL, SYSTEM_DATABASE_URL, JWT_SECRET,
+# HARMONIQ_ENCRYPTION_KEY (and optionally HARMONIQ_SETUP_TOKEN).
+secrets:
+  existingSecret: ""
+  databaseUrl: ""
+  systemDatabaseUrl: ""
+  jwtSecret: ""
+  encryptionKey: ""
+  # One-time token for the first-boot wizard at /admin/setup.
+  setupToken: ""
 
 service:
   type: ClusterIP
-  registryPort: 3002
-  webPort: 3000
 
 ingress:
   enabled: false
   className: ""
   annotations: {}
-  hosts:
-    - host: harmoniq.local
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
+  # Hosts are taken from `urls`.
+  tls: []
+  #  - secretName: harmoniq-tls
+  #    hosts: [harmoniq.example.com, registry.harmoniq.example.com]
 
-env:
-  DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/harmoniq?schema=public"
-  REDIS_URL: "redis://redis:6379"
-  JWT_SECRET: "changeme"
-  CACHE_ADAPTER: "redis"
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities: { drop: [ALL] }
 
-postgres:
-  enabled: true
-  
-redis:
-  enabled: true
+nodeSelector: {}
+tolerations: []
+affinity: {}

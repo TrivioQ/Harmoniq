@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { ICache } from '@harmoniq/core/dist/ports/ICache';
 import Redis, { RedisOptions } from 'ioredis';
 
@@ -41,5 +44,9 @@ export class RedisCache implements ICache {
         await this.redis.del(...keys);
       }
     } while (cursor !== '0');
+  }
+
+  async close(): Promise<void> {
+    await this.redis.quit();
   }
 }

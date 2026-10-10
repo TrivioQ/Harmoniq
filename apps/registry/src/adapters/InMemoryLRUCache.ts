@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { ICache } from '@harmoniq/core/dist/ports/ICache';
 import { LRUCache } from 'lru-cache';
 
@@ -27,7 +30,9 @@ export class InMemoryLRUCache implements ICache {
 
   async invalidatePattern(pattern: string): Promise<void> {
     // Simple brute-force pattern matching for LRU cache (not ideal for huge caches, but this is a fallback)
-    const regex = new RegExp(`^${pattern.replace(/\*/g, '.*')}$`);
+    // Only `*` is a wildcard (Redis glob semantics); everything else matches literally.
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
     const keysToDelete: string[] = [];
 
     for (const key of this.cache.keys()) {

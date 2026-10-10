@@ -47,7 +47,7 @@ This project uses **two complementary documentation systems**. They are NOT inte
 - Any change to a public API (SDK, CLI, REST endpoints, manifest schema)
 - Any database migration
 - Any change to Docker configuration, environment variables, or deployment scripts
-- Any change to a port interface (`ICache`, `IStorage`, `ILogger`, `OAuthPlugin`)
+- Any change to a port interface (`ICache`, `IStorage`, `ILogger`, `IdentityProvider`)
 
 #### What does NOT require a feature doc update?
 
@@ -218,6 +218,6 @@ When an AI agent (Antigravity, Copilot, etc.) makes code changes to this reposit
 3. **Reference requirements**: In commit messages and changelog entries, reference the requirement IDs that motivated the change.
 4. **Do not bypass RLS**: Never generate code that disables or bypasses RLS.
 5. **Use pnpm**: All shell commands for package management MUST use `pnpm`.
-6. **Follow port interfaces**: When implementing new adapters, implement the full `ICache`, `IStorage`, `ILogger`, or `OAuthPlugin` interface from `@harmoniq/core`.
+6. **Follow port interfaces**: When implementing new adapters, implement the full `ICache`, `IStorage`, `ILogger`, or `IdentityProvider` interface from `@harmoniq/core`.
 7. **Update implementation plan**: When completing a task from `docs/implementation-plan.md`, mark the corresponding checkbox as done (`[x]`).
 8. **Write test cases for all features**: Every new feature or feature modification MUST include comprehensive test cases (unit, integration, or E2E as applicable) before completing the task.

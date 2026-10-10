@@ -1,19 +1,43 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { Command } from 'commander';
+import { authedClient, requireWorkspace, resolveContext } from '../lib/context';
+import { CliError, EXIT } from '../lib/errors';
+import { emit, enc } from '../lib/output';
+import { settleApproval } from '../lib/approval';
+import { AT_OPTION, scheduleIfRequested } from '../lib/schedule';
 
 export const rollbackCommand = new Command('rollback')
-  .description('Rollback a module to a previous version')
-  .requiredOption('--workspace <slug>', 'Workspace slug')
-  .requiredOption('--module <id>', 'Module ID')
-  .requiredOption('--env <env>', 'Environment')
-  .requiredOption('--version-id <id>', 'Target Module version ID to rollback to')
-  .action(async (options, command) => {
-    // API call omitted for brevity in stub
-    const parentOpts = command.parent?.opts() || {};
-    if (parentOpts.json) {
-      console.log(JSON.stringify({ success: true }));
-    } else {
-      console.log(
-        `Successfully rolled back ${options.module} to version ${options.versionId} in ${options.env}`
-      );
+  .description('Roll a module back to an earlier version (default: the previous one)')
+  .requiredOption('--module <module>', 'Module slug or id')
+  .requiredOption('--env <environment>', 'Environment')
+  .option('--to <version>', 'Version string to roll back to, e.g. 1.2.2')
+  .option('--version-id <id>', 'Exact version record id')
+  .option(...AT_OPTION)
+  .action(async (opts, command: Command) => {
+    const ctx = await resolveContext(command);
+    const workspace = requireWorkspace(ctx);
+    if (opts.to && opts.versionId) {
+      throw new CliError('Use either --to or --version-id', EXIT.validation);
     }
+    const target = opts.versionId
+      ? { versionId: opts.versionId }
+      : opts.to
+        ? { version: opts.to }
+        : { previous: true };
+
+    const request = { environment: opts.env, ...target };
+    const op = { type: 'rollback', module: opts.module, request };
+    if (await scheduleIfRequested(ctx, workspace, opts.at, op)) return;
+    const result = await settleApproval(
+      ctx,
+      workspace,
+      await authedClient(ctx).post<{ version: string; manifestEtag: string }>(
+        `/api/workspaces/${enc(workspace)}/modules/${enc(opts.module)}/rollback`,
+        request
+      )
+    );
+    if (!result) return;
+    emit(ctx, result, `Rolled back ${opts.module} in ${opts.env} to ${result.version}`);
   });

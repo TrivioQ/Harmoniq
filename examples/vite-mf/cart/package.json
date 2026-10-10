@@ -1,0 +1,13 @@
+{
+  "name": "@harmoniq-example/cart",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "@harmoniq/build-plugin": "workspace:*",
+    "@module-federation/vite": "1.23.4",
+    "vite": "^7.3.6"
+  }
+}

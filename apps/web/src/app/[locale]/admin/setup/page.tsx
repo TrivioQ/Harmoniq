@@ -1,101 +1,39 @@
-'use client';
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/routing';
+import { registryFetch } from '@/lib/registry';
+import { SetupWizard } from './SetupWizard';
 
-export default function AdminSetupPage() {
-  const t = useTranslations('AdminSetupPage');
-  const router = useRouter();
-  const [formData, setFormData] = useState({ setupToken: '', email: '', name: '' });
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatus('loading');
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_REGISTRY_URL || 'http://localhost:3002'}/api/admin/setup`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
-        }
-      );
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || t('errorSetup'));
-
-      localStorage.setItem('harmoniq_admin_token', data.token);
-      setStatus('success');
-      setTimeout(() => router.push('/admin'), 1500);
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : String(err));
-      setStatus('error');
-    }
-  };
+// INST-01: the first-boot wizard. It creates the first instance admin, who then signs in
+// with the same (verified) email address, which links their identity.
+export default async function AdminSetupPage() {
+  const t = await getTranslations('AdminSetupPage');
+  const status = await registryFetch<{ needed: boolean; tokenConfigured: boolean }>(
+    '/api/admin/setup'
+  ).catch(() => null);
 
   return (
-    <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-gray-100">
-      <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
-        <p className="text-gray-500 mt-2 text-sm">{t('description')}</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">{t('setupToken')}</label>
-          <input
-            type="password"
-            required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
-            value={formData.setupToken}
-            onChange={(e) => setFormData({ ...formData, setupToken: e.target.value })}
-            placeholder="HARMONIQ_SETUP_TOKEN"
-          />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-lg bg-white p-8 rounded-xl shadow-lg border border-gray-100">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+          <p className="text-gray-500 mt-2 text-sm">{t('description')}</p>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">{t('emailAddress')}</label>
-          <input
-            type="email"
-            required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            placeholder="admin@example.com"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">{t('name')}</label>
-          <input
-            type="text"
-            required
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="System Admin"
-          />
-        </div>
-
-        {status === 'error' && (
-          <div className="p-3 bg-red-50 text-red-700 text-sm rounded-md">{errorMessage}</div>
-        )}
-
-        {status === 'success' && (
-          <div className="p-3 bg-green-50 text-green-700 text-sm rounded-md">
-            {t('successMessage')}
+        {status && !status.needed ? (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-gray-600">{t('alreadyDone')}</p>
+            <Link href="/auth/login" className="text-indigo-600 hover:text-indigo-900 text-sm">
+              {t('goToSignIn')}
+            </Link>
           </div>
+        ) : status && !status.tokenConfigured ? (
+          <p className="text-sm text-red-700">{t('noToken')}</p>
+        ) : (
+          <SetupWizard />
         )}
-
-        <button
-          type="submit"
-          disabled={status === 'loading' || status === 'success'}
-          className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-        >
-          {status === 'loading' ? t('initializing') : t('initialize')}
-        </button>
-      </form>
+      </div>
     </div>
   );
 }

@@ -1,33 +1,85 @@
 #!/usr/bin/env node
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
 
 import { Command } from 'commander';
 import { loginCommand } from './commands/login';
 import { whoamiCommand } from './commands/whoami';
 import { deployCommand } from './commands/deploy';
 import { promoteCommand } from './commands/promote';
+import { canaryCommand } from './commands/canary';
+import { disableCommand, enableCommand } from './commands/killSwitch';
+import { scheduleCommand } from './commands/schedule';
 import { rollbackCommand } from './commands/rollback';
 import { validateCommand } from './commands/validate';
+import { manifestCommand } from './commands/manifest';
+import { doctorCommand } from './commands/doctor';
+import { applyCommand, importCommand, planCommand } from './commands/gitops';
+import { CliError, EXIT } from './lib/errors';
 
-const program = new Command();
+export function buildProgram() {
+  return new Command()
+    .name('harmoniq')
+    .description('Harmoniq CLI for CI/CD deployments and validation')
+    .version('1.0.0')
+    .option('--json', 'Machine-readable JSON output')
+    .option('--registry-url <url>', 'Registry URL (env HARMONIQ_REGISTRY_URL)')
+    .option('--api-key <key>', 'API key (env HARMONIQ_API_KEY)')
+    .option('--workspace <slug>', 'Workspace slug (env HARMONIQ_WORKSPACE)')
+    .option('--profile <name>', 'Saved profile (env HARMONIQ_PROFILE)', undefined)
+    .option(
+      '--change-ticket <id>',
+      'Change ticket for environments that require one (env HARMONIQ_CHANGE_TICKET)'
+    )
+    .option('--wait', 'When a change needs approval, wait until it is decided')
+    .addCommand(loginCommand)
+    .addCommand(whoamiCommand)
+    .addCommand(deployCommand)
+    .addCommand(promoteCommand)
+    .addCommand(rollbackCommand)
+    .addCommand(canaryCommand)
+    .addCommand(disableCommand)
+    .addCommand(enableCommand)
+    .addCommand(scheduleCommand)
+    .addCommand(validateCommand)
+    .addCommand(manifestCommand)
+    .addCommand(doctorCommand)
+    .addCommand(planCommand)
+    .addCommand(applyCommand)
+    .addCommand(importCommand);
+}
 
-program
-  .name('harmoniq')
-  .description('Harmoniq CLI for CI/CD deployments and validation')
-  .version('1.0.0')
-  .option('--json', 'output in JSON format for machines', false)
-  .option(
-    '--registry-url <url>',
-    'Registry URL',
-    process.env.HARMONIQ_REGISTRY_URL || 'http://localhost:3000'
-  )
-  .option('--api-key <key>', 'Harmoniq API Key', process.env.HARMONIQ_API_KEY)
-  .option('--profile <name>', 'Workspace profile name', 'default');
+/**
+ * Subcommands are module-level singletons and commander keeps parsed option values on
+ * them, so a second `run()` in one process would inherit options from the first.
+ */
+function resetOptions(command: Command) {
+  for (const option of command.options) {
+    command.setOptionValueWithSource(option.attributeName(), option.defaultValue, 'default');
+  }
+  command.commands.forEach(resetOptions);
+}
 
-program.addCommand(loginCommand);
-program.addCommand(whoamiCommand);
-program.addCommand(deployCommand);
-program.addCommand(promoteCommand);
-program.addCommand(rollbackCommand);
-program.addCommand(validateCommand);
+/** Runs the CLI and returns the exit code (see EXIT) instead of exiting, for tests. */
+export async function run(argv: string[]): Promise<number> {
+  process.exitCode = undefined;
+  try {
+    const program = buildProgram();
+    resetOptions(program);
+    await program.parseAsync(argv);
+    return Number(process.exitCode ?? EXIT.ok);
+  } catch (err) {
+    if (err instanceof CliError) {
+      console.error(`Error: ${err.message}`);
+      if (err.details) console.error(JSON.stringify(err.details, null, 2));
+      return err.exitCode;
+    }
+    console.error(err);
+    return EXIT.generic;
+  }
+}
 
-program.parse(process.argv);
+// Executed as a binary (not imported by tests).
+if (process.env.VITEST === undefined) {
+  run(process.argv).then((code) => process.exit(code));
+}

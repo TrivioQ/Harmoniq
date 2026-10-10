@@ -1,82 +1,146 @@
 # Self-Hosting Harmoniq
 
-Harmoniq is designed to be easily self-hostable within your own infrastructure. The minimal footprint requires only a PostgreSQL database and Node.js environments for the Registry API and Web Dashboard.
+Harmoniq runs as two services — the **registry** (API, port 4000) and the **dashboard** (Next.js, port 3000) — backed by **PostgreSQL 15+** (data and background jobs) and optionally **Redis** (shared manifest cache; required with more than one registry replica).
 
-## Prerequisites
+## Try it locally
 
-- **PostgreSQL 15+**: Required for both primary data storage and `pg-boss` background job queues.
-- **Node.js 20+** or **Docker**
-
-## Environment Variables
-
-### Registry API (`apps/registry`)
-
-| Variable        | Description                                  |
-| --------------- | -------------------------------------------- |
-| `DATABASE_URL`  | PostgreSQL connection string                 |
-| `JWT_SECRET`    | Secret key used to sign Auth tokens          |
-| `PORT`          | Port for the API to listen on (default 3001) |
-| `NODE_ENV`      | Should be `production`                       |
-| `CACHE_ADAPTER` | `memory` or `redis`                          |
-| `REDIS_URL`     | (Optional) Required if `CACHE_ADAPTER=redis` |
-
-### Web Dashboard (`apps/web`)
-
-| Variable                   | Description                                    |
-| -------------------------- | ---------------------------------------------- |
-| `NEXT_PUBLIC_REGISTRY_URL` | Public URL pointing to your deployed Registry  |
-| `NEXTAUTH_URL`             | Public URL pointing to this dashboard          |
-| `NEXTAUTH_SECRET`          | Secret for encrypting NextAuth session cookies |
-
-## Docker Compose Setup
-
-The easiest way to get started is using `docker-compose`.
-
-```yaml
-version: '3.8'
-
-services:
-  db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: harmoniq
-      POSTGRES_PASSWORD: supersecretpassword
-      POSTGRES_DB: harmoniq
-    ports:
-      - '5432:5432'
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  registry:
-    build:
-      context: .
-      dockerfile: apps/registry/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://harmoniq:supersecretpassword@db:5432/harmoniq?schema=public
-      JWT_SECRET: generate_a_secure_random_string
-      PORT: 3001
-      NODE_ENV: production
-      CACHE_ADAPTER: memory
-    ports:
-      - '3001:3001'
-    depends_on:
-      - db
-
-  web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    environment:
-      NEXT_PUBLIC_REGISTRY_URL: http://registry:3001
-      NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: generate_a_secure_random_string
-    ports:
-      - '3000:3000'
-    depends_on:
-      - registry
-
-volumes:
-  pgdata:
+```bash
+pnpm run docker:demo
 ```
 
-Run `docker-compose up -d` and the system will boot. Background jobs and queue schemas are automatically initialized by the Registry upon startup.
+This builds both images, starts Postgres and Redis, applies migrations, seeds a demo workspace and starts the registry and dashboard. Open http://localhost:3000 and use **Development sign-in** with `demo@harmoniq.dev` (owner of the `acme-corp` demo workspace). Stop with `pnpm run docker:demo:down`.
+
+The demo runs in development mode (development secrets, "sign in as any email"). Do not expose it to the internet.
+
+Without Docker, `pnpm run dev:local` runs the same stack from source on an embedded Postgres (downloaded as an npm package) with an in-memory cache; see the [README](../README.md#quick-start-development).
+
+## Production
+
+### 1. Database roles
+
+Harmoniq uses two Postgres roles:
+
+| Role           | Used by                                          | RLS              |
+| -------------- | ------------------------------------------------ | ---------------- |
+| `harmoniq`     | Schema owner: migrations, background jobs, admin | Bypasses (owner) |
+| `harmoniq_app` | All tenant-scoped requests                       | Always applies   |
+
+On a self-managed Postgres, create them once as a superuser (see `docker/init.sql`, with your own passwords):
+
+```sql
+CREATE USER harmoniq WITH PASSWORD '…' CREATEDB;
+CREATE USER harmoniq_app WITH PASSWORD '…';
+CREATE DATABASE harmoniq OWNER harmoniq;
+```
+
+On a managed database (RDS, Cloud SQL, Azure) where you only have the master user, make that user the owner and let the registry create the app role from `DATABASE_URL`'s credentials. Run this **before** the first migration — otherwise an early migration creates `harmoniq_app` with a placeholder password:
+
+```bash
+docker run --rm -e DATABASE_URL=… -e SYSTEM_DATABASE_URL=… harmoniq/registry npx tsx scripts/bootstrap-db.ts
+```
+
+It is idempotent and re-applies the password, so it also rotates it. Then run migrations as the owner (the registry image includes the Prisma CLI):
+
+```bash
+docker run --rm -e DATABASE_URL=… -e SYSTEM_DATABASE_URL=… \
+  -w /repo/packages/db harmoniq/registry npx prisma migrate deploy
+```
+
+### 2. Configuration
+
+Put these in `docker/.env` for Compose, or in your orchestrator's secret store:
+
+| Variable                                                                   | Service   | Description                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                                                 | both      | `production` (the registry refuses default secrets in production)                                                                                                                                                                                                                                                          |
+| `DATABASE_URL`                                                             | registry  | `postgresql://harmoniq_app:…@host:5432/harmoniq`                                                                                                                                                                                                                                                                           |
+| `SYSTEM_DATABASE_URL`                                                      | registry  | `postgresql://harmoniq:…@host:5432/harmoniq`                                                                                                                                                                                                                                                                               |
+| `JWT_SECRET`                                                               | both      | Same value on registry and dashboard; ≥ 32 random chars (`openssl rand -base64 48`)                                                                                                                                                                                                                                        |
+| `HARMONIQ_ENCRYPTION_KEY`                                                  | registry  | 32 random bytes, base64 (`openssl rand -base64 32`); encrypts stored credentials and webhook secrets. Keep a backup — losing it makes them unreadable.                                                                                                                                                                     |
+| `APP_URL`                                                                  | dashboard | Public dashboard URL; also set the registry's `WEB_ORIGIN` to it                                                                                                                                                                                                                                                           |
+| `WEB_ORIGIN`                                                               | registry  | Dashboard origin (CORS, allowed sign-in redirects)                                                                                                                                                                                                                                                                         |
+| `REGISTRY_URL`                                                             | dashboard | URL the dashboard uses to reach the registry (can be internal)                                                                                                                                                                                                                                                             |
+| `CACHE_ADAPTER`, `REDIS_URL`                                               | registry  | `redis` + URL; **required with more than one replica** (the in-memory cache isn't shared, and the registry warns at startup)                                                                                                                                                                                               |
+| `STORAGE_ADAPTER`                                                          | registry  | Where published manifests go: `s3`, `local` (dev default) or `none` (production default)                                                                                                                                                                                                                                   |
+| `S3_BUCKET`, `S3_REGION`, `S3_PUBLIC_URL`                                  | registry  | Bucket for published manifests and its public (CDN) base URL; `S3_ENDPOINT` for S3-compatible stores                                                                                                                                                                                                                       |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`                                 | registry  | Optional; omit both to use the AWS default credential chain (ECS task role, instance profile)                                                                                                                                                                                                                              |
+| `PUBLIC_URL`                                                               | registry  | Public registry URL (links in emails, `/static` URLs, SAML endpoints: browsers post to its ACS)                                                                                                                                                                                                                            |
+| `HARMONIQ_SETUP_TOKEN`                                                     | registry  | One-time token for the first-boot wizard at `/admin/setup`                                                                                                                                                                                                                                                                 |
+| `SMTP_URL`, `MAIL_FROM`                                                    | registry  | Email sign-in (magic link + code)                                                                                                                                                                                                                                                                                          |
+| `HARMONIQ_AUTH_METHODS`                                                    | registry  | Comma-separated allowlist of sign-in methods: `github`, `email`, `oidc` (the instance IdP), `sso-oidc` and `sso-saml` (configured by workspaces and organizations), `dev`. Empty: every configured method. The admin panel can turn listed methods off but never on; sessions from other methods end at their next request |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                 | registry  | GitHub sign-in; callback `${APP_URL}/api/auth/callback/github`                                                                                                                                                                                                                                                             |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_DISPLAY_NAME` | registry  | Instance-wide OpenID Connect sign-in (workspaces can also configure their own in Settings → Single sign-on); callback `${APP_URL}/api/auth/callback/oidc`                                                                                                                                                                  |
+| `HARMONIQ_SSO_ALLOW_PRIVATE_ISSUERS`                                       | registry  | `1` to allow workspace OIDC issuers on private networks or plain HTTP in production                                                                                                                                                                                                                                        |
+| `TRUST_PROXY`                                                              | registry  | Peers allowed to set `X-Forwarded-For` (default `loopback,linklocal,uniquelocal`: the dashboard and load balancers on private networks). Per-IP rate limits and audit IPs use the client address. `false` to disable, or a list of IPs/CIDRs                                                                               |
+| `HARMONIQ_VALIDATE_BUNDLES`                                                | registry  | `1` to fetch and verify every bundle on deploy                                                                                                                                                                                                                                                                             |
+| `HARMONIQ_GC_KEEP_VERSIONS`                                                | registry  | Versions always kept per module and environment for rollback (default 10)                                                                                                                                                                                                                                                  |
+| `HARMONIQ_MANIFEST_RATE_LIMIT`, `_STARTUP`, `_ENTERPRISE`                  | registry  | Manifest requests per minute per workspace and client IP, by the workspace's plan (defaults 600, 3000, 10000)                                                                                                                                                                                                              |
+| `HARMONIQ_WRITE_RATE_LIMIT`                                                | registry  | Writes (POST, PUT, PATCH, DELETE) per minute per credential, or per client IP without one (default 300). Sign-in, setup and health ingest have their own, stricter limits                                                                                                                                                  |
+| `HARMONIQ_MANIFEST_MISS_LIMIT`                                             | registry  | Not-found manifest answers per minute per client IP, across all workspaces (default 120). Stops requests that invent workspace names from reaching the database                                                                                                                                                            |
+| `TLS_CERT_FILE`, `TLS_KEY_FILE`                                            | registry  | PEM files; serves HTTPS with HTTP/2 (HTTP/1.1 still accepted). Without them the registry speaks plain HTTP/1.1, for a TLS-terminating proxy or load balancer, which can offer HTTP/2 to clients                                                                                                                            |
+| `HARMONIQ_PLAN_ENFORCEMENT`                                                | registry  | `1` to gate features by plan (hosted offerings). Off by default: every workspace has every feature, whatever its plan                                                                                                                                                                                                      |
+| `HARMONIQ_PLAN_FEATURES`                                                   | registry  | JSON replacing the features of plans, e.g. `{"hobby":["approvals"]}`. Defaults: startup has `byob` and `approvals`; enterprise also `saml` and `scim`                                                                                                                                                                      |
+
+Never set `HARMONIQ_DEV_LOGIN` in production; the registry refuses to start with it.
+
+### 3. First boot
+
+1. Start the registry; it logs a hint while no instance admin exists.
+2. Open `${APP_URL}/admin/setup`. The wizard asks for `HARMONIQ_SETUP_TOKEN` and the admin's email, checks the database and cache, writes and deletes a test object in the default storage, and lists the sign-in methods you configured. Finishing creates the admin; the token then stops working.
+3. Sign in with that email (email link or GitHub with the same verified address).
+4. Create a workspace from the dashboard and an API key for CI under **Settings → API keys**.
+5. The admin panel (`/admin`) shows system health and lets you manage workspaces (suspend, delete), users (end sessions, erase accounts), other instance admins and the instance audit log.
+6. Storage, email (SMTP), sign-in methods and branding can also be set in the admin panel. Those settings are stored encrypted in the database, take precedence over the environment variables above (which remain the defaults) and reach every registry replica within a minute, without a restart.
+
+### 4. Images
+
+```bash
+docker build -f apps/registry/Dockerfile -t harmoniq/registry .
+docker build -f apps/web/Dockerfile -t harmoniq/web .
+```
+
+Both expose `/health`-style checks used by the Docker `HEALTHCHECK`. The registry also serves `GET /ready` (database and cache) for orchestrators.
+
+## Security
+
+- **Headers**: the dashboard sends a per-request Content-Security-Policy (scripts only with that request's nonce, `frame-ancestors 'none'`, `object-src 'none'`, `connect-src 'self'`; images from any HTTPS origin for branding logos), plus `X-Frame-Options: DENY`, `nosniff`, a strict referrer policy and `Permissions-Policy`. `upgrade-insecure-requests` is added only over HTTPS (it reads `X-Forwarded-Proto` from your proxy). The registry sends Helmet's headers with its own CSP.
+- **CSRF**: session cookies are `HttpOnly` and `SameSite=Lax`. Dashboard mutations are Next.js server actions, which reject requests whose `Origin` doesn't match the host; the dashboard's own POST routes (sign-in, sign-out) check `Origin` too. The registry takes credentials only from the `Authorization` header, never cookies, so cross-site requests can't carry them. Behind a proxy, forward `Host` (or `X-Forwarded-Host`) unchanged.
+- **Rate limits**: manifests (per workspace and IP, by plan), sign-in and setup (per IP), health ingest, and every other write (per credential); `429` responses carry `Retry-After`. With several registry replicas, `CACHE_ADAPTER=redis` shares the counters.
+- **Dependencies**: CI runs `pnpm audit --audit-level high --prod` for the packages that ship.
+
+## Observability
+
+- **Metrics**: `GET /metrics` on the registry (Prometheus): `harmoniq_http_request_duration_ms` (histogram by method, route, status), `harmoniq_manifest_cache_hits_total` / `_misses_total`, `harmoniq_deploy_count_total`, `harmoniq_manifest_rate_limited_total`. [`docker/grafana`](../docker/grafana) has a dashboard (request rate, p95 by route, manifest p99 against the 50 ms target, cache hit ratio, 5xx, deploys, rate limiting): `docker compose -f docker/docker-compose.yml --profile observability up -d`, then http://localhost:3001.
+- **Traces**: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://otel-collector:4318`) and the registry exports OpenTelemetry traces over OTLP/HTTP: HTTP, Fastify, Postgres and Redis automatically, plus spans for manifest resolution (`harmoniq.manifest.resolve`), every change to a manifest (`harmoniq.mutation`, with workspace and environment) and every background job (`harmoniq.job <name>`). The other standard `OTEL_*` variables (service name, sampler, headers) apply.
+- **Logs**: JSON in production. Every line of a request carries `requestId` (a caller's `X-Request-Id` is kept and returned on every response), the workspace once resolved (`workspace`, `workspaceId`), and "request completed" its `responseTime` in milliseconds.
+
+## Kubernetes (Helm)
+
+[`charts/harmoniq`](../charts/harmoniq) deploys the registry and the dashboard, each with a Service, health probes and an optional Ingress (one host each, from `urls.web` and `urls.registry`). A pre-install / pre-upgrade hook Job runs `prisma migrate deploy`. Postgres and Redis are yours: create the two roles from [`docker/init.sql`](../docker/init.sql) and pass both connection strings.
+
+```bash
+helm install harmoniq charts/harmoniq \
+  --set urls.web=https://harmoniq.example.com \
+  --set urls.registry=https://registry.harmoniq.example.com \
+  --set env.REDIS_URL=redis://redis:6379 \
+  --set secrets.databaseUrl=postgresql://harmoniq_app:…@postgres:5432/harmoniq \
+  --set secrets.systemDatabaseUrl=postgresql://harmoniq:…@postgres:5432/harmoniq \
+  --set secrets.jwtSecret="$(openssl rand -base64 48)" \
+  --set secrets.encryptionKey="$(openssl rand -base64 32)" \
+  --set secrets.setupToken="$(openssl rand -hex 16)" \
+  --set ingress.enabled=true
+```
+
+Or keep the secrets in your own Secret (`secrets.existingSecret`, keys `DATABASE_URL`, `SYSTEM_DATABASE_URL`, `JWT_SECRET`, `HARMONIQ_ENCRYPTION_KEY`, optionally `HARMONIQ_SETUP_TOKEN`). The registry runs two replicas by default, which needs Redis (`env.CACHE_ADAPTER=redis`, the default). Further registry settings go in `registry.extraEnv` / `registry.extraEnvFrom` (e.g. `SMTP_URL`), or in the admin panel once running.
+
+## AWS with Terraform
+
+[`deploy/terraform/aws`](../deploy/terraform/aws) deploys the registry and dashboard on ECS Fargate behind one ALB, with RDS Postgres, ElastiCache Redis, S3 + CloudFront for published manifests and generated secrets in Secrets Manager. See its README.
+
+## Upgrading a development database
+
+Databases created before the owner/app role split need a one-time, non-destructive ownership change before `pnpm run db:deploy`:
+
+```bash
+docker exec -i harmoniq_postgres psql -U postgres -d harmoniq < docker/upgrade-roles.sql
+```

@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=../../schemas/json/harmoniq.json
+version: 1
+workspace: checkout-team
+hostApps:
+  - slug: storefront
+    name: Storefront
+    default: true
+    previewUrlTemplate: https://preview.acme.dev/?harmoniq-env={environment}
+    sharedDependencies:
+      react: ^19.0.0
+    strictExposes: true
+    environments:
+      - slug: staging
+      - slug: production
+        default: true
+        approvalPolicy:
+          requiredApprovers: 2
+          eligibleRoles: [admin, owner]
+          requireChangeTicket: true
+          ticketUrlPattern: https://acme.atlassian.net/browse/{id}
+        freeze:
+          reason: Holiday release freeze
+          from: 2026-12-24T00:00:00Z
+          until: 2026-12-27T00:00:00Z
+    modules:
+      - slug: checkout
+        name: Checkout
+        specifier: '@acme/checkout'
+        owners: [dev@acme.dev]
+webhooks:
+  - url: https://hooks.acme.dev/harmoniq
+    events: [deploy.success, canary.auto_rolled_back]
+    secret: ${HARMONIQ_WEBHOOK_SECRET}
+alertRules:
+  - name: checkout canary errors
+    condition: canary_error_rate
+    threshold: 0.05
+    action: auto_rollback
+    module: storefront/checkout
+    environment: production

@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: harmoniq
+    folder: Harmoniq
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,8 +1,13 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import { PgBoss } from 'pg-boss';
+import { openSecret } from '../services/crypto';
+import { checkPublicUrl, createSafeFetch } from '../services/outbound';
 
 export type WebhookJobData = {
   workspaceId: string;
@@ -35,11 +40,25 @@ export type WebhookDb = {
 
 export type WebhookBoss = Pick<PgBoss, 'send'>;
 
+export interface WebhookDeliveryOptions {
+  /** Decrypts secrets sealed with sealSecret (plaintext legacy secrets pass through). */
+  encryptionKey?: Buffer;
+  /** SSRF guard re-run on every attempt (DNS can change after the endpoint was created). */
+  checkUrl?: (url: string) => Promise<string | null>;
+  /**
+   * Performs the POST. The registry passes a guarded fetch that re-checks every resolved
+   * address at connect time, so the host can't re-resolve to an internal one after
+   * `checkUrl` (DNS rebinding). Defaults to the global fetch.
+   */
+  fetchImpl?: typeof fetch;
+}
+
 export async function handleWebhookDelivery(
   job: { data: WebhookJobData },
   db: WebhookDb,
   logger: ILogger,
-  boss: WebhookBoss
+  boss: WebhookBoss,
+  opts: WebhookDeliveryOptions = {}
 ) {
   const data = job.data;
   const endpoint = await db.webhookEndpoint.findUnique({
@@ -54,18 +73,23 @@ export async function handleWebhookDelivery(
   }
 
   const payloadStr = JSON.stringify(data.payload);
-  const signature = crypto.createHmac('sha256', endpoint.secret).update(payloadStr).digest('hex');
+  const secret = opts.encryptionKey
+    ? openSecret(endpoint.secret, opts.encryptionKey)
+    : endpoint.secret;
+  const signature = crypto.createHmac('sha256', secret).update(payloadStr).digest('hex');
 
   const startTime = Date.now();
   let success = false;
   let statusCode: number | null = null;
   let responseBody: string | null = null;
 
+  const blocked = opts.checkUrl ? await opts.checkUrl(endpoint.url) : null;
   try {
+    if (blocked) throw new Error(`Blocked: ${blocked}`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-    const res = await fetch(endpoint.url, {
+    const res = await (opts.fetchImpl ?? fetch)(endpoint.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -74,6 +98,7 @@ export async function handleWebhookDelivery(
       },
       body: payloadStr,
       signal: controller.signal,
+      redirect: 'manual', // a redirect target was never checked by the SSRF guard
     });
 
     clearTimeout(timeoutId);
@@ -147,13 +172,26 @@ export async function handleWebhookDelivery(
 
 export async function registerWebhookJobs(fastify: FastifyInstance) {
   const boss = fastify.container.boss;
-  const db = fastify.container.db;
+  const db = fastify.container.systemDb; // cross-tenant background work
   const logger = fastify.container.logger;
 
   if (!boss) return;
 
+  // pg-boss 10+ requires queues to exist before schedule()/work(). Idempotent.
+  await boss.createQueue('webhook.deliver');
+
+  const allowHttp = !fastify.config.isProduction;
+  const safeFetch = createSafeFetch({ allowHttp });
   boss.work<WebhookJobData>('webhook.deliver', (jobs) => {
     const jobList = Array.isArray(jobs) ? jobs : [jobs];
-    return Promise.all(jobList.map((job) => handleWebhookDelivery(job, db, logger, boss)));
+    return Promise.all(
+      jobList.map((job) =>
+        handleWebhookDelivery(job, db, logger, boss, {
+          encryptionKey: fastify.config.encryptionKey,
+          checkUrl: (url) => checkPublicUrl(url, { allowHttp }),
+          fetchImpl: safeFetch,
+        })
+      )
+    );
   });
 }

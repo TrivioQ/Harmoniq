@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { IStorage } from './IStorage';
 import { Storage } from '@google-cloud/storage';
 
@@ -54,5 +57,16 @@ export class GCSStorageAdapter implements IStorage {
         throw err;
       }
     }
+  }
+
+  async put(
+    key: string,
+    body: string,
+    opts: { contentType: string; cacheControl?: string }
+  ): Promise<void> {
+    await this.storage
+      .bucket(this.bucket)
+      .file(key)
+      .save(body, { contentType: opts.contentType, metadata: { cacheControl: opts.cacheControl } });
   }
 }

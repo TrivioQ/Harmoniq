@@ -1,0 +1,19 @@
+{{- range $component := list "registry" "web" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "harmoniq.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "harmoniq.labels" $ | nindent 4 }}
+    {{- include "harmoniq.selector" (dict "root" $ "component" $component) | nindent 4 }}
+spec:
+  type: {{ $.Values.service.type }}
+  selector:
+    {{- include "harmoniq.selector" (dict "root" $ "component" $component) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ (index $.Values $component).port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

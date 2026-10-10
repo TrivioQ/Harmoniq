@@ -17,40 +17,72 @@ Harmoniq is an open-source, self-hostable **Micro Frontend Control Plane** that 
 ## 📦 How to Use
 
 ### Prerequisites
+
 - [Node.js](https://nodejs.org/) (>= 20)
 - [pnpm](https://pnpm.io/) (>= 9)
-- [Docker](https://www.docker.com/) (for local database & services)
+- [Docker](https://www.docker.com/) (optional: `pnpm run dev:local` runs without it)
 
-### Quick Start
+### Try it with Docker
+
+```bash
+pnpm run docker:demo
+```
+
+Builds and starts everything (Postgres, Redis, registry on `:4000`, dashboard on `:3000`) with a demo workspace. Sign in at http://localhost:3000 with **Development sign-in** as `demo@harmoniq.dev`. See [Self-Hosting](./docs/self-hosting.md) for production.
+
+Examples: [`examples/vite-mf`](./examples/vite-mf) (Vite + Module Federation 2.0, with an end-to-end test) and [`examples/import-map`](./examples/import-map) (no bundler).
+
+### Quick Start (development)
 
 1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/your-org/harmoniq.git
    cd harmoniq
    ```
 
 2. **Install dependencies:**
+
    > **Note:** This project strictly uses `pnpm`.
+
    ```bash
    pnpm install
    ```
 
-3. **Start local infrastructure (Database, Redis, etc.):**
-   ```bash
-   pnpm run docker:up
-   ```
+3. **Quickest: no Docker, no Postgres install.**
 
-4. **Run database migrations and seed data:**
-   ```bash
-   pnpm run db:migrate
-   pnpm run db:seed
-   ```
-
-5. **Start the development servers:**
    ```bash
    pnpm run dev:local
    ```
-   The Next.js dashboard will be accessible at `http://localhost:3000` and the Registry API at `http://localhost:3001`.
+
+   Runs an embedded Postgres (data in `.harmoniq/dev-local`, `--reset` to start over), applies migrations, adds demo data and starts the registry (`http://localhost:4000`) and the dashboard (`http://localhost:3000`) with an in-memory cache and **Development login**. Ctrl+C stops everything.
+
+   The steps below set up the same stack on Docker's Postgres and Redis instead.
+
+4. **Configure environment and start local infrastructure (Database, Redis, etc.):**
+
+   ```bash
+   cp .env.example .env
+   cp .env.example packages/db/.env
+   pnpm run docker:up
+   ```
+
+   > **Upgrading an existing dev database?** Volumes created before the owner/app role
+   > split need a one-time, non-destructive ownership change:
+   > `docker exec -i harmoniq_postgres psql -U postgres -d harmoniq < docker/upgrade-roles.sql`
+
+5. **Run database migrations and seed data:**
+
+   ```bash
+   pnpm run db:deploy
+   pnpm run db:seed
+   ```
+
+6. **Start the development servers:**
+   ```bash
+   pnpm run dev
+   ```
+   The Next.js dashboard will be accessible at `http://localhost:3000` and the Registry API at `http://localhost:4000`.
 
 ## 📚 Documentation
 
@@ -67,6 +99,8 @@ Detailed documentation is available in the [`docs/`](./docs) directory:
 ### For Contributors
 
 Please refer to the following guides before contributing:
+
+- **[Contributing](./CONTRIBUTING.md)**: Setup, checks, conventions and releases.
 - **[Implementation Plan](./docs/implementation-plan.md)**: Phased build plan with task checklists.
 - **[Agent & Contributor Rules](./.agents/AGENTS.md)**: Mandatory rules for code standards, documentation, and tooling.
 - **[Feature Docs](./docs/features/)**: Per-feature documentation with design context and change history.

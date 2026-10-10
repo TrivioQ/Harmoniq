@@ -1,6 +1,9 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { describe, it, expect } from 'vitest';
 import { DeployRequestSchema as DeploySchema } from '../schemas/DeployRequestSchema';
-import { CanaryConfigSchema as CanarySchema } from '../schemas/CanaryConfigSchema';
+import { SetCanaryRequestSchema } from '../schemas/CanaryRequestSchema';
 import { ApprovalPolicySchema, ApprovalPolicyDto } from '../schemas/ApprovalPolicySchema';
 import { CreateOrganizationSchema, CreateOrganizationDto } from '../schemas/OrganizationSchema';
 import { ApprovalDecisionSchema, ApprovalBypassSchema } from '../schemas/ApprovalDecisionSchema';
@@ -13,11 +16,20 @@ import {
 describe('Zod Schemas', () => {
   it('should validate a valid DeployRequest', () => {
     const validData = {
+      environment: 'staging',
       url: 'https://cdn.example.com/remoteEntry.js',
       version: '1.0.0',
       integrity: 'sha384-xyz',
     };
     expect(() => DeploySchema.parse(validData)).not.toThrow();
+  });
+
+  it('should fail DeployRequest without an environment or with a non-SRI integrity', () => {
+    const base = { url: 'https://cdn.example.com/remoteEntry.js', version: '1.0.0' };
+    expect(() => DeploySchema.parse({ ...base, integrity: 'sha384-xyz' })).toThrow();
+    expect(() =>
+      DeploySchema.parse({ ...base, environment: 'staging', integrity: 'md5-abc' })
+    ).toThrow();
   });
 
   it('should fail DeployRequest without url', () => {
@@ -28,22 +40,22 @@ describe('Zod Schemas', () => {
     expect(() => DeploySchema.parse(invalidData)).toThrow();
   });
 
-  it('should validate a valid CanaryConfig', () => {
-    const validData = {
-      trafficPercentage: 50,
-      targetVersionId: 'clx0000000000000000000001',
-      stableVersionId: 'clx0000000000000000000002',
-    };
-    expect(() => CanarySchema.parse(validData)).not.toThrow();
-  });
-
-  it('should fail CanaryConfig with invalid percentage', () => {
-    const invalidData = {
-      trafficPercentage: 150, // > 100
-      targetVersionId: 'clx0000000000000000000001',
-      stableVersionId: 'clx0000000000000000000002',
-    };
-    expect(() => CanarySchema.parse(invalidData)).toThrow();
+  it('accepts whole-number canary traffic up to 99', () => {
+    const ok = { environment: 'production', trafficPercent: 10 };
+    expect(() => SetCanaryRequestSchema.parse(ok)).not.toThrow();
+    // 0 is valid here; the registry requires targeting rules for it.
+    for (const trafficPercent of [-1, 100, 12.5]) {
+      expect(() => SetCanaryRequestSchema.parse({ ...ok, trafficPercent })).toThrow();
+    }
+    expect(() =>
+      DeploySchema.parse({
+        environment: 'production',
+        url: 'https://cdn.example.com/a.js',
+        version: '1.0.0',
+        integrity: 'sha384-abc',
+        canary: { trafficPercent: 100 },
+      })
+    ).toThrow();
   });
 
   describe('Phase 8 Zod Schemas', () => {

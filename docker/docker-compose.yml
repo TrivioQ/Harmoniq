@@ -1,4 +1,25 @@
-version: '3.8'
+# Local infrastructure and a self-hosted demo.
+#
+#   pnpm run docker:up     Postgres + Redis only (for `pnpm run dev`)
+#   pnpm run docker:demo   + migrations, seed, registry (:4000) and dashboard (:3000)
+#
+# The demo runs in development mode with "sign in as any email" enabled. For production,
+# put these in docker/.env (read automatically by Compose):
+#   NODE_ENV=production
+#   HARMONIQ_DEV_LOGIN=0
+#   JWT_SECRET=<openssl rand -base64 48>
+#   HARMONIQ_ENCRYPTION_KEY=<openssl rand -base64 32>
+#   HARMONIQ_SETUP_TOKEN=<random>      # then open http://localhost:3000/admin/setup
+#   SMTP_URL=smtps://user:pass@smtp.example.com:465   # email sign-in
+#   GITHUB_CLIENT_ID=... GITHUB_CLIENT_SECRET=...       # GitHub sign-in
+#   OIDC_ISSUER=... OIDC_CLIENT_ID=... OIDC_CLIENT_SECRET=...   # company IdP sign-in
+#   HARMONIQ_AUTH_METHODS=oidc,email    # only these sign-in methods (see .env.example)
+#   SEED=0
+# and change the database passwords in init.sql and below.
+
+x-database-env: &database-env
+  DATABASE_URL: postgresql://harmoniq_app:password@postgres:5432/harmoniq
+  SYSTEM_DATABASE_URL: postgresql://harmoniq:password@postgres:5432/harmoniq
 
 services:
   postgres:
@@ -7,19 +28,121 @@ services:
     environment:
       POSTGRES_PASSWORD: password
     ports:
-      - "5433:5432"
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d harmoniq']
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   redis:
     image: redis:7-alpine
     container_name: harmoniq_redis
     ports:
-      - "6380:6379"
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
-  # The registry and web services will be configured to point to these
-  # during Phase 2 and 3.
+  # One-shot: applies migrations (and demo data when SEED=1), then exits.
+  migrate:
+    profiles: [app]
+    image: harmoniq/registry:local
+    build:
+      context: ..
+      dockerfile: apps/registry/Dockerfile
+    working_dir: /repo/packages/db
+    command:
+      - sh
+      - -c
+      - npx prisma migrate deploy && if [ "$$SEED" = "1" ]; then npx prisma db seed; fi
+    environment:
+      <<: *database-env
+      SEED: ${SEED:-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  registry:
+    profiles: [app]
+    image: harmoniq/registry:local
+    ports:
+      - '4000:4000'
+    environment:
+      <<: *database-env
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 4000
+      CACHE_ADAPTER: redis
+      REDIS_URL: redis://redis:6379
+      WEB_ORIGIN: ${APP_URL:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET:-}
+      HARMONIQ_ENCRYPTION_KEY: ${HARMONIQ_ENCRYPTION_KEY:-}
+      HARMONIQ_SETUP_TOKEN: ${HARMONIQ_SETUP_TOKEN:-}
+      HARMONIQ_DEV_LOGIN: ${HARMONIQ_DEV_LOGIN:-1}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-Harmoniq <no-reply@harmoniq.local>}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_DISPLAY_NAME: ${OIDC_DISPLAY_NAME:-Single sign-on}
+      HARMONIQ_AUTH_METHODS: ${HARMONIQ_AUTH_METHODS:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  web:
+    profiles: [app]
+    image: harmoniq/web:local
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      # Same security posture as the registry (dev secrets and http cookies in the demo).
+      HARMONIQ_ENV: ${NODE_ENV:-development}
+      REGISTRY_URL: http://registry:4000
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET:-}
+    depends_on:
+      registry:
+        condition: service_healthy
+
+  # Metrics: `docker compose -f docker/docker-compose.yml --profile observability up -d`,
+  # then Grafana at http://localhost:3001 (admin / admin) → Harmoniq registry.
+  prometheus:
+    profiles: [observability]
+    image: prom/prometheus:v2.54.1
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+
+  grafana:
+    profiles: [observability]
+    image: grafana/grafana:11.2.0
+    ports:
+      - '3001:3000'
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
 
 volumes:
   postgres_data:

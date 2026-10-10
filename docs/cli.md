@@ -1,57 +1,264 @@
 # Harmoniq CLI Reference
 
-The `@harmoniq/cli` is your primary tool for managing micro frontend deployments to your registry.
-
-## Installation
-
-You can install the CLI globally, or run it via `npx`:
+`@harmoniq/cli` deploys, promotes and rolls back modules from CI or a terminal.
 
 ```bash
-npm install -g @harmoniq/cli
+npm install -g @harmoniq/cli   # or: npx @harmoniq/cli <command>
 ```
 
-## Authentication
+## Configuration
 
-Before deploying, authenticate your CLI session:
+Every command resolves its settings in this order: **flag → environment variable → saved profile → default**.
+
+| Flag             | Environment variable    | Default                 |
+| ---------------- | ----------------------- | ----------------------- |
+| `--registry-url` | `HARMONIQ_REGISTRY_URL` | `http://localhost:4000` |
+| `--api-key`      | `HARMONIQ_API_KEY`      | —                       |
+| `--workspace`    | `HARMONIQ_WORKSPACE`    | —                       |
+| `--profile`      | `HARMONIQ_PROFILE`      | `default`               |
+| `--json`         | —                       | off                     |
+
+API keys are created in the dashboard (workspace settings → API keys) or with `POST /api/workspaces/:ws/api-keys`. Use the `deploy:write` scope for CI.
+
+### `harmoniq login`
+
+Verifies an API key against the registry and saves it as a profile in `~/.harmoniq/config.json` (permissions `0600`). Prompts for anything not given as a flag or environment variable.
 
 ```bash
-harmoniq login
+harmoniq --workspace acme --api-key hq_… login
+harmoniq --profile staging-ci --registry-url https://registry.acme.dev login
 ```
 
-This command opens a browser window for OAuth 2.0 authentication against your Harmoniq Dashboard. Alternatively, you can authenticate in headless environments by setting the `HARMONIQ_TOKEN` environment variable.
+### `harmoniq whoami`
 
-## Deploying a Module
+Shows the registry, workspace and key prefix in use, and checks that the key works.
 
-Use the `deploy` command from within your module's build directory:
+## Deploying
+
+### `harmoniq deploy`
 
 ```bash
 harmoniq deploy \
-  --workspace acme-corp \
-  --module auth-module \
-  --version 1.0.5 \
-  --url https://cdn.acme.com/auth-module/1.0.5/remoteEntry.js \
-  --env production
+  --module checkout \
+  --env staging \
+  --release 1.2.3 \
+  --url https://cdn.acme.com/checkout/1.2.3/remoteEntry.js \
+  --file dist/remoteEntry.js
 ```
 
-### Options
+| Flag                                                                                                    | Description                                                                                           |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `--module`                                                                                              | Module slug or id (required)                                                                          |
+| `--env`                                                                                                 | Target environment (required)                                                                         |
+| `--release`                                                                                             | Version string (required)                                                                             |
+| `--url`                                                                                                 | Public URL of the bundle (required)                                                                   |
+| `--integrity`                                                                                           | SRI hash, e.g. `sha384-…`; without it (or `--file`), computed from the bundle downloaded from `--url` |
+| `--file`                                                                                                | Local copy of the bundle; computes `--integrity` (sha384)                                             |
+| `--commit`                                                                                              | Commit SHA; defaults to `GITHUB_SHA` / `CI_COMMIT_SHA`                                                |
+| `--meta key=value`                                                                                      | Metadata, repeatable                                                                                  |
+| `--validate`                                                                                            | Fetch the URL and check the integrity locally before deploying                                        |
+| `--dry-run`                                                                                             | Validate on the registry and show the projected manifest change                                       |
+| `--force`                                                                                               | Deploy despite dependency conflicts or removed exposes (audited); also on `promote`                   |
+| `--rollout <percents>`, `--hold`, `--max-error-rate`, `--max-error-delta`, `--max-p95`, `--min-samples` | Staged canary rollout (see `harmoniq canary`)                                                         |
+| `--canary <percent>`                                                                                    | Deploy as a canary for this share of users (1–99); the active version keeps the rest                  |
 
-| Flag          | Description                                            | Required |
-| ------------- | ------------------------------------------------------ | -------- |
-| `--workspace` | The target workspace slug                              | Yes      |
-| `--module`    | The target remote module slug                          | Yes      |
-| `--version`   | Semantic version string                                | Yes      |
-| `--url`       | The URL of the deployed `remoteEntry.js`               | Yes      |
-| `--env`       | The target environment (e.g., `production`, `staging`) | Yes      |
-| `--token`     | API token (can also use `HARMONIQ_TOKEN` env var)      | No       |
+### `harmoniq canary`
 
-## CI/CD Usage
+```bash
+harmoniq deploy --module checkout --env production --release 1.3.0 --url … --file … --canary 10
+harmoniq canary set-traffic 50 --module checkout --env production   # ramp up
+harmoniq canary promote --module checkout --env production          # 1.3.0 for everyone
+harmoniq canary abort --module checkout --env production --reason "error rate up"
+```
 
-For headless CI/CD environments (like GitHub Actions), you should generate a machine-to-machine API Key with `module:write` permissions from the dashboard, and export it as an environment variable:
+Staged rollout: each band runs for `--hold`, then advances if the canary is healthy; reaching 100 promotes, a failed check aborts.
+
+```bash
+harmoniq deploy --module checkout --env production --release 1.3.0 --url … --file … \
+  --rollout 1,10,50,100 --hold 30m --max-error-rate 0.02 --max-error-delta 0.01 --min-samples 50
+harmoniq canary advance --module checkout --env production   # next band now, skip the check
+```
+
+`--target attribute=v1,v2` (repeatable, on `deploy --canary`/`--rollout` and `set-traffic`) always serves the canary to matching users; with targets, `--canary 0` limits it to them:
+
+```bash
+harmoniq deploy … --canary 0 --target plan=beta --target userId=qa-1,qa-2
+```
+
+`set-traffic --version-id <id>` makes an earlier version of the module the canary. All three fail with exit code 4 in a frozen environment.
+
+### `harmoniq disable` / `harmoniq enable`
+
+Kill switch: hosts stop loading the module at their next manifest fetch. Works in frozen environments.
+
+```bash
+harmoniq disable --module checkout --env production --reason "payment errors since 14:02"
+harmoniq enable --module checkout --env production
+```
+
+### Scheduling (`--at`)
+
+`deploy`, `promote`, `rollback`, `canary set-traffic|promote|abort` and `disable`/`enable` accept `--at` with an ISO time or an offset. The command is registered and runs then, as you, with your access checked again at that time.
+
+```bash
+harmoniq promote --module checkout --from staging --to production --at 2026-10-12T09:00:00Z
+harmoniq disable --module checkout --env production --reason "maintenance" --at +8h
+harmoniq schedule list [--status pending]
+harmoniq schedule cancel <id>
+```
+
+### Dependency conflicts
+
+When the registry's dependency gate refuses a deploy or promote, the CLI prints each conflict to stderr and exits with `2`:
+
+```
+conflict: react ^19.0.0 (checkout) vs ^18.2.0 (cart) — no version satisfies both
+warning: removes exposed module ./MiniCart (hosts importing it will break)
+Error: Blocked by the dependency gate: … Use force to deploy anyway.
+```
+
+Fix the ranges, or pass `--force` (audited). `--dry-run` prints the same lines without deploying.
+
+### Approvals
+
+When an environment has approval rules, `deploy`, `rollback`, `promote` and the `canary` commands don't change it right away: the registry records a request, and the CLI prints its id and exits with `6`. Reviewers approve it in the dashboard (Approvals); it then runs as the API key that requested it. Global options:
+
+| Option                 | Description                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `--wait`               | Block until the request is decided; exit `0` once applied, `5` if rejected, expired or failed |
+| `--change-ticket <id>` | Change ticket, required by some environments (env `HARMONIQ_CHANGE_TICKET`)                   |
+
+```bash
+harmoniq --wait --change-ticket OPS-42 deploy --module checkout --env production --release 1.3.0 --url … --file …
+```
+
+### `harmoniq promote`
+
+Copies the exact artifact (URL and integrity) running in one environment to another — production only ever runs what was tested.
+
+```bash
+harmoniq promote --module checkout --from staging --to production
+```
+
+### `harmoniq rollback`
+
+```bash
+harmoniq rollback --module checkout --env production            # previous version
+harmoniq rollback --module checkout --env production --to 1.2.2
+harmoniq rollback --module checkout --env production --version-id <id>
+```
+
+### Preview environments
+
+```bash
+harmoniq deploy --module checkout --env pr-123 --preview-ttl 72 --release $SHA --url … --file dist/remoteEntry.js
+```
+
+Creates `pr-123` on first deploy (the workspace must allow preview environments: `PATCH /api/workspaces/:ws { "allowEphemeralEnvironments": true }`), and deletes it 72 hours after the last deploy. With a preview URL template on the host app (`PATCH /api/workspaces/:ws/host-apps/:host { "previewUrlTemplate": "https://staging.acme.com/?harmoniq-env={environment}" }`) the command prints the preview link.
+
+### `harmoniq doctor`
+
+Explains why a module isn't loading. Checks the registry, the API key, that the manifest resolves and contains the module, that the bundle is reachable with a matching SRI hash and CORS header, that declared `exposes` exist in the bundle's `mf-manifest.json`, and that the CDN copy is current. Exits 2 if any check fails.
+
+```bash
+harmoniq doctor --module checkout --env production
+✓ registry reachable: https://registry.acme.dev
+✓ manifest resolves: 4 modules (sha256-…)
+✓ integrity (SRI) matches: sha384-…
+✗ exposes match the bundle: declared but not built: ./Cart
+```
+
+### `harmoniq validate`
+
+Checks that a URL is reachable and matches the expected hash, and warns about missing CORS headers or an unexpected content type.
+
+```bash
+harmoniq validate --url https://cdn.acme.com/checkout/1.2.3/remoteEntry.js --file dist/remoteEntry.js
+```
+
+## Manifests
+
+Manifests are public; these commands need no API key.
+
+```bash
+harmoniq manifest get --env production [--host consumer-portal]
+harmoniq manifest pull --env production --out src/harmoniq-fallback.json
+```
+
+`manifest pull` is meant for a host app's build: ship the file as a fallback for when the registry is unreachable.
+
+## Workspace as code
+
+A workspace's setup can live in `harmoniq.yaml` (host apps, environments, approval policies, freezes, modules and owners, webhooks, alert rules); see [workspace as code](./features/gitops.md) for the format. The commands need an `admin` API key.
+
+```bash
+harmoniq import                      # write the workspace as it is to harmoniq.yaml
+harmoniq plan                        # what apply would change (nothing is changed)
+harmoniq plan --detailed-exitcode    # exit 7 when the workspace differs (drift check)
+harmoniq apply                       # make the workspace match the file
+harmoniq apply --prune               # also delete what the file doesn't declare
+```
+
+`-f` picks another file. `${NAME}` in the file is read from the environment (use it for webhook secrets); a missing variable is an error. `--prune` deletes only in the sections the file has, and never environments, modules or host apps that still serve versions (the plan shows them as blocked). Webhook secrets the registry generates are printed once.
+
+## Exit codes
+
+| Code | Meaning                                                                                                              |
+| ---- | -------------------------------------------------------------------------------------------------------------------- |
+| 0    | Success                                                                                                              |
+| 1    | Generic error (network, server error, not found)                                                                     |
+| 2    | Invalid input or bundle failed validation                                                                            |
+| 3    | Authentication or authorization failed                                                                               |
+| 4    | Target environment is frozen                                                                                         |
+| 5    | Conflict (e.g. version already active, ambiguous module slug; with `--wait`, a rejected, expired or failed approval) |
+| 6    | The change waits for approval (see `--wait`)                                                                         |
+| 7    | `plan --detailed-exitcode`: the workspace differs from `harmoniq.yaml`                                               |
+
+With `--json`, successful commands print exactly one JSON document on stdout; errors go to stderr.
+
+## Build plugin
+
+`@harmoniq/build-plugin` registers a remote straight from your bundler (Vite, Rollup, webpack, Rspack, esbuild). After the bundle is written it computes the remote entry's SRI hash, reads `exposes` and shared dependencies (for the registry's dependency gate) from `mf-manifest.json` when present, and — in CI (`CI=true`) — deploys it. Locally it only prints the hash.
+
+```ts
+// vite.config.ts
+import { harmoniq } from '@harmoniq/build-plugin';
+
+export default defineConfig({
+  plugins: [
+    federation({
+      name: 'checkout',
+      filename: 'remoteEntry.js',
+      exposes: { './CheckoutPage': './src/CheckoutPage' },
+    }),
+    harmoniq.vite({
+      module: 'checkout',
+      environment: 'staging',
+      version: process.env.GITHUB_SHA ?? 'dev',
+      outDir: 'dist',
+      url: `https://cdn.acme.com/checkout/${process.env.GITHUB_SHA}/remoteEntry.js`,
+    }),
+  ],
+});
+```
+
+Credentials come from `HARMONIQ_REGISTRY_URL`, `HARMONIQ_API_KEY` and `HARMONIQ_WORKSPACE` (or the `registryUrl`, `apiKey`, `workspace` options). Upload the build output to the URL's location first; a rejected deploy (e.g. frozen environment) fails the build. Other bundlers: `harmoniq.webpack(…)`, `harmoniq.rspack(…)`, `harmoniq.rollup(…)`, `harmoniq.esbuild(…)`.
+
+## GitHub Action
+
+[`actions/deploy`](../actions/deploy/README.md) wraps the CLI: deploy or promote (optionally waiting for approval), outputs `version-id`, `manifest-url`, `deployed-at`, `status`, `change-url` and more, and a deployment card in the job summary with the approval status and a link to the diff. For GitLab, see [`integrations/gitlab`](../integrations/gitlab/README.md). To manage workspaces, host apps, environments, keys, webhooks, alert rules and approval policies with Terraform instead of `harmoniq.yaml`, see the [Terraform provider](../integrations/terraform-provider-harmoniq/README.md).
+
+## CI example (GitHub Actions)
 
 ```yaml
-steps:
-  - name: Deploy to Harmoniq
-    run: npx @harmoniq/cli deploy --workspace acme-corp --module nav-module --version $GITHUB_SHA --url https://cdn... --env production
-    env:
-      HARMONIQ_TOKEN: ${{ secrets.HARMONIQ_API_KEY }}
+- name: Deploy checkout to staging
+  run: |
+    npx @harmoniq/cli deploy \
+      --module checkout --env staging --release ${{ github.sha }} \
+      --url https://cdn.acme.com/checkout/${{ github.sha }}/remoteEntry.js \
+      --file dist/remoteEntry.js
+  env:
+    HARMONIQ_REGISTRY_URL: https://registry.acme.dev
+    HARMONIQ_WORKSPACE: acme
+    HARMONIQ_API_KEY: ${{ secrets.HARMONIQ_API_KEY }}
 ```

@@ -1,84 +1,85 @@
-import { Injectable, Inject, InjectionToken } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { HarmoniqClient } from '../index';
-import type { HarmoniqClientOptions } from '../index';
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
+import { Inject, Injectable, InjectionToken, OnDestroy } from '@angular/core';
+import { BehaviorSubject, Observable, combineLatest, map } from 'rxjs';
+import { EVENTS, HarmoniqClient } from '../index';
+import type { HarmoniqClientOptions, Manifest } from '../index';
 
 export const HARMONIQ_OPTIONS = new InjectionToken<HarmoniqClientOptions>('HARMONIQ_OPTIONS');
 
 export interface ModuleState {
   url: string | null;
   integrity: string | null;
+  version: string | null;
   loading: boolean;
   error: Error | null;
+  /** Kill switch: render a fallback instead of the module. */
+  disabled: boolean;
+  disabledReason: string | null;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
-export class HarmoniqService {
-  private client: HarmoniqClient;
-  private moduleStates = new Map<string, BehaviorSubject<ModuleState>>();
+/** ADP-03. One client per injector; destroyed with it. */
+@Injectable({ providedIn: 'root' })
+export class HarmoniqService implements OnDestroy {
+  private readonly client: HarmoniqClient;
+  private readonly manifestSubject = new BehaviorSubject<Manifest | null>(null);
+  private readonly errorSubject = new BehaviorSubject<Error | null>(null);
 
-  constructor(@Inject(HARMONIQ_OPTIONS) private options: HarmoniqClientOptions) {
-    this.client = new HarmoniqClient(this.options);
-    this.client.init().catch(console.error);
+  /** Emits every new manifest (null until the first one loads). */
+  readonly manifest$: Observable<Manifest | null> = this.manifestSubject.asObservable();
 
-    this.client.on('manifestUpdated', () => {
-      for (const moduleName of this.moduleStates.keys()) {
-        this.updateModuleState(moduleName);
-      }
+  constructor(@Inject(HARMONIQ_OPTIONS) options: HarmoniqClientOptions) {
+    this.client = new HarmoniqClient(options);
+    this.client.on(EVENTS.manifestUpdate, (manifest) => {
+      this.errorSubject.next(null);
+      this.manifestSubject.next(manifest);
     });
+    this.client.on(EVENTS.error, (error) => this.errorSubject.next(error));
+    if (typeof window !== 'undefined') this.client.init().catch(() => undefined);
   }
 
-  public getClient(): HarmoniqClient {
+  getClient(): HarmoniqClient {
     return this.client;
   }
 
-  public getModule(moduleName: string): Observable<ModuleState> {
-    if (!this.moduleStates.has(moduleName)) {
-      const subject = new BehaviorSubject<ModuleState>({
-        url: null,
-        integrity: null,
-        loading: true,
-        error: null,
-      });
-      this.moduleStates.set(moduleName, subject);
-      this.updateModuleState(moduleName);
-    }
-    return this.moduleStates.get(moduleName)!.asObservable();
+  getModule(moduleName: string): Observable<ModuleState> {
+    return combineLatest([this.manifestSubject, this.errorSubject]).pipe(
+      map(([manifest, error]) => {
+        const none = {
+          url: null,
+          integrity: null,
+          version: null,
+          disabled: false,
+          disabledReason: null,
+        };
+        const entry = manifest ? this.client.getModuleEntry(moduleName) : null;
+        if (entry) return { ...none, ...entry, loading: false, error: null };
+        const killed = manifest ? this.client.isModuleDisabled(moduleName) : null;
+        if (killed) {
+          return {
+            ...none,
+            disabled: true,
+            disabledReason: killed.reason,
+            loading: false,
+            error: null,
+          };
+        }
+        if (manifest) {
+          return {
+            ...none,
+            loading: false,
+            error: new Error(`Module "${moduleName}" is not in the manifest`),
+          };
+        }
+        return { ...none, loading: !error, error };
+      })
+    );
   }
 
-  private async updateModuleState(moduleName: string) {
-    const subject = this.moduleStates.get(moduleName)!;
-    try {
-      await this.client.init();
-      const entry = this.client.getModuleEntry(moduleName);
-      if (entry) {
-        subject.next({
-          url: entry.url,
-          integrity: entry.integrity || null,
-          loading: false,
-          error: null,
-        });
-        this.client.reportModuleLoad(moduleName, {
-          success: true,
-          variant: this.client.getVariant(),
-        });
-      } else {
-        const err = new Error(`Module ${moduleName} not found in manifest`);
-        subject.next({ url: null, integrity: null, loading: false, error: err });
-        this.client.reportModuleError(moduleName, {
-          error: err.message,
-          variant: this.client.getVariant(),
-        });
-      }
-    } catch (err: unknown) {
-      const errorObj = err instanceof Error ? err : new Error(String(err));
-      subject.next({ url: null, integrity: null, loading: false, error: errorObj });
-      this.client.reportModuleError(moduleName, {
-        error: errorObj.message,
-        variant: this.client.getVariant(),
-      });
-    }
+  ngOnDestroy() {
+    this.client.destroy();
+    this.manifestSubject.complete();
+    this.errorSubject.complete();
   }
 }

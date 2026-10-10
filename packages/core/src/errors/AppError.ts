@@ -1,3 +1,6 @@
+// Copyright The Harmoniq Authors
+// SPDX-License-Identifier: Apache-2.0
+
 export class AppError extends Error {
   public readonly code: string;
   public readonly statusCode: number;
@@ -51,5 +54,25 @@ export class ConflictError extends AppError {
 export class LockedError extends AppError {
   constructor(message: string, metadata?: Record<string, unknown>) {
     super('LOCKED', message, 423, metadata);
+  }
+}
+
+export class BadRequestError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('BAD_REQUEST', message, 400, metadata);
+  }
+}
+
+/** BYOB-09: a workspace's own bucket failed; the registry never falls back to shared storage. */
+export class StorageUnavailableError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('STORAGE_UNAVAILABLE', message, 503, metadata);
+  }
+}
+
+/** PLN-03: the feature needs a higher plan than the workspace (or organization) has. */
+export class PlanRequiredError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('PLAN_REQUIRED', message, 402, metadata);
   }
 }
