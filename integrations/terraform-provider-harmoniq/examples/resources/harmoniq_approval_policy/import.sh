@@ -1,0 +1,1 @@
+terraform import harmoniq_approval_policy.staging checkout-team/storefront/staging

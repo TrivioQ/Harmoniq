@@ -24,13 +24,22 @@ const COMMENT = {
   sh: '#',
   tf: '#',
 };
-// Generated or vendored: declarations, Next.js' own env types, build output.
-const SKIP = [/\.d\.ts$/, /(^|\/)(dist|build|\.next|node_modules)\//];
+// Generated or vendored: declarations, build output; Terraform examples shown in docs.
+const SKIP = [
+  /\.d\.ts$/,
+  /(^|\/)(dist|build|\.next|node_modules)\//,
+  // Rendered verbatim into the provider's docs.
+  /^integrations\/terraform-provider-harmoniq\/examples\//,
+];
 
 const fix = process.argv.includes('--fix');
-const files = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
-  encoding: 'utf8',
-})
+const files = execFileSync(
+  'git',
+  ['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+  {
+    encoding: 'utf8',
+  }
+)
   .split('\0')
   .filter((file) => file && !SKIP.some((re) => re.test(file)))
   .filter((file) => (file.split('.').pop() ?? '') in COMMENT);

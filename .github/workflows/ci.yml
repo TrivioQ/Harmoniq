@@ -114,6 +114,49 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:4000/health && break; sleep 1; done
           pnpm --filter @harmoniq-example/vite-mf e2e || { cat "$RUNNER_TEMP/registry.log"; exit 1; }
 
+      # IaC-01..03: the Terraform provider against the registry started above.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: integrations/terraform-provider-harmoniq/go.mod
+          cache-dependency-path: integrations/terraform-provider-harmoniq/go.sum
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+      - name: Terraform provider acceptance tests
+        working-directory: integrations/terraform-provider-harmoniq
+        run: |
+          eval "$(scripts/acc-env.sh http://localhost:4000)"
+          TF_ACC=1 go test ./internal/provider -run TestAcc -count=1 -v
+
+  terraform-provider:
+    name: Terraform provider
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/terraform-provider-harmoniq
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: integrations/terraform-provider-harmoniq/go.mod
+          cache-dependency-path: integrations/terraform-provider-harmoniq/go.sum
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+      - name: Vet and unit tests
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+          go vet ./...
+          go test ./...
+      # IaC-04: docs/ must match the schemas and examples.
+      - name: Generated docs are current
+        run: |
+          go generate ./...
+          go tool tfplugindocs validate
+          git diff --exit-code -- docs
+
   helm:
     name: Helm chart
     runs-on: ubuntu-latest

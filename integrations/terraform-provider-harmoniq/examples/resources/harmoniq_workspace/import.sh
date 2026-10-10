@@ -1,0 +1,1 @@
+terraform import harmoniq_workspace.checkout_team acme/checkout-team

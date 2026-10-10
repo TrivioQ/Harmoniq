@@ -246,7 +246,7 @@ Credentials come from `HARMONIQ_REGISTRY_URL`, `HARMONIQ_API_KEY` and `HARMONIQ_
 
 ## GitHub Action
 
-[`actions/deploy`](../actions/deploy/README.md) wraps the CLI: deploy or promote (optionally waiting for approval), outputs `version-id`, `manifest-url`, `deployed-at`, `status`, `change-url` and more, and a deployment card in the job summary with the approval status and a link to the diff. For GitLab, see [`integrations/gitlab`](../integrations/gitlab/README.md).
+[`actions/deploy`](../actions/deploy/README.md) wraps the CLI: deploy or promote (optionally waiting for approval), outputs `version-id`, `manifest-url`, `deployed-at`, `status`, `change-url` and more, and a deployment card in the job summary with the approval status and a link to the diff. For GitLab, see [`integrations/gitlab`](../integrations/gitlab/README.md). To manage workspaces, host apps, environments, keys, webhooks, alert rules and approval policies with Terraform instead of `harmoniq.yaml`, see the [Terraform provider](../integrations/terraform-provider-harmoniq/README.md).
 
 ## CI example (GitHub Actions)
 

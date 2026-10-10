@@ -662,20 +662,20 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ### 8.3 GitOps / Infrastructure as Code (IaC-01–14)
 
-#### Terraform Provider (`harmoniq-terraform-provider` — separate Go repo)
+#### Terraform Provider (`integrations/terraform-provider-harmoniq`; copied to its own repo to publish)
 
-- [ ] Scaffold provider using `hashicorp/terraform-plugin-framework`
-- [ ] Implement resource: `harmoniq_workspace` (CRUD + import)
-- [ ] Implement resource: `harmoniq_environment` (CRUD + import + `approval_policy` nested block)
-- [ ] Implement resource: `harmoniq_host_app` (CRUD + import)
-- [ ] Implement resource: `harmoniq_remote_module` (CRUD + import)
-- [ ] Implement resource: `harmoniq_api_key` (create + delete; read uses hash comparison)
-- [ ] Implement resource: `harmoniq_webhook_endpoint` (CRUD + import)
-- [ ] Implement resource: `harmoniq_alert_rule` (CRUD + import)
-- [ ] Implement resource: `harmoniq_approval_policy` (CRUD + import)
-- [ ] Data sources: `harmoniq_workspace`, `harmoniq_environment`, `harmoniq_manifest`
-- [ ] `tfplugindocs` generated docs, published to `registry.terraform.io` (IaC-04)
-- [ ] Unit tests: each resource CRUD using `hashicorp/terraform-plugin-testing`
+- [x] Scaffold provider using `hashicorp/terraform-plugin-framework`
+- [x] Implement resource: `harmoniq_workspace` (CRUD + import) (with an org key with the admin scope)
+- [x] Implement resource: `harmoniq_environment` (CRUD + import + `approval_policy` nested block)
+- [x] Implement resource: `harmoniq_host_app` (CRUD + import)
+- [x] Implement resource: `harmoniq_remote_module` (CRUD + import)
+- [x] Implement resource: `harmoniq_api_key` (create + delete; read by id, revoked keys are recreated)
+- [x] Implement resource: `harmoniq_webhook_endpoint` (CRUD + import)
+- [x] Implement resource: `harmoniq_alert_rule` (CRUD + import)
+- [x] Implement resource: `harmoniq_approval_policy` (CRUD + import)
+- [x] Data sources: `harmoniq_workspace`, `harmoniq_environment`, `harmoniq_manifest`
+- [x] `tfplugindocs` generated docs, published to `registry.terraform.io` (IaC-04) (generated and checked in CI; GoReleaser config and steps for the registry ready, publishing is a maintainer action)
+- [x] Unit tests: each resource CRUD using `hashicorp/terraform-plugin-testing` (acceptance test: create, update, no-op plan, import of every resource, destroy; in CI)
 
 #### GitHub Actions (`harmoniq-deploy-action` — separate repo)
 
