@@ -50,63 +50,63 @@ client.on(EVENTS.variantAssigned, ({ variant, cohortId }) =>
 
 ## Options
 
-| Option               | Type                              | Description                                                                                                                                      |
-| -------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `registryUrl`        | `string`                          | Base URL of the Harmoniq registry. **Required.**                                                                                                 |
-| `workspaceSlug`      | `string`                          | Workspace the host app belongs to. **Required.**                                                                                                 |
-| `hostApp`            | `string`                          | Host app slug. **Required.**                                                                                                                     |
-| `environment`        | `string`                          | Environment to read, e.g. `production`. **Required.**                                                                                            |
-| `cdnBaseUrl`         | `string`                          | CDN in front of the published manifests. Tried first, with the registry as a fallback (the CDN copy is always the stable variant).               |
-| `sources`            | `string[]`                        | Full control over the manifest URLs to try, in order. Overrides `cdnBaseUrl`.                                                                    |
-| `userId`             | `string`                          | Opaque user id for sticky canary assignment. Sent to the registry only.                                                                          |
-| `anonymousCanary`    | `boolean`                         | Without `userId`, give visitors a random id kept in storage so they take part in canaries.                                                       |
-| `context`            | `Record<string, string \| number \| boolean>` | Attributes for canary targeting, e.g. `{ plan: 'beta' }`. Keep it under 2 KB and free of secrets.                                    |
-| `fallbackManifest`   | `Manifest`                        | Manifest bundled with the host build (see `harmoniq manifest pull`), used when nothing else is available.                                        |
-| `allowOverrides`     | `boolean`                         | Let developers point modules at local builds. Enable outside production only.                                                                    |
-| `overrides`          | `Record<string, string>`          | Module name to URL overrides (also read from `?harmoniq-override=name@url` and `localStorage`).                                                  |
-| `environmentFromQuery` | `string`                        | Query parameter that selects the environment, e.g. `harmoniq-env` for preview links. Non-production hosts only.                                  |
-| `persist`            | `ManifestStore \| false`          | Where to keep the last good manifest. Defaults to `localStorage`; `false` disables it.                                                           |
-| `pollIntervalMs`     | `number`                          | Re-fetch the manifest on this interval. Unchanged manifests are cheap (ETag).                                                                    |
-| `maxBackoffMs`       | `number`                          | Upper bound for exponential backoff after failed polls. Default 60 s.                                                                            |
-| `timeoutMs`          | `number`                          | Per-request timeout, per source. Default 5 s.                                                                                                    |
-| `fetch`              | `typeof fetch`                    | Custom fetch, for tests or SSR polyfills.                                                                                                        |
-| `reportHealth`       | `boolean \| { sampleRate?, flushIntervalMs? }` | Report module load outcomes for health dashboards, canary comparisons and alerts. Off by default.                                   |
-| `loaderMode`         | `'esm' \| 'systemjs' \| 'amd' \| function` | How `loadModule()` loads a module. Default `esm`.                                                                                       |
-| `strictIntegrity`    | `boolean`                         | Refuse to load a module whose integrity hash the loader cannot enforce (the `amd` loader), instead of warning.                                   |
+| Option                 | Type                                           | Description                                                                                                                        |
+| ---------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `registryUrl`          | `string`                                       | Base URL of the Harmoniq registry. **Required.**                                                                                   |
+| `workspaceSlug`        | `string`                                       | Workspace the host app belongs to. **Required.**                                                                                   |
+| `hostApp`              | `string`                                       | Host app slug. **Required.**                                                                                                       |
+| `environment`          | `string`                                       | Environment to read, e.g. `production`. **Required.**                                                                              |
+| `cdnBaseUrl`           | `string`                                       | CDN in front of the published manifests. Tried first, with the registry as a fallback (the CDN copy is always the stable variant). |
+| `sources`              | `string[]`                                     | Full control over the manifest URLs to try, in order. Overrides `cdnBaseUrl`.                                                      |
+| `userId`               | `string`                                       | Opaque user id for sticky canary assignment. Sent to the registry only.                                                            |
+| `anonymousCanary`      | `boolean`                                      | Without `userId`, give visitors a random id kept in storage so they take part in canaries.                                         |
+| `context`              | `Record<string, string \| number \| boolean>`  | Attributes for canary targeting, e.g. `{ plan: 'beta' }`. Keep it under 2 KB and free of secrets.                                  |
+| `fallbackManifest`     | `Manifest`                                     | Manifest bundled with the host build (see `harmoniq manifest pull`), used when nothing else is available.                          |
+| `allowOverrides`       | `boolean`                                      | Let developers point modules at local builds. Enable outside production only.                                                      |
+| `overrides`            | `Record<string, string>`                       | Module name to URL overrides (also read from `?harmoniq-override=name@url` and `localStorage`).                                    |
+| `environmentFromQuery` | `string`                                       | Query parameter that selects the environment, e.g. `harmoniq-env` for preview links. Non-production hosts only.                    |
+| `persist`              | `ManifestStore \| false`                       | Where to keep the last good manifest. Defaults to `localStorage`; `false` disables it.                                             |
+| `pollIntervalMs`       | `number`                                       | Re-fetch the manifest on this interval. Unchanged manifests are cheap (ETag).                                                      |
+| `maxBackoffMs`         | `number`                                       | Upper bound for exponential backoff after failed polls. Default 60 s.                                                              |
+| `timeoutMs`            | `number`                                       | Per-request timeout, per source. Default 5 s.                                                                                      |
+| `fetch`                | `typeof fetch`                                 | Custom fetch, for tests or SSR polyfills.                                                                                          |
+| `reportHealth`         | `boolean \| { sampleRate?, flushIntervalMs? }` | Report module load outcomes for health dashboards, canary comparisons and alerts. Off by default.                                  |
+| `loaderMode`           | `'esm' \| 'systemjs' \| 'amd' \| function`     | How `loadModule()` loads a module. Default `esm`.                                                                                  |
+| `strictIntegrity`      | `boolean`                                      | Refuse to load a module whose integrity hash the loader cannot enforce (the `amd` loader), instead of warning.                     |
 
 ## API
 
-| Method                                           | Description                                                                                         |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `init()`                                         | Load the manifest and start polling. Rejects only if no source and no offline copy is available.    |
-| `destroy()`                                      | Stop polling, drop listeners, flush health reports. The last manifest stays readable.               |
-| `loadModule<T>(name)`                            | Load a module with the configured loader. Rejects for unknown or disabled modules.                  |
-| `getManifest()`                                  | The current manifest, or `null`.                                                                    |
-| `getModule(name)` / `getModuleUrl(name)`         | Manifest entry or URL for one module.                                                               |
-| `getModuleEntry(name)`                           | `{ url, integrity, version }`, or `null` when missing or disabled.                                  |
-| `isModuleDisabled(name)`                         | `{ reason }` when the kill switch is on for this module, else `null`.                               |
-| `getScriptTag(name)`                             | A ready-to-inject `<script type="module">` tag with `integrity` and `crossorigin` set.              |
-| `getVariant()` / `getCohortId()`                 | `'stable'` or `'canary'`, and the (hashed) cohort this user belongs to.                             |
-| `getSource()`                                    | `'network'`, `'persisted'` or `'fallback'`. Anything but `network` may be stale.                    |
-| `getError()`                                     | The error from the most recent failed fetch.                                                        |
-| `setUserId(id)` / `setContext(ctx)`              | Change the canary identity or targeting attributes (e.g. after sign-in) and re-fetch.               |
-| `reportModuleLoad(name, report)` / `reportModuleError(name, error)` | Record a load outcome (no-op unless `reportHealth` is on).                       |
-| `flushHealth()`                                  | Send queued health reports now. Called automatically.                                               |
-| `getTelemetryTags()`                             | Variant, cohort and per-module versions as dotted tags for error trackers and traces.               |
-| `on(event, fn)` / `off(event, fn)`               | Subscribe to events. `on` returns the unsubscribe function.                                         |
+| Method                                                              | Description                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `init()`                                                            | Load the manifest and start polling. Rejects only if no source and no offline copy is available. |
+| `destroy()`                                                         | Stop polling, drop listeners, flush health reports. The last manifest stays readable.            |
+| `loadModule<T>(name)`                                               | Load a module with the configured loader. Rejects for unknown or disabled modules.               |
+| `getManifest()`                                                     | The current manifest, or `null`.                                                                 |
+| `getModule(name)` / `getModuleUrl(name)`                            | Manifest entry or URL for one module.                                                            |
+| `getModuleEntry(name)`                                              | `{ url, integrity, version }`, or `null` when missing or disabled.                               |
+| `isModuleDisabled(name)`                                            | `{ reason }` when the kill switch is on for this module, else `null`.                            |
+| `getScriptTag(name)`                                                | A ready-to-inject `<script type="module">` tag with `integrity` and `crossorigin` set.           |
+| `getVariant()` / `getCohortId()`                                    | `'stable'` or `'canary'`, and the (hashed) cohort this user belongs to.                          |
+| `getSource()`                                                       | `'network'`, `'persisted'` or `'fallback'`. Anything but `network` may be stale.                 |
+| `getError()`                                                        | The error from the most recent failed fetch.                                                     |
+| `setUserId(id)` / `setContext(ctx)`                                 | Change the canary identity or targeting attributes (e.g. after sign-in) and re-fetch.            |
+| `reportModuleLoad(name, report)` / `reportModuleError(name, error)` | Record a load outcome (no-op unless `reportHealth` is on).                                       |
+| `flushHealth()`                                                     | Send queued health reports now. Called automatically.                                            |
+| `getTelemetryTags()`                                                | Variant, cohort and per-module versions as dotted tags for error trackers and traces.            |
+| `on(event, fn)` / `off(event, fn)`                                  | Subscribe to events. `on` returns the unsubscribe function.                                      |
 
 ### Events
 
 Event names are exported as `EVENTS`.
 
-| Event                     | Payload                          | Fired when                                                            |
-| ------------------------- | -------------------------------- | --------------------------------------------------------------------- |
-| `EVENTS.manifestUpdate`   | `Manifest`                       | A manifest with a new ETag was applied.                               |
-| `EVENTS.variantAssigned`  | `{ variant, cohortId }`          | The user's variant was assigned or changed.                           |
-| `EVENTS.manifestStale`    | `{ source, generatedAt }`        | The manifest in use did not come from the network.                    |
-| `EVENTS.moduleDisabled`   | `{ name, reason }`               | A module was switched off by the kill switch.                         |
-| `EVENTS.overrideActive`   | `Record<string, string>`         | Modules are served from developer overrides.                          |
-| `EVENTS.error`            | `Error`                          | A manifest fetch failed on every source.                              |
+| Event                    | Payload                   | Fired when                                         |
+| ------------------------ | ------------------------- | -------------------------------------------------- |
+| `EVENTS.manifestUpdate`  | `Manifest`                | A manifest with a new ETag was applied.            |
+| `EVENTS.variantAssigned` | `{ variant, cohortId }`   | The user's variant was assigned or changed.        |
+| `EVENTS.manifestStale`   | `{ source, generatedAt }` | The manifest in use did not come from the network. |
+| `EVENTS.moduleDisabled`  | `{ name, reason }`        | A module was switched off by the kill switch.      |
+| `EVENTS.overrideActive`  | `Record<string, string>`  | Modules are served from developer overrides.       |
+| `EVENTS.error`           | `Error`                   | A manifest fetch failed on every source.           |
 
 ## Framework bindings
 

@@ -30,9 +30,7 @@ const sha = process.env.GITHUB_SHA!;
 
 export default defineConfig({
   plugins: [
-    federation({
-      /* … */
-    }),
+    federation({/* … */}),
     harmoniq.vite({
       module: 'checkout',
       environment: 'staging',
@@ -96,37 +94,37 @@ console.log(result.integrity, result.deployed, result.pendingApproval);
 
 ## Options
 
-| Option         | Type                     | Default                               | Description                                                                                                  |
-| -------------- | ------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `module`       | `string`                 | required                              | Harmoniq module slug or id.                                                                                  |
-| `environment`  | `string`                 | required                              | Target environment, e.g. `staging`.                                                                          |
-| `version`      | `string`                 | required                              | Version being built, e.g. `1.2.3` or a commit SHA.                                                           |
-| `url`          | `string`                 | required                              | Public URL the remote entry will be served from once uploaded.                                               |
-| `outDir`       | `string`                 | required                              | Build output directory. Required because it is bundler-agnostic.                                             |
-| `entry`        | `string`                 | `remoteEntry.js`                      | Remote entry file inside `outDir`.                                                                           |
-| `registryUrl`  | `string`                 | `HARMONIQ_REGISTRY_URL`               | Registry base URL.                                                                                           |
-| `apiKey`       | `string`                 | `HARMONIQ_API_KEY`                    | API key with the `deploy:write` scope.                                                                       |
-| `workspace`    | `string`                 | `HARMONIQ_WORKSPACE`                  | Workspace slug.                                                                                              |
-| `commitSha`    | `string`                 | `GITHUB_SHA` / `CI_COMMIT_SHA`        | Commit recorded with the version.                                                                            |
-| `deploy`       | `boolean`                | `true` when `CI=true`                 | Register the version with the registry. Local builds only print the integrity hash by default.               |
-| `dryRun`       | `boolean`                | `false`                               | Validate on the registry and print the projected change without deploying.                                   |
-| `dependencies` | `Record<string, string>` | read from `mf-manifest.json`          | Shared dependency ranges for the dependency gate. Entries here are added or take precedence.                 |
-| `force`        | `boolean`                | `false`                               | Deploy despite dependency conflicts or removed exposes (audited by the registry).                            |
-| `changeTicket` | `string`                 | `HARMONIQ_CHANGE_TICKET`              | Change ticket for environments that require one.                                                             |
-| `log`          | `(message: string) => void` | `console.log` with `[harmoniq]` prefix | Custom logger.                                                                                           |
+| Option         | Type                        | Default                                | Description                                                                                    |
+| -------------- | --------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `module`       | `string`                    | required                               | Harmoniq module slug or id.                                                                    |
+| `environment`  | `string`                    | required                               | Target environment, e.g. `staging`.                                                            |
+| `version`      | `string`                    | required                               | Version being built, e.g. `1.2.3` or a commit SHA.                                             |
+| `url`          | `string`                    | required                               | Public URL the remote entry will be served from once uploaded.                                 |
+| `outDir`       | `string`                    | required                               | Build output directory. Required because it is bundler-agnostic.                               |
+| `entry`        | `string`                    | `remoteEntry.js`                       | Remote entry file inside `outDir`.                                                             |
+| `registryUrl`  | `string`                    | `HARMONIQ_REGISTRY_URL`                | Registry base URL.                                                                             |
+| `apiKey`       | `string`                    | `HARMONIQ_API_KEY`                     | API key with the `deploy:write` scope.                                                         |
+| `workspace`    | `string`                    | `HARMONIQ_WORKSPACE`                   | Workspace slug.                                                                                |
+| `commitSha`    | `string`                    | `GITHUB_SHA` / `CI_COMMIT_SHA`         | Commit recorded with the version.                                                              |
+| `deploy`       | `boolean`                   | `true` when `CI=true`                  | Register the version with the registry. Local builds only print the integrity hash by default. |
+| `dryRun`       | `boolean`                   | `false`                                | Validate on the registry and print the projected change without deploying.                     |
+| `dependencies` | `Record<string, string>`    | read from `mf-manifest.json`           | Shared dependency ranges for the dependency gate. Entries here are added or take precedence.   |
+| `force`        | `boolean`                   | `false`                                | Deploy despite dependency conflicts or removed exposes (audited by the registry).              |
+| `changeTicket` | `string`                    | `HARMONIQ_CHANGE_TICKET`               | Change ticket for environments that require one.                                               |
+| `log`          | `(message: string) => void` | `console.log` with `[harmoniq]` prefix | Custom logger.                                                                                 |
 
 ## Result
 
 `harmoniqDeploy()` resolves to:
 
-| Field             | Description                                                                              |
-| ----------------- | ---------------------------------------------------------------------------------------- |
-| `integrity`       | `sha384-…` hash of the remote entry.                                                     |
-| `deployed`        | `true` when the version was registered (never for dry runs or pending approvals).         |
-| `pendingApproval` | Request id when the environment needs approval before the deploy applies.                |
-| `exposes`         | Exposed modules read from `mf-manifest.json`, if present.                                |
-| `dependencies`    | Shared dependency ranges sent to the registry, if any.                                   |
-| `response`        | The registry's response body.                                                            |
+| Field             | Description                                                                       |
+| ----------------- | --------------------------------------------------------------------------------- |
+| `integrity`       | `sha384-…` hash of the remote entry.                                              |
+| `deployed`        | `true` when the version was registered (never for dry runs or pending approvals). |
+| `pendingApproval` | Request id when the environment needs approval before the deploy applies.         |
+| `exposes`         | Exposed modules read from `mf-manifest.json`, if present.                         |
+| `dependencies`    | Shared dependency ranges sent to the registry, if any.                            |
+| `response`        | The registry's response body.                                                     |
 
 It throws when the remote entry is missing, when required settings are absent, or when the registry rejects the deploy (for example, a dependency gate failure or a frozen environment).
 

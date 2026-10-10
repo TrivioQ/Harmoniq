@@ -38,15 +38,15 @@ export HARMONIQ_API_KEY=hq_…
 
 Every setting resolves in this order: **flag → environment variable → saved profile → default**.
 
-| Flag                    | Environment variable      | Default                 | Description                                              |
-| ----------------------- | ------------------------- | ----------------------- | -------------------------------------------------------- |
-| `--registry-url <url>`  | `HARMONIQ_REGISTRY_URL`   | `http://localhost:4000` | Registry URL.                                            |
-| `--api-key <key>`       | `HARMONIQ_API_KEY`        |                         | API key.                                                 |
-| `--workspace <slug>`    | `HARMONIQ_WORKSPACE`      |                         | Workspace slug.                                          |
-| `--profile <name>`      | `HARMONIQ_PROFILE`        | `default`               | Saved profile to use.                                    |
-| `--change-ticket <id>`  | `HARMONIQ_CHANGE_TICKET`  |                         | Change ticket for environments that require one.         |
-| `--wait`                |                           | off                     | When a change needs approval, wait until it is decided.  |
-| `--json`                |                           | off                     | Machine-readable JSON output.                            |
+| Flag                   | Environment variable     | Default                 | Description                                             |
+| ---------------------- | ------------------------ | ----------------------- | ------------------------------------------------------- |
+| `--registry-url <url>` | `HARMONIQ_REGISTRY_URL`  | `http://localhost:4000` | Registry URL.                                           |
+| `--api-key <key>`      | `HARMONIQ_API_KEY`       |                         | API key.                                                |
+| `--workspace <slug>`   | `HARMONIQ_WORKSPACE`     |                         | Workspace slug.                                         |
+| `--profile <name>`     | `HARMONIQ_PROFILE`       | `default`               | Saved profile to use.                                   |
+| `--change-ticket <id>` | `HARMONIQ_CHANGE_TICKET` |                         | Change ticket for environments that require one.        |
+| `--wait`               |                          | off                     | When a change needs approval, wait until it is decided. |
+| `--json`               |                          | off                     | Machine-readable JSON output.                           |
 
 ## Common workflows
 
@@ -138,22 +138,22 @@ The preview environment expires after the given number of hours, and the command
 
 ## Commands
 
-| Command                              | Description                                                                              |
-| ------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `login`                              | Save an API key for a workspace, verified against the registry.                          |
-| `whoami`                             | Show the registry and workspace in use, and verify the key.                              |
-| `deploy`                             | Deploy a module version, optionally as a canary or staged rollout.                       |
-| `promote`                            | Promote the artifact running in one environment to another.                              |
-| `rollback`                           | Roll a module back to an earlier version.                                                |
-| `canary set-traffic\|promote\|advance\|abort` | Manage a running canary.                                                        |
-| `disable` / `enable`                 | Kill switch: turn a module off or back on in an environment.                             |
-| `schedule list\|cancel`              | List or cancel scheduled operations.                                                     |
-| `validate`                           | Check that a bundle URL is reachable and matches its integrity hash.                     |
-| `manifest get\|pull`                 | Print the current manifest, or save it to a file (e.g. as a build-time fallback).        |
-| `doctor`                             | Diagnose why a module is not loading the way you expect in an environment.               |
-| `plan`                               | Show what applying `harmoniq.yaml` would change, without changing anything.              |
-| `apply`                              | Make the workspace match `harmoniq.yaml`.                                                |
-| `import`                             | Write the workspace as it is now to `harmoniq.yaml`, to start using GitOps.              |
+| Command                                       | Description                                                                       |
+| --------------------------------------------- | --------------------------------------------------------------------------------- |
+| `login`                                       | Save an API key for a workspace, verified against the registry.                   |
+| `whoami`                                      | Show the registry and workspace in use, and verify the key.                       |
+| `deploy`                                      | Deploy a module version, optionally as a canary or staged rollout.                |
+| `promote`                                     | Promote the artifact running in one environment to another.                       |
+| `rollback`                                    | Roll a module back to an earlier version.                                         |
+| `canary set-traffic\|promote\|advance\|abort` | Manage a running canary.                                                          |
+| `disable` / `enable`                          | Kill switch: turn a module off or back on in an environment.                      |
+| `schedule list\|cancel`                       | List or cancel scheduled operations.                                              |
+| `validate`                                    | Check that a bundle URL is reachable and matches its integrity hash.              |
+| `manifest get\|pull`                          | Print the current manifest, or save it to a file (e.g. as a build-time fallback). |
+| `doctor`                                      | Diagnose why a module is not loading the way you expect in an environment.        |
+| `plan`                                        | Show what applying `harmoniq.yaml` would change, without changing anything.       |
+| `apply`                                       | Make the workspace match `harmoniq.yaml`.                                         |
+| `import`                                      | Write the workspace as it is now to `harmoniq.yaml`, to start using GitOps.       |
 
 Run `harmoniq <command> --help` for every flag.
 
@@ -183,22 +183,22 @@ harmoniq apply                       # make the workspace match the file
 
 CI pipelines can branch on these.
 
-| Code | Meaning                                                                          |
-| ---- | -------------------------------------------------------------------------------- |
-| `0`  | Success.                                                                         |
-| `1`  | Generic error.                                                                   |
-| `2`  | Validation error (bad input, or the bundle failed validation).                   |
-| `3`  | Authentication or authorization failure.                                         |
-| `4`  | The environment is frozen.                                                       |
-| `5`  | Conflict.                                                                        |
-| `6`  | The change is waiting for approval (use `--wait` to block until it is decided).  |
-| `7`  | `plan --detailed-exitcode`: the workspace differs from `harmoniq.yaml`.          |
+| Code | Meaning                                                                         |
+| ---- | ------------------------------------------------------------------------------- |
+| `0`  | Success.                                                                        |
+| `1`  | Generic error.                                                                  |
+| `2`  | Validation error (bad input, or the bundle failed validation).                  |
+| `3`  | Authentication or authorization failure.                                        |
+| `4`  | The environment is frozen.                                                      |
+| `5`  | Conflict.                                                                       |
+| `6`  | The change is waiting for approval (use `--wait` to block until it is decided). |
+| `7`  | `plan --detailed-exitcode`: the workspace differs from `harmoniq.yaml`.         |
 
 ## GitHub Actions
 
 ```yaml
 - run: npx @harmoniq/cli deploy --module checkout --env staging --release ${{ github.sha }}
-        --url https://cdn.acme.com/checkout/${{ github.sha }}/remoteEntry.js --file dist/remoteEntry.js
+    --url https://cdn.acme.com/checkout/${{ github.sha }}/remoteEntry.js --file dist/remoteEntry.js
   env:
     HARMONIQ_REGISTRY_URL: ${{ vars.HARMONIQ_REGISTRY_URL }}
     HARMONIQ_WORKSPACE: ${{ vars.HARMONIQ_WORKSPACE }}

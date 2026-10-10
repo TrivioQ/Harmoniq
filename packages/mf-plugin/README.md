@@ -82,10 +82,10 @@ init({
 
 ## Options
 
-| Option        | Type                     | Default | Description                                                                                                  |
-| ------------- | ------------------------ | ------- | ------------------------------------------------------------------------------------------------------------ |
-| `remoteNames` | `Record<string, string>` | `{}`    | Module Federation remote name → Harmoniq module name, when they differ.                                      |
-| `strict`      | `boolean`                | `false` | Throw for remotes missing from the manifest instead of using their static configuration.                     |
+| Option        | Type                     | Default | Description                                                                                                         |
+| ------------- | ------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------- |
+| `remoteNames` | `Record<string, string>` | `{}`    | Module Federation remote name → Harmoniq module name, when they differ.                                             |
+| `strict`      | `boolean`                | `false` | Throw for remotes missing from the manifest instead of using their static configuration.                            |
 | `reportLoads` | `boolean`                | `true`  | Report each remote's first load through `client.reportModuleLoad`. Only sent when the client has `reportHealth` on. |
 
 ## Handling a disabled remote
