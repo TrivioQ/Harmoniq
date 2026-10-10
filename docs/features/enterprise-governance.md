@@ -18,16 +18,17 @@ Large enterprises operating in regulated industries require three capabilities t
 
 ## Requirements
 
-| ID                                                      | Requirement                                                                                             | Status         |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------- |
-| `RBAC-01`–`RBAC-06`                                     | Module ownership and module-scoped access                                                               | ✅ Done (M4.1) |
-| `SSO-01`–`SSO-08`, `SSO-21`–`SSO-23`, `SSO-26`–`SSO-28` | OIDC single sign-on, JIT, domain join, group mapping, forced SSO, IdP session lifetime                  | ✅ Done (M4.4) |
-| `SSO-09`–`SSO-20`                                       | SAML 2.0 single sign-on: SP/IdP-initiated, metadata, SLO, signing keypair, setup notes, test connection | ✅ Done (M4.5) |
-| `SSO-24`, `SSO-25`                                      | SCIM 2.0 provisioning and deprovisioning (workspace level; org level comes with organizations)          | ✅ Done (M4.6) |
-| `ENV-FRZ-03`–`04`                                       | Owner freeze override, scheduled freeze windows                                                         | ✅ Done (M4.2) |
-| `APR-01`–`APR-18`                                       | Change Approval Workflows                                                                               | 📋 Planned     |
-| `ORG-01`–`ORG-15`                                       | Organization Hierarchy                                                                                  | 📋 Planned     |
-| `IaC-01`–`IaC-14`                                       | GitOps / Infrastructure as Code                                                                         | 📋 Planned     |
+| ID                                                      | Requirement                                                                                                             | Status         |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `RBAC-01`–`RBAC-06`                                     | Module ownership and module-scoped access                                                                               | ✅ Done (M4.1) |
+| `SSO-01`–`SSO-08`, `SSO-21`–`SSO-23`, `SSO-26`–`SSO-28` | OIDC single sign-on, JIT, domain join, group mapping, forced SSO, IdP session lifetime                                  | ✅ Done (M4.4) |
+| `SSO-09`–`SSO-20`                                       | SAML 2.0 single sign-on: SP/IdP-initiated, metadata, SLO, signing keypair, setup notes, test connection                 | ✅ Done (M4.5) |
+| `SSO-24`, `SSO-25`                                      | SCIM 2.0 provisioning and deprovisioning (workspace level; org level comes with organizations)                          | ✅ Done (M4.6) |
+| `ENV-FRZ-03`–`04`                                       | Owner freeze override, scheduled freeze windows                                                                         | ✅ Done (M4.2) |
+| `APR-01`–`APR-18`                                       | Change Approval Workflows                                                                                               | ✅ Done (M4.3) |
+| `ORG-01`–`ORG-04`, `ORG-08`–`ORG-15`                    | Organizations: members, workspaces, org admins, cross-workspace audit, shared modules, catalog, org API keys, dashboard | ✅ Done (M4.7) |
+| `ORG-05`–`ORG-07`                                       | Org-level SSO and SCIM                                                                                                  | 📋 Planned     |
+| `IaC-01`–`IaC-14`                                       | GitOps / Infrastructure as Code                                                                                         | 📋 Planned     |
 
 See [`docs/requirements.md §16`](../requirements.md) for the full specification.
 
@@ -46,6 +47,14 @@ Every session started through a workspace's IdP (OIDC or SAML) is confined to th
 ### Provisioning (SCIM)
 
 The SCIM token identifies the workspace (its sha256 is unique), so the endpoint is the same `/scim/v2` for every workspace. A SCIM user links the IdP account to a global `User` by email, and the membership is derived from it after every change: active → member with a role from the SCIM groups (through the SSO role mapping), inactive or deleted → no membership. The `ScimUser` row outlives deprovisioning on purpose: it is what stops a trusted-domain SSO login from silently re-adding someone the IdP removed. Session revocation happens after the tenant transaction, through the system client, because sessions are not tenant data.
+
+### Organizations
+
+Organizations are system tables (no tenant RLS): they sit above workspace isolation, so organization routes read with the system client and authorize against `OrganizationMember` themselves. Org-level events go to `OrganizationAuditEvent` (append-only for the app role); the org audit log merges it with the workspaces' `AuditEvent` rows by `(createdAt, id)`.
+
+Org admins get `admin` in the org's workspaces inside `requireWorkspace`, so every workspace route applies to them unchanged. Org keys reuse the API key principal: `requireWorkspace` checks the workspace belongs to the key's organization (and scope) and binds it as the key's workspace for that request, so module scoping, audit and held-back approvals work as for workspace keys (approved requests re-resolve org keys by id).
+
+Shared modules cross tenants, so they are read with the system client outside the tenant transaction and passed to the manifest builder; every manifest path (route, snapshot, CDN publish) includes them. After a change in a workspace that shares modules, the other workspaces' environments of the same name are invalidated and republished (no snapshot is written for them).
 
 ### Change approvals (APR-01..18)
 
@@ -108,6 +117,24 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-09 — Organizations (M4.7)
+
+**Type:** Feature
+**Author:** Shashi Kumar Dhandapani
+**Refs:** ORG-01 – ORG-04, ORG-08 – ORG-15
+
+**Summary:**
+
+- `/api/orgs`: create, members (`org_admin` / `org_member`, last admin protected), workspaces (create inside, attach, detach, delete with confirmation), cross-workspace audit with filters and keyset pagination, module catalog, org API keys scoped to workspaces and modules.
+- Org admins administer the org's workspaces; org keys (`hq_org_…`) authenticate in the org's workspaces.
+- Org-shared modules in sibling manifests (`shared`, `ownerWorkspace`), refreshed when the owner changes them; workspace owners share from the module page.
+- Dashboard: organizations on the home page, `/orgs/:orgSlug` (overview, catalog, audit, members, keys). Workspace slugs that clash with dashboard paths are reserved.
+- Org-level SSO and SCIM (ORG-05..07) follow separately.
+
+**Tests:**
+
+`orgs.test.ts`: creation and reserved slugs, attach rules, `/api/me`, org admin vs member access, last admin, shared modules across manifests (updates, unshare, owner precedence, outside the org), catalog, org keys (scopes, workspace limits, revocation), org audit (filters, pagination matches the full list), detach and delete. Dashboard pages rendered against a dev registry, including an org admin opening a workspace without a membership.
 
 ### 2026-10-09 — SCIM provisioning (M4.6)
 

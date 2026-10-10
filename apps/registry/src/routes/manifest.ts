@@ -28,7 +28,7 @@ function etagMatches(header: string | undefined, etag: string): boolean {
 }
 
 const manifestRoutes: FastifyPluginAsync = async (fastify) => {
-  const { cache, systemDb, withTenant, logger } = fastify.container;
+  const { cache, systemDb, withTenant, logger, orgShared } = fastify.container;
   const { isProduction } = fastify.config;
 
   // RL-01/02: per (workspace, client IP). In-memory per replica for now; RL-03 (shared
@@ -107,8 +107,9 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
       throw new NotFoundError('Manifest not found');
     }
 
+    const shared = await orgShared.forTarget(workspace.id, environment.slug);
     const built = await withTenant(workspace.id, (tx) =>
-      buildManifest(tx, { workspaceSlug, hostApp, environment }, { canaryModuleIds })
+      buildManifest(tx, { workspaceSlug, hostApp, environment }, { canaryModuleIds, shared })
     );
     return { built, hostAppSlug: hostApp.slug };
   }

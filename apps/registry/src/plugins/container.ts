@@ -9,7 +9,8 @@ import { PrismaClient } from '@prisma/client';
 import { createDbClients, withTenant, TenantTx } from '@harmoniq/db';
 import { PgBoss } from 'pg-boss';
 import { WebhookDispatcher, createWebhookDispatcher } from '../services/webhookDispatcher';
-import { ManifestMutations } from '../services/manifestMutation';
+import { OrgSharedModules } from '../services/orgShared';
+import { ManifestMutations, MutationTarget } from '../services/manifestMutation';
 import { ManifestPublisher } from '../services/manifestPublisher';
 import { StorageTarget, instanceStorageTarget } from '../adapters/storage/createStorage';
 import { IMailer } from '@harmoniq/core/dist/ports/IMailer';
@@ -33,6 +34,8 @@ export interface AppContainer {
   /** Instance default storage (null when STORAGE_ADAPTER=none). */
   instanceStorage: StorageTarget | null;
   publisher: ManifestPublisher;
+  /** ORG-10/11: modules shared across an organization's workspaces. */
+  orgShared: OrgSharedModules;
 }
 
 declare module 'fastify' {
@@ -85,6 +88,10 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
       : new ConsoleMailer(logger);
 
   const instanceStorage = instanceStorageTarget(fastify.config);
+  // eslint-disable-next-line prefer-const -- used by the publisher before it is created
+  let orgShared: OrgSharedModules;
+  const shared = (workspaceId: string, environmentSlug: string) =>
+    orgShared.forTarget(workspaceId, environmentSlug);
   const publisher = new ManifestPublisher({
     systemDb,
     withTenant: tenant,
@@ -92,6 +99,7 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     encryptionKey: fastify.config.encryptionKey,
     webhooks,
     logger,
+    shared,
   });
 
   // Publish after every manifest change: queued (retried) when the job queue runs, inline
@@ -99,7 +107,8 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
   // per environment — it reads the latest state when it runs, so bursts collapse — while
   // a change made during a running publish still queues a new one. (No singletonSeconds:
   // that would drop the second publish of a burst and leave the CDN copy stale.)
-  const onCommitted = async ({ environment }: { environment: { id: string } }) => {
+  const enqueuePublish = async (environmentId: string) => {
+    const environment = { id: environmentId };
     if (boss) {
       await boss.send(
         'manifest.publish',
@@ -110,6 +119,12 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
       await publisher.publish(environment.id).catch(() => undefined); // recorded on the environment
     }
   };
+  orgShared = new OrgSharedModules({ systemDb, cache, logger, republish: enqueuePublish });
+  // Siblings in the organization see this workspace's shared modules (ORG-11).
+  const onCommitted = async (target: MutationTarget) => {
+    await enqueuePublish(target.environment.id);
+    await orgShared.fanOut(target.workspace.id, target.environment.slug);
+  };
 
   fastify.decorate('container', {
     cache,
@@ -119,9 +134,17 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     withTenant: tenant,
     boss,
     webhooks,
-    mutations: new ManifestMutations({ withTenant: tenant, cache, webhooks, logger, onCommitted }),
+    mutations: new ManifestMutations({
+      withTenant: tenant,
+      cache,
+      webhooks,
+      logger,
+      onCommitted,
+      shared,
+    }),
     instanceStorage,
     publisher,
+    orgShared,
     mailer,
   });
 

@@ -42,7 +42,12 @@ function canonicalJson(value: unknown): string {
 export async function buildManifest(
   tx: TenantTx,
   target: ManifestTarget,
-  opts: { canaryModuleIds?: string[]; generatedAt?: Date } = {}
+  opts: {
+    canaryModuleIds?: string[];
+    generatedAt?: Date;
+    /** ORG-11: modules shared by the organization's other workspaces. */
+    shared?: Module[];
+  } = {}
 ): Promise<BuiltManifest> {
   const all = await tx.moduleVersion.findMany({
     where: {
@@ -90,6 +95,10 @@ export async function buildManifest(
       ...(disabled.get(v.remoteModuleId) && { disabledReason: disabled.get(v.remoteModuleId)! }),
     }),
   }));
+
+  // The workspace's own module wins over a shared one of the same name.
+  const own = new Set(modules.map((m) => m.name));
+  modules.push(...(opts.shared ?? []).filter((m) => !own.has(m.name)));
 
   const content = {
     schemaVersion: 2 as const,

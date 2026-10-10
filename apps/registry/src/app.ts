@@ -13,6 +13,7 @@ import approvalRoutes from './routes/approvals';
 import ssoRoutes from './routes/sso';
 import samlRoutes from './routes/saml';
 import scimRoutes from './routes/scim';
+import orgRoutes from './routes/orgs';
 import { SsoProviders } from './services/sso';
 import hostAppRoutes from './routes/hostApps';
 import historyRoutes from './routes/history';
@@ -179,6 +180,7 @@ export async function buildApp() {
   await app.register(ssoRoutes);
   await app.register(samlRoutes);
   await app.register(scimRoutes);
+  await app.register(orgRoutes);
   await app.register(hostAppRoutes);
   await app.register(historyRoutes);
   await app.register(accessRoutes);

@@ -108,6 +108,10 @@ export interface ModuleDetail {
   owners: Array<{ memberId: string; userId: string; email: string; name: string | null }>;
   /** Whether you may deploy, roll back or otherwise change this module. */
   canWrite: boolean;
+  /** ORG-10: listed in the organization's other workspaces' manifests. */
+  orgShared: boolean;
+  /** Owners of workspaces in an organization may share modules. */
+  canShare: boolean;
   hostApp: { slug: string; name: string };
   environments: Array<{
     id: string;

@@ -81,6 +81,12 @@
           },
           "disabledReason": {
             "type": "string"
+          },
+          "shared": {
+            "type": "boolean"
+          },
+          "ownerWorkspace": {
+            "type": "string"
           }
         },
         "required": ["name", "url", "integrity", "version"]

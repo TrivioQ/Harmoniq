@@ -21,6 +21,7 @@ import {
   FreezeRequestSchema,
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import { audit } from '../services/audit';
+import { createWorkspace } from '../services/workspaces';
 import { ssoScope } from '../plugins/authenticate';
 import { isFrozen } from '../services/manifestMutation';
 import { publishedPaths } from '../services/manifestPublisher';
@@ -46,48 +47,11 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
       );
     }
     const body = CreateWorkspaceSchema.parse(request.body);
-
-    try {
-      // System role: the workspace (and therefore its tenant context) doesn't exist yet.
-      const workspace = await systemDb.$transaction(async (tx) => {
-        const ws = await tx.workspace.create({ data: { name: body.name, slug: body.slug } });
-        await tx.workspaceMember.create({
-          data: { workspaceId: ws.id, userId: principal.id, role: 'owner', joinedAt: new Date() },
-        });
-        await tx.hostApp.create({
-          data: {
-            workspaceId: ws.id,
-            name: 'Default',
-            slug: 'default',
-            isDefault: true,
-            Environments: {
-              create: [
-                { name: 'Staging', slug: 'staging' },
-                { name: 'Production', slug: 'production', isDefault: true },
-              ],
-            },
-          },
-        });
-        await tx.auditEvent.create({
-          data: {
-            workspaceId: ws.id,
-            actorId: principal.id,
-            actorType: 'user',
-            action: 'workspace.create',
-            resourceType: 'workspace',
-            resourceId: ws.id,
-            ip: request.ip,
-          },
-        });
-        return ws;
-      });
-      return reply.code(201).send({ slug: workspace.slug, name: workspace.name });
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new ConflictError(`Workspace slug "${body.slug}" is taken`);
-      }
-      throw err;
-    }
+    const workspace = await createWorkspace(systemDb, body, {
+      userId: principal.id,
+      ip: request.ip,
+    });
+    return reply.code(201).send({ slug: workspace.slug, name: workspace.name });
   });
 
   fastify.get<{ Params: WsParams }>(

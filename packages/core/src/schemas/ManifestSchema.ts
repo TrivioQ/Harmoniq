@@ -13,6 +13,10 @@ export const ModuleSchema = z.object({
   /** Kill switch (M3.6): hosts must not load this module. */
   disabled: z.boolean().optional(),
   disabledReason: z.string().optional(),
+  /** ORG-11: published by another workspace of the organization (read-only here). */
+  shared: z.boolean().optional(),
+  /** ORG-11: the workspace that owns a shared module. */
+  ownerWorkspace: z.string().optional(),
 });
 
 export const ManifestSchema = z.object({

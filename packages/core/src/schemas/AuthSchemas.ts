@@ -58,8 +58,15 @@ export const MeResponseSchema = z.object({
       slug: z.string(),
       name: z.string(),
       role: z.enum(['owner', 'admin', 'developer', 'viewer']),
+      /** The workspace's organization, if any. */
+      organization: z.string().optional(),
     })
   ),
+  organizations: z
+    .array(
+      z.object({ slug: z.string(), name: z.string(), role: z.enum(['org_admin', 'org_member']) })
+    )
+    .default([]),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 

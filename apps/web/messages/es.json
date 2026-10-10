@@ -10,7 +10,12 @@
     "createWorkspace": "Crear espacio de trabajo",
     "create": "Crear",
     "name": "Nombre",
-    "slug": "Identificador"
+    "slug": "Identificador",
+    "organizations": "Organizaciones",
+    "orgAdmin": "Administrador de la organización",
+    "orgMember": "Miembro de la organización",
+    "createOrg": "Crear una organización",
+    "createOrgHint": "Agrupa los espacios de trabajo de tus equipos: un registro de auditoría, un catálogo de módulos, módulos compartidos y claves de CI entre espacios."
   },
   "WorkspaceLayout": {
     "overview": "Resumen",
@@ -220,7 +225,12 @@
     "ssoSaved": "Inicio de sesión único guardado; el proveedor respondió.",
     "ssoRemoved": "Inicio de sesión único eliminado.",
     "scimToken": "Token SCIM creado. Pégalo en tu proveedor de identidad.",
-    "scimDisabled": "Aprovisionamiento SCIM desactivado."
+    "scimDisabled": "Aprovisionamiento SCIM desactivado.",
+    "orgCreated": "Organización creada.",
+    "workspaceAttached": "Espacio de trabajo añadido a la organización.",
+    "workspaceDetached": "Espacio de trabajo quitado de la organización.",
+    "moduleShared": "Módulo compartido con la organización.",
+    "moduleUnshared": "El módulo ya no se comparte."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -342,7 +352,11 @@
     "ownersHint": "Los responsables y los administradores del espacio pueden desplegar, revertir, promover y usar canaries con este módulo. Sin responsables, cualquier desarrollador puede.",
     "ownersSave": "Guardar responsables",
     "bypassed": "OMITIDA",
-    "approvedBy": "{count, plural, one {Aprobado por # revisor} other {Aprobado por # revisores}}"
+    "approvedBy": "{count, plural, one {Aprobado por # revisor} other {Aprobado por # revisores}}",
+    "sharedOn": "Compartido con la organización: otros espacios lo cargan en la versión activa de este espacio.",
+    "sharedOff": "No se comparte con la organización.",
+    "share": "Compartir con la organización",
+    "unshare": "Dejar de compartir"
   },
   "EnvironmentHistory": {
     "back": "Entornos",
@@ -618,5 +632,80 @@
     "disableConfirm": "¿Desactivar el aprovisionamiento SCIM? Los miembros actuales se mantienen; el IdP ya no podrá cambiarlos.",
     "events": "Solicitudes SCIM recientes",
     "noEvents": "Aún no hay solicitudes."
+  },
+  "OrgLayout": {
+    "overview": "Resumen",
+    "catalog": "Catálogo de módulos",
+    "audit": "Auditoría",
+    "members": "Miembros",
+    "keys": "Claves de API"
+  },
+  "OrgHome": {
+    "description": "Espacios de trabajo de esta organización, con la actividad reciente y la salud de las últimas 24 horas.",
+    "workspace": "Espacio",
+    "modules": "Módulos",
+    "members": "Miembros",
+    "lastDeploy": "Último despliegue",
+    "health": "Errores (24 h)",
+    "errorRate": "{rate} de {samples} cargas",
+    "detach": "Quitar",
+    "detachConfirm": "¿Quitar {workspace} de la organización? Los administradores y las claves de la organización pierden el acceso, y sus módulos dejan de compartirse.",
+    "noWorkspaces": "Aún no hay espacios.",
+    "createWorkspace": "Nuevo espacio en esta organización",
+    "create": "Crear",
+    "name": "Nombre",
+    "slug": "Slug",
+    "attach": "Añadir un espacio existente",
+    "attachHint": "Debes ser propietario del espacio.",
+    "attachSubmit": "Añadir",
+    "recentDeploys": "Despliegues recientes",
+    "noDeploys": "Aún no hay despliegues."
+  },
+  "OrgCatalog": {
+    "title": "Catálogo de módulos",
+    "description": "Todos los módulos publicados en la organización, con su equipo y la versión activa por entorno.",
+    "module": "Módulo",
+    "team": "Equipo",
+    "owners": "Responsables",
+    "shared": "compartido",
+    "empty": "Aún no hay módulos."
+  },
+  "OrgAudit": {
+    "title": "Auditoría",
+    "workspace": "Espacio",
+    "allWorkspaces": "Todos los espacios",
+    "action": "Acción",
+    "filter": "Filtrar",
+    "organization": "organización",
+    "empty": "No hay eventos.",
+    "older": "Eventos anteriores"
+  },
+  "OrgMembers": {
+    "title": "Miembros",
+    "description": "Los administradores gestionan la organización y administran todos sus espacios. Los miembros ven la organización y su catálogo; el acceso a cada espacio lo da cada espacio.",
+    "role": "Rol",
+    "org_admin": "Administrador",
+    "org_member": "Miembro",
+    "save": "Guardar",
+    "remove": "Quitar",
+    "removeConfirm": "¿Quitar a {email} de la organización?",
+    "add": "Añadir un miembro",
+    "addSubmit": "Añadir"
+  },
+  "OrgKeys": {
+    "title": "Claves de API",
+    "description": "Claves de CI compartidas entre equipos. Deja los espacios vacíos para permitir todos los espacios de la organización.",
+    "create": "Crear clave",
+    "copyOnce": "Copia esta clave ahora; no se volverá a mostrar.",
+    "name": "Nombre",
+    "scopes": "Permisos",
+    "workspaces": "Espacios",
+    "workspacesPlaceholder": "Slugs de espacios (vacío: todos)",
+    "allWorkspaces": "todos los espacios",
+    "lastUsed": "usada {when}",
+    "revoked": "revocada",
+    "revoke": "Revocar",
+    "revokeConfirm": "¿Revocar {name}? La CI que la usa dejará de funcionar.",
+    "empty": "Aún no hay claves."
   }
 }

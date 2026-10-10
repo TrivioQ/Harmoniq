@@ -3,12 +3,22 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import argon2 from 'argon2';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { Role, Workspace } from '@prisma/client';
-import { isApiKeyFormat, parseApiKey } from '../auth/apiKeys';
+import { isApiKeyFormat, parseApiKey, parseOrgApiKey } from '../auth/apiKeys';
 import { Permission, roleAllows, scopesAllow } from '../auth/permissions';
 import { verifyAccessToken } from '../auth/tokens';
 
 export type Principal =
-  | { type: 'apiKey'; id: string; workspaceId: string; scopes: string[]; moduleIds: string[] }
+  | {
+      type: 'apiKey';
+      id: string;
+      /** For an organization key: the workspace of this request, once authorized. */
+      workspaceId: string;
+      scopes: string[];
+      moduleIds: string[];
+      /** ORG-13: set for organization keys, valid in that org's (listed) workspaces. */
+      organizationId?: string;
+      workspaceIds?: string[];
+    }
   | {
       type: 'user';
       id: string;
@@ -54,6 +64,8 @@ declare module 'fastify' {
 interface CachedKey {
   keyId: string;
   workspaceId: string;
+  organizationId?: string;
+  workspaceIds?: string[];
   scopes: string[];
   moduleIds: string[];
   expiresAt: Date | null;
@@ -93,10 +105,46 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
   function touchLastUsed(entry: CachedKey, now: number) {
     if (now - entry.lastUsedWrite < LAST_USED_WRITE_INTERVAL_MS) return;
     entry.lastUsedWrite = now;
-    systemDb.apiKey
-      .update({ where: { id: entry.keyId }, data: { lastUsedAt: new Date(now) } })
-      .catch((err: unknown) => logger.error('Failed to update API key lastUsedAt', err as Error));
+    const data = { lastUsedAt: new Date(now) };
+    (entry.organizationId
+      ? systemDb.orgApiKey.update({ where: { id: entry.keyId }, data })
+      : systemDb.apiKey.update({ where: { id: entry.keyId }, data })
+    ).catch((err: unknown) => logger.error('Failed to update API key lastUsedAt', err as Error));
   }
+
+  /** ORG-13: an organization key as a cache entry (null when unknown or revoked). */
+  async function loadOrgKey(keyId: string, secret: string | null, now: number) {
+    const record = await systemDb.orgApiKey.findUnique({
+      where: { id: keyId },
+      include: { organization: { select: { deletedAt: true } } },
+    });
+    if (!record || record.revokedAt || record.organization.deletedAt) return null;
+    if (secret !== null && !(await argon2.verify(record.keyHash, secret))) return null;
+    return {
+      keyId: record.id,
+      workspaceId: '',
+      organizationId: record.organizationId,
+      workspaceIds: record.workspaceScope,
+      scopes: record.scopes,
+      moduleIds: record.moduleScope,
+      expiresAt: record.expiresAt,
+      gracePeriodEnd: null,
+      lastUsedWrite: record.lastUsedAt?.getTime() ?? 0,
+      cachedUntil: now + KEY_CACHE_TTL_MS,
+    } satisfies CachedKey;
+  }
+
+  const toPrincipal = (entry: CachedKey): Principal => ({
+    type: 'apiKey',
+    id: entry.keyId,
+    workspaceId: entry.workspaceId,
+    scopes: entry.scopes,
+    moduleIds: entry.moduleIds,
+    ...(entry.organizationId && {
+      organizationId: entry.organizationId,
+      workspaceIds: entry.workspaceIds ?? [],
+    }),
+  });
 
   async function resolveApiKey(raw: string): Promise<Principal | null> {
     const now = Date.now();
@@ -105,8 +153,20 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     let entry = keyCache.get(tokenHash);
     if (!entry || entry.cachedUntil <= now) {
       keyCache.delete(tokenHash);
-      const parsed = parseApiKey(raw);
+      const orgKey = parseOrgApiKey(raw);
+      const parsed = orgKey ?? parseApiKey(raw);
       if (!parsed) return null;
+
+      if (orgKey) {
+        const loaded = await loadOrgKey(orgKey.keyId, orgKey.secret, now);
+        if (!loaded) return null;
+        entry = loaded;
+        if (keyCache.size >= KEY_CACHE_MAX) keyCache.clear();
+        keyCache.set(tokenHash, entry);
+        if (!keyIsUsable(entry, now)) return null;
+        touchLastUsed(entry, now);
+        return toPrincipal(entry);
+      }
 
       const record = await systemDb.apiKey.findUnique({ where: { id: parsed.keyId } });
       if (!record || record.revokedAt) return null;
@@ -129,14 +189,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     // Re-checked on every request so a cached key still stops working on time.
     if (!keyIsUsable(entry, now)) return null;
     touchLastUsed(entry, now);
-
-    return {
-      type: 'apiKey',
-      id: entry.keyId,
-      workspaceId: entry.workspaceId,
-      scopes: entry.scopes,
-      moduleIds: entry.moduleIds,
-    };
+    return toPrincipal(entry);
   }
 
   async function resolveSession(token: string): Promise<Principal | null> {
@@ -189,7 +242,12 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     }
     if (type === 'apiKey' && id) {
       const key = await systemDb.apiKey.findUnique({ where: { id } });
-      if (!key || key.revokedAt || !keyIsUsable(key, Date.now())) return null;
+      if (!key) {
+        // An organization key (e.g. its deploy was held for approval).
+        const orgKey = await loadOrgKey(id, null, Date.now());
+        return orgKey && keyIsUsable(orgKey, Date.now()) ? toPrincipal(orgKey) : null;
+      }
+      if (key.revokedAt || !keyIsUsable(key, Date.now())) return null;
       return {
         type: 'apiKey',
         id: key.id,
@@ -250,6 +308,17 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
         : null;
 
       if (principal.type === 'apiKey') {
+        if (principal.organizationId) {
+          // ORG-13: any workspace of the key's organization, or only the listed ones.
+          const allowed =
+            !!workspace &&
+            workspace.organizationId === principal.organizationId &&
+            (!principal.workspaceIds?.length || principal.workspaceIds.includes(workspace.id));
+          if (!allowed) {
+            return deny(reply, 403, 'FORBIDDEN', 'API key is not valid for this workspace');
+          }
+          principal.workspaceId = workspace!.id;
+        }
         // A key is only ever valid for the workspace that issued it.
         if (!workspace || workspace.id !== principal.workspaceId) {
           return deny(reply, 403, 'FORBIDDEN', 'API key is not valid for this workspace');
@@ -281,10 +350,25 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
         return;
       }
 
-      const membership = await systemDb.workspaceMember.findUnique({
+      const joined = await systemDb.workspaceMember.findUnique({
         where: { workspaceId_userId: { workspaceId: workspace.id, userId: principal.id } },
       });
-      if (!membership?.joinedAt) return deny(reply, 404, 'NOT_FOUND', 'Workspace not found');
+      // ORG-08: organization admins administer the org's workspaces (at least `admin`).
+      const orgAdmin =
+        !!workspace.organizationId &&
+        !scope &&
+        (await systemDb.organizationMember.count({
+          where: {
+            organizationId: workspace.organizationId,
+            userId: principal.id,
+            role: 'org_admin',
+            organization: { deletedAt: null },
+          },
+        })) > 0;
+      const memberRole = joined?.joinedAt ? joined.role : null;
+      const role: Role | null = orgAdmin && memberRole !== 'owner' ? 'admin' : memberRole;
+      if (!role) return deny(reply, 404, 'NOT_FOUND', 'Workspace not found');
+      const membership = { role };
       if (!roleAllows(membership.role, permission)) {
         return deny(reply, 403, 'FORBIDDEN', `Your role does not grant ${permission}`);
       }

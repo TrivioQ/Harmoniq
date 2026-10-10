@@ -245,6 +245,9 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
         description: m.description,
         owners,
         canWrite,
+        // ORG-10: shared with the organization's other workspaces; owners decide.
+        orgShared: m.orgShared,
+        canShare: !!request.workspace!.organizationId && request.workspaceRole === 'owner',
         hostApp: { slug: m.hostApp.slug, name: m.hostApp.name },
         environments: m.hostApp.Environments.map((e) => {
           const state = killed.find((k) => k.environmentId === e.id);

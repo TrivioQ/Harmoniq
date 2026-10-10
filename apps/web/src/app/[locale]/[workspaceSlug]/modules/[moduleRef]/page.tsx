@@ -14,6 +14,7 @@ import {
   setCanaryAction,
   setKillSwitchAction,
   setModuleOwnersAction,
+  setModuleSharedAction,
 } from '../../actions';
 
 const statusStyle: Record<string, string> = {
@@ -311,6 +312,19 @@ export default async function ModuleDetailPage(props: {
           <p className="text-sm text-muted-foreground">{t('canaryNone')}</p>
         )}
       </section>
+
+      {(module.canShare || module.orgShared) && (
+        <section className="rounded-xl border bg-card p-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm">{module.orgShared ? t('sharedOn') : t('sharedOff')}</p>
+          {module.canShare && (
+            <ActionForm
+              action={setModuleSharedAction.bind(null, workspaceSlug, module.id, !module.orgShared)}
+              submitLabel={module.orgShared ? t('unshare') : t('share')}
+              variant="outline"
+            />
+          )}
+        </section>
+      )}
 
       <details className="rounded-xl border bg-card p-4" open={module.owners.length > 0}>
         <summary className="cursor-pointer text-sm font-medium">

@@ -10,7 +10,12 @@
     "createWorkspace": "Create Workspace",
     "create": "Create",
     "name": "Name",
-    "slug": "Slug"
+    "slug": "Slug",
+    "organizations": "Organizations",
+    "orgAdmin": "Organization admin",
+    "orgMember": "Organization member",
+    "createOrg": "Create an organization",
+    "createOrgHint": "Group your teams’ workspaces: one audit log, a module catalog, shared modules and CI keys across workspaces."
   },
   "WorkspaceLayout": {
     "overview": "Overview",
@@ -220,7 +225,12 @@
     "ssoSaved": "Single sign-on saved; the identity provider answered.",
     "ssoRemoved": "Single sign-on removed.",
     "scimToken": "SCIM token created. Paste it into your identity provider.",
-    "scimDisabled": "SCIM provisioning turned off."
+    "scimDisabled": "SCIM provisioning turned off.",
+    "orgCreated": "Organization created.",
+    "workspaceAttached": "Workspace added to the organization.",
+    "workspaceDetached": "Workspace removed from the organization.",
+    "moduleShared": "Module shared with the organization.",
+    "moduleUnshared": "Module no longer shared."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -342,7 +352,11 @@
     "ownersHint": "Owners and workspace admins can deploy, roll back, promote and run canaries for this module. Without owners, every developer can.",
     "ownersSave": "Save owners",
     "bypassed": "BYPASSED",
-    "approvedBy": "{count, plural, one {Approved by # reviewer} other {Approved by # reviewers}}"
+    "approvedBy": "{count, plural, one {Approved by # reviewer} other {Approved by # reviewers}}",
+    "sharedOn": "Shared with the organization: other workspaces load it at this workspace’s active version.",
+    "sharedOff": "Not shared with the organization.",
+    "share": "Share with organization",
+    "unshare": "Stop sharing"
   },
   "EnvironmentHistory": {
     "back": "Environments",
@@ -618,5 +632,80 @@
     "disableConfirm": "Turn off SCIM provisioning? Existing members stay; the IdP can no longer change them.",
     "events": "Recent SCIM requests",
     "noEvents": "No requests yet."
+  },
+  "OrgLayout": {
+    "overview": "Overview",
+    "catalog": "Module catalog",
+    "audit": "Audit log",
+    "members": "Members",
+    "keys": "API keys"
+  },
+  "OrgHome": {
+    "description": "Workspaces in this organization, with recent activity and health over the last 24 hours.",
+    "workspace": "Workspace",
+    "modules": "Modules",
+    "members": "Members",
+    "lastDeploy": "Last deploy",
+    "health": "Errors (24 h)",
+    "errorRate": "{rate} of {samples} loads",
+    "detach": "Remove",
+    "detachConfirm": "Remove {workspace} from the organization? Org admins and org keys lose access to it, and its shared modules stop being shared.",
+    "noWorkspaces": "No workspaces yet.",
+    "createWorkspace": "New workspace in this organization",
+    "create": "Create",
+    "name": "Name",
+    "slug": "Slug",
+    "attach": "Add an existing workspace",
+    "attachHint": "You must own the workspace.",
+    "attachSubmit": "Add",
+    "recentDeploys": "Recent deploys",
+    "noDeploys": "No deploys yet."
+  },
+  "OrgCatalog": {
+    "title": "Module catalog",
+    "description": "Every module published across the organization, with its team and the active version per environment.",
+    "module": "Module",
+    "team": "Team",
+    "owners": "Owners",
+    "shared": "shared",
+    "empty": "No modules yet."
+  },
+  "OrgAudit": {
+    "title": "Audit log",
+    "workspace": "Workspace",
+    "allWorkspaces": "All workspaces",
+    "action": "Action",
+    "filter": "Filter",
+    "organization": "organization",
+    "empty": "No events.",
+    "older": "Older events"
+  },
+  "OrgMembers": {
+    "title": "Members",
+    "description": "Organization admins manage the organization and administer all of its workspaces. Members see the organization and its catalog; workspace access comes from each workspace.",
+    "role": "Role",
+    "org_admin": "Admin",
+    "org_member": "Member",
+    "save": "Save",
+    "remove": "Remove",
+    "removeConfirm": "Remove {email} from the organization?",
+    "add": "Add a member",
+    "addSubmit": "Add"
+  },
+  "OrgKeys": {
+    "title": "API keys",
+    "description": "Keys for CI shared across teams. Leave workspaces empty to allow every workspace in the organization.",
+    "create": "Create key",
+    "copyOnce": "Copy this key now; it won’t be shown again.",
+    "name": "Name",
+    "scopes": "Scopes",
+    "workspaces": "Workspaces",
+    "workspacesPlaceholder": "Workspace slugs (empty: all)",
+    "allWorkspaces": "all workspaces",
+    "lastUsed": "used {when}",
+    "revoked": "revoked",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke {name}? CI using it stops working.",
+    "empty": "No keys yet."
   }
 }

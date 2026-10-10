@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
+import { workspaceApi } from '@/lib/workspaceApi';
 
 export default async function WorkspaceLayout(props: {
   children: React.ReactNode;
@@ -12,8 +13,11 @@ export default async function WorkspaceLayout(props: {
   const me = await getMe();
   if (!me) redirect('/auth/login');
 
-  // Membership comes from the registry; non-members get a 404 (no slug probing).
-  const workspace = me.workspaces.find((w) => w.slug === params.workspaceSlug);
+  // Membership comes from the registry; non-members get a 404 (no slug probing). Org
+  // admins reach their organization's workspaces without a membership (ORG-08).
+  const workspace =
+    me.workspaces.find((w) => w.slug === params.workspaceSlug) ??
+    (await workspaceApi.get(params.workspaceSlug).catch(() => null));
   if (!workspace) notFound();
 
   return (

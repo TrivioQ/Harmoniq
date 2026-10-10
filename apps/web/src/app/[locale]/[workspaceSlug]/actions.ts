@@ -729,3 +729,21 @@ export async function disableScimAction(workspace: string, _prev: ActionResult) 
     (t) => ({ status: 'success', message: t('scimDisabled') })
   );
 }
+
+// ─── Organizations (ORG-10) ─────────────────────────────────────────────────
+
+export async function setModuleSharedAction(
+  workspace: string,
+  moduleRef: string,
+  shared: boolean,
+  _prev: ActionResult
+) {
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/modules/${enc(moduleRef)}/shared`, {
+        method: 'PUT',
+        body: { shared },
+      }),
+    (t) => ({ status: 'success', message: shared ? t('moduleShared') : t('moduleUnshared') })
+  );
+}

@@ -281,9 +281,16 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         joinedAt: { not: null },
         ...(scope && { workspace: { slug: scope } }),
       },
-      include: { workspace: true },
+      include: { workspace: { include: { organization: { select: { slug: true } } } } },
       orderBy: { workspace: { name: 'asc' } },
     });
+    const orgs = scope
+      ? []
+      : await systemDb.organizationMember.findMany({
+          where: { userId: principal.id, organization: { deletedAt: null } },
+          include: { organization: true },
+          orderBy: { organization: { name: 'asc' } },
+        });
     const body: MeResponse = {
       // Instance-admin powers never come from a workspace's IdP.
       user: scope ? { ...user, isInstanceAdmin: false } : user,
@@ -291,6 +298,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         slug: m.workspace.slug,
         name: m.workspace.name,
         role: m.role,
+        ...(m.workspace.organization && { organization: m.workspace.organization.slug }),
+      })),
+      organizations: orgs.map((m) => ({
+        slug: m.organization.slug,
+        name: m.organization.name,
+        role: m.role as 'org_admin' | 'org_member',
       })),
     };
     return body;

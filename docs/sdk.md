@@ -79,6 +79,8 @@ The registry decides the variant per user and module; the CDN copy is always sta
 
 A module disabled from the dashboard or `harmoniq disable` stays in the manifest with `disabled: true`. `getModuleEntry()` then returns `null`, `useRemoteModule()` (React), `useHarmoniq()` (Vue) and `getModule()` (Angular) report `disabled` and `disabledReason` instead of an error, and `@harmoniq/mf-plugin` refuses to load the remote, so your error boundary renders a fallback. Hosts on an SDK older than this see the module as normal: upgrade before relying on the kill switch.
 
+In an organization, modules shared by another workspace appear in the manifest like your own, with `shared: true` and `ownerWorkspace`; they load the same way. A module of your own with the same name takes precedence.
+
 ### Module health
 
 With `reportHealth: true` the client batches load outcomes and sends them to the registry, which shows success rate and load times per module, split by stable and canary, in the dashboard. `@harmoniq/mf-plugin` reports every remote's first load automatically; other loaders call `reportModuleLoad` / `reportModuleError`. Reports carry the module version from the manifest; overridden modules are never reported. Use `sampleRate` on high-traffic hosts.

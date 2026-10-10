@@ -151,6 +151,8 @@ model RemoteModule {
   description         String?
   /// Import-map specifier, e.g. `@acme/checkout` (IMP-03). Defaults to the slug.
   specifier           String?
+  /// ORG-10: listed in the manifests of the organization's other workspaces.
+  orgShared           Boolean              @default(false)
   createdAt           DateTime             @default(now())
   workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   hostApp             HostApp              @relation(fields: [hostAppId], references: [id], onDelete: Cascade)
@@ -600,17 +602,18 @@ model DeploymentApproval {
 }
 
 model Organization {
-  id         String               @id @default(cuid())
-  slug       String               @unique
-  name       String
-  plan       String               @default("hobby")
-  oidcConfig Json?
-  samlConfig Json?
-  createdAt  DateTime             @default(now())
-  deletedAt  DateTime?
-  Workspaces Workspace[]
-  Members    OrganizationMember[]
-  OrgApiKeys OrgApiKey[]
+  id          String                   @id @default(cuid())
+  slug        String                   @unique
+  name        String
+  plan        String                   @default("hobby")
+  oidcConfig  Json?
+  samlConfig  Json?
+  createdAt   DateTime                 @default(now())
+  deletedAt   DateTime?
+  Workspaces  Workspace[]
+  Members     OrganizationMember[]
+  OrgApiKeys  OrgApiKey[]
+  AuditEvents OrganizationAuditEvent[]
 }
 
 model OrganizationMember {
@@ -625,16 +628,41 @@ model OrganizationMember {
   @@unique([organizationId, userId])
 }
 
+/// ORG-13: `hq_org_<id>_<secret>`; empty scopes mean every workspace / module of the org.
 model OrgApiKey {
   id             String       @id @default(cuid())
   organizationId String
   keyHash        String
   name           String
+  prefix         String       @default("")
+  scopes         String[]     @default([])
+  /// Workspace ids.
   workspaceScope String[]
+  /// Module ids.
   moduleScope    String[]
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  createdBy      String?
   createdAt      DateTime     @default(now())
   revokedAt      DateTime?
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+/// Org-level changes (members, workspaces, keys); workspace changes stay in AuditEvent.
+model OrganizationAuditEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorType      ActorType
+  actorId        String
+  action         String
+  resourceType   String
+  resourceId     String
+  metadata       Json?
+  ip             String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
 }
 
 model InstanceConfig {

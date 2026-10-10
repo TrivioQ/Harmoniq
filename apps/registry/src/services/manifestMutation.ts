@@ -3,6 +3,7 @@ import type { TenantTx } from '@harmoniq/db';
 import type { ICache } from '@harmoniq/core/dist/ports/ICache';
 import type { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import type { WebhookEventName } from '@harmoniq/core/dist/schemas/WebhookEventSchema';
+import type { Module } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import { LockedError } from '@harmoniq/core/dist/errors/AppError';
 import { AuditActor, audit } from './audit';
 import { BuiltManifest, buildManifest } from './manifestBuilder';
@@ -59,6 +60,8 @@ export class ManifestMutations {
       logger: ILogger;
       /** After commit, e.g. publish the manifest to the CDN (M2.1). Must not throw. */
       onCommitted?: (target: MutationTarget) => Promise<void>;
+      /** ORG-11: modules shared into this workspace's environment by its organization. */
+      shared?: (workspaceId: string, environmentSlug: string) => Promise<Module[]>;
     }
   ) {}
 
@@ -146,10 +149,11 @@ export class ManifestMutations {
   private async snapshot(tx: TenantTx, target: MutationTarget, auditEventId: string) {
     const { workspace, hostApp, environment } = target;
     const now = new Date();
+    const shared = await this.deps.shared?.(workspace.id, environment.slug);
     const built = await buildManifest(
       tx,
       { workspaceSlug: workspace.slug, hostApp, environment },
-      { generatedAt: now }
+      { generatedAt: now, shared }
     );
     const snapshot = await tx.manifestSnapshot.create({
       data: {

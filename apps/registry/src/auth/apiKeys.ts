@@ -20,6 +20,18 @@ export function parseApiKey(raw: string): { keyId: string; secret: string } | nu
   return { keyId: rest.slice(0, sep), secret: rest.slice(sep + 1) };
 }
 
+const ORG_KEY_PREFIX = 'hq_org_';
+
+/** ORG-13: organization keys, `hq_org_<keyId>_<secret>`. */
+export function formatOrgApiKey(keyId: string, secret: string): string {
+  return `${ORG_KEY_PREFIX}${keyId}_${secret}`;
+}
+
+export function parseOrgApiKey(raw: string): { keyId: string; secret: string } | null {
+  if (!raw.startsWith(ORG_KEY_PREFIX)) return null;
+  return parseApiKey(KEY_PREFIX + raw.slice(ORG_KEY_PREFIX.length));
+}
+
 export function isApiKeyFormat(token: string): boolean {
   return token.startsWith(KEY_PREFIX);
 }

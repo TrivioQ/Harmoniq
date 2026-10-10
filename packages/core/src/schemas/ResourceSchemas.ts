@@ -5,9 +5,46 @@ export const SlugSchema = z
   .string()
   .regex(/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/, 'Use lowercase letters, digits and hyphens');
 
+/** Dashboard paths next to `/:workspaceSlug` (ORG-15), so never workspace slugs. */
+export const RESERVED_WORKSPACE_SLUGS = ['orgs', 'admin', 'auth', 'api', 'docs', 'settings'];
+
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1).max(120),
+  slug: SlugSchema.refine(
+    (slug) => !RESERVED_WORKSPACE_SLUGS.includes(slug),
+    'This slug is reserved'
+  ),
+});
+
+// ─── Organizations (ORG-01..15) ─────────────────────────────────────────────
+
+export const OrgRoleSchema = z.enum(['org_admin', 'org_member']);
+export type OrgRole = z.infer<typeof OrgRoleSchema>;
+
+export const CreateOrganizationSchema = z.object({
+  name: z.string().min(1).max(120),
   slug: SlugSchema,
+});
+
+export const UpdateOrganizationSchema = z.object({ name: z.string().min(1).max(120) });
+
+export const AddOrgMemberSchema = z.object({
+  email: z.string().email().max(320),
+  role: OrgRoleSchema.default('org_member'),
+});
+
+export const UpdateOrgMemberSchema = z.object({ role: OrgRoleSchema });
+
+/** ORG-13: org keys reach all of the org's workspaces, or only the listed ones / modules. */
+export const CreateOrgApiKeySchema = z.object({
+  name: z.string().min(1).max(120),
+  scopes: z
+    .array(z.enum(['manifest:read', 'deploy:write', 'admin']))
+    .min(1)
+    .default(['deploy:write']),
+  workspaces: z.array(SlugSchema).max(100).default([]),
+  moduleIds: z.array(z.string().min(1)).max(500).default([]),
+  expiresAt: z.coerce.date().optional(),
 });
 
 export const CreateHostAppSchema = z.object({

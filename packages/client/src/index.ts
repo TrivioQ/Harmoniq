@@ -14,6 +14,10 @@ export interface ManifestModule {
   /** Kill switch: the module must not be loaded. */
   disabled?: boolean;
   disabledReason?: string;
+  /** Shared by another workspace of the organization (read-only here). */
+  shared?: boolean;
+  /** The workspace that owns a shared module. */
+  ownerWorkspace?: string;
 }
 
 export interface Manifest {

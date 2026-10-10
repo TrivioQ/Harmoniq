@@ -1,3 +1,4 @@
+import type { Module } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import type { PrismaClient } from '@prisma/client';
 import type { TenantTx } from '@harmoniq/db';
 import type { ILogger } from '@harmoniq/core/dist/ports/ILogger';
@@ -35,6 +36,8 @@ export class ManifestPublisher {
       encryptionKey: Buffer;
       webhooks: WebhookDispatcher;
       logger: ILogger;
+      /** ORG-11: modules shared into an environment by the organization. */
+      shared?: (workspaceId: string, environmentSlug: string) => Promise<Module[]>;
     }
   ) {}
 
@@ -60,8 +63,9 @@ export class ManifestPublisher {
     if (!target) return null;
 
     try {
+      const shared = await this.deps.shared?.(workspace.id, env.slug);
       const built = await this.deps.withTenant(workspace.id, (tx) =>
-        buildManifest(tx, { workspaceSlug: workspace.slug, hostApp, environment: env })
+        buildManifest(tx, { workspaceSlug: workspace.slug, hostApp, environment: env }, { shared })
       );
       const paths = publishedPaths(workspace.slug, hostApp.slug, env.slug);
       const manifestKey = target.prefix + paths.manifest;

@@ -622,35 +622,35 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 #### Database
 
-- [ ] Add `Organization` model: `id`, `slug`, `name`, `plan`, `oidcConfig` (encrypted Json), `samlConfig` (encrypted Json), `createdAt`, `deletedAt`
-- [ ] Add `OrganizationMember` model: `organizationId`, `userId`, `role` (`org_admin | org_member`), `createdAt`
-- [ ] Add `organizationId` nullable FK to `Workspace` model
-- [ ] Add `OrgApiKey` model: `organizationId`, `keyHash`, `name`, `workspaceScope` (String[]), `moduleScope` (String[]), `createdAt`, `revokedAt`
-- [ ] Prisma migration: organization tables
+- [x] Add `Organization` model: `id`, `slug`, `name`, `plan`, `oidcConfig` (encrypted Json), `samlConfig` (encrypted Json), `createdAt`, `deletedAt`
+- [x] Add `OrganizationMember` model: `organizationId`, `userId`, `role` (`org_admin | org_member`), `createdAt`
+- [x] Add `organizationId` nullable FK to `Workspace` model
+- [x] Add `OrgApiKey` model: `organizationId`, `keyHash`, `name`, `workspaceScope` (String[]), `moduleScope` (String[]), `createdAt`, `revokedAt`
+- [x] Prisma migration: organization tables
 
 #### Registry — Organization Endpoints
 
-- [ ] `POST /api/orgs` — create organization
-- [ ] `GET /api/orgs/:orgSlug` — org details
-- [ ] `GET /api/orgs/:orgSlug/workspaces` — list all workspaces
-- [ ] `GET /api/orgs/:orgSlug/audit` — cross-workspace audit log (paginated, filterable) (ORG-09)
-- [ ] `GET /api/orgs/:orgSlug/catalog` — org module catalog across all workspaces (ORG-12)
+- [x] `POST /api/orgs` — create organization
+- [x] `GET /api/orgs/:orgSlug` — org details
+- [x] `GET /api/orgs/:orgSlug/workspaces` — list all workspaces (part of `GET /api/orgs/:orgSlug`)
+- [x] `GET /api/orgs/:orgSlug/audit` — cross-workspace audit log (paginated, filterable) (ORG-09)
+- [x] `GET /api/orgs/:orgSlug/modules` — org module catalog across all workspaces (ORG-12)
 - [ ] Org-level SAML endpoints: `POST /auth/saml/:orgSlug/acs`, `GET /auth/saml/:orgSlug/metadata` (ORG-06)
 - [ ] Org-level SCIM: `/scim/v2/orgs/:orgSlug` (ORG-07)
 - [ ] `WorkspaceConfig` SSO resolution: check workspace-level SSO first; fall back to org-level SSO if workspace has no override
 
 #### Registry — Cross-Workspace Module Sharing
 
-- [ ] `POST /api/workspaces/:slug/modules/:moduleId/publish-org` — publish module as org-shared (ORG-10)
-- [ ] Manifest builder: include org-shared modules from other workspaces in the org, tagged with `shared: true` (ORG-11)
+- [x] `PUT /api/workspaces/:slug/modules/:moduleId/shared` — publish module as org-shared (ORG-10)
+- [x] Manifest builder: include org-shared modules from other workspaces in the org, tagged with `shared: true` (ORG-11)
 
 #### Dashboard
 
-- [ ] **Organization home** page (`/orgs/:orgSlug`) — all workspaces with aggregate health, recent deploys, cross-workspace audit log (ORG-14)
-- [ ] **Org Module Catalog** (`/orgs/:orgSlug/catalog`) — searchable, filterable by team, module, env (ORG-12)
+- [x] **Organization home** page (`/orgs/:orgSlug`) — all workspaces with aggregate health, recent deploys, cross-workspace audit log (ORG-14)
+- [x] **Org Module Catalog** (`/orgs/:orgSlug/catalog`) — searchable, filterable by team, module, env (ORG-12)
 - [ ] **Org SSO Settings** — configure SAML/OIDC once, applies to all workspaces (ORG-05)
-- [ ] **Org Members** — directory of all users across all workspaces
-- [ ] Existing `/:workspaceSlug` routes remain fully backward-compatible (ORG-15)
+- [x] **Org Members** — directory of all users across all workspaces
+- [x] Existing `/:workspaceSlug` routes remain fully backward-compatible (ORG-15)
 
 #### Test Suite
 
