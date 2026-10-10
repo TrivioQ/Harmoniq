@@ -539,3 +539,106 @@ describe('HarmoniqClient', () => {
     });
   });
 });
+
+describe('loadModule (SYS-03)', () => {
+  const g = globalThis as Record<string, unknown>;
+  afterEach(() => {
+    delete g.System;
+    delete g.require;
+  });
+  const ready = async (extra: Record<string, unknown> = {}, m = manifest('1.0.0')) => {
+    const { fetchImpl } = fakeRegistry([m]);
+    const client = new HarmoniqClient({ ...options(fetchImpl), ...extra });
+    await client.init();
+    return client;
+  };
+
+  it('imports ES modules by default', async () => {
+    const source = 'export const answer = 42;';
+    const url = `data:text/javascript,${encodeURIComponent(source)}`;
+    const client = await ready(
+      {},
+      manifest('1.0.0', {
+        modules: [{ name: 'checkout', url, integrity: 'sha384-x', version: '1.0.0' }],
+      })
+    );
+    await expect(client.loadModule<{ answer: number }>('checkout')).resolves.toMatchObject({
+      answer: 42,
+    });
+  });
+
+  it('uses SystemJS, passing the hash through its import map', async () => {
+    const addImportMap = vi.fn();
+    const systemImport = vi.fn(async () => ({ mount: 'system' }));
+    g.System = { import: systemImport, addImportMap };
+    const client = await ready({ loaderMode: 'systemjs' });
+    expect(await client.loadModule('checkout')).toEqual({ mount: 'system' });
+    expect(systemImport).toHaveBeenCalledWith('https://cdn.example.com/checkout/1.0.0.js');
+    expect(addImportMap).toHaveBeenCalledWith({
+      integrity: { 'https://cdn.example.com/checkout/1.0.0.js': 'sha384-1.0.0' },
+    });
+  });
+
+  it('uses an AMD loader, and says so when none is there', async () => {
+    const client = await ready({ loaderMode: 'amd' });
+    await expect(client.loadModule('checkout')).rejects.toThrow('needs an AMD loader');
+    g.require = (deps: string[], ok: (m: unknown) => void) => ok({ from: deps[0] });
+    expect(await client.loadModule('checkout')).toEqual({
+      from: 'https://cdn.example.com/checkout/1.0.0.js',
+    });
+    const system = await ready({ loaderMode: 'systemjs' });
+    await expect(system.loadModule('checkout')).rejects.toThrow('needs SystemJS');
+  });
+
+  it('accepts a custom loader and reports load outcomes to health', async () => {
+    const health: unknown[] = [];
+    const { fetchImpl } = fakeRegistry([manifest('1.0.0')]);
+    const recording = (async (url: string, init?: RequestInit) => {
+      if (String(url).includes('/api/health/')) {
+        health.push(...JSON.parse(String(init!.body)).events);
+        return new Response(null, { status: 202 });
+      }
+      return fetchImpl(url, init);
+    }) as typeof fetch;
+    const loader = vi.fn(async ({ name }: { name: string }) => {
+      if (name === 'checkout' && loader.mock.calls.length > 1) throw new Error('boom');
+      return { ok: true };
+    });
+    const client = new HarmoniqClient({
+      ...options(recording),
+      loaderMode: loader,
+      reportHealth: true,
+    });
+    await client.init();
+    expect(await client.loadModule('checkout')).toEqual({ ok: true });
+    expect(loader).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'checkout', version: '1.0.0' })
+    );
+    await expect(client.loadModule('checkout')).rejects.toThrow('boom');
+    client.flushHealth();
+    await vi.waitFor(() => expect(health).toHaveLength(2));
+    expect(health).toEqual([
+      expect.objectContaining({ module: 'checkout', success: true }),
+      expect.objectContaining({ module: 'checkout', success: false, error: 'Error: boom' }),
+    ]);
+  });
+
+  it('refuses unknown and switched-off modules', async () => {
+    const client = await ready(
+      {},
+      manifest('1.0.0', {
+        modules: [
+          {
+            name: 'checkout',
+            url: 'https://cdn.example.com/c.js',
+            integrity: 'sha384-x',
+            version: '1.0.0',
+            disabled: true,
+          },
+        ],
+      })
+    );
+    await expect(client.loadModule('checkout')).rejects.toThrow('switched off');
+    await expect(client.loadModule('nope')).rejects.toThrow('not in the manifest');
+  });
+});

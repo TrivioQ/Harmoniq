@@ -107,7 +107,18 @@ export interface HarmoniqClientOptions {
    * `navigator.sendBeacon` when available; `sampleRate` (0–1) keeps a share of them.
    */
   reportHealth?: boolean | { sampleRate?: number; flushIntervalMs?: number };
+  /**
+   * SYS-03: how `loadModule()` loads a module entry. `esm` (default): native `import()`,
+   * with a `modulepreload` carrying the integrity hash. `systemjs`: `System.import` (load
+   * SystemJS on the page; the hash goes into its import map). `amd`: a RequireJS-style
+   * `require`. Or a function, for any other loader.
+   */
+  loaderMode?: LoaderMode | ModuleLoader;
 }
+
+export type LoaderMode = 'esm' | 'systemjs' | 'amd';
+/** A custom loader: receives the module's entry, returns what the module exports. */
+export type ModuleLoader = (entry: ModuleEntry & { name: string }) => Promise<unknown>;
 
 /** A module load outcome for `reportModuleLoad`. */
 export interface ModuleLoadReport {
@@ -497,6 +508,34 @@ export class HarmoniqClient {
     return mod?.disabled ? { reason: mod.disabledReason ?? null } : null;
   }
 
+  /**
+   * SYS-03: loads a module with the configured `loaderMode` and resolves to its exports.
+   * Rejects for modules that aren't in the manifest or are switched off (kill switch).
+   * The load time or failure is reported to health (HLT-01) when `reportHealth` is on.
+   */
+  async loadModule<T = unknown>(name: string): Promise<T> {
+    const entry = this.getModuleEntry(name);
+    if (!entry) {
+      throw new Error(
+        this.isModuleDisabled(name)
+          ? `Module "${name}" is switched off in ${this.environment}`
+          : `Module "${name}" is not in the manifest`
+      );
+    }
+    const mode = this.options.loaderMode ?? 'esm';
+    const loader = typeof mode === 'function' ? mode : LOADERS[mode];
+    if (!loader) throw new Error(`Unknown loaderMode "${String(mode)}"`);
+    const started = now();
+    try {
+      const exports = await loader({ name, ...entry });
+      this.reportModuleLoad(name, { success: true, loadMs: now() - started });
+      return exports as T;
+    } catch (error) {
+      this.reportModuleError(name, error);
+      throw error;
+    }
+  }
+
   /** SRI-02: a ready-to-inject script tag; attribute values are HTML-escaped. */
   getScriptTag(name: string): string | null {
     const entry = this.getModuleEntry(name);
@@ -708,3 +747,57 @@ export class HarmoniqClient {
     }, delay);
   }
 }
+
+// ─── Loaders (SYS-03) ────────────────────────────────────────────────────────
+
+const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+type Global = typeof globalThis & {
+  System?: {
+    import(url: string): Promise<unknown>;
+    addImportMap?(map: { integrity?: Record<string, string> }): void;
+  };
+  require?: ((deps: string[], ok: (mod: unknown) => void, fail: (err: unknown) => void) => void) & {
+    amd?: unknown;
+  };
+  define?: { amd?: unknown };
+};
+
+/**
+ * Lets browsers that support it check the hash before the module runs: a module preload
+ * with `integrity` fills the module map that the `import()` below then uses.
+ */
+function preloadWithIntegrity(url: string, integrity: string) {
+  if (typeof document === 'undefined' || !integrity) return;
+  const links = document.querySelectorAll('link[rel="modulepreload"]');
+  for (const link of Array.from(links)) if (link.getAttribute('href') === url) return;
+  const link = document.createElement('link');
+  link.rel = 'modulepreload';
+  link.href = url;
+  link.integrity = integrity;
+  link.crossOrigin = 'anonymous';
+  document.head.appendChild(link);
+}
+
+const LOADERS: Record<LoaderMode, ModuleLoader> = {
+  esm: ({ url, integrity }) => {
+    preloadWithIntegrity(url, integrity);
+    // A runtime URL: bundlers must leave this import alone.
+    return import(/* @vite-ignore */ /* webpackIgnore: true */ url);
+  },
+  systemjs: ({ url, integrity }) => {
+    const { System } = globalThis as Global;
+    if (!System?.import) {
+      return Promise.reject(new Error('loaderMode "systemjs" needs SystemJS loaded on the page'));
+    }
+    if (integrity) System.addImportMap?.({ integrity: { [url]: integrity } });
+    return System.import(url);
+  },
+  amd: ({ url }) => {
+    const { require: amdRequire } = globalThis as Global;
+    if (typeof amdRequire !== 'function') {
+      return Promise.reject(new Error('loaderMode "amd" needs an AMD loader (e.g. RequireJS)'));
+    }
+    return new Promise((resolve, reject) => amdRequire([url], resolve, reject));
+  },
+};

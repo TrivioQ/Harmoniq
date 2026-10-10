@@ -60,6 +60,25 @@ const entry = client.getModuleEntry('checkout');
 
 **Failures**: sources are tried in order. If all fail, the last manifest stays in use (stale beats broken) and polling backs off. On a cold start with every source down, `init()` uses the persisted copy, then `fallbackManifest`, and emits `manifestStale`; `getSource()` reports `network`, `persisted` or `fallback`. `init()` rejects only when none of these exist.
 
+### Loading modules (SYS-03)
+
+`loadModule(name)` loads a module's entry and resolves to its exports, using `loaderMode`:
+
+| `loaderMode`      | Loads with                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `'esm'` (default) | Native `import()`, after a `<link rel="modulepreload" integrity>` so browsers that support it check the hash |
+| `'systemjs'`      | `System.import()` (load SystemJS yourself); the hash is added to SystemJS's import map (`integrity`)         |
+| `'amd'`           | A RequireJS-style `require([url], …)`; AMD loaders don't check hashes                                        |
+| a function        | Your own loader: `(entry: { name, url, integrity, version }) => Promise<exports>`                            |
+
+```ts
+const client = new HarmoniqClient({ ...options, loaderMode: 'systemjs', reportHealth: true });
+await client.init();
+const { mount } = await client.loadModule<{ mount: (el: Element) => void }>('checkout');
+```
+
+It rejects for modules that aren't in the manifest or are switched off, and reports the load time or the failure to module health when `reportHealth` is on. Module Federation hosts keep using `@harmoniq/mf-plugin`.
+
 ### Canary releases
 
 ```ts

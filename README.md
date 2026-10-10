@@ -20,7 +20,7 @@ Harmoniq is an open-source, self-hostable **Micro Frontend Control Plane** that 
 
 - [Node.js](https://nodejs.org/) (>= 20)
 - [pnpm](https://pnpm.io/) (>= 9)
-- [Docker](https://www.docker.com/) (for local database & services)
+- [Docker](https://www.docker.com/) (optional: `pnpm run dev:local` runs without it)
 
 ### Try it with Docker
 
