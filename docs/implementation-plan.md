@@ -435,7 +435,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ### Local Dev Mode
 
-- [ ] `pnpm run dev:local` — in-memory registry, no Docker, no Postgres (DX-02)
+- [x] `pnpm run dev:local` — in-memory registry, no Docker, no Postgres (DX-02) (an embedded Postgres from npm; in-memory cache)
 - [x] `?pretty=true` on manifest endpoint for development (DX-03)
 
 ### Kubernetes Helm Chart (community target)

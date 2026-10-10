@@ -58,3 +58,6 @@ data/
 examples/**/.demo.env
 .terraform/
 *.tfstate*
+
+# pnpm run dev:local (embedded Postgres data)
+.harmoniq/

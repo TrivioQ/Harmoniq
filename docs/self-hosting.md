@@ -12,6 +12,8 @@ This builds both images, starts Postgres and Redis, applies migrations, seeds a 
 
 The demo runs in development mode (development secrets, "sign in as any email"). Do not expose it to the internet.
 
+Without Docker, `pnpm run dev:local` runs the same stack from source on an embedded Postgres (downloaded as an npm package) with an in-memory cache; see the [README](../README.md#quick-start-development).
+
 ## Production
 
 ### 1. Database roles

@@ -49,7 +49,17 @@ Examples: [`examples/vite-mf`](./examples/vite-mf) (Vite + Module Federation 2.0
    pnpm install
    ```
 
-3. **Configure environment and start local infrastructure (Database, Redis, etc.):**
+3. **Quickest: no Docker, no Postgres install.**
+
+   ```bash
+   pnpm run dev:local
+   ```
+
+   Runs an embedded Postgres (data in `.harmoniq/dev-local`, `--reset` to start over), applies migrations, adds demo data and starts the registry (`http://localhost:4000`) and the dashboard (`http://localhost:3000`) with an in-memory cache and **Development login**. Ctrl+C stops everything.
+
+   The steps below set up the same stack on Docker's Postgres and Redis instead.
+
+4. **Configure environment and start local infrastructure (Database, Redis, etc.):**
 
    ```bash
    cp .env.example .env
@@ -61,16 +71,16 @@ Examples: [`examples/vite-mf`](./examples/vite-mf) (Vite + Module Federation 2.0
    > split need a one-time, non-destructive ownership change:
    > `docker exec -i harmoniq_postgres psql -U postgres -d harmoniq < docker/upgrade-roles.sql`
 
-4. **Run database migrations and seed data:**
+5. **Run database migrations and seed data:**
 
    ```bash
    pnpm run db:deploy
    pnpm run db:seed
    ```
 
-5. **Start the development servers:**
+6. **Start the development servers:**
    ```bash
-   pnpm run dev:local
+   pnpm run dev
    ```
    The Next.js dashboard will be accessible at `http://localhost:3000` and the Registry API at `http://localhost:4000`.
 
