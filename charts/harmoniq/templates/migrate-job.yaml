@@ -1,0 +1,39 @@
+{{- if .Values.migrations.enabled }}
+# Applies database migrations before the release's pods start (install and upgrade).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "harmoniq.fullname" . }}-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "harmoniq.labels" . | nindent 4 }}
+    {{- include "harmoniq.selector" (dict "root" . "component" "migrate") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "harmoniq.selector" (dict "root" . "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: migrate
+          image: {{ include "harmoniq.image" (dict "root" . "repository" .Values.image.registry) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          workingDir: /repo/packages/db
+          command: ["npx", "prisma", "migrate", "deploy"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ include "harmoniq.secretName" . }}
+{{- end }}

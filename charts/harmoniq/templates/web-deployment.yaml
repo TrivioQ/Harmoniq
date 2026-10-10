@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "harmoniq.fullname" . }}-web
+  labels:
+    {{- include "harmoniq.labels" . | nindent 4 }}
+    {{- include "harmoniq.selector" (dict "root" . "component" "web") | nindent 4 }}
+spec:
+  replicas: {{ .Values.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "harmoniq.selector" (dict "root" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "harmoniq.selector" (dict "root" . "component" "web") | nindent 8 }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: web
+          image: {{ include "harmoniq.image" (dict "root" . "repository" .Values.image.web) | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: {{ .Values.web.port | quote }}
+            - name: HOSTNAME
+              value: 0.0.0.0
+            # The dashboard talks to the registry inside the cluster.
+            - name: REGISTRY_URL
+              value: {{ printf "http://%s-registry:%v" (include "harmoniq.fullname" .) .Values.registry.port | quote }}
+            - name: APP_URL
+              value: {{ .Values.urls.web | quote }}
+            # Verifies session tokens the registry issues.
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "harmoniq.secretName" . }}
+                  key: JWT_SECRET
+            {{- with .Values.web.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.web.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet: { path: /en/auth/login, port: http }
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /en/auth/login, port: http }
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

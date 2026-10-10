@@ -95,6 +95,25 @@ docker build -f apps/web/Dockerfile -t harmoniq/web .
 
 Both expose `/health`-style checks used by the Docker `HEALTHCHECK`. The registry also serves `GET /ready` (database and cache) for orchestrators.
 
+## Kubernetes (Helm)
+
+[`charts/harmoniq`](../charts/harmoniq) deploys the registry and the dashboard, each with a Service, health probes and an optional Ingress (one host each, from `urls.web` and `urls.registry`). A pre-install / pre-upgrade hook Job runs `prisma migrate deploy`. Postgres and Redis are yours: create the two roles from [`docker/init.sql`](../docker/init.sql) and pass both connection strings.
+
+```bash
+helm install harmoniq charts/harmoniq \
+  --set urls.web=https://harmoniq.example.com \
+  --set urls.registry=https://registry.harmoniq.example.com \
+  --set env.REDIS_URL=redis://redis:6379 \
+  --set secrets.databaseUrl=postgresql://harmoniq_app:…@postgres:5432/harmoniq \
+  --set secrets.systemDatabaseUrl=postgresql://harmoniq:…@postgres:5432/harmoniq \
+  --set secrets.jwtSecret="$(openssl rand -base64 48)" \
+  --set secrets.encryptionKey="$(openssl rand -base64 32)" \
+  --set secrets.setupToken="$(openssl rand -hex 16)" \
+  --set ingress.enabled=true
+```
+
+Or keep the secrets in your own Secret (`secrets.existingSecret`, keys `DATABASE_URL`, `SYSTEM_DATABASE_URL`, `JWT_SECRET`, `HARMONIQ_ENCRYPTION_KEY`, optionally `HARMONIQ_SETUP_TOKEN`). The registry runs two replicas by default, which needs Redis (`env.CACHE_ADAPTER=redis`, the default). Further registry settings go in `registry.extraEnv` / `registry.extraEnvFrom` (e.g. `SMTP_URL`), or in the admin panel once running.
+
 ## AWS with Terraform
 
 [`deploy/terraform/aws`](../deploy/terraform/aws) deploys the registry and dashboard on ECS Fargate behind one ALB, with RDS Postgres, ElastiCache Redis, S3 + CloudFront for published manifests and generated secrets in Secrets Manager. See its README.

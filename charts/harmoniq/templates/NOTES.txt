@@ -1,0 +1,15 @@
+Harmoniq {{ .Chart.AppVersion }} is installed.
+
+  Dashboard: {{ .Values.urls.web }}
+  Registry:  {{ .Values.urls.registry }}
+
+{{- if gt (int .Values.registry.replicaCount) 1 }}
+{{- if ne .Values.env.CACHE_ADAPTER "redis" }}
+
+WARNING: {{ .Values.registry.replicaCount }} registry replicas without Redis: set env.CACHE_ADAPTER=redis.
+{{- end }}
+{{- end }}
+{{- if .Values.secrets.setupToken }}
+
+First boot: open {{ .Values.urls.web }}/admin/setup with the setup token.
+{{- end }}

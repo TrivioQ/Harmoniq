@@ -440,7 +440,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ### Kubernetes Helm Chart (community target)
 
-- [ ] `charts/harmoniq/` — Helm chart with configurable replica count, ingress, secrets
+- [x] `charts/harmoniq/` — Helm chart with configurable replica count, ingress, secrets
 
 ### Deliverables
 
