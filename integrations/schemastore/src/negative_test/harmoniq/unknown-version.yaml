@@ -1,0 +1,4 @@
+# yaml-language-server: $schema=../../schemas/json/harmoniq.json
+version: 2
+hostApps:
+  - slug: Storefront

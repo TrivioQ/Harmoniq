@@ -72,6 +72,21 @@ None.
 
 ## Change History
 
+### 2026-10-10 — SchemaStore submission for `harmoniq.yaml`; URL templates in the schema
+
+**Type:** feature
+**PR / Branch:** feat/m4-enterprise
+**Refs:** IaC-09
+
+#### What changed
+
+- `integrations/schemastore`: the schema as SchemaStore hosts it (`$id` `https://json.schemastore.org/harmoniq.json`), a test file and a negative test file in their layout, the catalog entry and the submission steps. Generated with the other schemas (`schema:generate`).
+- Fix: the published `harmoniq.yaml` schema marked `previewUrlTemplate` and `ticketUrlPattern` as `format: uri`, which rejects their `{environment}` / `{id}` placeholders; editors flagged valid files. The format is dropped for those fields (the registry still checks them).
+
+#### Testing
+
+`schemaStore.test.ts`: the copy matches the generated schema; the test file validates with Ajv (formats on) and with the registry's Zod schema, the negative one fails both.
+
 ### 2026-10-10 — Terraform provider (IaC-01..04)
 
 **Type:** feature

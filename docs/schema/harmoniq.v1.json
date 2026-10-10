@@ -42,8 +42,7 @@
           "previewUrlTemplate": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "uri"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -109,8 +108,7 @@
                           "default": false
                         },
                         "ticketUrlPattern": {
-                          "type": "string",
-                          "format": "uri"
+                          "type": "string"
                         },
                         "expiryHours": {
                           "type": "integer",

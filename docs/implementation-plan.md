@@ -690,7 +690,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] `harmoniq plan` — parse `harmoniq.yaml`, diff against registry API, output structured change plan (IaC-10)
 - [x] `harmoniq apply` — execute plan: create/update/delete registry resources to match `harmoniq.yaml` (IaC-11)
 - [x] `harmoniq import` — call registry API, generate `harmoniq.yaml` from current state (IaC-12)
-- [ ] `harmoniq.yaml` JSON Schema published to `schemastore.org` for IDE autocompletion (served at `/api/schema/harmoniq.json` and in `docs/schema/harmoniq.v1.json`; schemastore submission pending)
+- [ ] `harmoniq.yaml` JSON Schema published to `schemastore.org` for IDE autocompletion (served at `/api/schema/harmoniq.json` and in `docs/schema/harmoniq.v1.json`; submission prepared in `integrations/schemastore` — opening the SchemaStore pull request is a maintainer action)
 
 #### GitLab CI (`harmoniq-ci` — separate repo)
 

@@ -1,0 +1,6 @@
+{
+  "name": "Harmoniq",
+  "description": "Harmoniq workspace configuration (harmoniq.yaml)",
+  "fileMatch": ["harmoniq.yaml", "harmoniq.yml"],
+  "url": "https://json.schemastore.org/harmoniq.json"
+}

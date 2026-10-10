@@ -32,7 +32,46 @@ export function gitopsJsonSchema() {
   return {
     $id: GITOPS_SCHEMA_ID,
     title: 'Harmoniq workspace configuration (harmoniq.yaml, version 1)',
-    ...zodToJsonSchema(GitOpsConfigSchema, { $refStrategy: 'none', target: 'jsonSchema7' }),
+    ...withoutUriFormat(
+      zodToJsonSchema(GitOpsConfigSchema, { $refStrategy: 'none', target: 'jsonSchema7' }),
+      TEMPLATE_FIELDS
+    ),
+  };
+}
+
+/**
+ * URL templates hold placeholders (`{environment}`, `{id}`) that RFC 3986 — and so JSON
+ * Schema's `uri` format — rejects, while the registry (WHATWG URL parsing) accepts them.
+ */
+const TEMPLATE_FIELDS = new Set(['previewUrlTemplate', 'ticketUrlPattern']);
+
+function withoutUriFormat<T>(node: T, fields: Set<string>, inField = false): T {
+  if (Array.isArray(node)) return node.map((n) => withoutUriFormat(n, fields, inField)) as T;
+  if (!node || typeof node !== 'object') return node;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (inField && key === 'format' && value === 'uri') continue;
+    if (key === 'properties' && value && typeof value === 'object') {
+      out[key] = Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([name, prop]) => [
+          name,
+          withoutUriFormat(prop, fields, fields.has(name)),
+        ])
+      );
+    } else {
+      out[key] = withoutUriFormat(value, fields, inField);
+    }
+  }
+  return out as T;
+}
+
+/** The copy submitted to SchemaStore (served there as json.schemastore.org/harmoniq.json). */
+export function schemaStoreGitopsSchema() {
+  return {
+    ...gitopsJsonSchema(),
+    $id: 'https://json.schemastore.org/harmoniq.json',
+    description:
+      'Declared state of a Harmoniq workspace, applied with `harmoniq apply`: host apps, environments, approval policies, freezes, modules and owners, webhooks, alert rules. https://github.com/TrivioQ/Harmoniq/blob/main/docs/features/gitops.md',
   };
 }
 
