@@ -487,6 +487,16 @@ Actions: `webhook` sends `alert.triggered` / `alert.resolved` to webhook endpoin
 
 `manifest_fetch_error_rate` (ALT-02) is not available: hosts don't report failed manifest fetches yet.
 
+## Workspace as code
+
+M4.10, IaC-09..12. See [workspace as code](./features/gitops.md) for the file format and semantics.
+
+| Endpoint                         | Permission | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/workspaces/:ws/apply` | admin      | `{ config, dryRun?, prune? }` → `{ dryRun, prune, changes: [{ action: create \| update \| delete, type, key, fields?, blocked? }], summary: { create, update, delete, blocked }, secrets? }`. `config` is the parsed `harmoniq.yaml`; invalid files get `400` with `details.issues`, unknown owners or references `422` with `details.problems`, a file for another workspace `400`. `secrets`: webhook signing secrets the registry generated, shown once |
+| `GET /api/workspaces/:ws/config` | admin      | The workspace as a `harmoniq.yaml` document (without webhook secrets)                                                                                                                                                                                                                                                                                                                                                                                      |
+| `GET /api/schema/harmoniq.json`  | public     | JSON Schema of `harmoniq.yaml`                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
 ## Instance administration
 
 M4.8, INST-01..10, 18. Instance admins run the installation; the role grants nothing inside workspaces (INST-05). Every `/api/admin/*` route except the setup wizard requires a signed-in instance admin (workspace owners get `403`; sessions from a workspace's or organization's SSO never count).
@@ -534,6 +544,6 @@ M4.8, INST-01..10, 18. Instance admins run the installation; the role grants not
 
 ## Planned
 
-| Endpoint                                 | Milestone |
-| ---------------------------------------- | --------- |
-| Organizations, SSO, SCIM, GitOps `apply` | M4        |
+| Endpoint                       | Milestone |
+| ------------------------------ | --------- |
+| Plans and limits, audit export | M4.11     |

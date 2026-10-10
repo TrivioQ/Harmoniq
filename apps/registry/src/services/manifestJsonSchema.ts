@@ -1,5 +1,6 @@
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { ManifestSchema } from '@harmoniq/core/dist/schemas/ManifestSchema';
+import { GitOpsConfigSchema } from '@harmoniq/core/dist/schemas/GitOpsConfigSchema';
 
 export const MANIFEST_SCHEMA_ID = 'urn:harmoniq:schema:manifest:v2';
 
@@ -14,6 +15,21 @@ export function manifestJsonSchema() {
     ...allowUnknownProperties(
       zodToJsonSchema(ManifestSchema, { $refStrategy: 'none', target: 'jsonSchema7' })
     ),
+  };
+}
+
+export const GITOPS_SCHEMA_ID = 'urn:harmoniq:schema:harmoniq-yaml:v1';
+
+/**
+ * IaC-09: JSON Schema for `harmoniq.yaml` (editor completion and validation, e.g.
+ * `# yaml-language-server: $schema=…/api/schema/harmoniq.json`). Unknown keys are errors,
+ * as in the registry.
+ */
+export function gitopsJsonSchema() {
+  return {
+    $id: GITOPS_SCHEMA_ID,
+    title: 'Harmoniq workspace configuration (harmoniq.yaml, version 1)',
+    ...zodToJsonSchema(GitOpsConfigSchema, { $refStrategy: 'none', target: 'jsonSchema7' }),
   };
 }
 

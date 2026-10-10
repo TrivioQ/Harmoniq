@@ -30,7 +30,8 @@ Large enterprises operating in regulated industries require three capabilities t
 | `ORG-05`–`ORG-07`                                       | Org-level SSO (OIDC, SAML) inherited by workspaces, group rules, org SCIM                                               | ✅ Done (M4.7b) |
 | `INST-01`–`INST-10`, `INST-18`                          | Instance admin: setup wizard, health, workspace suspension and deletion, users, instance admins, instance audit log     | ✅ Done (M4.8a) |
 | `INST-11`–`INST-17`                                     | Instance settings in the database (storage, email, sign-in, branding), hot reload                                       | ✅ Done (M4.8b) |
-| `IaC-01`–`IaC-14`                                       | GitOps / Infrastructure as Code                                                                                         | 📋 Planned      |
+| `IaC-09`–`IaC-12`                                       | Workspace as code: `harmoniq.yaml`, plan, apply, import ([details](./gitops.md))                                        | ✅ Done (M4.10) |
+| `IaC-01`–`IaC-04`, `IaC-13`–`IaC-14`                    | Terraform provider, GitLab CI component                                                                                 | 📋 Planned      |
 
 See [`docs/requirements.md §16`](../requirements.md) for the full specification.
 

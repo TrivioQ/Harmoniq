@@ -12,6 +12,7 @@ import { rollbackCommand } from './commands/rollback';
 import { validateCommand } from './commands/validate';
 import { manifestCommand } from './commands/manifest';
 import { doctorCommand } from './commands/doctor';
+import { applyCommand, importCommand, planCommand } from './commands/gitops';
 import { CliError, EXIT } from './lib/errors';
 
 export function buildProgram() {
@@ -40,7 +41,10 @@ export function buildProgram() {
     .addCommand(scheduleCommand)
     .addCommand(validateCommand)
     .addCommand(manifestCommand)
-    .addCommand(doctorCommand);
+    .addCommand(doctorCommand)
+    .addCommand(planCommand)
+    .addCommand(applyCommand)
+    .addCommand(importCommand);
 }
 
 /**

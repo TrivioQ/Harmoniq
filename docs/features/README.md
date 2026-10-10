@@ -53,5 +53,6 @@ This directory contains **one Markdown file per product feature**. Each file ser
 | [SDK and CLI](./sdk-and-cli.md) | `@harmoniq/client` SDK and `@harmoniq/cli` developer tooling | Active |
 | [Garbage Collection & Webhooks](./gc-and-webhooks.md) | Background jobs, data retention, and event webhooks via `pg-boss` | Active |
 | [Hardening, Observability & Docs](./hardening-observability-docs.md) | Security, OTel metrics, performance, and documentation | Active |
+| [Workspace as Code](./gitops.md) | `harmoniq.yaml` with `harmoniq plan`, `apply` and `import` | Implemented |
 | [Instance Admin & BYOB Storage](./instance-admin-and-byob-storage.md) | Global system settings and tenant-provided storage (S3/GCS/Azure) | Active |
 | [`_template.md`](./_template.md) | Template — copy to start a new feature doc | — |

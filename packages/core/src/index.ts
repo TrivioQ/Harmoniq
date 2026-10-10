@@ -17,6 +17,7 @@ export * from './manifest/dependencies';
 export * from './schemas/SsoSchema';
 export * from './schemas/AdminSchemas';
 export * from './schemas/InstanceSettingsSchemas';
+export * from './schemas/GitOpsConfigSchema';
 export * from './schemas/ApiKeyCreateSchema';
 export * from './schemas/WebhookEventSchema';
 export * from './schemas/WorkspaceStorageConfigSchema';

@@ -24,7 +24,11 @@ export interface AppContainer {
   db: PrismaClient;
   /** Schema owner, bypasses RLS. Tenant resolution, jobs and instance admin only. */
   systemDb: PrismaClient;
-  withTenant: <T>(workspaceId: string, fn: (tx: TenantTx) => Promise<T>) => Promise<T>;
+  withTenant: <T>(
+    workspaceId: string,
+    fn: (tx: TenantTx) => Promise<T>,
+    options?: { timeout?: number }
+  ) => Promise<T>;
   boss: PgBoss | null;
   webhooks: WebhookDispatcher;
   /** The single path for manifest-changing operations. */
@@ -82,7 +86,8 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     logger.info('pg-boss started');
   }
 
-  const tenant: AppContainer['withTenant'] = (workspaceId, fn) => withTenant(db, workspaceId, fn);
+  const tenant: AppContainer['withTenant'] = (workspaceId, fn, options) =>
+    withTenant(db, workspaceId, fn, options);
   const webhooks = createWebhookDispatcher({ boss, logger, withTenant: tenant });
 
   const settings = new InstanceSettings({

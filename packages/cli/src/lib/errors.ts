@@ -8,6 +8,8 @@ export const EXIT = {
   conflict: 5,
   /** The change waits for approval (APR-04); `--wait` to block until it is decided. */
   pending: 6,
+  /** `harmoniq plan --detailed-exitcode`: the workspace differs from harmoniq.yaml. */
+  changes: 7,
 } as const;
 
 export class CliError extends Error {

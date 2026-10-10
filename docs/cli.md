@@ -187,6 +187,20 @@ harmoniq manifest pull --env production --out src/harmoniq-fallback.json
 
 `manifest pull` is meant for a host app's build: ship the file as a fallback for when the registry is unreachable.
 
+## Workspace as code
+
+A workspace's setup can live in `harmoniq.yaml` (host apps, environments, approval policies, freezes, modules and owners, webhooks, alert rules); see [workspace as code](./features/gitops.md) for the format. The commands need an `admin` API key.
+
+```bash
+harmoniq import                      # write the workspace as it is to harmoniq.yaml
+harmoniq plan                        # what apply would change (nothing is changed)
+harmoniq plan --detailed-exitcode    # exit 7 when the workspace differs (drift check)
+harmoniq apply                       # make the workspace match the file
+harmoniq apply --prune               # also delete what the file doesn't declare
+```
+
+`-f` picks another file. `${NAME}` in the file is read from the environment (use it for webhook secrets); a missing variable is an error. `--prune` deletes only in the sections the file has, and never environments, modules or host apps that still serve versions (the plan shows them as blocked). Webhook secrets the registry generates are printed once.
+
 ## Exit codes
 
 | Code | Meaning                                                                                                              |
@@ -198,6 +212,7 @@ harmoniq manifest pull --env production --out src/harmoniq-fallback.json
 | 4    | Target environment is frozen                                                                                         |
 | 5    | Conflict (e.g. version already active, ambiguous module slug; with `--wait`, a rejected, expired or failed approval) |
 | 6    | The change waits for approval (see `--wait`)                                                                         |
+| 7    | `plan --detailed-exitcode`: the workspace differs from `harmoniq.yaml`                                               |
 
 With `--json`, successful commands print exactly one JSON document on stdout; errors go to stderr.
 

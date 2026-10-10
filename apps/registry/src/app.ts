@@ -22,6 +22,7 @@ import staticRoutes from './routes/static';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
 import workspaceRoutes from './routes/workspaces';
+import gitopsRoutes from './routes/gitops';
 import authRoutes from './routes/auth';
 import jobsPlugin from './plugins/jobs';
 import metricsPlugin from './plugins/metrics';
@@ -188,6 +189,7 @@ export async function buildApp() {
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
   await app.register(workspaceRoutes);
+  await app.register(gitopsRoutes);
   await app.register(authRoutes);
 
   // Health check routes

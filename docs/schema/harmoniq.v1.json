@@ -1,0 +1,345 @@
+{
+  "$id": "urn:harmoniq:schema:harmoniq-yaml:v1",
+  "title": "Harmoniq workspace configuration (harmoniq.yaml, version 1)",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "workspace": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    },
+    "hostApps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {
+            "type": "boolean"
+          },
+          "previewUrlTemplate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uri"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sharedDependencies": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "strictExposes": {
+            "type": "boolean"
+          },
+          "environments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "default": {
+                  "type": "boolean"
+                },
+                "approvalPolicy": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "requiredApprovers": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 10,
+                          "default": 1
+                        },
+                        "eligibleRoles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": ["developer", "admin", "owner"]
+                          },
+                          "minItems": 1
+                        },
+                        "requireChangeTicket": {
+                          "type": "boolean",
+                          "default": false
+                        },
+                        "ticketUrlPattern": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "expiryHours": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 720,
+                          "default": 24
+                        }
+                      },
+                      "required": ["eligibleRoles"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "freeze": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "reason": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "from": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "until": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": ["reason"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["slug"],
+              "additionalProperties": false
+            }
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "specifier": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 214,
+                      "pattern": "^(@[a-z0-9][a-z0-9._~-]*\\/)?[a-z0-9][a-z0-9._~-]*$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "owners": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "maxItems": 100
+                }
+              },
+              "required": ["slug"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["slug"],
+        "additionalProperties": false
+      }
+    },
+    "webhooks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "manifest.updated",
+                    "manifest.publish_failed",
+                    "deploy.success",
+                    "deploy.failed",
+                    "deploy.approval_requested",
+                    "deploy.approved",
+                    "deploy.rejected",
+                    "deploy.approval_expired",
+                    "deploy.emergency_bypass",
+                    "rollback.executed",
+                    "module.promoted",
+                    "module.disabled",
+                    "module.enabled",
+                    "canary.started",
+                    "canary.updated",
+                    "canary.promoted",
+                    "canary.rolled_back",
+                    "canary.auto_rolled_back",
+                    "module.auto_rolled_back",
+                    "alert.triggered",
+                    "alert.resolved",
+                    "schedule.executed",
+                    "schedule.failed",
+                    "env.frozen",
+                    "env.unfrozen"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "const": "*"
+                }
+              ]
+            },
+            "minItems": 1
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "secret": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 200
+          }
+        },
+        "required": ["url", "events"],
+        "additionalProperties": false
+      }
+    },
+    "alertRules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "condition": {
+            "type": "string",
+            "enum": [
+              "canary_error_rate",
+              "canary_error_rate_delta",
+              "canary_load_p95ms",
+              "load_success_rate",
+              "load_p95ms",
+              "webhook_failure_rate"
+            ]
+          },
+          "threshold": {
+            "type": "number",
+            "minimum": 0
+          },
+          "action": {
+            "type": "string",
+            "enum": ["webhook", "auto_rollback"]
+          },
+          "module": {
+            "type": "string",
+            "minLength": 1
+          },
+          "environment": {
+            "type": "string",
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+          },
+          "windowMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "minSamples": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          },
+          "cooldownMinutes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1440
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["name", "condition", "threshold", "action"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["version"],
+  "additionalProperties": false,
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
