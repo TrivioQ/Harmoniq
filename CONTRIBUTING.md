@@ -46,7 +46,7 @@ CI runs these, plus a production dependency audit, the OpenAPI staleness test, t
 - **Feature docs.** A change outside `docs/` and Markdown must add a dated entry to the Change History of the relevant `docs/features/<slug>.md` (`pnpm run changelog:check` enforces it).
 - **Changesets.** A change to a published package (`client`, `cli`, `mf-plugin`, `build-plugin`) needs `pnpm changeset`, describing it for users of the package. Call out breaking changes.
 - **Plan.** If your change completes an item in `docs/implementation-plan.md`, tick it.
-- **API changes.** Registry routes: run `pnpm --filter @harmoniq/registry openapi:generate` and commit `docs/openapi.json`; update `docs/api-reference.md`.
+- **API changes.** Registry routes: run `pnpm --filter @harmoniq/registry openapi:generate` and `pnpm run clients:generate`, and commit `docs/openapi.json` and the regenerated clients; update `docs/api-reference.md`.
 - **Database.** Schema changes need a Prisma migration (never `db push`). Tenant tables have `workspaceId`, an index on it and row-level security.
 - **License headers.** New source files start with:
 

@@ -157,6 +157,35 @@ jobs:
           go tool tfplugindocs validate
           git diff --exit-code -- docs
 
+  clients:
+    name: Go and Python clients
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: integrations/clients/go/go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # OAS-03: one method per operation of docs/openapi.json.
+      - name: Generated operations are current
+        run: |
+          node scripts/generate-clients.mjs
+          git diff --exit-code -- integrations/clients
+      - name: Go client
+        working-directory: integrations/clients/go
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test ./...
+      - name: Python client
+        working-directory: integrations/clients/python
+        run: python -m unittest discover -s tests -v
+
   helm:
     name: Helm chart
     runs-on: ubuntu-latest

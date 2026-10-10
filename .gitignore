@@ -61,3 +61,7 @@ examples/**/.demo.env
 
 # pnpm run dev:local (embedded Postgres data)
 .harmoniq/
+
+# Python
+__pycache__/
+*.egg-info/

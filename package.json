@@ -27,7 +27,8 @@
     "db:deploy": "pnpm --filter @harmoniq/db db:deploy",
     "docker:demo": "docker compose -f docker/docker-compose.yml --profile app up -d --build",
     "docker:demo:down": "docker compose -f docker/docker-compose.yml --profile app down",
-    "license:check": "node scripts/license-headers.mjs"
+    "license:check": "node scripts/license-headers.mjs",
+    "clients:generate": "node scripts/generate-clients.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
