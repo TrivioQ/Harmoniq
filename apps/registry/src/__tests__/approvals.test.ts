@@ -108,6 +108,7 @@ describe('Change approvals (M4.3, APR-01..18)', () => {
       status: 'pending_approval',
       requiredApprovers: 2,
       changeTicket: { id: 'OPS-42', url: 'https://jira.example.com/browse/OPS-42' },
+      approvalUrl: `http://localhost:3000/w/${ws}/approvals`,
     });
     expect(await active()).toBe('1.0.0');
     expect(dispatch.mock.calls.some((c) => c[1] === 'deploy.approval_requested')).toBe(true);

@@ -1,5 +1,6 @@
-name: Harmoniq deploy
-description: Deploy (or promote) a micro frontend module with Harmoniq and summarize the change.
+name: Harmoniq Deploy
+description: Deploy or promote a micro frontend with Harmoniq, with a deployment card in the job summary.
+author: Harmoniq
 branding:
   icon: upload-cloud
   color: purple
@@ -26,11 +27,11 @@ inputs:
   url:
     description: Public URL of the uploaded remote entry. Deploy only.
     required: false
-  file:
-    description: Local remote entry used to compute the integrity hash. Deploy only.
-    required: false
   integrity:
-    description: SRI hash, if not computed from `file`. Deploy only.
+    description: SRI hash. Computed from `file` when given, else from the bundle at `url`. Deploy only.
+    required: false
+  file:
+    description: Local remote entry to compute the integrity hash from. Deploy only.
     required: false
   promote-from:
     description: Promote the version running in this environment instead of deploying.
@@ -38,6 +39,13 @@ inputs:
   preview-ttl-hours:
     description: Create `environment` (e.g. pr-123) as a preview environment that expires after this many hours. The workspace must allow preview environments.
     required: false
+  change-ticket:
+    description: Change ticket id, for environments whose approval policy requires one.
+    required: false
+  wait-for-approval:
+    description: When the environment needs approval, wait until the change is decided instead of failing with exit code 6.
+    required: false
+    default: 'false'
   dry-run:
     description: Validate and show the projected change without deploying.
     required: false
@@ -45,12 +53,27 @@ inputs:
   cli:
     description: Command used to run the Harmoniq CLI.
     required: false
-    default: npx --yes @harmoniq/cli
+    default: npx --yes @harmoniq/cli@1
 
 outputs:
   version-id:
     description: Id of the version record created
     value: ${{ steps.run.outputs.version-id }}
+  manifest-url:
+    description: URL of the environment's manifest
+    value: ${{ steps.run.outputs.manifest-url }}
+  deployed-at:
+    description: When the version went live (ISO 8601)
+    value: ${{ steps.run.outputs.deployed-at }}
+  status:
+    description: deployed, promoted, dry-run or pending-approval
+    value: ${{ steps.run.outputs.status }}
+  approval-request-id:
+    description: Approval request id, when the change waits (or waited) for approval
+    value: ${{ steps.run.outputs.approval-request-id }}
+  change-url:
+    description: Dashboard link to the change and its manifest diff
+    value: ${{ steps.run.outputs.change-url }}
   manifest-etag:
     description: ETag of the manifest after the change
     value: ${{ steps.run.outputs.manifest-etag }}
@@ -67,6 +90,7 @@ runs:
         HARMONIQ_REGISTRY_URL: ${{ inputs.registry-url }}
         HARMONIQ_API_KEY: ${{ inputs.api-key }}
         HARMONIQ_WORKSPACE: ${{ inputs.workspace }}
+        HARMONIQ_CHANGE_TICKET: ${{ inputs.change-ticket }}
         MODULE: ${{ inputs.module }}
         ENVIRONMENT: ${{ inputs.environment }}
         VERSION: ${{ inputs.version }}
@@ -75,44 +99,7 @@ runs:
         INTEGRITY: ${{ inputs.integrity }}
         PROMOTE_FROM: ${{ inputs.promote-from }}
         DRY_RUN: ${{ inputs.dry-run }}
+        WAIT: ${{ inputs.wait-for-approval }}
         PREVIEW_TTL: ${{ inputs.preview-ttl-hours }}
         CLI: ${{ inputs.cli }}
-      run: |
-        set -euo pipefail
-        if [[ -n "$PROMOTE_FROM" ]]; then
-          args=(promote --module "$MODULE" --from "$PROMOTE_FROM" --to "$ENVIRONMENT")
-          action="Promoted $MODULE from $PROMOTE_FROM to $ENVIRONMENT"
-        else
-          args=(deploy --module "$MODULE" --env "$ENVIRONMENT" --release "$VERSION" --url "$URL")
-          if [[ -n "$FILE" ]]; then args+=(--file "$FILE"); fi
-          if [[ -n "$INTEGRITY" ]]; then args+=(--integrity "$INTEGRITY"); fi
-          if [[ -n "$PREVIEW_TTL" ]]; then args+=(--preview-ttl "$PREVIEW_TTL"); fi
-          action="Deployed $MODULE $VERSION to $ENVIRONMENT"
-          if [[ "$DRY_RUN" == "true" ]]; then
-            args+=(--dry-run)
-            action="Dry run: $MODULE $VERSION → $ENVIRONMENT"
-          fi
-        fi
-
-        # The CLI exits non-zero on failure (2 invalid, 3 auth, 4 frozen, 5 conflict).
-        result=$($CLI --json "${args[@]}")
-        echo "$result"
-        echo "version-id=$(jq -r '.id // empty' <<<"$result")" >> "$GITHUB_OUTPUT"
-        echo "manifest-etag=$(jq -r '.manifestEtag // empty' <<<"$result")" >> "$GITHUB_OUTPUT"
-        preview_url=$(jq -r '.previewUrl // empty' <<<"$result")
-        echo "preview-url=$preview_url" >> "$GITHUB_OUTPUT"
-
-        {
-          echo "### $action"
-          echo
-          echo "| | |"
-          echo "|---|---|"
-          echo "| Version | \`$(jq -r '.version // "—"' <<<"$result")\` |"
-          echo "| Manifest ETag | \`$(jq -r '.manifestEtag // "—"' <<<"$result")\` |"
-          if [[ -n "$preview_url" ]]; then
-            echo "| Preview | $preview_url |"
-          fi
-          if jq -e '.validation' >/dev/null <<<"$result"; then
-            echo "| Validation errors | $(jq -r '.validation.errors | length' <<<"$result") |"
-          fi
-        } >> "$GITHUB_STEP_SUMMARY"
+      run: bash "$GITHUB_ACTION_PATH/run.sh"

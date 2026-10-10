@@ -43,7 +43,12 @@ export default async function EnvironmentHistoryPage(props: {
         {snapshots.map((snap, i) => {
           const diff = diffs[i];
           return (
-            <li key={snap.id} className="rounded-xl border bg-card p-4 space-y-2">
+            <li
+              key={snap.id}
+              // Linked from CI summaries (the change a deploy produced).
+              id={`snapshot-${snap.id}`}
+              className="rounded-xl border bg-card p-4 space-y-2 scroll-mt-20 target:ring-2 target:ring-primary"
+            >
               <div className="flex justify-between text-sm">
                 <span className="font-medium">{snap.cause?.action ?? t('unknownChange')}</span>
                 <time className="text-muted-foreground" dateTime={snap.createdAt}>

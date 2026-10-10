@@ -6,6 +6,7 @@ import type { DeploymentRequest, Prisma } from '@prisma/client';
 import { BadRequestError, NotFoundError } from '@harmoniq/core/dist/errors/AppError';
 import { CHANGE_TICKET_HEADER } from '@harmoniq/core/dist/schemas/ApprovalPolicySchema';
 import { audit } from './audit';
+import { approvalsUrl } from './links';
 
 /** Marks the in-process execution of an approved request (trusted only when `internal`). */
 export const APPROVED_REQUEST_HEADER = 'x-harmoniq-approved-request';
@@ -32,6 +33,8 @@ export interface PendingApproval {
   requiredApprovers: number;
   expiresAt: string;
   changeTicket: { id: string; url: string | null } | null;
+  /** The dashboard's approval queue. */
+  approvalUrl: string;
 }
 
 const header = (request: FastifyRequest, name: string) => {
@@ -154,6 +157,7 @@ export async function interceptForApproval(
     requiredApprovers: policy.requiredApprovers,
     expiresAt: expiresAt.toISOString(),
     changeTicket: ticketId ? { id: ticketId, url: ticketUrl } : null,
+    approvalUrl: approvalsUrl(app.config, workspace.slug),
   };
 }
 

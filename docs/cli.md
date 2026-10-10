@@ -46,21 +46,21 @@ harmoniq deploy \
   --file dist/remoteEntry.js
 ```
 
-| Flag                                                                                                    | Description                                                                          |
-| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `--module`                                                                                              | Module slug or id (required)                                                         |
-| `--env`                                                                                                 | Target environment (required)                                                        |
-| `--release`                                                                                             | Version string (required)                                                            |
-| `--url`                                                                                                 | Public URL of the bundle (required)                                                  |
-| `--integrity`                                                                                           | SRI hash, e.g. `sha384-…`                                                            |
-| `--file`                                                                                                | Local copy of the bundle; computes `--integrity` (sha384)                            |
-| `--commit`                                                                                              | Commit SHA; defaults to `GITHUB_SHA` / `CI_COMMIT_SHA`                               |
-| `--meta key=value`                                                                                      | Metadata, repeatable                                                                 |
-| `--validate`                                                                                            | Fetch the URL and check the integrity locally before deploying                       |
-| `--dry-run`                                                                                             | Validate on the registry and show the projected manifest change                      |
-| `--force`                                                                                               | Deploy despite dependency conflicts or removed exposes (audited); also on `promote`  |
-| `--rollout <percents>`, `--hold`, `--max-error-rate`, `--max-error-delta`, `--max-p95`, `--min-samples` | Staged canary rollout (see `harmoniq canary`)                                        |
-| `--canary <percent>`                                                                                    | Deploy as a canary for this share of users (1–99); the active version keeps the rest |
+| Flag                                                                                                    | Description                                                                                           |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `--module`                                                                                              | Module slug or id (required)                                                                          |
+| `--env`                                                                                                 | Target environment (required)                                                                         |
+| `--release`                                                                                             | Version string (required)                                                                             |
+| `--url`                                                                                                 | Public URL of the bundle (required)                                                                   |
+| `--integrity`                                                                                           | SRI hash, e.g. `sha384-…`; without it (or `--file`), computed from the bundle downloaded from `--url` |
+| `--file`                                                                                                | Local copy of the bundle; computes `--integrity` (sha384)                                             |
+| `--commit`                                                                                              | Commit SHA; defaults to `GITHUB_SHA` / `CI_COMMIT_SHA`                                                |
+| `--meta key=value`                                                                                      | Metadata, repeatable                                                                                  |
+| `--validate`                                                                                            | Fetch the URL and check the integrity locally before deploying                                        |
+| `--dry-run`                                                                                             | Validate on the registry and show the projected manifest change                                       |
+| `--force`                                                                                               | Deploy despite dependency conflicts or removed exposes (audited); also on `promote`                   |
+| `--rollout <percents>`, `--hold`, `--max-error-rate`, `--max-error-delta`, `--max-p95`, `--min-samples` | Staged canary rollout (see `harmoniq canary`)                                                         |
+| `--canary <percent>`                                                                                    | Deploy as a canary for this share of users (1–99); the active version keeps the rest                  |
 
 ### `harmoniq canary`
 
@@ -246,7 +246,7 @@ Credentials come from `HARMONIQ_REGISTRY_URL`, `HARMONIQ_API_KEY` and `HARMONIQ_
 
 ## GitHub Action
 
-[`actions/deploy`](../actions/deploy/README.md) wraps the CLI: deploy or promote, `version-id` / `manifest-etag` outputs, and a job summary.
+[`actions/deploy`](../actions/deploy/README.md) wraps the CLI: deploy or promote (optionally waiting for approval), outputs `version-id`, `manifest-url`, `deployed-at`, `status`, `change-url` and more, and a deployment card in the job summary with the approval status and a link to the diff. For GitLab, see [`integrations/gitlab`](../integrations/gitlab/README.md).
 
 ## CI example (GitHub Actions)
 

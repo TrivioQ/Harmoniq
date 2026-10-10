@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright The Harmoniq Authors
+# SPDX-License-Identifier: Apache-2.0
+
 # A plain HTML host loads a remote through Harmoniq's import map (with SRI); deploy,
 # upgrade and roll back the remote without touching the host.
 #

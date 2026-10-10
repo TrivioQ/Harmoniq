@@ -1,0 +1,156 @@
+# Copyright The Harmoniq Authors
+# SPDX-License-Identifier: Apache-2.0
+#
+# Harmoniq deploy component (IaC-13/14): the inputs and outputs of the GitHub action.
+# Outputs reach later jobs as dotenv variables (HARMONIQ_VERSION_ID, HARMONIQ_MANIFEST_URL,
+# HARMONIQ_DEPLOYED_AT, HARMONIQ_STATUS, HARMONIQ_APPROVAL_REQUEST_ID, HARMONIQ_CHANGE_URL,
+# HARMONIQ_MANIFEST_ETAG, HARMONIQ_PREVIEW_URL); the deployment card is printed in the log.
+spec:
+  inputs:
+    job-name:
+      description: Name of the job (one per module and environment in a pipeline)
+      default: harmoniq-deploy
+    stage:
+      description: Pipeline stage of the job
+      default: deploy
+    registry-url:
+      description: Harmoniq registry URL
+    api-key:
+      description: API key with the deploy:write scope. Keep it in a masked CI/CD variable.
+      default: $HARMONIQ_API_KEY
+    workspace:
+      description: Workspace slug
+    module:
+      description: Module slug or id
+    environment:
+      description: Target environment (deploy) or destination (promote)
+    version:
+      description: Version being deployed (e.g. a tag or $CI_COMMIT_SHA). Deploy only.
+      default: ''
+    url:
+      description: Public URL of the uploaded remote entry. Deploy only.
+      default: ''
+    integrity:
+      description: SRI hash. Computed from `file` when given, else from the bundle at `url`.
+      default: ''
+    file:
+      description: Local remote entry to compute the integrity from (e.g. from a build job's artifacts)
+      default: ''
+    promote-from:
+      description: Promote the version running in this environment instead of deploying
+      default: ''
+    preview-ttl-hours:
+      description: Create `environment` as a preview environment that expires after this many hours
+      default: ''
+    change-ticket:
+      description: Change ticket id, for approval policies that require one
+      default: ''
+    wait-for-approval:
+      description: Wait for a pending approval to be decided instead of failing with exit code 6
+      type: boolean
+      default: false
+    dry-run:
+      description: Validate and show the projected change without deploying
+      type: boolean
+      default: false
+    environment-action:
+      description: GitLab environment action of the job; `verify` for dry runs (no GitLab deployment is recorded)
+      options: [start, prepare, verify, access]
+      default: start
+    cli-version:
+      description: '@harmoniq/cli version (npm range)'
+      default: '1'
+    image:
+      description: Image with Node.js 20 or later
+      default: node:20-alpine
+---
+$[[ inputs.job-name ]]:
+  stage: $[[ inputs.stage ]]
+  image: $[[ inputs.image ]]
+  variables:
+    HARMONIQ_REGISTRY_URL: '$[[ inputs.registry-url ]]'
+    HARMONIQ_WORKSPACE: '$[[ inputs.workspace ]]'
+    HARMONIQ_CHANGE_TICKET: '$[[ inputs.change-ticket ]]'
+    HQ_API_KEY: '$[[ inputs.api-key ]]'
+    HQ_MODULE: '$[[ inputs.module ]]'
+    HQ_ENVIRONMENT: '$[[ inputs.environment ]]'
+    HQ_VERSION: '$[[ inputs.version ]]'
+    HQ_URL: '$[[ inputs.url ]]'
+    HQ_INTEGRITY: '$[[ inputs.integrity ]]'
+    HQ_FILE: '$[[ inputs.file ]]'
+    HQ_PROMOTE_FROM: '$[[ inputs.promote-from ]]'
+    HQ_PREVIEW_TTL: '$[[ inputs.preview-ttl-hours ]]'
+    HQ_WAIT: '$[[ inputs.wait-for-approval ]]'
+    HQ_DRY_RUN: '$[[ inputs.dry-run ]]'
+    HQ_CLI: npx --yes @harmoniq/cli@$[[ inputs.cli-version ]]
+  environment:
+    name: $[[ inputs.environment ]]
+    action: $[[ inputs.environment-action ]]
+    # The dashboard's view of the change (with its manifest diff), from the dotenv report.
+    url: $HARMONIQ_CHANGE_URL
+  script:
+    - |
+      export HARMONIQ_API_KEY="$HQ_API_KEY"
+      if [ -n "$HQ_PROMOTE_FROM" ]; then
+        set -- promote --module "$HQ_MODULE" --from "$HQ_PROMOTE_FROM" --to "$HQ_ENVIRONMENT"
+        title="Promote $HQ_MODULE: $HQ_PROMOTE_FROM -> $HQ_ENVIRONMENT"
+        done_status=promoted
+      else
+        set -- deploy --module "$HQ_MODULE" --env "$HQ_ENVIRONMENT" --release "$HQ_VERSION" --url "$HQ_URL"
+        if [ -n "$HQ_FILE" ]; then set -- "$@" --file "$HQ_FILE"; fi
+        if [ -n "$HQ_INTEGRITY" ]; then set -- "$@" --integrity "$HQ_INTEGRITY"; fi
+        if [ -n "$HQ_PREVIEW_TTL" ]; then set -- "$@" --preview-ttl "$HQ_PREVIEW_TTL"; fi
+        title="Deploy $HQ_MODULE $HQ_VERSION -> $HQ_ENVIRONMENT"
+        done_status=deployed
+        if [ "$HQ_DRY_RUN" = "true" ]; then
+          set -- "$@" --dry-run
+          title="Dry run: $HQ_MODULE $HQ_VERSION -> $HQ_ENVIRONMENT"
+          done_status=dry-run
+        fi
+      fi
+      if [ "$HQ_WAIT" = "true" ]; then set -- --wait "$@"; fi
+      code=0
+      # The CLI exits 2 invalid, 3 auth, 4 frozen, 5 conflict, 6 waiting for approval.
+      $HQ_CLI --json "$@" > harmoniq-result.json 2> harmoniq-stderr.log || code=$?
+      cat harmoniq-stderr.log >&2
+      cat harmoniq-result.json
+      HQ_CODE=$code HQ_TITLE="$title" HQ_DONE_STATUS="$done_status" node -e '
+        const fs = require("fs");
+        const env = process.env;
+        const code = Number(env.HQ_CODE);
+        let r = {};
+        try { r = JSON.parse(fs.readFileSync("harmoniq-result.json", "utf8")); } catch {}
+        const stderr = fs.readFileSync("harmoniq-stderr.log", "utf8");
+        const waited = /Waiting for approval of request ([\w-]+)/.exec(stderr);
+        const pending = code === 6;
+        const status = pending ? "pending-approval" : env.HQ_DONE_STATUS;
+        const requestId = pending ? r.requestId : waited ? waited[1] : "";
+        const approval = pending
+          ? `waiting for ${r.requiredApprovers} approval(s) until ${r.expiresAt}: ${r.approvalUrl}`
+          : waited ? `approved (request ${waited[1]})` : "not required";
+        const out = {
+          HARMONIQ_VERSION_ID: r.id, HARMONIQ_MANIFEST_URL: r.manifestUrl,
+          HARMONIQ_DEPLOYED_AT: r.deployedAt, HARMONIQ_STATUS: status,
+          HARMONIQ_APPROVAL_REQUEST_ID: requestId, HARMONIQ_CHANGE_URL: r.changeUrl,
+          HARMONIQ_MANIFEST_ETAG: r.manifestEtag, HARMONIQ_PREVIEW_URL: r.previewUrl,
+        };
+        if (code === 0 || pending) {
+          fs.writeFileSync("harmoniq.env", Object.entries(out)
+            .map(([k, v]) => `${k}=${String(v ?? "").replace(/[\r\n]/g, "")}`).join("\n") + "\n");
+        }
+        const rows = code === 0 || pending ? [
+          ["Module", env.HQ_MODULE], ["Version", r.version || env.HQ_VERSION],
+          ["Environment", env.HQ_ENVIRONMENT], ["Status", status], ["Approval", approval],
+          ["Deployed at", r.deployedAt], ["Manifest", r.manifestUrl],
+          ["Diff", r.changeUrl], ["Preview", r.previewUrl],
+        ] : [["Failed", `exit code ${code}`], ["Error", stderr.trim().split("\n").slice(-5).join(" / ")]];
+        console.log(`\n\x1b[1m${env.HQ_TITLE}\x1b[0m`);
+        for (const [k, v] of rows) if (v) console.log(`  ${k.padEnd(12)} ${v}`);
+      '
+      exit $code
+  artifacts:
+    when: always
+    reports:
+      dotenv: harmoniq.env
+    paths:
+      - harmoniq-result.json

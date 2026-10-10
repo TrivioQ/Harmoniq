@@ -90,6 +90,12 @@ jobs:
         run: pnpm test
 
       # Fails on undocumented exports leaking into signatures and broken links.
+      - name: Deploy action (stub CLI)
+        run: bash actions/deploy/test.sh
+
+      - name: GitLab component (stub CLI)
+        run: node integrations/gitlab/test.mjs
+
       - name: SDK API reference (TypeDoc)
         run: pnpm --filter @harmoniq/client docs:api
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright The Harmoniq Authors
+# SPDX-License-Identifier: Apache-2.0
+
 # Enforces the .agents/AGENTS.md rule: a change touching anything other than docs,
 # Markdown or lock files must also update a feature doc in docs/features/.
 #

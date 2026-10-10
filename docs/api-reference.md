@@ -153,7 +153,7 @@ Modules are addressed by id **or** slug (`:moduleRef`). A slug used in several h
 }
 ```
 
-Creates an active version in that environment (the previous one becomes inactive), writes an audit event and a manifest snapshot, refreshes caches and emits `deploy.success` + `manifest.updated` webhooks. Returns `201` with the version, `manifestEtag` and `snapshotId`.
+Creates an active version in that environment (the previous one becomes inactive), writes an audit event and a manifest snapshot, refreshes caches and emits `deploy.success` + `manifest.updated` webhooks. Returns `201` with the version, `manifestEtag`, `snapshotId`, `hostApp`, `manifestUrl` (the environment's public manifest) and `changeUrl` (the dashboard's environment history at this snapshot, with the diff). Promotions return the same fields.
 
 `ephemeral: { ttlHours }` creates `environment` as a preview environment on first deploy (if the workspace allows it) and extends its expiry on later deploys; expired preview environments are deleted hourly. The response includes `previewUrl` when the host app has a template.
 
@@ -422,7 +422,7 @@ A provisioned, active user is a joined member. Group names map to roles through 
 
 ## Approvals
 
-APR-01..18. An environment with an approval policy holds back deploys, rollbacks, promotions (into it) and canary changes: the call returns **`202`** with `{ status: "pending_approval", requestId, requiredApprovers, expiresAt, changeTicket }` instead of applying the change (dry runs and the kill switch are not held back). Send `X-Harmoniq-Change-Ticket: <id>` when the policy requires a ticket (`400` without it).
+APR-01..18. An environment with an approval policy holds back deploys, rollbacks, promotions (into it) and canary changes: the call returns **`202`** with `{ status: "pending_approval", requestId, requiredApprovers, expiresAt, changeTicket, approvalUrl }` (`approvalUrl`: the dashboard's approval queue) instead of applying the change (dry runs and the kill switch are not held back). Send `X-Harmoniq-Change-Ticket: <id>` when the policy requires a ticket (`400` without it).
 
 | Endpoint                                                                       | Permission    | Description                                                                                                                      |
 | ------------------------------------------------------------------------------ | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |

@@ -15,7 +15,8 @@ export const validateCommand = new Command('validate')
   .option('--file <path>', 'Local build output to compute the expected hash from')
   .action(async (opts, command: Command) => {
     const ctx = await resolveContext(command);
-    const integrity = await resolveIntegrity(opts);
+    // Not from --url: checking a bundle against its own hash proves nothing.
+    const integrity = await resolveIntegrity({ integrity: opts.integrity, file: opts.file });
     const result = await validateBundle(opts.url, integrity);
     const ok = isValidBundle(result);
     if (!ctx.json) result.warnings.forEach((w) => console.error(`warning: ${w}`));

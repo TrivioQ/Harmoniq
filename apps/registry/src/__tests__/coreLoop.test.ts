@@ -89,6 +89,10 @@ describe('Core loop', () => {
       environment: 'staging',
       status: 'active',
       commitSha: 'abc123',
+      // IaC-07/08: what CI summaries link to.
+      hostApp: 'portal',
+      manifestUrl: `http://localhost:4000/api/manifest/${ws}/portal/staging`,
+      changeUrl: `http://localhost:3000/w/${ws}/environments/portal/staging#snapshot-${res.json().snapshotId}`,
     });
 
     const staging = await manifest('staging', { 'if-none-match': before });
@@ -110,7 +114,12 @@ describe('Core loop', () => {
       toEnvironment: 'production',
     });
     expect(res.statusCode).toBe(201);
-    expect(res.json()).toMatchObject({ environment: 'production', promotedFromEnv: 'staging' });
+    expect(res.json()).toMatchObject({
+      environment: 'production',
+      promotedFromEnv: 'staging',
+      manifestUrl: expect.stringMatching(/\/api\/manifest\/[^/]+\/portal\/production$/),
+      changeUrl: expect.stringContaining(`#snapshot-${res.json().snapshotId}`),
+    });
 
     const prod = ManifestSchema.parse((await manifest('production')).json());
     expect(prod.modules[0]).toMatchObject(v('1.0.0'));

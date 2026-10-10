@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright The Harmoniq Authors
+# SPDX-License-Identifier: Apache-2.0
+
 # M1 end-to-end check: drives the built `harmoniq` CLI against a running registry through
 # deploy → manifest → promote → deploy → rollback → freeze, asserting each step.
 #

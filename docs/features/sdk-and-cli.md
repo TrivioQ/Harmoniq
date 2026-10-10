@@ -27,6 +27,37 @@ None.
 
 ## Change History
 
+### 2026-10-10 — GitLab CI/CD component (IaC-13/14)
+
+**Type:** feature
+**PR / Branch:** feat/m4-enterprise
+**Refs:** IaC-13, IaC-14
+
+#### What changed
+
+- `integrations/gitlab/templates/deploy.yml`: a CI/CD Catalog component with the GitHub action's inputs (plus `job-name`, `stage`, `environment-action`, `cli-version`, `image`) and outputs as dotenv variables (`HARMONIQ_VERSION_ID`, `HARMONIQ_MANIFEST_URL`, `HARMONIQ_DEPLOYED_AT`, `HARMONIQ_STATUS`, …). The deployment card is printed in the log; the GitLab environment links to the change in the dashboard. The API key defaults to the `HARMONIQ_API_KEY` CI/CD variable.
+- README with usage and the steps to publish it as `harmoniq-dev/harmoniq-ci`.
+
+#### Testing
+
+`integrations/gitlab/test.mjs` (in CI) interpolates inputs like GitLab, runs the job script with a stub CLI and checks outputs, card, flags and exit codes for deploy, pending approval, approval after waiting, a frozen environment and a promotion dry run. The script also ran under busybox `sh` in `node:20-alpine`.
+
+### 2026-10-10 — Deploy action: outputs, deployment card, approvals (IaC-05..08)
+
+**Type:** feature
+**PR / Branch:** feat/m4-enterprise
+**Refs:** IaC-05, IaC-06, IaC-07, IaC-08, APR-04
+
+#### What changed
+
+- `actions/deploy`: outputs `manifest-url`, `deployed-at`, `status`, `approval-request-id`, `change-url` (plus `version-id`, `manifest-etag`, `preview-url`); inputs `change-ticket` and `wait-for-approval`. The job summary card shows module, version, environment, status, approval (not required, pending with a review link, or approved), deploy time, manifest URL and a link to the diff; failures show the CLI's error. A pending approval exits 6 after writing the outputs and card. Logic in `run.sh`, tested by `test.sh` (stub CLI) in CI. Marketplace-ready name, branding and README with the publishing steps.
+- Registry: deploy and promote responses add `hostApp`, `manifestUrl` and `changeUrl`; pending approvals add `approvalUrl`. The dashboard's environment history anchors each snapshot (`#snapshot-<id>`).
+- CLI: `deploy` computes the integrity from the bundle at `--url` when neither `--integrity` nor `--file` is given (IaC-06); `validate` still needs one of them.
+
+#### Testing
+
+`test.sh` covers deployed, pending (exit 6), approved after waiting and frozen (exit 4). Registry tests assert the new fields; a CLI test covers integrity from the URL and a missing bundle (exit 2). Ran `run.sh` with the built CLI against a local registry: outputs and card as expected.
+
 ### 2026-10-09 — Local overrides, preview environments, `harmoniq doctor` (M2.6)
 
 **Type:** feature

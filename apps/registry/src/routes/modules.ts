@@ -31,6 +31,7 @@ import {
 import { audit } from '../services/audit';
 import { canWriteModule, ownersOf } from '../services/moduleAccess';
 import { interceptForApproval } from '../services/approvals';
+import { changeLinks } from '../services/links';
 import { roleAllows, scopesAllow } from '../auth/permissions';
 import { advanceRollout, clearedRollout, startRollout } from '../services/rollout';
 import { GateResult, checkGate, enforceGate } from '../services/dependencyGate';
@@ -724,6 +725,12 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
         ...versionDto(result, env.slug),
         manifestEtag: manifest.etag,
         snapshotId,
+        ...changeLinks(fastify.config, {
+          workspace: request.workspace!.slug,
+          hostApp: module.hostApp.slug,
+          environment: env.slug,
+          snapshotId,
+        }),
         ...(warnings.length && { warnings }),
         ...(previewUrl && { previewUrl }),
       });
@@ -924,9 +931,17 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           };
         }
       );
-      return reply
-        .code(201)
-        .send({ ...versionDto(result, to.slug), manifestEtag: manifest.etag, snapshotId });
+      return reply.code(201).send({
+        ...versionDto(result, to.slug),
+        manifestEtag: manifest.etag,
+        snapshotId,
+        ...changeLinks(fastify.config, {
+          workspace: request.workspace!.slug,
+          hostApp: module.hostApp.slug,
+          environment: to.slug,
+          snapshotId,
+        }),
+      });
     }
   );
 

@@ -202,6 +202,19 @@ describe('harmoniq CLI', () => {
       expect(JSON.parse(stdout[0])).toMatchObject({ manifestEtag: 'sha256-abc' });
     });
 
+    it('computes the integrity from --url when neither --integrity nor --file is given', async () => {
+      expect(await cli(...deployArgs())).toBe(0);
+      expect(received['checkout/deploy'].body).toMatchObject({
+        integrity: await computeIntegrity(new TextEncoder().encode(BUNDLE).buffer as ArrayBuffer),
+      });
+
+      server.use(
+        http.get('https://cdn.test/bundle.js', () => new HttpResponse(null, { status: 404 }))
+      );
+      expect(await cli(...deployArgs())).toBe(2);
+      expect(stderr.join('\n')).toContain('returned HTTP 404; upload the bundle first');
+    });
+
     it.each([
       [401, 3],
       [403, 3],

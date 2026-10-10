@@ -21,6 +21,7 @@ const COMMENT = {
   cjs: '//',
   go: '//',
   py: '#',
+  sh: '#',
   tf: '#',
 };
 // Generated or vendored: declarations, Next.js' own env types, build output.

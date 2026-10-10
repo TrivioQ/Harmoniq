@@ -679,11 +679,11 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 #### GitHub Actions (`harmoniq-deploy-action` — separate repo)
 
-- [ ] Composite action `harmoniq-dev/deploy-action@v1`: wraps `harmoniq deploy` CLI (IaC-05)
-- [ ] Inputs: `api-key`, `registry-url`, `workspace`, `module`, `environment`, `url`, `version`, `integrity`, `dry-run` (IaC-06)
-- [ ] Outputs: `version-id`, `manifest-url`, `deployed-at` (IaC-07)
-- [ ] GitHub Actions job summary annotation: deployment card with approval status, diff link (IaC-08)
-- [ ] Published to GitHub Marketplace
+- [x] Composite action `harmoniq-dev/deploy-action@v1`: wraps `harmoniq deploy` CLI (IaC-05) (in `actions/deploy`; copied to its own repository to publish)
+- [x] Inputs: `api-key`, `registry-url`, `workspace`, `module`, `environment`, `url`, `version`, `integrity`, `dry-run` (IaC-06)
+- [x] Outputs: `version-id`, `manifest-url`, `deployed-at` (IaC-07)
+- [x] GitHub Actions job summary annotation: deployment card with approval status, diff link (IaC-08)
+- [ ] Published to GitHub Marketplace (prepared: branding, README with the publishing steps; publishing is a maintainer action)
 
 #### CLI — Harmoniq-as-Code Commands
 
@@ -694,8 +694,8 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 #### GitLab CI (`harmoniq-ci` — separate repo)
 
-- [ ] GitLab CI component wrapping the CLI (IaC-13)
-- [ ] Published to GitLab CI Catalog
+- [x] GitLab CI component wrapping the CLI (IaC-13) (`integrations/gitlab`; same inputs and outputs as the GitHub action, IaC-14)
+- [ ] Published to GitLab CI Catalog (prepared: catalog layout and the publishing steps in its README; publishing is a maintainer action)
 
 #### Test Suite
 

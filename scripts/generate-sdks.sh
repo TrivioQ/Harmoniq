@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright The Harmoniq Authors
+# SPDX-License-Identifier: Apache-2.0
 
 set -e
 
