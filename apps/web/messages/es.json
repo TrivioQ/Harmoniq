@@ -230,7 +230,8 @@
     "workspaceAttached": "Espacio de trabajo añadido a la organización.",
     "workspaceDetached": "Espacio de trabajo quitado de la organización.",
     "moduleShared": "Módulo compartido con la organización.",
-    "moduleUnshared": "El módulo ya no se comparte."
+    "moduleUnshared": "El módulo ya no se comparte.",
+    "provisioningSaved": "Reglas de grupos guardadas. Se aplican en el próximo inicio de sesión o cambio SCIM de cada usuario."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -615,7 +616,8 @@
     "samlRemove": "Quitar SAML",
     "samlTestResult": "Resultado del inicio de sesión de prueba (no se creó ninguna sesión)",
     "samlTestExpired": "Este resultado ha caducado o no existe. Vuelve a ejecutar la prueba.",
-    "samlTestMapped": "Sesión como {email}, grupos: {groups}"
+    "samlTestMapped": "Sesión como {email}, grupos: {groups}",
+    "orgRolesHint": "Los espacios de trabajo sin inicio de sesión único propio usan este. Quién entra en qué espacio, y con qué rol, lo deciden las reglas de grupos en Aprovisionamiento."
   },
   "ProvisioningPage": {
     "description": "Permite que tu proveedor de identidad (Okta, Entra ID, OneLogin …) cree, actualice y elimine miembros mediante SCIM 2.0. Los grupos se asignan a roles con la asignación grupo → rol de Inicio de sesión único.",
@@ -638,7 +640,9 @@
     "catalog": "Catálogo de módulos",
     "audit": "Auditoría",
     "members": "Miembros",
-    "keys": "Claves de API"
+    "keys": "Claves de API",
+    "sso": "Inicio de sesión único",
+    "provisioning": "Aprovisionamiento"
   },
   "OrgHome": {
     "description": "Espacios de trabajo de esta organización, con la actividad reciente y la salud de las últimas 24 horas.",
@@ -707,5 +711,25 @@
     "revoke": "Revocar",
     "revokeConfirm": "¿Revocar {name}? La CI que la usa dejará de funcionar.",
     "empty": "Aún no hay claves."
+  },
+  "OrgSso": {
+    "title": "Inicio de sesión único",
+    "description": "Configura OpenID Connect o SAML una sola vez para toda la organización. Un espacio de trabajo con inicio de sesión único propio sigue usándolo.",
+    "workspaces": "Espacios de trabajo",
+    "noWorkspaces": "Aún no hay espacios de trabajo en esta organización.",
+    "inherits": "Usa el inicio de sesión único de la organización",
+    "ownSso": "Inicio de sesión único propio ({protocol}); reemplaza al de la organización",
+    "none": "Sin inicio de sesión único"
+  },
+  "OrgProvisioning": {
+    "title": "Aprovisionamiento",
+    "description": "Convierte los grupos del proveedor de identidad en acceso: administradores de la organización y roles en sus espacios de trabajo.",
+    "rulesTitle": "Reglas de grupos",
+    "rulesHelp": "Los miembros de un grupo obtienen el rol en el espacio de trabajo; gana la regla más permisiva. Las membresías otorgadas por reglas las siguen y se eliminan cuando ninguna regla coincide; las membresías por invitación no se tocan. Los grupos vienen de SCIM cuando está activo y, si no, de la aserción del inicio de sesión único. Los espacios con SSO (o SCIM) propio se rigen por él.",
+    "rules": "Reglas, una por línea: grupo = espacio:rol",
+    "adminGroups": "Grupos de administradores de la organización (uno por línea); el IdP nunca quita un administrador",
+    "save": "Guardar reglas",
+    "scimTitle": "SCIM",
+    "scimHowItWorks": "Los usuarios creados por SCIM se unen a la organización; las reglas de grupos asignan sus espacios de trabajo. Desactivar o eliminar un usuario lo quita de la organización y de sus espacios, revoca allí sus claves de API y cierra las sesiones iniciadas con el inicio de sesión único de la organización. Se conservan el último administrador de la organización y el último propietario de cada espacio."
   }
 }

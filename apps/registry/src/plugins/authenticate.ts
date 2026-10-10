@@ -6,6 +6,7 @@ import type { Role, Workspace } from '@prisma/client';
 import { isApiKeyFormat, parseApiKey, parseOrgApiKey } from '../auth/apiKeys';
 import { Permission, roleAllows, scopesAllow } from '../auth/permissions';
 import { verifyAccessToken } from '../auth/tokens';
+import { SsoSubject, effectiveSso, parseSsoProviderId, sameSubject } from '../services/ssoIds';
 
 export type Principal =
   | {
@@ -334,15 +335,24 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       if (!workspace) return deny(reply, 404, 'NOT_FOUND', 'Workspace not found');
 
       // A session from a workspace's own IdP only reaches that workspace: its admins
-      // control what the IdP asserts, so it can't vouch for anyone elsewhere.
+      // control what the IdP asserts, so it can't vouch for anyone elsewhere. One from an
+      // organization's IdP reaches the org's workspaces that use it (ORG-05).
       const scope = ssoScope(principal);
-      if (scope && scope !== workspace.slug) {
-        return deny(
-          reply,
-          403,
-          'SSO_SCOPED',
-          `This session comes from the single sign-on of "${scope}" and only works there`
-        );
+      let sso: Awaited<ReturnType<typeof effectiveSso>> | undefined;
+      const ssoOf = async () => (sso ??= await effectiveSso(systemDb, workspace));
+      if (scope) {
+        const reaches =
+          scope.kind === 'workspace'
+            ? scope.slug === workspace.slug
+            : sameSubject(scope, (await ssoOf()).subject);
+        if (!reaches) {
+          return deny(
+            reply,
+            403,
+            'SSO_SCOPED',
+            `This session comes from the single sign-on of ${scope.kind} "${scope.slug}" and only works there`
+          );
+        }
       }
 
       if (opts.allowInstanceAdmin && principal.isInstanceAdmin) {
@@ -356,7 +366,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       // ORG-08: organization admins administer the org's workspaces (at least `admin`).
       const orgAdmin =
         !!workspace.organizationId &&
-        !scope &&
+        scope?.kind !== 'workspace' &&
         (await systemDb.organizationMember.count({
           where: {
             organizationId: workspace.organizationId,
@@ -374,12 +384,10 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       }
       // SSO-26: forced SSO. Owners are exempt (break-glass if the IdP breaks); in-process
       // calls (scheduled, approved) were checked when they were created.
+      // ORG-05: the organization's SSO (and its forced SSO) when the workspace inherits it.
       if (membership.role !== 'owner' && !request.internal) {
-        const sso = await systemDb.workspaceConfig.findUnique({
-          where: { workspaceId: workspace.id },
-          select: { forceSso: true },
-        });
-        if (sso?.forceSso && ssoScope(principal) !== workspace.slug) {
+        const { forceSso, subject } = await ssoOf();
+        if (forceSso && !sameSubject(scope, subject)) {
           return deny(
             reply,
             403,
@@ -405,13 +413,13 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
 
 /** API keys may be restricted to specific modules (RBAC-04). Users are checked by role. */
 /**
- * The workspace a session is limited to, when it came from that workspace's own IdP
- * (`oidc:<workspace>` or `saml:<workspace>`); null for other sign-ins and API keys.
+ * The workspace or organization a session is limited to, when it came from that
+ * workspace's or organization's own IdP (`oidc:<workspace>`, `saml:<workspace>`,
+ * `org-oidc:<org>`, `org-saml:<org>`); null for other sign-ins and API keys.
  */
-export function ssoScope(principal: Principal | undefined): string | null {
-  if (principal?.type !== 'user' || !principal.provider) return null;
-  const match = /^(?:oidc|saml):(.+)$/.exec(principal.provider);
-  return match ? match[1] : null;
+export function ssoScope(principal: Principal | undefined): SsoSubject | null {
+  if (principal?.type !== 'user') return null;
+  return parseSsoProviderId(principal.provider)?.subject ?? null;
 }
 
 export function canAccessModule(principal: Principal | undefined, moduleId: string): boolean {

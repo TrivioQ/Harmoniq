@@ -15,8 +15,9 @@ import {
 import { EmailIdentityProvider } from '../adapters/identity/EmailIdentityProvider';
 import { AuthService } from '../services/authService';
 import { ssoScope } from '../plugins/authenticate';
-import { provisionSsoMember, workspaceProviderId } from '../services/sso';
-import { samlProviderId } from '../services/saml';
+import { provisionSsoMember } from '../services/sso';
+import { provisionOrgSsoMember } from '../services/orgProvisioning';
+import { SsoSubject, effectiveSso, sameSubject, ssoProviderId } from '../services/ssoIds';
 import { openSecret, sealSecret } from '../services/crypto';
 import { Prisma } from '@prisma/client';
 
@@ -92,7 +93,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     return { providers: list };
   });
 
-  // "Sign in with SSO": the workspace whose OIDC trusts this email's domain (SSO discovery).
+  // "Sign in with SSO": the workspace (else the organization, ORG-05) whose SSO trusts this
+  // email's domain (SSO discovery).
   fastify.get<{ Querystring: { email?: string } }>(
     '/api/auth/sso/discover',
     { config: LOGIN_RATE_LIMIT },
@@ -107,29 +109,56 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       });
       const trusts = (config: unknown) =>
         ((config as { trustedDomains?: string[] } | null)?.trustedDomains ?? []).includes(domain);
+      // OIDC when both are set up.
+      const providerFor = (c: { oidcConfig: unknown }, subject: SsoSubject) =>
+        ssoProviderId(trusts(c.oidcConfig) ? 'oidc' : 'saml', subject);
       const match = configs.find((c) => trusts(c.oidcConfig) || trusts(c.samlConfig));
-      if (!match) {
+      if (match) {
+        return {
+          provider: providerFor(match, { kind: 'workspace', slug: match.workspace.slug }),
+          workspace: { slug: match.workspace.slug, name: match.workspace.name },
+        };
+      }
+      const orgs = await systemDb.organization.findMany({
+        where: {
+          deletedAt: null,
+          OR: [{ oidcConfig: { not: Prisma.DbNull } }, { samlConfig: { not: Prisma.DbNull } }],
+        },
+        select: { slug: true, name: true, oidcConfig: true, samlConfig: true },
+      });
+      const org = orgs.find((o) => trusts(o.oidcConfig) || trusts(o.samlConfig));
+      if (!org) {
         return reply
           .code(404)
           .send({ error: { code: 'NOT_FOUND', message: 'No single sign-on for this domain' } });
       }
       return {
-        // OIDC when both are set up.
-        provider: trusts(match.oidcConfig)
-          ? workspaceProviderId(match.workspace.slug)
-          : samlProviderId(match.workspace.slug),
-        workspace: { slug: match.workspace.slug, name: match.workspace.name },
+        provider: providerFor(org, { kind: 'organization', slug: org.slug }),
+        organization: { slug: org.slug, name: org.name },
       };
     }
   );
 
-  /** Session for a proven identity; workspace SSO also provisions the membership. */
+  /** Session for a proven identity; workspace and org SSO also provision memberships. */
   async function finishLogin(info: IdentityUserInfo, providerId: string, ip: string) {
     const { user, response } = await auth.login(info, providerId);
     const sso = await providers.policyFor(providerId);
     if (sso) {
+      const { subject, policy } = sso;
       try {
-        await provisionSsoMember(fastify, sso.slug, providerId, sso.policy, user.id, info, ip);
+        if (subject.kind === 'workspace') {
+          await provisionSsoMember(fastify, subject.slug, providerId, policy, user.id, info, ip);
+        } else {
+          await provisionOrgSsoMember(
+            fastify,
+            subject.slug,
+            providerId,
+            policy.trustedDomains,
+            user.id,
+            info,
+            ip
+          );
+        }
       } catch (err) {
         await auth.logout(response.refreshToken); // e.g. deprovisioned over SCIM
         throw err;
@@ -145,7 +174,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     { config: LOGIN_RATE_LIMIT },
     async (request, reply) => {
       const { code, provider } = request.body ?? {};
-      if (!code || !provider?.startsWith('saml:'))
+      if (!code || !provider || !/^(org-)?saml:/.test(provider))
         return badRequest(reply, 'code and provider are required');
       try {
         const info = await providers.samlService.redeem(code, null, provider);
@@ -274,25 +303,40 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'User not found' } });
 
     const scope = ssoScope(principal);
-    const memberships = await systemDb.workspaceMember.findMany({
-      // A workspace-SSO session only sees that workspace.
+    const joined = await systemDb.workspaceMember.findMany({
+      // A workspace-SSO session only sees that workspace; an org-SSO session the org's
+      // workspaces that use its SSO.
       where: {
         userId: principal.id,
         joinedAt: { not: null },
-        ...(scope && { workspace: { slug: scope } }),
+        ...(scope?.kind === 'workspace' && { workspace: { slug: scope.slug } }),
+        ...(scope?.kind === 'organization' && {
+          workspace: { organization: { slug: scope.slug } },
+        }),
       },
       include: { workspace: { include: { organization: { select: { slug: true } } } } },
       orderBy: { workspace: { name: 'asc' } },
     });
-    const orgs = scope
-      ? []
-      : await systemDb.organizationMember.findMany({
-          where: { userId: principal.id, organization: { deletedAt: null } },
-          include: { organization: true },
-          orderBy: { organization: { name: 'asc' } },
-        });
+    const memberships = [];
+    for (const m of joined) {
+      if (scope?.kind !== 'organization') memberships.push(m);
+      else if (sameSubject(scope, (await effectiveSso(systemDb, m.workspace)).subject)) {
+        memberships.push(m);
+      }
+    }
+    const orgs =
+      scope?.kind === 'workspace'
+        ? []
+        : await systemDb.organizationMember.findMany({
+            where: {
+              userId: principal.id,
+              organization: { deletedAt: null, ...(scope && { slug: scope.slug }) },
+            },
+            include: { organization: true },
+            orderBy: { organization: { name: 'asc' } },
+          });
     const body: MeResponse = {
-      // Instance-admin powers never come from a workspace's IdP.
+      // Instance-admin powers never come from a workspace's or organization's IdP.
       user: scope ? { ...user, isInstanceAdmin: false } : user,
       workspaces: memberships.map((m) => ({
         slug: m.workspace.slug,

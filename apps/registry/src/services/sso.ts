@@ -13,11 +13,19 @@ import { SamlService } from './saml';
 import { openSecret } from './crypto';
 import { audit } from './audit';
 import { isDeprovisioned } from './scim';
+import { SsoSubject, parseSsoProviderId, ssoProviderId } from './ssoIds';
 
-/** What `WorkspaceConfig.oidcConfig` holds: the config with the secret sealed. */
-export type StoredOidcConfig = Omit<OidcConfig, 'clientSecret' | 'forceSso'> & {
-  clientSecret: string;
-};
+/**
+ * What `WorkspaceConfig.oidcConfig` (or `Organization.oidcConfig`) holds: the config with
+ * the secret sealed. Organizations have no role mapping (ORG-07 rules instead).
+ */
+export type StoredOidcConfig = Omit<
+  OidcConfig,
+  'clientSecret' | 'forceSso' | 'roleMapping' | 'defaultRole'
+> &
+  Partial<Pick<OidcConfig, 'roleMapping' | 'defaultRole'>> & {
+    clientSecret: string;
+  };
 
 const RANK: Record<Role, number> = { viewer: 0, developer: 1, admin: 2, owner: 3 };
 const CACHE_MS = 5 * 60_000;
@@ -29,11 +37,13 @@ declare module 'fastify' {
   }
 }
 
-export const workspaceProviderId = (slug: string) => `oidc:${slug}`;
+export const workspaceProviderId = (slug: string) =>
+  ssoProviderId('oidc', { kind: 'workspace', slug });
 
 /**
- * Redirect providers by id: GitHub, the instance OIDC (`oidc`), and workspace OIDC
- * (`oidc:<workspace>`) loaded from the workspace's config, cached a few minutes.
+ * Redirect providers by id: GitHub, the instance OIDC (`oidc`), workspace OIDC/SAML
+ * (`oidc:<workspace>`, `saml:<workspace>`) and organization OIDC/SAML (`org-oidc:<org>`,
+ * `org-saml:<org>`, ORG-05) loaded from their config; OIDC is cached a few minutes.
  */
 export class SsoProviders {
   private cache = new Map<string, { provider: OidcIdentityProvider | null; expires: number }>();
@@ -67,48 +77,56 @@ export class SsoProviders {
     return [...this.fixed.values()];
   }
 
-  /** Forget a workspace's provider after its config changed. */
-  invalidate(slug: string) {
-    this.cache.delete(workspaceProviderId(slug));
+  /** Forget a subject's OIDC provider after its config changed. */
+  invalidate(subject: SsoSubject) {
+    this.cache.delete(ssoProviderId('oidc', subject));
   }
 
   async get(id: string): Promise<RedirectIdentityProvider | null> {
     const fixed = this.fixed.get(id);
     if (fixed) return fixed;
-    if (id.startsWith('saml:')) {
-      const slug = id.slice('saml:'.length);
-      return (await this.samlService.load(slug)) ? this.samlService.provider(slug) : null;
+    const parsed = parseSsoProviderId(id);
+    if (!parsed) return null;
+    const { protocol, subject } = parsed;
+    if (protocol === 'saml') {
+      return (await this.samlService.load(subject)) ? this.samlService.provider(subject) : null;
     }
-    if (!id.startsWith('oidc:')) return null;
     const hit = this.cache.get(id);
     if (hit && hit.expires > Date.now()) return hit.provider;
 
-    const slug = id.slice('oidc:'.length);
-    const loaded = await this.loadWorkspace(slug);
+    const loaded = await this.loadOidc(subject);
     this.cache.set(id, { provider: loaded?.provider ?? null, expires: Date.now() + CACHE_MS });
     return loaded?.provider ?? null;
   }
 
-  /** A workspace's OIDC config (secret decrypted) and provider, or null. */
-  async loadWorkspace(slug: string) {
+  /** A workspace's or organization's OIDC config (secret decrypted) and provider, or null. */
+  async loadOidc(subject: SsoSubject) {
     const { systemDb } = this.app.container;
-    const workspace = await systemDb.workspace.findUnique({
-      where: { slug },
-      include: { WorkspaceConfig: true },
-    });
-    const stored = workspace?.WorkspaceConfig?.oidcConfig as StoredOidcConfig | null | undefined;
-    if (!workspace || !stored) return null;
+    const stored = (
+      subject.kind === 'workspace'
+        ? (
+            await systemDb.workspaceConfig.findFirst({
+              where: { workspace: { slug: subject.slug } },
+            })
+          )?.oidcConfig
+        : (
+            await systemDb.organization.findFirst({
+              where: { slug: subject.slug, deletedAt: null },
+            })
+          )?.oidcConfig
+    ) as StoredOidcConfig | null | undefined;
+    if (!stored) return null;
     const config = {
       ...stored,
       clientSecret: openSecret(stored.clientSecret, this.app.config.encryptionKey),
     };
-    return { workspace, config, provider: this.build(slug, config) };
+    return { config, provider: this.build(subject, config) };
   }
 
-  build(slug: string, config: StoredOidcConfig) {
+  build(subject: SsoSubject, config: StoredOidcConfig) {
     const allowPrivate = this.app.config.ssoAllowPrivateIssuers;
     return new OidcIdentityProvider({
-      id: workspaceProviderId(slug),
+      id: ssoProviderId('oidc', subject),
       displayName: 'Single sign-on',
       issuer: config.issuer,
       clientId: config.clientId,
@@ -116,27 +134,24 @@ export class SsoProviders {
       scopes: config.scopes,
       groupsClaim: config.groupsClaim,
       trustedDomains: config.trustedDomains,
-      // A workspace admin chooses this URL: refuse internal targets unless allowed.
+      // A workspace or org admin chooses this URL: refuse internal targets unless allowed.
       checkUrl: allowPrivate ? undefined : (url) => checkPublicUrl(url, { allowHttp: false }),
     });
   }
 
-  /** The workspace and its SSO policy behind a workspace provider id, else null. */
-  async policyFor(id: string): Promise<{ slug: string; policy: SsoPolicy } | null> {
-    const [kind, slug] = id.split(':');
-    if (!slug) return null;
-    if (kind === 'oidc') {
-      const loaded = await this.loadWorkspace(slug);
-      return loaded && { slug, policy: loaded.config };
-    }
-    if (kind === 'saml') {
-      const loaded = await this.samlService.load(slug);
-      return loaded ? { slug, policy: loaded.config } : null;
-    }
-    return null;
+  /** The workspace or organization and its SSO policy behind a provider id, else null. */
+  async policyFor(id: string): Promise<{ subject: SsoSubject; policy: SsoPolicy } | null> {
+    const parsed = parseSsoProviderId(id);
+    if (!parsed) return null;
+    const { protocol, subject } = parsed;
+    const loaded =
+      protocol === 'oidc' ? await this.loadOidc(subject) : await this.samlService.load(subject);
+    if (!loaded) return null;
+    const { roleMapping = {}, trustedDomains, defaultRole = 'viewer' } = loaded.config;
+    return { subject, policy: { roleMapping, trustedDomains, defaultRole } };
   }
 
-  /** SAML (SSO-09..20) for workspace providers `saml:<workspace>`. */
+  /** SAML (SSO-09..20, ORG-06) for `saml:<workspace>` and `org-saml:<org>`. */
   readonly samlService: SamlService;
 
   /** SSO-08/27: the IdP's verdict on a session. */

@@ -143,3 +143,28 @@ export async function revokeOrgKeyAction(orgSlug: string, keyId: string, _prev: 
     (t) => ({ status: 'success', message: t('keyRevoked') })
   );
 }
+
+/** ORG-07: group rules, one per line: `group = workspace:role`; admin groups listed. */
+export async function saveOrgProvisioningAction(
+  orgSlug: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const rules = field(form, 'rules')
+    .split('\n')
+    .map((line) => /^(.+?)\s*=\s*([a-z0-9-]+)\s*:\s*(\w+)\s*$/.exec(line.trim()))
+    .filter((match): match is RegExpExecArray => !!match)
+    .map(([, group, workspace, role]) => ({ group: group.trim(), workspace, role }));
+  const adminGroups = field(form, 'adminGroups')
+    .split(/\n|,/)
+    .map((g) => g.trim())
+    .filter(Boolean);
+  return run(
+    () =>
+      authedFetch(org(orgSlug, '/provisioning'), {
+        method: 'PUT',
+        body: { rules, adminGroups },
+      }),
+    (t) => ({ status: 'success', message: t('provisioningSaved') })
+  );
+}

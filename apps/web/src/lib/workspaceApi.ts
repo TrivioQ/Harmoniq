@@ -304,9 +304,10 @@ export interface OidcSettings {
   clientSecret: string;
   scopes: string[];
   groupsClaim: string;
-  roleMapping: Record<string, Role>;
+  /** Workspaces only (organizations use group rules). */
+  roleMapping?: Record<string, Role>;
   trustedDomains: string[];
-  defaultRole: Role;
+  defaultRole?: Role;
   forceSso: boolean;
   providerId: string;
 }
@@ -318,9 +319,10 @@ export interface SamlSettings {
   idpCert: string;
   nameIdFormat: string;
   attributeMapping: { email?: string; name?: string; groups?: string };
-  roleMapping: Record<string, Role>;
+  /** Workspaces only (organizations use group rules). */
+  roleMapping?: Record<string, Role>;
   trustedDomains: string[];
-  defaultRole: Role;
+  defaultRole?: Role;
   forceSso: boolean;
   allowIdpInitiated: boolean;
   providerId: string;

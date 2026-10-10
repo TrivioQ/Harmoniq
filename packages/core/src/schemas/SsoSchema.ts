@@ -52,3 +52,37 @@ export const SamlConfigSchema = z.object({
 });
 
 export type SamlConfig = z.infer<typeof SamlConfigSchema>;
+
+// ─── Organizations (ORG-05..07) ─────────────────────────────────────────────
+
+/**
+ * ORG-05: an organization's OIDC, inherited by its workspaces that have no SSO of their
+ * own. Roles come from the organization's group rules, not a role mapping.
+ */
+export const OrgOidcConfigSchema = OidcConfigSchema.omit({ roleMapping: true, defaultRole: true });
+export type OrgOidcConfig = z.infer<typeof OrgOidcConfigSchema>;
+
+/** ORG-05/06: an organization's SAML 2.0. */
+export const OrgSamlConfigSchema = SamlConfigSchema.omit({ roleMapping: true, defaultRole: true });
+export type OrgSamlConfig = z.infer<typeof OrgSamlConfigSchema>;
+
+const slug = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/);
+const group = z.string().trim().min(1).max(200);
+
+/** ORG-07: members of an IdP group get a role in one of the organization's workspaces. */
+export const OrgGroupRuleSchema = z.object({
+  group,
+  workspace: slug,
+  role: role.exclude(['owner']),
+});
+export type OrgGroupRule = z.infer<typeof OrgGroupRuleSchema>;
+
+/**
+ * ORG-07: how IdP groups (from SCIM or the SSO assertion) become access. Members of
+ * `adminGroups` become organization admins; rules grant workspace roles.
+ */
+export const OrgProvisioningSchema = z.object({
+  rules: z.array(OrgGroupRuleSchema).max(200).default([]),
+  adminGroups: z.array(group).max(50).default([]),
+});
+export type OrgProvisioning = z.infer<typeof OrgProvisioningSchema>;

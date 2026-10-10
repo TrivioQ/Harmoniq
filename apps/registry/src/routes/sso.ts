@@ -54,7 +54,7 @@ const ssoRoutes: FastifyPluginAsync = async (fastify) => {
       // Prove the issuer works (and is allowed) before anyone depends on it.
       try {
         await fastify.ssoProviders
-          .build(workspace.slug, { ...stored, clientSecret: secret })
+          .build({ kind: 'workspace', slug: workspace.slug }, { ...stored, clientSecret: secret })
           .metadata();
       } catch (err) {
         if (err instanceof IdentityError) throw new BadRequestError(err.message);
@@ -87,7 +87,7 @@ const ssoRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
       });
-      fastify.ssoProviders.invalidate(workspace.slug);
+      fastify.ssoProviders.invalidate({ kind: 'workspace', slug: workspace.slug });
       return { oidc: dto(workspace.slug, stored, forceSso) };
     }
   );
@@ -109,7 +109,7 @@ const ssoRoutes: FastifyPluginAsync = async (fastify) => {
           resourceId: workspace.id,
         });
       });
-      fastify.ssoProviders.invalidate(workspace.slug);
+      fastify.ssoProviders.invalidate({ kind: 'workspace', slug: workspace.slug });
       return reply.code(204).send();
     }
   );

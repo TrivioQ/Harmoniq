@@ -1,4 +1,11 @@
 import { authedFetch } from './registry';
+import type {
+  OidcSettings,
+  SamlSettingsResponse,
+  SamlTestResult,
+  ScimEvent,
+  ScimSettings,
+} from './workspaceApi';
 
 export type OrgRole = 'org_admin' | 'org_member';
 
@@ -71,6 +78,19 @@ export interface OrgKey {
   createdAt: string;
 }
 
+/** ORG-05: which workspaces use the organization's SSO (`own`: they override it). */
+export interface OrgSsoOverview {
+  forceSso: boolean;
+  trustedDomains: string[];
+  workspaces: Array<{ slug: string; name: string; own: 'oidc' | 'saml' | null }>;
+}
+
+/** ORG-07: IdP groups → workspace roles; admin groups → org admins. */
+export interface OrgProvisioning {
+  rules: Array<{ group: string; workspace: string; role: 'viewer' | 'developer' | 'admin' }>;
+  adminGroups: string[];
+}
+
 const enc = encodeURIComponent;
 const org = (slug: string) => `/api/orgs/${enc(slug)}`;
 
@@ -88,4 +108,13 @@ export const orgApi = {
   catalog: (slug: string) => authedFetch<{ modules: CatalogModule[] }>(`${org(slug)}/modules`),
   members: (slug: string) => authedFetch<{ members: OrgMember[] }>(`${org(slug)}/members`),
   keys: (slug: string) => authedFetch<{ keys: OrgKey[] }>(`${org(slug)}/keys`),
+  sso: (slug: string) => authedFetch<OrgSsoOverview>(`${org(slug)}/sso`),
+  oidc: (slug: string) => authedFetch<{ oidc: OidcSettings | null }>(`${org(slug)}/sso/oidc`),
+  saml: (slug: string) => authedFetch<SamlSettingsResponse>(`${org(slug)}/sso/saml`),
+  samlTest: (slug: string, id: string) =>
+    authedFetch<SamlTestResult>(`${org(slug)}/sso/saml/test/${enc(id)}`),
+  provisioning: (slug: string) => authedFetch<OrgProvisioning>(`${org(slug)}/provisioning`),
+  scim: (slug: string) => authedFetch<ScimSettings>(`${org(slug)}/scim`),
+  scimEvents: (slug: string) =>
+    authedFetch<{ events: ScimEvent[] }>(`${org(slug)}/scim/events?limit=50`),
 };

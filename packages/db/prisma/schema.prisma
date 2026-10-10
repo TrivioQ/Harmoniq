@@ -77,6 +77,8 @@ model WorkspaceMember {
   role             Role
   invitedAt        DateTime          @default(now())
   joinedAt         DateTime?
+  /// ORG-07: granted by the organization's group rules (SSO or SCIM), which also remove it.
+  orgProvisioned   Boolean           @default(false)
   workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   ModuleOwnerships ModuleOwnership[]
@@ -486,52 +488,63 @@ model ModuleHealthRollup {
 
 /// SSO-24/25: a user provisioned by the workspace's IdP over SCIM. Kept after
 /// deprovisioning (`active: false` / `deletedAt`) so SSO can't silently re-add them.
+/// SCIM users of a workspace or (ORG-07) of an organization: exactly one is set.
 model ScimUser {
-  id          String    @id @default(cuid())
-  workspaceId String
-  userId      String
-  userName    String
-  externalId  String?
-  displayName String?
-  givenName   String?
-  familyName  String?
-  active      Boolean   @default(true)
-  deletedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  workspaceId    String?
+  organizationId String?
+  userId         String
+  userName       String
+  externalId     String?
+  displayName    String?
+  givenName      String?
+  familyName     String?
+  active         Boolean       @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, userId])
   @@unique([workspaceId, userName])
+  @@unique([organizationId, userId])
+  @@unique([organizationId, userName])
   @@index([workspaceId, externalId])
 }
 
 /// SCIM groups; members are ScimUser ids. Group names map to roles like SSO groups.
 model ScimGroup {
-  id          String    @id @default(cuid())
-  workspaceId String
-  displayName String
-  externalId  String?
-  memberIds   String[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  workspaceId    String?
+  organizationId String?
+  displayName    String
+  externalId     String?
+  memberIds      String[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, displayName])
+  @@unique([organizationId, displayName])
 }
 
 model ScimAuditEvent {
-  id          String    @id @default(cuid())
-  workspaceId String
-  operation   String
-  scimUserId  String
-  payload     Json
-  statusCode  Int
-  createdAt   DateTime  @default(now())
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  workspaceId    String?
+  organizationId String?
+  operation      String
+  scimUserId     String
+  payload        Json
+  statusCode     Int
+  createdAt      DateTime      @default(now())
+  workspace      Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
 }
 
 model ApprovalPolicy {
@@ -602,18 +615,30 @@ model DeploymentApproval {
 }
 
 model Organization {
-  id          String                   @id @default(cuid())
-  slug        String                   @unique
-  name        String
-  plan        String                   @default("hobby")
-  oidcConfig  Json?
-  samlConfig  Json?
-  createdAt   DateTime                 @default(now())
-  deletedAt   DateTime?
-  Workspaces  Workspace[]
-  Members     OrganizationMember[]
-  OrgApiKeys  OrgApiKey[]
-  AuditEvents OrganizationAuditEvent[]
+  id                 String                   @id @default(cuid())
+  slug               String                   @unique
+  name               String
+  plan               String                   @default("hobby")
+  /// ORG-05: inherited by workspaces without their own SSO.
+  oidcConfig         Json?
+  samlConfig         Json?
+  forceSso           Boolean                  @default(false)
+  trustedDomains     String[]                 @default([])
+  /// ORG-07: `{ rules: [{ group, workspace, role }], adminGroups }`.
+  provisioning       Json?
+  scimEnabled        Boolean                  @default(false)
+  /// sha256 of the org SCIM bearer token.
+  scimTokenHash      String?                  @unique
+  scimTokenCreatedAt DateTime?
+  createdAt          DateTime                 @default(now())
+  deletedAt          DateTime?
+  Workspaces         Workspace[]
+  Members            OrganizationMember[]
+  OrgApiKeys         OrgApiKey[]
+  AuditEvents        OrganizationAuditEvent[]
+  ScimUsers          ScimUser[]
+  ScimGroups         ScimGroup[]
+  ScimAuditEvents    ScimAuditEvent[]
 }
 
 model OrganizationMember {

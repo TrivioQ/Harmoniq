@@ -11,22 +11,32 @@ import {
 } from '@harmoniq/core/dist/ports/IdentityProvider';
 import type { SamlConfig } from '@harmoniq/core/dist/schemas/SsoSchema';
 import { openSecret } from './crypto';
+import { SsoSubject, ssoProviderId } from './ssoIds';
 
-/** What `WorkspaceConfig.samlConfig` holds: the config plus the SP keypair (key sealed). */
-export type StoredSamlConfig = Omit<SamlConfig, 'forceSso'> & {
-  spPrivateKey: string;
-  spCert: string;
-};
+/**
+ * What `WorkspaceConfig.samlConfig` (or `Organization.samlConfig`) holds: the config
+ * plus the SP keypair (key sealed). Organizations have no role mapping (ORG-07 rules).
+ */
+export type StoredSamlConfig = Omit<SamlConfig, 'forceSso' | 'roleMapping' | 'defaultRole'> &
+  Partial<Pick<SamlConfig, 'roleMapping' | 'defaultRole'>> & {
+    spPrivateKey: string;
+    spCert: string;
+  };
 
-export const samlProviderId = (slug: string) => `saml:${slug}`;
+export const samlProviderId = (slug: string) => ssoProviderId('saml', { kind: 'workspace', slug });
+const providerOf = (subject: SsoSubject) => ssoProviderId('saml', subject);
 
 const HANDOFF_TTL_SECONDS = 300;
 const START_TTL_SECONDS = 600;
 const sha256 = (value: string) => createHash('sha256').update(value).digest('base64url');
 
-/** SSO-10..13: the SP's URLs for a workspace; the entity ID is the metadata URL. */
-export function samlUrls(publicUrl: string, slug: string) {
-  const base = `${publicUrl}/auth/saml/${encodeURIComponent(slug)}`;
+/**
+ * SSO-10..13: the SP's URLs for a workspace (`/auth/saml/:workspaceSlug`) or an
+ * organization (ORG-06, `/auth/org-saml/:orgSlug`); the entity ID is the metadata URL.
+ */
+export function samlUrls(publicUrl: string, subject: SsoSubject) {
+  const kind = subject.kind === 'organization' ? 'org-saml' : 'saml';
+  const base = `${publicUrl}/auth/${kind}/${encodeURIComponent(subject.slug)}`;
   return {
     entityId: `${base}/metadata`,
     metadata: `${base}/metadata`,
@@ -37,7 +47,7 @@ export function samlUrls(publicUrl: string, slug: string) {
   };
 }
 
-/** SSO-18: a per-workspace SP signing keypair (self-signed, 10 years). */
+/** SSO-18: a per-workspace (or organization) SP signing keypair (self-signed, 10 years). */
 export function generateSpKeyPair(slug: string) {
   const pems = selfsigned.generate([{ name: 'commonName', value: `harmoniq-sp-${slug}` }], {
     days: 3650,
@@ -124,7 +134,7 @@ interface Handoff {
 }
 
 /**
- * SAML 2.0 for one workspace: SP-initiated sign-in through the dashboard's usual
+ * SAML 2.0 for one workspace or organization: SP-initiated sign-in through the dashboard's usual
  * redirect flow (state + PKCE), the ACS validating responses with node-saml, and a
  * one-time hand-off code bound to the PKCE challenge, exchanged by the dashboard.
  */
@@ -135,16 +145,23 @@ export class SamlService {
     return this.app.container.cache;
   }
 
-  async load(slug: string) {
+  async load(subject: SsoSubject) {
     const { systemDb } = this.app.container;
-    const workspace = await systemDb.workspace.findUnique({
-      where: { slug },
-      include: { WorkspaceConfig: true },
-    });
-    const stored = workspace?.WorkspaceConfig?.samlConfig as StoredSamlConfig | null | undefined;
-    if (!workspace || !stored) return null;
+    const stored = (
+      subject.kind === 'workspace'
+        ? (
+            await systemDb.workspaceConfig.findFirst({
+              where: { workspace: { slug: subject.slug } },
+            })
+          )?.samlConfig
+        : (
+            await systemDb.organization.findFirst({
+              where: { slug: subject.slug, deletedAt: null },
+            })
+          )?.samlConfig
+    ) as StoredSamlConfig | null | undefined;
+    if (!stored) return null;
     return {
-      workspace,
       config: {
         ...stored,
         spPrivateKey: openSecret(stored.spPrivateKey, this.app.config.encryptionKey),
@@ -152,9 +169,9 @@ export class SamlService {
     };
   }
 
-  /** node-saml configured for the workspace (SSO-14: what it validates). */
-  saml(slug: string, config: StoredSamlConfig, validateInResponseTo: ValidateInResponseTo) {
-    const urls = samlUrls(this.app.config.publicUrl, slug);
+  /** node-saml configured for the subject (SSO-14: what it validates). */
+  saml(subject: SsoSubject, config: StoredSamlConfig, validateInResponseTo: ValidateInResponseTo) {
+    const urls = samlUrls(this.app.config.publicUrl, subject);
     return new SAML({
       entryPoint: config.idpSsoUrl,
       logoutUrl: config.idpSloUrl ?? config.idpSsoUrl,
@@ -171,7 +188,7 @@ export class SamlService {
       wantAuthnResponseSigned: false,
       validateInResponseTo,
       requestIdExpirationPeriodMs: START_TTL_SECONDS * 1000,
-      cacheProvider: new CacheBridge(this.cache, `saml-id:${slug}:`),
+      cacheProvider: new CacheBridge(this.cache, `saml-id:${providerOf(subject)}:`),
       acceptedClockSkewMs: 60_000,
     });
   }
@@ -203,23 +220,23 @@ export class SamlService {
     };
   }
 
-  async metadata(slug: string) {
-    const loaded = await this.load(slug);
+  async metadata(subject: SsoSubject) {
+    const loaded = await this.load(subject);
     if (!loaded) return null;
     return this.saml(
-      slug,
+      subject,
       loaded.config,
       ValidateInResponseTo.never
     ).generateServiceProviderMetadata(null, loaded.config.spCert);
   }
 
   /** Starts a test login (SSO-20): attributes are shown, no session is created. */
-  async testUrl(slug: string) {
-    const loaded = await this.load(slug);
+  async testUrl(subject: SsoSubject) {
+    const loaded = await this.load(subject);
     if (!loaded) return null;
     const id = randomUUID();
     const url = await this.saml(
-      slug,
+      subject,
       loaded.config,
       ValidateInResponseTo.always
     ).getAuthorizeUrlAsync(`test:${id}`, undefined, {});
@@ -235,14 +252,16 @@ export class SamlService {
    * the dashboard callback with a one-time code (SP- or IdP-initiated) or the settings
    * page with test results.
    */
-  async acs(slug: string, body: Record<string, string>): Promise<string> {
-    const loaded = await this.load(slug);
+  async acs(subject: SsoSubject, body: Record<string, string>): Promise<string> {
+    const loaded = await this.load(subject);
     if (!loaded) throw new IdentityError('provider_unavailable', 'SAML is not set up');
     const { config } = loaded;
     const relayState = body.RelayState ?? '';
     const webOrigin = this.app.config.webOrigin;
 
-    const start = relayState ? await this.cache.get(`saml-start:${slug}:${relayState}`) : null;
+    const providerId = providerOf(subject);
+    const startKey = `saml-start:${providerId}:${relayState}`;
+    const start = relayState ? await this.cache.get(startKey) : null;
     const isTest = relayState.startsWith('test:');
     if (!start && !isTest && !config.allowIdpInitiated) {
       throw new IdentityError(
@@ -251,7 +270,7 @@ export class SamlService {
       );
     }
     const saml = this.saml(
-      slug,
+      subject,
       config,
       start || isTest ? ValidateInResponseTo.always : ValidateInResponseTo.ifPresent
     );
@@ -275,23 +294,27 @@ export class SamlService {
         mapped = { error: (err as Error).message };
       }
       await this.cache.set(`saml-test:${id}`, JSON.stringify({ attributes, mapped }), 600);
-      return `${webOrigin}/w/${encodeURIComponent(slug)}/settings/sso?samlTest=${id}`;
+      const settings =
+        subject.kind === 'workspace'
+          ? `/w/${encodeURIComponent(subject.slug)}/settings/sso`
+          : `/orgs/${encodeURIComponent(subject.slug)}/sso`;
+      return `${webOrigin}${settings}?samlTest=${id}`;
     }
 
     const info = this.profileToInfo(profile, config);
     const code = randomBytes(32).toString('base64url');
     let codeChallenge: string | null = null;
-    let target = `${webOrigin}/api/auth/saml/idp?code=${code}&provider=${encodeURIComponent(samlProviderId(slug))}`;
+    let target = `${webOrigin}/api/auth/saml/idp?code=${code}&provider=${encodeURIComponent(providerId)}`;
     if (start) {
       const parsed = JSON.parse(start) as { codeChallenge: string; redirectUri: string };
-      await this.cache.del(`saml-start:${slug}:${relayState}`);
+      await this.cache.del(startKey);
       codeChallenge = parsed.codeChallenge;
       const url = new URL(parsed.redirectUri);
       url.searchParams.set('code', code);
       url.searchParams.set('state', relayState);
       target = url.toString();
     }
-    const handoff: Handoff = { info, provider: samlProviderId(slug), codeChallenge };
+    const handoff: Handoff = { info, provider: providerId, codeChallenge };
     await this.cache.set(`saml-code:${sha256(code)}`, JSON.stringify(handoff), HANDOFF_TTL_SECONDS);
     return target;
   }
@@ -316,21 +339,21 @@ export class SamlService {
   }
 
   /** The dashboard's redirect flow, like OIDC. */
-  provider(slug: string): RedirectIdentityProvider {
-    const id = samlProviderId(slug);
+  provider(subject: SsoSubject): RedirectIdentityProvider {
+    const id = providerOf(subject);
     return {
       id,
       kind: 'redirect',
       displayName: 'SAML single sign-on',
       getAuthorizationUrl: async ({ state, codeChallenge, redirectUri }) => {
-        const loaded = await this.load(slug);
+        const loaded = await this.load(subject);
         if (!loaded) throw new IdentityError('provider_unavailable', 'SAML is not set up');
         await this.cache.set(
-          `saml-start:${slug}:${state}`,
+          `saml-start:${id}:${state}`,
           JSON.stringify({ codeChallenge, redirectUri }),
           START_TTL_SECONDS
         );
-        return this.saml(slug, loaded.config, ValidateInResponseTo.always).getAuthorizeUrlAsync(
+        return this.saml(subject, loaded.config, ValidateInResponseTo.always).getAuthorizeUrlAsync(
           state,
           undefined,
           {}

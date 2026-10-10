@@ -51,14 +51,15 @@ User ─────────────────── WorkspaceMember �
 
 ### `WorkspaceMember`
 
-| Column        | Type        | Notes                                   |
-| ------------- | ----------- | --------------------------------------- |
-| `id`          | `CUID`      | Primary key                             |
-| `workspaceId` | `CUID`      | FK → Workspace (RLS key)                |
-| `userId`      | `CUID`      | FK → User                               |
-| `role`        | `Enum`      | `owner \| admin \| developer \| viewer` |
-| `invitedAt`   | `DateTime`  |                                         |
-| `joinedAt`    | `DateTime?` | Null until accepted                     |
+| Column           | Type        | Notes                                                                                                                     |
+| ---------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `id`             | `CUID`      | Primary key                                                                                                               |
+| `workspaceId`    | `CUID`      | FK → Workspace (RLS key)                                                                                                  |
+| `userId`         | `CUID`      | FK → User                                                                                                                 |
+| `role`           | `Enum`      | `owner \| admin \| developer \| viewer`                                                                                   |
+| `invitedAt`      | `DateTime`  |                                                                                                                           |
+| `joinedAt`       | `DateTime?` | Null until accepted                                                                                                       |
+| `orgProvisioned` | `Boolean`   | ORG-07: granted by the organization's group rules, which keep it in line (and remove it); invited memberships are `false` |
 
 **Unique constraint**: `(workspaceId, userId)`
 
@@ -489,41 +490,44 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 | Column                                   | Type        | Notes                                                 |
 | ---------------------------------------- | ----------- | ----------------------------------------------------- |
 | `id`                                     | `CUID`      | Primary key; the SCIM resource id                     |
-| `workspaceId`                            | `CUID`      | FK → Workspace (RLS key)                              |
+| `workspaceId`                            | `CUID?`     | FK → Workspace (RLS key)                              |
+| `organizationId`                         | `CUID?`     | FK → Organization (ORG-07); exactly one of the two    |
 | `userId`                                 | `CUID`      | FK → User                                             |
 | `userName`, `externalId`                 | `String`    | As sent by the IdP                                    |
 | `displayName`, `givenName`, `familyName` | `String?`   |                                                       |
 | `active`                                 | `Boolean`   | `false`: deprovisioned                                |
 | `deletedAt`                              | `DateTime?` | Deleted at the IdP; kept so SSO can't re-add the user |
 
-**Unique**: `(workspaceId, userId)`, `(workspaceId, userName)`  
-**RLS**: enabled, policy on `workspaceId`
+**Unique**: `(workspaceId, userId)`, `(workspaceId, userName)`, `(organizationId, userId)`, `(organizationId, userName)`  
+**RLS**: enabled, policy on `workspaceId` (organization rows have none, so tenants never see them; the registry reads them with the system client)
 
 ### `ScimGroup`
 
-| Column                      | Type       | Notes                                 |
-| --------------------------- | ---------- | ------------------------------------- |
-| `id`                        | `CUID`     | Primary key; the SCIM resource id     |
-| `workspaceId`               | `CUID`     | FK → Workspace (RLS key)              |
-| `displayName`, `externalId` | `String`   | The name maps to a role (SSO mapping) |
-| `memberIds`                 | `String[]` | ScimUser ids                          |
+| Column                      | Type       | Notes                                                                    |
+| --------------------------- | ---------- | ------------------------------------------------------------------------ |
+| `id`                        | `CUID`     | Primary key; the SCIM resource id                                        |
+| `workspaceId`               | `CUID?`    | FK → Workspace (RLS key)                                                 |
+| `organizationId`            | `CUID?`    | FK → Organization; exactly one of the two                                |
+| `displayName`, `externalId` | `String`   | The name maps to a role (SSO mapping, or the organization's group rules) |
+| `memberIds`                 | `String[]` | ScimUser ids                                                             |
 
-**Unique**: `(workspaceId, displayName)`  
+**Unique**: `(workspaceId, displayName)`, `(organizationId, displayName)`  
 **RLS**: enabled, policy on `workspaceId`
 
 ### `ScimAuditEvent`
 
-| Column        | Type       | Notes                                     |
-| ------------- | ---------- | ----------------------------------------- |
-| `id`          | `CUID`     | Primary key                               |
-| `workspaceId` | `CUID`     | FK → Workspace (RLS key)                  |
-| `operation`   | `String`   | Method and route, e.g. `PATCH /Users/:id` |
-| `scimUserId`  | `String`   | The SCIM resource id (user or group)      |
-| `payload`     | `Json`     | SCIM request body (passwords dropped)     |
-| `statusCode`  | `Int`      | HTTP status code returned                 |
-| `createdAt`   | `DateTime` | Immutable                                 |
+| Column           | Type       | Notes                                     |
+| ---------------- | ---------- | ----------------------------------------- |
+| `id`             | `CUID`     | Primary key                               |
+| `workspaceId`    | `CUID?`    | FK → Workspace (RLS key)                  |
+| `organizationId` | `CUID?`    | FK → Organization; exactly one of the two |
+| `operation`      | `String`   | Method and route, e.g. `PATCH /Users/:id` |
+| `scimUserId`     | `String`   | The SCIM resource id (user or group)      |
+| `payload`        | `Json`     | SCIM request body (passwords dropped)     |
+| `statusCode`     | `Int`      | HTTP status code returned                 |
+| `createdAt`      | `DateTime` | Immutable                                 |
 
-**Index**: `(workspaceId, createdAt DESC)`  
+**Index**: `(workspaceId, createdAt DESC)`, `(organizationId, createdAt DESC)`  
 **RLS**: enabled, policy on `workspaceId`
 
 ---
@@ -542,17 +546,20 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 
 ### `Organization`
 
-| Column       | Type        | Notes                                                     |
-| ------------ | ----------- | --------------------------------------------------------- |
-| `id`         | `CUID`      | Primary key                                               |
-| `slug`       | `String`    | Unique, URL-safe (e.g., `acme-corp`)                      |
-| `name`       | `String`    | Display name                                              |
-| `plan`       | `String`    | `hobby \| startup \| enterprise`                          |
-| `oidcConfig` | `Json?`     | Encrypted — org-level OIDC config (ORG-05)                |
-| `samlConfig` | `Json?`     | Encrypted — org-level SAML 2.0 config (ORG-05)            |
-| `scimConfig` | `Json?`     | Encrypted — org-level SCIM token hash + settings (ORG-07) |
-| `createdAt`  | `DateTime`  |                                                           |
-| `deletedAt`  | `DateTime?` | Soft-delete                                               |
+| Column                                                        | Type        | Notes                                                                                        |
+| ------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------- |
+| `id`                                                          | `CUID`      | Primary key                                                                                  |
+| `slug`                                                        | `String`    | Unique, URL-safe (e.g., `acme-corp`)                                                         |
+| `name`                                                        | `String`    | Display name                                                                                 |
+| `plan`                                                        | `String`    | `hobby \| startup \| enterprise`                                                             |
+| `oidcConfig`                                                  | `Json?`     | ORG-05: org-level OIDC (client secret sealed), inherited by workspaces without their own SSO |
+| `samlConfig`                                                  | `Json?`     | ORG-05/06: org-level SAML 2.0 (SP private key sealed)                                        |
+| `forceSso`                                                    | `Boolean`   | Forced SSO for the inheriting workspaces                                                     |
+| `trustedDomains`                                              | `String[]`  | Users of these domains join on SSO sign-in                                                   |
+| `provisioning`                                                | `Json?`     | ORG-07: `{ rules: [{ group, workspace, role }], adminGroups }`                               |
+| `scimEnabled`, `scimTokenHash` (unique), `scimTokenCreatedAt` |             | ORG-07: the org SCIM token (sha256)                                                          |
+| `createdAt`                                                   | `DateTime`  |                                                                                              |
+| `deletedAt`                                                   | `DateTime?` | Soft-delete                                                                                  |
 
 **Unique**: `slug`  
 **Note**: NOT tenant-scoped by RLS (Organization is the root entity, above workspace isolation).

@@ -635,8 +635,8 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] `GET /api/orgs/:orgSlug/workspaces` — list all workspaces (part of `GET /api/orgs/:orgSlug`)
 - [x] `GET /api/orgs/:orgSlug/audit` — cross-workspace audit log (paginated, filterable) (ORG-09)
 - [x] `GET /api/orgs/:orgSlug/modules` — org module catalog across all workspaces (ORG-12)
-- [ ] Org-level SAML endpoints: `POST /auth/saml/:orgSlug/acs`, `GET /auth/saml/:orgSlug/metadata` (ORG-06)
-- [ ] Org-level SCIM: `/scim/v2/orgs/:orgSlug` (ORG-07)
+- [x] Org-level SAML endpoints: `POST /auth/org-saml/:orgSlug/acs`, `GET /auth/org-saml/:orgSlug/metadata` (ORG-06)
+- [x] Org-level SCIM: `/scim/v2/orgs/:orgSlug` (ORG-07)
 - [ ] `WorkspaceConfig` SSO resolution: check workspace-level SSO first; fall back to org-level SSO if workspace has no override
 
 #### Registry — Cross-Workspace Module Sharing
@@ -648,7 +648,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 - [x] **Organization home** page (`/orgs/:orgSlug`) — all workspaces with aggregate health, recent deploys, cross-workspace audit log (ORG-14)
 - [x] **Org Module Catalog** (`/orgs/:orgSlug/catalog`) — searchable, filterable by team, module, env (ORG-12)
-- [ ] **Org SSO Settings** — configure SAML/OIDC once, applies to all workspaces (ORG-05)
+- [x] **Org SSO Settings** — configure SAML/OIDC once, applies to all workspaces (ORG-05)
 - [x] **Org Members** — directory of all users across all workspaces
 - [x] Workspace pages move to `/w/:workspaceSlug`; old `/:workspaceSlug/…` URLs redirect there (ORG-15)
 

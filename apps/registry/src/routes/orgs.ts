@@ -21,6 +21,7 @@ import { ssoScope } from '../plugins/authenticate';
 import { audit } from '../services/audit';
 import { invalidateManifest } from '../services/cacheKeys';
 import { createWorkspace } from '../services/workspaces';
+import { orgSsoRoutes } from './orgSso';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -49,15 +50,17 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           .code(403)
           .send({ error: { code: 'FORBIDDEN', message: 'Organizations are managed by users' } });
       }
-      if (ssoScope(principal)) {
+      // A workspace-SSO session stays in its workspace; an org-SSO session in its org.
+      const { orgSlug } = request.params as OrgParams;
+      const scope = ssoScope(principal);
+      if (scope && !(scope.kind === 'organization' && scope.slug === orgSlug)) {
         return reply.code(403).send({
           error: {
             code: 'SSO_SCOPED',
-            message: 'This session is limited to its single sign-on workspace',
+            message: `This session is limited to the single sign-on ${scope.kind} "${scope.slug}"`,
           },
         });
       }
-      const { orgSlug } = request.params as OrgParams;
       const org = await systemDb.organization.findFirst({
         where: { slug: orgSlug, deletedAt: null },
       });
@@ -67,7 +70,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           })
         : null;
       // Non-members get 404 so organization slugs can't be probed.
-      if (!org || (!membership && !principal.isInstanceAdmin)) {
+      if (!org || (!membership && !(principal.isInstanceAdmin && !scope))) {
         return reply
           .code(404)
           .send({ error: { code: 'NOT_FOUND', message: 'Organization not found' } });
@@ -151,9 +154,13 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/api/orgs', { preHandler: fastify.authenticate }, async (request) => {
     const principal = request.principal!;
-    if (principal.type !== 'user' || ssoScope(principal)) return { organizations: [] };
+    const scope = ssoScope(principal);
+    if (principal.type !== 'user' || scope?.kind === 'workspace') return { organizations: [] };
     const memberships = await systemDb.organizationMember.findMany({
-      where: { userId: principal.id, organization: { deletedAt: null } },
+      where: {
+        userId: principal.id,
+        organization: { deletedAt: null, ...(scope && { slug: scope.slug }) },
+      },
       include: { organization: true },
       orderBy: { organization: { name: 'asc' } },
     });
@@ -408,6 +415,10 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           })
         : null;
       if (!workspace || !owner) throw new NotFoundError('No workspace you own with this slug');
+      // The org's IdP can't vouch for ownership of a workspace outside the org.
+      if (ssoScope(request.principal) && workspace.organizationId !== org.id) {
+        throw new ForbiddenError('Attach workspaces from a session signed in directly');
+      }
       if (workspace.organizationId === org.id)
         return { slug: workspace.slug, organization: org.slug };
       if (workspace.organizationId) {
@@ -758,6 +769,8 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(204).send();
     }
   );
+
+  orgSsoRoutes(fastify, { admin, orgAudit });
 };
 
 export default orgRoutes;

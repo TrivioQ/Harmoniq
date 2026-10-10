@@ -230,7 +230,8 @@
     "workspaceAttached": "Workspace added to the organization.",
     "workspaceDetached": "Workspace removed from the organization.",
     "moduleShared": "Module shared with the organization.",
-    "moduleUnshared": "Module no longer shared."
+    "moduleUnshared": "Module no longer shared.",
+    "provisioningSaved": "Group rules saved. They apply at each user’s next sign-in or SCIM change."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -615,7 +616,8 @@
     "samlRemove": "Remove SAML",
     "samlTestResult": "Test sign-in result (no session was created)",
     "samlTestExpired": "This test result has expired or doesn't exist. Run the test again.",
-    "samlTestMapped": "Signed in as {email}, groups: {groups}"
+    "samlTestMapped": "Signed in as {email}, groups: {groups}",
+    "orgRolesHint": "Workspaces without their own single sign-on use this one. Who gets into which workspace, and with which role, comes from the group rules under Provisioning."
   },
   "ProvisioningPage": {
     "description": "Let your identity provider (Okta, Entra ID, OneLogin …) create, update and remove members over SCIM 2.0. Groups map to roles with the group → role mapping in Single sign-on.",
@@ -638,7 +640,9 @@
     "catalog": "Module catalog",
     "audit": "Audit log",
     "members": "Members",
-    "keys": "API keys"
+    "keys": "API keys",
+    "sso": "Single sign-on",
+    "provisioning": "Provisioning"
   },
   "OrgHome": {
     "description": "Workspaces in this organization, with recent activity and health over the last 24 hours.",
@@ -707,5 +711,25 @@
     "revoke": "Revoke",
     "revokeConfirm": "Revoke {name}? CI using it stops working.",
     "empty": "No keys yet."
+  },
+  "OrgSso": {
+    "title": "Single sign-on",
+    "description": "Set up OpenID Connect or SAML once for the whole organization. A workspace with its own single sign-on keeps using it.",
+    "workspaces": "Workspaces",
+    "noWorkspaces": "No workspaces in this organization yet.",
+    "inherits": "Uses the organization’s single sign-on",
+    "ownSso": "Own single sign-on ({protocol}); overrides the organization’s",
+    "none": "No single sign-on"
+  },
+  "OrgProvisioning": {
+    "title": "Provisioning",
+    "description": "Turn identity-provider groups into access: organization admins and roles in the organization’s workspaces.",
+    "rulesTitle": "Group rules",
+    "rulesHelp": "Members of a group get the role in the workspace; the most permissive rule wins. Memberships granted by rules follow them and are removed when no rule matches; memberships people were invited to are left alone. Groups come from SCIM when it is on, otherwise from the single sign-on assertion. Workspaces with their own SSO (or SCIM) are left to it.",
+    "rules": "Rules, one per line: group = workspace:role",
+    "adminGroups": "Organization admin groups (one per line); the IdP never removes an admin",
+    "save": "Save rules",
+    "scimTitle": "SCIM",
+    "scimHowItWorks": "Users created over SCIM join the organization; group rules assign their workspaces. Deactivating or deleting a user removes them from the organization and its workspaces, revokes their API keys there and ends the sessions they started through the organization’s single sign-on. The last organization admin and each workspace’s last owner are kept."
   }
 }
