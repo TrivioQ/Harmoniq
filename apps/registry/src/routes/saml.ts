@@ -163,8 +163,8 @@ const samlRoutes: FastifyPluginAsync = async (fastify) => {
       // SSO-18: generated once per workspace, the private key sealed at rest.
       const keys = previous
         ? { spPrivateKey: previous.spPrivateKey, spCert: previous.spCert }
-        : (() => {
-            const pair = generateSpKeyPair(workspace.slug);
+        : await (async () => {
+            const pair = await generateSpKeyPair(workspace.slug);
             return { spPrivateKey: sealSecret(pair.privateKey, encryptionKey), spCert: pair.cert };
           })();
       const { forceSso, ...rest } = body;

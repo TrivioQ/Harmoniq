@@ -33,6 +33,25 @@ This feature completes the MVP phase of the Harmoniq Registry by ensuring it is 
 
 ## Change History
 
+### 2026-10-10 — Security hardening: dependency upgrades, CSP, write limits, HTTP/2
+
+**Type:** security
+**PR / Branch:** feat/m4-enterprise
+**Refs:** Phase 6 security hardening, RL-03
+
+#### What changed
+
+- `pnpm audit`: no high or critical advisories in production dependencies (CI now checks `pnpm audit --audit-level high --prod`). Upgrades: Next.js 16.3.8, Fastify 5 (with `@fastify/cors` 11, `helmet` 13, `rate-limit` 11, `swagger` 9, `swagger-ui` 6), nodemailer 10, selfsigned 5, OpenTelemetry SDK 2 / 0.222, Vitest 4, Vite 7 in the example; pnpm overrides for vulnerable transitive packages (`@modelcontextprotocol/sdk`, `proxy-addr`, `brace-expansion`, `@grpc/grpc-js`, `basic-ftp`, `source-map-js`, `sharp`). `shadcn` moved to dev dependencies. Left: `braces` (via changesets) and `extract-zip` (via the example's puppeteer), dev-only with no fixed release.
+- Dashboard: per-request nonce Content-Security-Policy from `src/proxy.ts` (`strict-dynamic`, `frame-ancestors 'none'`, `connect-src 'self'`; `upgrade-insecure-requests` only over HTTPS) and `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy` on every response. The API reference reads the spec through `/api/openapi` (same origin) without CDN fonts or telemetry.
+- Registry: every POST/PUT/PATCH/DELETE route without its own limit gets `HARMONIQ_WRITE_RATE_LIMIT` (300/min per credential, or IP). With Redis, all rate limits (manifests too) are shared across replicas (RL-03).
+- Registry: HTTP/2 over TLS with `TLS_CERT_FILE` / `TLS_KEY_FILE` (HTTP/1.1 still accepted).
+- CSRF: documented (SameSite=Lax cookies, Origin checks in server actions and POST routes, bearer-only registry).
+- Vitest runs only `src` (it no longer ignores compiled tests in `dist`).
+
+#### Testing
+
+`transport.test.ts`: write limit per credential (429 with `Retry-After`), shared limit across two app instances with Redis, HTTP/2 and HTTP/1.1 over TLS. `csp.test.ts` for the policy. Headless Chrome over the login, overview, modules, API keys, quickstart and API reference pages: every script carries the nonce, and the only violations are Scalar's blocked calls to api.scalar.com.
+
 ### 2026-10-09 — Working self-hosting: Dockerfiles, demo Compose, image CI
 
 **Type:** feature

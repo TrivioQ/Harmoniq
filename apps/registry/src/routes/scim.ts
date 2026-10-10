@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify';
+import { FastifyError, FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { Prisma, PrismaClient, ScimUser } from '@prisma/client';
 import type { TenantTx } from '@harmoniq/db';
 import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';
@@ -190,7 +190,7 @@ const scimApi = (kind: 'workspace' | 'organization') => async (fastify: FastifyI
     }
   );
 
-  fastify.setErrorHandler((err, request, reply) => {
+  fastify.setErrorHandler((err: FastifyError, request, reply) => {
     const status =
       err instanceof ScimError
         ? err.status

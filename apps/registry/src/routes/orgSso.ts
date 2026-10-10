@@ -174,8 +174,8 @@ export function orgSsoRoutes(
     // SSO-18: generated once per organization, the private key sealed at rest.
     const keys = previous
       ? { spPrivateKey: previous.spPrivateKey, spCert: previous.spCert }
-      : (() => {
-          const pair = generateSpKeyPair(`org-${org.slug}`);
+      : await (async () => {
+          const pair = await generateSpKeyPair(`org-${org.slug}`);
           return { spPrivateKey: sealSecret(pair.privateKey, encryptionKey), spCert: pair.cert };
         })();
     const { forceSso, ...rest } = body;

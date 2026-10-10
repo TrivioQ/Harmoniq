@@ -15,8 +15,7 @@ describe('Observability: request ids, metrics, traces', () => {
   const spans = new InMemorySpanExporter();
 
   beforeAll(async () => {
-    const provider = new BasicTracerProvider();
-    provider.addSpanProcessor(new SimpleSpanProcessor(spans));
+    const provider = new BasicTracerProvider({ spanProcessors: [new SimpleSpanProcessor(spans)] });
     trace.setGlobalTracerProvider(provider);
     app = await buildApp();
     await app.ready();

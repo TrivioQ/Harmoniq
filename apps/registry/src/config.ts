@@ -45,6 +45,9 @@ const EnvSchema = z.object({
   HARMONIQ_MANIFEST_RATE_LIMIT: z.coerce.number().int().positive().default(600),
   HARMONIQ_MANIFEST_RATE_LIMIT_STARTUP: z.coerce.number().int().positive().default(3000),
   HARMONIQ_MANIFEST_RATE_LIMIT_ENTERPRISE: z.coerce.number().int().positive().default(10000),
+  HARMONIQ_WRITE_RATE_LIMIT: z.coerce.number().int().positive().default(300),
+  TLS_CERT_FILE: z.string().optional(),
+  TLS_KEY_FILE: z.string().optional(),
   /** PLN-03: gate features by plan (hosted). Off: every plan has every feature (PLN-02). */
   HARMONIQ_PLAN_ENFORCEMENT: z.string().optional(),
   /** PLN-02: JSON `{ "hobby": ["approvals"], … }` replacing the features of those plans. */
@@ -89,6 +92,10 @@ export interface Config {
   /** RL-01/04: manifest requests per minute per (workspace, IP), by plan. */
   manifestRateLimit: number;
   manifestRateLimits: Record<Plan, number>;
+  /** Writes (POST/PUT/PATCH/DELETE) per minute per credential (or IP), unless a route sets its own. */
+  writeRateLimit: number;
+  /** HTTP/2 over TLS (HTTP/1.1 still accepted) when both files are set. */
+  tls?: { certFile: string; keyFile: string };
   /** PLN-02/03: enforce plan features; the feature matrix (overridable). */
   plans: { enforced: boolean; features: Record<Plan, PlanFeature[]> };
   /** Outbound email. Without SMTP in production, email sign-in is unavailable. */
@@ -203,6 +210,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new ConfigError('HARMONIQ_DEV_LOGIN must not be enabled in production');
   }
 
+  if (!!e.TLS_CERT_FILE !== !!e.TLS_KEY_FILE) {
+    throw new ConfigError('Set both TLS_CERT_FILE and TLS_KEY_FILE, or neither');
+  }
+
   const cacheAdapter = e.CACHE_ADAPTER === 'redis' && e.REDIS_URL ? 'redis' : 'memory';
 
   // Default: proxies on private networks (the dashboard, a load balancer in the VPC).
@@ -233,6 +244,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         : undefined,
     devLogin,
     manifestRateLimit: e.HARMONIQ_MANIFEST_RATE_LIMIT,
+    writeRateLimit: e.HARMONIQ_WRITE_RATE_LIMIT,
+    tls:
+      e.TLS_CERT_FILE && e.TLS_KEY_FILE
+        ? { certFile: e.TLS_CERT_FILE, keyFile: e.TLS_KEY_FILE }
+        : undefined,
     manifestRateLimits: {
       hobby: e.HARMONIQ_MANIFEST_RATE_LIMIT,
       startup: e.HARMONIQ_MANIFEST_RATE_LIMIT_STARTUP,

@@ -74,6 +74,8 @@ Put these in `docker/.env` for Compose, or in your orchestrator's secret store:
 | `HARMONIQ_VALIDATE_BUNDLES`                                                | registry  | `1` to fetch and verify every bundle on deploy                                                                                                                                                                                               |
 | `HARMONIQ_GC_KEEP_VERSIONS`                                                | registry  | Versions always kept per module and environment for rollback (default 10)                                                                                                                                                                    |
 | `HARMONIQ_MANIFEST_RATE_LIMIT`, `_STARTUP`, `_ENTERPRISE`                  | registry  | Manifest requests per minute per workspace and client IP, by the workspace's plan (defaults 600, 3000, 10000)                                                                                                                                |
+| `HARMONIQ_WRITE_RATE_LIMIT`                                                | registry  | Writes (POST, PUT, PATCH, DELETE) per minute per credential, or per client IP without one (default 300). Sign-in, setup and health ingest have their own, stricter limits                                                                    |
+| `TLS_CERT_FILE`, `TLS_KEY_FILE`                                            | registry  | PEM files; serves HTTPS with HTTP/2 (HTTP/1.1 still accepted). Without them the registry speaks plain HTTP/1.1, for a TLS-terminating proxy or load balancer, which can offer HTTP/2 to clients                                              |
 | `HARMONIQ_PLAN_ENFORCEMENT`                                                | registry  | `1` to gate features by plan (hosted offerings). Off by default: every workspace has every feature, whatever its plan                                                                                                                        |
 | `HARMONIQ_PLAN_FEATURES`                                                   | registry  | JSON replacing the features of plans, e.g. `{"hobby":["approvals"]}`. Defaults: startup has `byob` and `approvals`; enterprise also `saml` and `scim`                                                                                        |
 
@@ -96,6 +98,13 @@ docker build -f apps/web/Dockerfile -t harmoniq/web .
 ```
 
 Both expose `/health`-style checks used by the Docker `HEALTHCHECK`. The registry also serves `GET /ready` (database and cache) for orchestrators.
+
+## Security
+
+- **Headers**: the dashboard sends a per-request Content-Security-Policy (scripts only with that request's nonce, `frame-ancestors 'none'`, `object-src 'none'`, `connect-src 'self'`; images from any HTTPS origin for branding logos), plus `X-Frame-Options: DENY`, `nosniff`, a strict referrer policy and `Permissions-Policy`. `upgrade-insecure-requests` is added only over HTTPS (it reads `X-Forwarded-Proto` from your proxy). The registry sends Helmet's headers with its own CSP.
+- **CSRF**: session cookies are `HttpOnly` and `SameSite=Lax`. Dashboard mutations are Next.js server actions, which reject requests whose `Origin` doesn't match the host; the dashboard's own POST routes (sign-in, sign-out) check `Origin` too. The registry takes credentials only from the `Authorization` header, never cookies, so cross-site requests can't carry them. Behind a proxy, forward `Host` (or `X-Forwarded-Host`) unchanged.
+- **Rate limits**: manifests (per workspace and IP, by plan), sign-in and setup (per IP), health ingest, and every other write (per credential); `429` responses carry `Retry-After`. With several registry replicas, `CACHE_ADAPTER=redis` shares the counters.
+- **Dependencies**: CI runs `pnpm audit --audit-level high --prod` for the packages that ship.
 
 ## Observability
 

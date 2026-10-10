@@ -8,6 +8,6 @@
   "devDependencies": {
     "@harmoniq/build-plugin": "workspace:*",
     "@module-federation/vite": "1.23.4",
-    "vite": "^5.4.21"
+    "vite": "^7.3.6"
   }
 }

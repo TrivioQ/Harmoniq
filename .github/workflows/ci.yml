@@ -61,6 +61,10 @@ jobs:
       - name: Check formatting
         run: pnpm exec prettier --check "**/*.{ts,tsx,md,json}"
 
+      # What ships (registry, dashboard, SDK, CLI): no high or critical advisories.
+      - name: Audit production dependencies
+        run: pnpm audit --audit-level high --prod
+
       - name: Check feature docs were updated
         if: github.event_name == 'pull_request'
         run: pnpm run changelog:check origin/${{ github.base_ref }}

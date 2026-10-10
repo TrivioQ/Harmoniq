@@ -356,11 +356,11 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ### Security Hardening
 
-- [ ] Dependency audit: `pnpm audit` — resolve all high/critical
-- [ ] Add `helmet` CSP headers to both apps
-- [ ] Add `@fastify/rate-limit` to all write endpoints
+- [x] Dependency audit: `pnpm audit` — resolve all high/critical (production dependencies; CI runs `pnpm audit --audit-level high --prod`)
+- [x] Add `helmet` CSP headers to both apps (the dashboard: a nonce CSP from `src/proxy.ts`)
+- [x] Add `@fastify/rate-limit` to all write endpoints
 - [x] Validate all request bodies with Zod on every route
-- [ ] Add CSRF protection to Next.js dashboard mutations (double-submit cookie pattern)
+- [x] Add CSRF protection to Next.js dashboard mutations (SameSite=Lax cookies plus `Origin` checks in server actions and POST routes, instead of double-submit tokens; see `docs/self-hosting.md` § Security)
 - [x] Pen-test: verify RLS prevents cross-tenant access with integration tests
 
 ### SSO — OIDC Plugin
@@ -386,9 +386,9 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ### Performance
 
-- [x] Benchmark manifest endpoint with `autocannon`: verify p99 < 50ms on cache hit
+- [ ] Benchmark manifest endpoint with `autocannon`: verify p99 < 50ms on cache hit
 - [x] Profile and optimize DB queries (add indexes if needed)
-- [ ] Enable HTTP/2 on registry
+- [x] Enable HTTP/2 on registry (`TLS_CERT_FILE` / `TLS_KEY_FILE`)
 
 ### Observability
 

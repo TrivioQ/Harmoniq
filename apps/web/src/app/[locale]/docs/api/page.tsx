@@ -9,11 +9,12 @@ export default function ApiDocsPage() {
     <div className="h-[calc(100vh-4rem)] w-full">
       <ApiReferenceReact
         configuration={{
-          spec: {
-            url: process.env.NEXT_PUBLIC_REGISTRY_URL
-              ? `${process.env.NEXT_PUBLIC_REGISTRY_URL}/docs/json`
-              : 'http://localhost:4000/docs/json',
-          },
+          // Same-origin proxy of the registry's /docs/json (CSP: connect-src 'self').
+          spec: { url: '/api/openapi' },
+          // The default fonts come from a CDN, which the CSP doesn't allow.
+          withDefaultFonts: false,
+          // No calls home. Its agent search (api.scalar.com) has no switch; the CSP blocks it.
+          telemetry: false,
         }}
       />
     </div>

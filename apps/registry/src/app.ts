@@ -1,8 +1,10 @@
-import { randomUUID } from 'crypto';
-import Fastify from 'fastify';
+import { createHash, randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
+import Fastify, { FastifyError, FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
+import Redis from 'ioredis';
 import containerPlugin from './plugins/container';
 import authenticatePlugin from './plugins/authenticate';
 import manifestRoutes from './routes/manifest';
@@ -45,6 +47,17 @@ export async function buildApp() {
   const config = loadConfig();
 
   const app = Fastify({
+    // HTTP/2 needs TLS here; behind a TLS-terminating proxy, let the proxy speak HTTP/2.
+    ...((config.tls
+      ? {
+          http2: true,
+          https: {
+            allowHTTP1: true,
+            cert: readFileSync(config.tls.certFile),
+            key: readFileSync(config.tls.keyFile),
+          },
+        }
+      : {}) as object),
     trustProxy: config.trustProxy,
     // Structured logs carry `requestId` (and, once resolved, the workspace); `responseTime`
     // on "request completed" is the duration. A caller's X-Request-Id is kept.
@@ -62,7 +75,8 @@ export async function buildApp() {
               options: { colorize: true },
             },
           },
-  });
+    // Same request/reply API over HTTP/1.1 and HTTP/2; routes are typed against HTTP/1.1.
+  }) as unknown as FastifyInstance;
 
   app.decorate('config', config);
   app.addHook('onRequest', async (request, reply) => {
@@ -79,7 +93,7 @@ export async function buildApp() {
   });
 
   // Services throw AppError subclasses; this is the only place they become HTTP errors.
-  app.setErrorHandler((err, request, reply) => {
+  app.setErrorHandler((err: FastifyError, request, reply) => {
     if (err instanceof AppError) {
       return reply.code(err.statusCode).send({
         error: {
@@ -157,10 +171,37 @@ export async function buildApp() {
     },
   });
 
+  // Every write gets a limit unless its route sets a stricter one (sign-in, setup, health
+  // ingest…). Keyed by credential, so CI runners behind one NAT don't share a budget.
+  // Added before the plugin so its onRoute hook sees the config.
+  app.addHook('onRoute', (route) => {
+    const methods = [route.method].flat();
+    if (!methods.some((m) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(m))) return;
+    route.config = route.config ?? {};
+    const routeConfig = route.config as { rateLimit?: unknown };
+    if (routeConfig.rateLimit !== undefined) return;
+    routeConfig.rateLimit = {
+      max: config.writeRateLimit,
+      timeWindow: '1 minute',
+      keyGenerator: (request: { headers: Record<string, unknown>; ip: string }) => {
+        const auth = request.headers.authorization;
+        return typeof auth === 'string' && auth
+          ? `w:${createHash('sha256').update(auth).digest('hex').slice(0, 32)}`
+          : `w:${request.ip}`;
+      },
+    };
+  });
+  // RL-03: with Redis, every replica counts against the same limits.
+  const rateLimitRedis =
+    config.cacheAdapter === 'redis' && config.redisUrl
+      ? new Redis(config.redisUrl, { connectTimeout: 500, maxRetriesPerRequest: 1 })
+      : undefined;
+  if (rateLimitRedis) app.addHook('onClose', async () => void (await rateLimitRedis.quit()));
   await app.register(rateLimit, {
     max: 1000,
     timeWindow: '1 minute',
-    global: false, // We will apply it explicitly to write endpoints
+    ...(rateLimitRedis && { redis: rateLimitRedis, nameSpace: 'harmoniq:rl:' }),
+    global: false, // Applied per route: writes (above), manifests, sign-in.
   });
 
   await app.register(swagger, {

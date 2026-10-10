@@ -7,9 +7,9 @@ export const IDP = 'https://idp.example.test';
 const C14N = 'http://www.w3.org/2001/10/xml-exc-c14n#';
 
 /** A test SAML IdP: its signing keypair and signed responses for an SP's ACS. */
-export function mockSamlIdp() {
-  const pems = selfsigned.generate([{ name: 'commonName', value: 'test-idp' }], {
-    days: 30,
+export async function mockSamlIdp() {
+  const pems = await selfsigned.generate([{ name: 'commonName', value: 'test-idp' }], {
+    notAfterDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     keySize: 2048,
     algorithm: 'sha256',
   });

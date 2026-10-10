@@ -5,7 +5,7 @@ import { buildApp } from '../app';
 import { Fixtures, bearer } from './helpers/fixtures';
 import { IDP, mockSamlIdp, requestIdOf } from './helpers/mockSaml';
 
-type SamlIdp = ReturnType<typeof mockSamlIdp>;
+type SamlIdp = Awaited<ReturnType<typeof mockSamlIdp>>;
 
 describe('SAML single sign-on (M4.5, SSO-09..20)', () => {
   let app: FastifyInstance;
@@ -64,7 +64,7 @@ describe('SAML single sign-on (M4.5, SSO-09..20)', () => {
     api(null, 'POST', `/api/auth/saml:${ws}/callback`, { code, codeVerifier, redirectUri });
 
   beforeAll(async () => {
-    idp = mockSamlIdp();
+    idp = await mockSamlIdp();
     idpCert = idp.cert;
     app = await buildApp();
     await app.ready();

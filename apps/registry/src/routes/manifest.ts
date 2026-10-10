@@ -32,8 +32,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   const { cache, systemDb, withTenant, logger, orgShared } = fastify.container;
   const { isProduction } = fastify.config;
 
-  // RL-01/02: per (workspace, client IP). In-memory per replica for now; RL-03 (shared
-  // store) moves this to Redis. RL-04: the limit depends on the workspace's plan.
+  // RL-01/02: per (workspace, client IP); shared across replicas with Redis (RL-03).
+  // RL-04: the limit depends on the workspace's plan.
   const rateLimit = {
     rateLimit: {
       max: (req: FastifyRequest) =>

@@ -198,6 +198,7 @@
       "post": {
         "tags": ["Modules and versions"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -225,8 +226,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -285,6 +285,7 @@
       "patch": {
         "tags": ["Modules and versions"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -377,6 +378,7 @@
       "put": {
         "tags": ["Modules and versions"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -395,8 +397,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -498,6 +499,7 @@
       "post": {
         "tags": ["Modules and versions"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -661,8 +663,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -698,6 +699,7 @@
       "post": {
         "tags": ["Modules and versions"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -724,8 +726,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -761,6 +762,7 @@
       "post": {
         "tags": ["Modules and versions"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -786,8 +788,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -823,6 +824,7 @@
       "put": {
         "tags": ["Modules and versions"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -844,8 +846,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -881,6 +882,7 @@
       "put": {
         "tags": ["Modules and versions"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -929,8 +931,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -1065,6 +1066,7 @@
       "post": {
         "tags": ["Health ingest"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -1113,8 +1115,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "parameters": [
           {
@@ -1234,6 +1235,7 @@
       "post": {
         "tags": ["Alerts"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -1298,8 +1300,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -1327,6 +1328,7 @@
       "patch": {
         "tags": ["Alerts"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -1457,6 +1459,7 @@
       "post": {
         "tags": ["Scheduled operations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -1882,8 +1885,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -1969,6 +1971,7 @@
       "put": {
         "tags": ["Host apps and environments"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -2007,8 +2010,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -2149,6 +2151,7 @@
       "post": {
         "tags": ["Approvals"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -2198,6 +2201,7 @@
       "post": {
         "tags": ["Approvals"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -2247,6 +2251,7 @@
       "post": {
         "tags": ["Approvals"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -2262,8 +2267,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -2322,6 +2326,7 @@
       "put": {
         "tags": ["Single sign-on"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -2386,8 +2391,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -2661,6 +2665,7 @@
       "put": {
         "tags": ["Single sign-on"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -2742,8 +2747,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -3647,6 +3651,7 @@
       "post": {
         "tags": ["Organizations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -3666,8 +3671,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -3721,6 +3725,7 @@
       "patch": {
         "tags": ["Organizations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -3736,8 +3741,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -3811,6 +3815,7 @@
       "post": {
         "tags": ["Organizations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -3831,8 +3836,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -3860,6 +3864,7 @@
       "patch": {
         "tags": ["Organizations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -3874,8 +3879,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -3942,6 +3946,7 @@
       "post": {
         "tags": ["Organizations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -3961,8 +3966,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -4187,6 +4191,7 @@
       "post": {
         "tags": ["Organizations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -4233,8 +4238,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -4343,6 +4347,7 @@
       "put": {
         "tags": ["Organizations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -4394,8 +4399,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -4469,6 +4473,7 @@
       "put": {
         "tags": ["Organizations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -4537,8 +4542,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -4695,6 +4699,7 @@
       "put": {
         "tags": ["Organizations"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -4865,6 +4870,7 @@
       "post": {
         "tags": ["Workspaces"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -4884,8 +4890,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -4926,6 +4931,7 @@
       "patch": {
         "tags": ["Workspaces"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -4976,6 +4982,7 @@
       "patch": {
         "tags": ["Host apps and environments"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -5048,6 +5055,7 @@
       "post": {
         "tags": ["Host apps and environments"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -5080,8 +5088,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -5109,6 +5116,7 @@
       "post": {
         "tags": ["Host apps and environments"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -5128,8 +5136,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -5247,6 +5254,7 @@
       "put": {
         "tags": ["Host apps and environments"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -5270,8 +5278,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -5354,6 +5361,7 @@
       "post": {
         "tags": ["Host apps and environments"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -5375,8 +5383,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -5648,6 +5655,7 @@
       "post": {
         "tags": ["API keys and members"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -5684,8 +5692,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -6112,6 +6119,7 @@
       "post": {
         "tags": ["Instance administration"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6134,8 +6142,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -6198,6 +6205,7 @@
       "post": {
         "tags": ["Instance administration"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6289,6 +6297,7 @@
       "put": {
         "tags": ["Instance administration"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6303,8 +6312,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -6347,6 +6355,7 @@
       "put": {
         "tags": ["Instance administration"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6361,8 +6370,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -6468,6 +6476,7 @@
       "post": {
         "tags": ["Instance administration"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6482,8 +6491,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -6672,6 +6680,7 @@
       "post": {
         "tags": ["Storage"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6716,8 +6725,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "security": [
           {
@@ -6793,6 +6801,7 @@
       "post": {
         "tags": ["Workspace as code"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6904,6 +6913,7 @@
       "post": {
         "tags": ["Sign-in"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6930,8 +6940,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "parameters": [
           {
@@ -6954,6 +6963,7 @@
       "post": {
         "tags": ["Sign-in"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -6979,8 +6989,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "parameters": [
           {
@@ -7003,6 +7012,7 @@
       "post": {
         "tags": ["Sign-in"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -7028,8 +7038,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -7042,6 +7051,7 @@
       "post": {
         "tags": ["Sign-in"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -7097,6 +7107,7 @@
       "post": {
         "tags": ["Sign-in"],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
@@ -7112,8 +7123,7 @@
                 "additionalProperties": false
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {

@@ -236,7 +236,7 @@ describe('Organization SSO and SCIM (M4.7b, ORG-05..07)', () => {
   });
 
   it('serves org SAML at /auth/org-saml/:orgSlug (ORG-06)', async () => {
-    const saml = mockSamlIdp();
+    const saml = await mockSamlIdp();
     const certBody = saml.cert.replace(/-----[A-Z ]+-----|\s/g, '');
     const saved = await api(alice, 'PUT', `/api/orgs/${org}/sso/saml`, {
       idpEntityId: IDP,

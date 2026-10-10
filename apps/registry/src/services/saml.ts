@@ -48,9 +48,9 @@ export function samlUrls(publicUrl: string, subject: SsoSubject) {
 }
 
 /** SSO-18: a per-workspace (or organization) SP signing keypair (self-signed, 10 years). */
-export function generateSpKeyPair(slug: string) {
-  const pems = selfsigned.generate([{ name: 'commonName', value: `harmoniq-sp-${slug}` }], {
-    days: 3650,
+export async function generateSpKeyPair(slug: string) {
+  const pems = await selfsigned.generate([{ name: 'commonName', value: `harmoniq-sp-${slug}` }], {
+    notAfterDate: new Date(Date.now() + 3650 * 24 * 60 * 60 * 1000),
     keySize: 2048,
     algorithm: 'sha256',
   });

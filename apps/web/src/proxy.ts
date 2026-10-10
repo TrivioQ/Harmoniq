@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import createMiddleware from 'next-intl/middleware';
 import type { SessionResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { routing } from './i18n/routing';
+import { contentSecurityPolicy, createNonce } from './lib/csp';
 import { getRegistryUrl } from './lib/env';
 import {
   ACCESS_COOKIE,
@@ -43,6 +44,20 @@ async function refreshSession(
  * server actions render with a valid token in the same request.
  */
 export default async function proxy(request: NextRequest) {
+  // The policy goes on the request too: Next.js reads the nonce from it for its scripts.
+  const https =
+    request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https';
+  const csp = contentSecurityPolicy(createNonce(), {
+    isDev: process.env.NODE_ENV === 'development',
+    https,
+  });
+  request.headers.set('Content-Security-Policy', csp);
+  const response = await route(request);
+  response.headers.set('Content-Security-Policy', csp);
+  return response;
+}
+
+async function route(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATH.test(pathname);
   const isLogin = LOGIN_PATH.test(pathname);
