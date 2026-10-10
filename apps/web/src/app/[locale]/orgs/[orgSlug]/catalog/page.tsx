@@ -34,7 +34,7 @@ export default async function OrgCatalogPage(props: { params: Promise<{ orgSlug:
               <tr key={m.id} className="border-t">
                 <td className="p-3">
                   <Link
-                    href={`/${m.workspace}/modules/${m.slug}`}
+                    href={`/w/${m.workspace}/modules/${m.slug}`}
                     className="font-medium hover:text-primary"
                   >
                     {m.name}

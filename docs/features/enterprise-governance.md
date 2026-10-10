@@ -118,6 +118,18 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 
 ## Change History
 
+### 2026-10-09 — Workspace pages under `/w` (ORG-15)
+
+**Type:** Change
+**Author:** Shashi Kumar Dhandapani
+**Refs:** ORG-15
+
+**Summary:**
+
+- Dashboard workspace pages moved from `/:workspaceSlug` to `/w/:workspaceSlug`, so workspace slugs never clash with dashboard paths (`/orgs`, `/admin`, `/auth`, `/docs`). The reserved-slug list is gone.
+- Old `/:workspaceSlug/…` URLs redirect permanently to `/w/:workspaceSlug/…`, query string included.
+- The SAML Test Connection result URL points at `/w/:workspaceSlug/settings/sso`.
+
 ### 2026-10-09 — Organizations (M4.7)
 
 **Type:** Feature
@@ -129,12 +141,12 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 - `/api/orgs`: create, members (`org_admin` / `org_member`, last admin protected), workspaces (create inside, attach, detach, delete with confirmation), cross-workspace audit with filters and keyset pagination, module catalog, org API keys scoped to workspaces and modules.
 - Org admins administer the org's workspaces; org keys (`hq_org_…`) authenticate in the org's workspaces.
 - Org-shared modules in sibling manifests (`shared`, `ownerWorkspace`), refreshed when the owner changes them; workspace owners share from the module page.
-- Dashboard: organizations on the home page, `/orgs/:orgSlug` (overview, catalog, audit, members, keys). Workspace slugs that clash with dashboard paths are reserved.
+- Dashboard: organizations on the home page, `/orgs/:orgSlug` (overview, catalog, audit, members, keys). Workspace pages moved to `/w/:workspaceSlug`, so no workspace slug clashes with a dashboard path; old `/:workspaceSlug/…` links redirect.
 - Org-level SSO and SCIM (ORG-05..07) follow separately.
 
 **Tests:**
 
-`orgs.test.ts`: creation and reserved slugs, attach rules, `/api/me`, org admin vs member access, last admin, shared modules across manifests (updates, unshare, owner precedence, outside the org), catalog, org keys (scopes, workspace limits, revocation), org audit (filters, pagination matches the full list), detach and delete. Dashboard pages rendered against a dev registry, including an org admin opening a workspace without a membership.
+`orgs.test.ts`: creation, attach rules, `/api/me`, org admin vs member access, last admin, shared modules across manifests (updates, unshare, owner precedence, outside the org), catalog, org keys (scopes, workspace limits, revocation), org audit (filters, pagination matches the full list), detach and delete. Dashboard pages rendered against a dev registry, including an org admin opening a workspace without a membership.
 
 ### 2026-10-09 — SCIM provisioning (M4.6)
 

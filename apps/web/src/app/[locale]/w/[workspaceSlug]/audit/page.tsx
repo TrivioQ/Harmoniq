@@ -24,7 +24,7 @@ export default async function AuditPage(props: {
     const qs = new URLSearchParams(
       Object.entries(params).filter(([, v]) => v) as [string, string][]
     );
-    return `/${workspaceSlug}/audit${qs.size ? `?${qs}` : ''}`;
+    return `/w/${workspaceSlug}/audit${qs.size ? `?${qs}` : ''}`;
   };
 
   return (

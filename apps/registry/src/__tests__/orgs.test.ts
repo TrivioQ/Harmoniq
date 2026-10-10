@@ -63,9 +63,6 @@ describe('Organizations (M4.7, ORG-01..15)', () => {
     expect((await api(carol, 'POST', '/api/orgs', { name: 'Acme', slug: org })).statusCode).toBe(
       409
     );
-    expect(
-      (await api(alice, 'POST', '/api/workspaces', { name: 'x', slug: 'orgs' })).statusCode
-    ).toBe(400); // reserved for /orgs (ORG-15)
 
     shop = `shop-${randomUUID().slice(0, 8)}`;
     const created = await api(alice, 'POST', `/api/orgs/${org}/workspaces`, {

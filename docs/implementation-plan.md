@@ -225,26 +225,26 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 #### Dashboard Pages
 
 - [ ] **Workspace Selector** (`/`) — list user's workspaces, create new workspace
-- [ ] **Overview** (`/[workspaceSlug]/`) — active modules count, recent deploys, environment status
-- [ ] **Modules** (`/[workspaceSlug]/modules`) — list all modules with active versions per env + health sparklines (HLT-04)
-- [ ] **Module Detail** (`/[workspaceSlug]/modules/[moduleId]`)
+- [ ] **Overview** (`/w/[workspaceSlug]/`) — active modules count, recent deploys, environment status
+- [ ] **Modules** (`/w/[workspaceSlug]/modules`) — list all modules with active versions per env + health sparklines (HLT-04)
+- [ ] **Module Detail** (`/w/[workspaceSlug]/modules/[moduleId]`)
   - Deployment history table (all versions, statuses, deployed by, timestamps)
   - One-click rollback
   - One-click **Promote to Production** (PRO-05)
   - Canary setup UI (version selector, traffic % slider, rollout schedule editor)
   - Module Owners tab (RBAC-05)
   - Side-by-side manifest diff view (DIFF-03)
-- [ ] **Environments** (`/[workspaceSlug]/environments`) — CRUD environments, freeze/unfreeze (ENV-FRZ-05), scheduled freeze windows
-- [ ] **Dependency Matrix** (`/[workspaceSlug]/environments/[envId]/deps`) — per-env dependency grid (DEP-04)
-- [ ] **API Keys** (`/[workspaceSlug]/settings/keys`) — create, revoke, rotate, module-scope restriction (RBAC-04)
-- [ ] **Members** (`/[workspaceSlug]/settings/members`) — invite, role assignment, module ownership
-- [ ] **Webhooks** (`/[workspaceSlug]/settings/webhooks`) — create, delivery log, **Dead Letter Queue** with Retry Now (WHK-08)
-- [ ] **Audit Log** (`/[workspaceSlug]/settings/audit`) — filterable table (actor, action, date range)
-- [x] **SSO Settings** (`/[workspaceSlug]/settings/sso`) — OIDC config, SAML Setup Wizard (SSO-19), Test Connection (SSO-20), domain allowlist, forced SSO toggle
-- [ ] **Alert Rules** (`/[workspaceSlug]/settings/alerts`) — create/edit alert rules (ALT-01)
+- [ ] **Environments** (`/w/[workspaceSlug]/environments`) — CRUD environments, freeze/unfreeze (ENV-FRZ-05), scheduled freeze windows
+- [ ] **Dependency Matrix** (`/w/[workspaceSlug]/environments/[envId]/deps`) — per-env dependency grid (DEP-04)
+- [ ] **API Keys** (`/w/[workspaceSlug]/settings/keys`) — create, revoke, rotate, module-scope restriction (RBAC-04)
+- [ ] **Members** (`/w/[workspaceSlug]/settings/members`) — invite, role assignment, module ownership
+- [ ] **Webhooks** (`/w/[workspaceSlug]/settings/webhooks`) — create, delivery log, **Dead Letter Queue** with Retry Now (WHK-08)
+- [ ] **Audit Log** (`/w/[workspaceSlug]/settings/audit`) — filterable table (actor, action, date range)
+- [x] **SSO Settings** (`/w/[workspaceSlug]/settings/sso`) — OIDC config, SAML Setup Wizard (SSO-19), Test Connection (SSO-20), domain allowlist, forced SSO toggle
+- [ ] **Alert Rules** (`/w/[workspaceSlug]/settings/alerts`) — create/edit alert rules (ALT-01)
 - [ ] **API Explorer** (`/docs/api`) — embedded Scalar UI (OAS-04)
 - [ ] **Quickstart Wizard** — first-time workspace onboarding (DX-04)
-- [ ] **Workspace Settings** (`/[workspaceSlug]/settings`) — storage config, retention policy, danger zone
+- [ ] **Workspace Settings** (`/w/[workspaceSlug]/settings`) — storage config, retention policy, danger zone
 
 #### Test Suite
 
@@ -605,7 +605,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 #### Dashboard
 
-- [ ] **Pending Approvals** page (`/[workspaceSlug]/approvals`) — queue of all requests awaiting the current user's decision, with Approve / Reject buttons and comment field (APR-16)
+- [ ] **Pending Approvals** page (`/w/[workspaceSlug]/approvals`) — queue of all requests awaiting the current user's decision, with Approve / Reject buttons and comment field (APR-16)
 - [ ] Approval policy editor in `Workspace Settings → Deployments` — required approvers, eligible roles, change ticket toggle, expiry window (APR-02)
 - [ ] Deployment history: display full approval chain (requestor, approvers, timestamps, bypass flag) (APR-18)
 - [ ] `⚠️ BYPASSED` visual indicator in audit log and deployment history (APR-12)
@@ -650,7 +650,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] **Org Module Catalog** (`/orgs/:orgSlug/catalog`) — searchable, filterable by team, module, env (ORG-12)
 - [ ] **Org SSO Settings** — configure SAML/OIDC once, applies to all workspaces (ORG-05)
 - [x] **Org Members** — directory of all users across all workspaces
-- [x] Existing `/:workspaceSlug` routes remain fully backward-compatible (ORG-15)
+- [x] Workspace pages move to `/w/:workspaceSlug`; old `/:workspaceSlug/…` URLs redirect there (ORG-15)
 
 #### Test Suite
 

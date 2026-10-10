@@ -275,7 +275,7 @@ export class SamlService {
         mapped = { error: (err as Error).message };
       }
       await this.cache.set(`saml-test:${id}`, JSON.stringify({ attributes, mapped }), 600);
-      return `${webOrigin}/${encodeURIComponent(slug)}/settings/sso?samlTest=${id}`;
+      return `${webOrigin}/w/${encodeURIComponent(slug)}/settings/sso?samlTest=${id}`;
     }
 
     const info = this.profileToInfo(profile, config);

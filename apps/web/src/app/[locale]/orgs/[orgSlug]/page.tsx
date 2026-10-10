@@ -37,7 +37,7 @@ export default async function OrgHomePage(props: { params: Promise<{ orgSlug: st
             {org.workspaces.map((w) => (
               <tr key={w.slug} className="border-t">
                 <td className="p-3">
-                  <Link href={`/${w.slug}`} className="font-medium hover:text-primary">
+                  <Link href={`/w/${w.slug}`} className="font-medium hover:text-primary">
                     {w.name}
                   </Link>
                   <div className="text-xs text-muted-foreground font-mono">{w.slug}</div>

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
-import { createWorkspaceAction } from './[workspaceSlug]/actions';
+import { createWorkspaceAction } from './w/[workspaceSlug]/actions';
 import { createOrgAction } from './orgs/actions';
 import { getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
@@ -40,7 +40,7 @@ export default async function WorkspaceSelector() {
 
         <div className="grid gap-4">
           {workspaces.map((ws) => (
-            <Link key={ws.slug} href={`/${ws.slug}`}>
+            <Link key={ws.slug} href={`/w/${ws.slug}`}>
               <div className="p-6 border rounded-xl bg-card hover:border-primary transition-colors cursor-pointer shadow-sm">
                 <h3 className="font-medium text-lg">{ws.name}</h3>
                 <p className="text-sm text-muted-foreground">

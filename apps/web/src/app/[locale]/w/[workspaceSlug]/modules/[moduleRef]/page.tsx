@@ -89,7 +89,7 @@ export default async function ModuleDetailPage(props: {
     <div className="container p-6 md:p-10 max-w-6xl space-y-6">
       <div>
         <Link
-          href={`/${workspaceSlug}/modules`}
+          href={`/w/${workspaceSlug}/modules`}
           className="text-sm text-muted-foreground hover:underline"
         >
           ← {t('back')}
@@ -104,7 +104,7 @@ export default async function ModuleDetailPage(props: {
         {module.environments.map((e) => (
           <Link
             key={e.slug}
-            href={`/${workspaceSlug}/modules/${module.id}?env=${e.slug}`}
+            href={`/w/${workspaceSlug}/modules/${module.id}?env=${e.slug}`}
             className={`px-3 py-2 text-sm border-b-2 -mb-px ${e.slug === env.slug ? 'border-primary font-medium' : 'border-transparent text-muted-foreground'}`}
           >
             {e.name} {e.frozen && '🔒'}

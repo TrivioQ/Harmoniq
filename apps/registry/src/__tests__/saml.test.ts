@@ -268,7 +268,7 @@ describe('SAML single sign-on (M4.5, SSO-09..20)', () => {
       }),
       `test:${id}`
     );
-    expect(acs.headers.location).toContain(`/settings/sso?samlTest=${id}`);
+    expect(acs.headers.location).toContain(`/w/${ws}/settings/sso?samlTest=${id}`);
     const result = (await api(owner, 'GET', `/api/workspaces/${ws}/sso/saml/test/${id}`)).json();
     expect(result.mapped).toMatchObject({ email: `tess@${domain}`, groups: ['harmoniq-devs'] });
     expect(result.attributes.mail).toBe(`tess@${domain}`);

@@ -52,13 +52,13 @@ export default async function EnvironmentsPage(props: {
                   </div>
                   <div className="flex gap-4">
                     <Link
-                      href={`/${workspaceSlug}/environments/${hostApp.slug}/${env.slug}/deps`}
+                      href={`/w/${workspaceSlug}/environments/${hostApp.slug}/${env.slug}/deps`}
                       className="text-sm text-primary hover:underline"
                     >
                       {t('dependencies')}
                     </Link>
                     <Link
-                      href={`/${workspaceSlug}/environments/${hostApp.slug}/${env.slug}`}
+                      href={`/w/${workspaceSlug}/environments/${hostApp.slug}/${env.slug}`}
                       className="text-sm text-primary hover:underline"
                     >
                       {t('history')}

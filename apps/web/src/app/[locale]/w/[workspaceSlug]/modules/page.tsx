@@ -29,7 +29,7 @@ export default async function ModulesPage(props: { params: Promise<{ workspaceSl
         {modules.map((module) => (
           <Link
             key={module.id}
-            href={`/${workspaceSlug}/modules/${module.id}`}
+            href={`/w/${workspaceSlug}/modules/${module.id}`}
             className="rounded-xl border bg-card text-card-foreground shadow-sm p-6 hover:border-primary transition-colors"
           >
             <div className="flex justify-between items-start gap-4">

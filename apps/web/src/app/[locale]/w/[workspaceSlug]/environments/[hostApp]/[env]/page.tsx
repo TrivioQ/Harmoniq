@@ -28,7 +28,7 @@ export default async function EnvironmentHistoryPage(props: {
     <div className="container p-6 md:p-10 max-w-5xl space-y-6">
       <div>
         <Link
-          href={`/${workspaceSlug}/environments`}
+          href={`/w/${workspaceSlug}/environments`}
           className="text-sm text-muted-foreground hover:underline"
         >
           ← {t('back')}

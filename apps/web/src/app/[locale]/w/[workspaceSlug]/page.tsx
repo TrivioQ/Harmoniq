@@ -44,7 +44,7 @@ export default async function WorkspaceOverview(props: {
       <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
         <div className="flex items-center justify-between p-6 border-b">
           <h3 className="font-semibold leading-none tracking-tight">{t('recentActivity')}</h3>
-          <Link href={`/${workspaceSlug}/audit`} className="text-sm text-primary hover:underline">
+          <Link href={`/w/${workspaceSlug}/audit`} className="text-sm text-primary hover:underline">
             {t('viewAll')}
           </Link>
         </div>

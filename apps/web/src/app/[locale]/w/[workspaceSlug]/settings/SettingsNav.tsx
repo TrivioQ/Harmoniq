@@ -19,7 +19,7 @@ export function SettingsNav({
   };
 }) {
   const pathname = usePathname();
-  const base = `/${workspaceSlug}/settings`;
+  const base = `/w/${workspaceSlug}/settings`;
   const items = [
     [base, labels.storage],
     [`${base}/keys`, labels.keys],

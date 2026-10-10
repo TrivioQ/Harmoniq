@@ -32,29 +32,29 @@ export default async function WorkspaceLayout(props: {
             <span className="font-medium text-sm">{workspace.name}</span>
           </div>
           <nav className="flex items-center gap-6 text-sm font-medium">
-            <Link href={`/${workspace.slug}`} className="hover:text-primary">
+            <Link href={`/w/${workspace.slug}`} className="hover:text-primary">
               {t('overview')}
             </Link>
-            <Link href={`/${workspace.slug}/modules`} className="hover:text-primary">
+            <Link href={`/w/${workspace.slug}/modules`} className="hover:text-primary">
               {t('modules')}
             </Link>
-            <Link href={`/${workspace.slug}/environments`} className="hover:text-primary">
+            <Link href={`/w/${workspace.slug}/environments`} className="hover:text-primary">
               {t('environments')}
             </Link>
-            <Link href={`/${workspace.slug}/approvals`} className="hover:text-primary">
+            <Link href={`/w/${workspace.slug}/approvals`} className="hover:text-primary">
               {t('approvals')}
             </Link>
-            <Link href={`/${workspace.slug}/scheduled`} className="hover:text-primary">
+            <Link href={`/w/${workspace.slug}/scheduled`} className="hover:text-primary">
               {t('scheduled')}
             </Link>
-            <Link href={`/${workspace.slug}/audit`} className="hover:text-primary">
+            <Link href={`/w/${workspace.slug}/audit`} className="hover:text-primary">
               {t('audit')}
             </Link>
-            <Link href={`/${workspace.slug}/quickstart`} className="hover:text-primary">
+            <Link href={`/w/${workspace.slug}/quickstart`} className="hover:text-primary">
               {t('quickstart')}
             </Link>
             <Link
-              href={`/${workspace.slug}/settings`}
+              href={`/w/${workspace.slug}/settings`}
               className="hover:text-primary text-muted-foreground"
             >
               {t('settings')}

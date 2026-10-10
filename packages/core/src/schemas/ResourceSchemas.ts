@@ -5,15 +5,9 @@ export const SlugSchema = z
   .string()
   .regex(/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/, 'Use lowercase letters, digits and hyphens');
 
-/** Dashboard paths next to `/:workspaceSlug` (ORG-15), so never workspace slugs. */
-export const RESERVED_WORKSPACE_SLUGS = ['orgs', 'admin', 'auth', 'api', 'docs', 'settings'];
-
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1).max(120),
-  slug: SlugSchema.refine(
-    (slug) => !RESERVED_WORKSPACE_SLUGS.includes(slug),
-    'This slug is reserved'
-  ),
+  slug: SlugSchema,
 });
 
 // ─── Organizations (ORG-01..15) ─────────────────────────────────────────────

@@ -121,7 +121,7 @@ harmoniq.getModule('${moduleSlug}').subscribe(({ url, integrity }) => …);`,
     },
   ];
 
-  const href = (h: string, e: string) => `/${ws}/quickstart?host=${h}&env=${e}`;
+  const href = (h: string, e: string) => `/w/${ws}/quickstart?host=${h}&env=${e}`;
 
   return (
     <div className="container p-6 md:p-10 max-w-5xl space-y-8">
