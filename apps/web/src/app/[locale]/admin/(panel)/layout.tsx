@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
+import { getBranding } from '@/lib/branding';
 import { AdminNav } from './AdminNav';
 
 // INST-05/06: the panel is only for instance admins. Workspace owners get a 404, not a
@@ -15,7 +16,9 @@ export default async function AdminPanelLayout({ children }: { children: React.R
     <div className="flex h-screen bg-gray-100">
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
         <div className="h-16 flex items-center px-6 border-b border-gray-200">
-          <span className="text-lg font-bold text-gray-900">{t('title')}</span>
+          <span className="text-lg font-bold text-gray-900">
+            {t('title', { name: (await getBranding()).name })}
+          </span>
         </div>
         <AdminNav
           labels={{
@@ -24,6 +27,10 @@ export default async function AdminPanelLayout({ children }: { children: React.R
             workspaces: t('workspaces'),
             users: t('users'),
             admins: t('admins'),
+            storage: t('storage'),
+            email: t('email'),
+            auth: t('auth'),
+            branding: t('branding'),
             audit: t('audit'),
             exitAdmin: t('exitAdmin'),
           }}

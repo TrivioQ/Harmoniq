@@ -4,6 +4,7 @@ import { S3StorageAdapter } from './S3StorageAdapter';
 import { GCSStorageAdapter } from './GCSStorageAdapter';
 import { decryptJson } from '../../services/crypto';
 import { LocalStorageAdapter } from './LocalStorageAdapter';
+import type { StorageSettings } from '@harmoniq/core/dist/schemas/InstanceSettingsSchemas';
 import type { Config } from '../../config';
 
 /** Builds the adapter for a workspace's own bucket, decrypting its credentials. */
@@ -56,7 +57,41 @@ export function workspaceStorageTarget(
   };
 }
 
-export function instanceStorageTarget(config: Config): StorageTarget | null {
+/**
+ * INST-11: the instance default storage from admin-panel settings (secrets opened).
+ * Same shapes as the environment's, plus GCS.
+ */
+export function storageTargetFromSettings(
+  settings: StorageSettings,
+  config: Pick<Config, 'publicUrl' | 'localStorageDir'>
+): StorageTarget | null {
+  switch (settings.adapter) {
+    case 'local':
+      return instanceStorageTarget({
+        ...config,
+        storage: { adapter: 'local', dir: config.localStorageDir },
+      });
+    case 's3':
+      return instanceStorageTarget({ ...config, storage: settings });
+    case 'gcs':
+      return {
+        storage: new GCSStorageAdapter(
+          settings.projectId,
+          settings.clientEmail,
+          settings.privateKey ?? '',
+          settings.bucket
+        ),
+        prefix: '',
+        publicUrl: (key) => (settings.publicUrl ? joinUrl(settings.publicUrl, key) : null),
+      };
+    default:
+      return null;
+  }
+}
+
+export function instanceStorageTarget(
+  config: Pick<Config, 'publicUrl' | 'storage'>
+): StorageTarget | null {
   const s = config.storage;
   if (s.adapter === 'local') {
     const storage = new LocalStorageAdapter(s.dir, config.publicUrl);

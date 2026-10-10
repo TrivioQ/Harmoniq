@@ -81,6 +81,7 @@ Never set `HARMONIQ_DEV_LOGIN` in production; the registry refuses to start with
 3. Sign in with that email (email link or GitHub with the same verified address).
 4. Create a workspace from the dashboard and an API key for CI under **Settings → API keys**.
 5. The admin panel (`/admin`) shows system health and lets you manage workspaces (suspend, delete), users (end sessions, erase accounts), other instance admins and the instance audit log.
+6. Storage, email (SMTP), sign-in methods and branding can also be set in the admin panel. Those settings are stored encrypted in the database, take precedence over the environment variables above (which remain the defaults) and reach every registry replica within a minute, without a restart.
 
 ### 4. Images
 

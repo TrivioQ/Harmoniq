@@ -69,6 +69,48 @@ export interface InstanceAuditEvent {
   createdAt: string;
 }
 
+/** INST-11..16: a setting from the database (or the environment's defaults); secrets masked. */
+export interface SettingView<T = Record<string, unknown>> {
+  source: 'database' | 'environment';
+  value: T;
+}
+
+export interface InstanceSettingsView {
+  storage: SettingView<{
+    adapter: 'none' | 'local' | 's3' | 'gcs';
+    bucket?: string;
+    region?: string;
+    endpoint?: string;
+    accessKeyId?: string;
+    secretAccessKey?: string;
+    projectId?: string;
+    clientEmail?: string;
+    privateKey?: string;
+    publicUrl?: string;
+  }>;
+  email: SettingView<{
+    host?: string;
+    port?: number;
+    security?: 'tls' | 'starttls' | 'none';
+    username?: string;
+    password?: string;
+    from?: string;
+    smtpUrl?: string;
+  }>;
+  auth: SettingView<{
+    email?: { enabled: boolean };
+    github?: { enabled: boolean; clientId?: string; clientSecret?: string };
+    oidc?: { enabled: boolean };
+    saml?: { enabled: boolean };
+  }>;
+  branding: SettingView<{
+    name: string;
+    logoUrl?: string;
+    supportUrl?: string;
+    accentColor?: string;
+  }>;
+}
+
 const query = (params: Record<string, string | undefined>) => {
   const qs = new URLSearchParams(
     Object.entries(params).filter((e): e is [string, string] => !!e[1])
@@ -79,6 +121,7 @@ const query = (params: Record<string, string | undefined>) => {
 /** INST-05..10, 18: the admin panel reads through the registry's admin API. */
 export const adminApi = {
   health: () => authedFetch<AdminHealth>('/api/admin/health'),
+  settings: () => authedFetch<InstanceSettingsView>('/api/admin/settings'),
   workspaces: (params: { query?: string; cursor?: string }) =>
     authedFetch<{ workspaces: AdminWorkspace[]; nextCursor: string | null }>(
       `/api/admin/workspaces${query(params)}`

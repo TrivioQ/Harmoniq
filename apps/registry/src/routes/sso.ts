@@ -5,7 +5,11 @@ import { IdentityError } from '@harmoniq/core/dist/ports/IdentityProvider';
 import { OidcConfigSchema } from '@harmoniq/core/dist/schemas/SsoSchema';
 import { audit } from '../services/audit';
 import { maskSecret, openSecret, sealSecret } from '../services/crypto';
-import { StoredOidcConfig, workspaceProviderId } from '../services/sso';
+import {
+  StoredOidcConfig,
+  disabledProtocol as disabled,
+  workspaceProviderId,
+} from '../services/sso';
 
 // SSO-03: a workspace's OIDC settings (admins). The client secret is write-only and
 // stored sealed (AES-256-GCM).
@@ -39,6 +43,7 @@ const ssoRoutes: FastifyPluginAsync = async (fastify) => {
     path,
     { preHandler: fastify.requireWorkspace('workspace:admin') },
     async (request) => {
+      if (!fastify.ssoProviders.protocolEnabled('oidc')) throw disabled('oidc');
       const body = OidcConfigSchema.parse(request.body);
       const workspace = request.workspace!;
       const current = await withTenant(workspace.id, (tx) =>

@@ -2,6 +2,7 @@ import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { ValidateInResponseTo } from '@node-saml/node-saml';
 import { BadRequestError, NotFoundError } from '@harmoniq/core/dist/errors/AppError';
+import { disabledProtocol as disabled } from '../services/sso';
 import { IdentityError } from '@harmoniq/core/dist/ports/IdentityProvider';
 import { SamlConfigSchema } from '@harmoniq/core/dist/schemas/SsoSchema';
 import { audit } from '../services/audit';
@@ -151,6 +152,7 @@ const samlRoutes: FastifyPluginAsync = async (fastify) => {
     settingsPath,
     { preHandler: fastify.requireWorkspace('workspace:admin') },
     async (request) => {
+      if (!fastify.ssoProviders.protocolEnabled('saml')) throw disabled('saml');
       const body = SamlConfigSchema.parse(request.body);
       const workspace = request.workspace!;
       const current = await withTenant(workspace.id, (tx) =>

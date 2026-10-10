@@ -95,7 +95,7 @@
     "provisioning": "Provisioning (SCIM)"
   },
   "LoginPage": {
-    "title": "Sign in to Harmoniq",
+    "title": "Sign in to {name}",
     "description": "Welcome back. Please sign in to your account.",
     "continueWithGithub": "Continue with GitHub",
     "or": "Or",
@@ -138,7 +138,7 @@
     "degraded": "Something is failing: open System health"
   },
   "AdminLayout": {
-    "title": "Harmoniq Admin",
+    "title": "{name} Admin",
     "dashboard": "Dashboard",
     "workspaces": "Workspaces",
     "exitAdmin": "← Exit Admin",
@@ -146,7 +146,11 @@
     "health": "Health",
     "users": "Users",
     "admins": "Instance admins",
-    "audit": "Audit log"
+    "audit": "Audit log",
+    "storage": "Storage",
+    "email": "Email",
+    "auth": "Sign-in methods",
+    "branding": "Branding"
   },
   "AdminSetupPage": {
     "errorSetup": "Failed to setup admin",
@@ -279,7 +283,12 @@
     "sessionsRevoked": "{count, plural, =0 {No active sessions.} one {# session ended.} other {# sessions ended.}}",
     "userDeleted": "Account deleted.",
     "adminGranted": "Instance admin granted.",
-    "adminRevoked": "Instance admin revoked."
+    "adminRevoked": "Instance admin revoked.",
+    "settingSaved": "Saved. Other replicas pick it up within a minute.",
+    "settingReset": "Back to the environment’s value.",
+    "storageOk": "Storage works ({ms} ms).",
+    "storageFailed": "Storage test failed: {error}",
+    "testEmailSent": "Test email sent to {to}."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -825,5 +834,55 @@
     "title": "Audit log",
     "empty": "No instance changes yet.",
     "next": "Older →"
+  },
+  "AdminSettings": {
+    "fromDatabase": "Set here (overrides the environment).",
+    "fromEnvironment": "From the registry environment (.env). Saving here overrides it.",
+    "reset": "Use the environment again",
+    "resetConfirm": "Remove this setting from the database and use the environment’s value again?",
+    "save": "Save",
+    "keepSecret": "Leave empty to keep the stored value ({masked})",
+    "storageTitle": "Default storage",
+    "storageDescription": "Where published manifests and bundles go for workspaces without their own bucket. Changes apply to every replica within a minute, no restart needed.",
+    "adapter": "Adapter",
+    "adapterNone": "None (publishing off)",
+    "adapterLocal": "Registry disk (development)",
+    "bucket": "Bucket",
+    "region": "Region",
+    "endpoint": "Endpoint (S3-compatible, optional)",
+    "publicUrl": "Public / CDN URL",
+    "accessKeyId": "Access key ID (empty: default credential chain)",
+    "secret": "Secret access key",
+    "projectId": "Project ID",
+    "clientEmail": "Service account email",
+    "privateKey": "Service account private key",
+    "storageTestHint": "Saving writes, reads back and deletes a test object; a storage that fails is not saved.",
+    "storageSave": "Test and save",
+    "testConnection": "Test connection",
+    "emailTitle": "Email (SMTP)",
+    "emailDescription": "Sign-in links and codes are sent through this server.",
+    "emailFromEnv": "SMTP_URL is set in the environment; its details are not shown.",
+    "smtpHost": "Host",
+    "smtpPort": "Port",
+    "smtpSecurity": "Security",
+    "smtpPlain": "None (trusted relay only)",
+    "smtpFrom": "Sender",
+    "smtpUsername": "Username",
+    "smtpPassword": "Password",
+    "sendTest": "Send test email to me",
+    "authTitle": "Sign-in methods",
+    "authDescription": "Turn sign-in methods on or off for everyone. A method that is off can’t be used or set up by any workspace or organization; existing sessions continue until they expire.",
+    "authEmail": "Email link and code",
+    "authGithub": "GitHub",
+    "githubClientId": "GitHub OAuth client ID",
+    "githubClientSecret": "Client secret",
+    "githubHint": "Empty: the GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET environment variables.",
+    "authOidc": "OpenID Connect (instance, workspaces and organizations; Google included)",
+    "authSaml": "SAML 2.0 (workspaces and organizations)",
+    "brandingTitle": "Branding",
+    "brandName": "Instance name",
+    "brandAccent": "Accent colour",
+    "brandLogo": "Logo URL",
+    "brandSupport": "Support URL"
   }
 }

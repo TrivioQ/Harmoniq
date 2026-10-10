@@ -5,6 +5,7 @@ import {
   type IdentityUserInfo,
   type RedirectIdentityProvider,
 } from '@harmoniq/core/dist/ports/IdentityProvider';
+import { ForbiddenError } from '@harmoniq/core/dist/errors/AppError';
 import { OidcConfig } from '@harmoniq/core/dist/schemas/SsoSchema';
 import { OidcIdentityProvider } from '../adapters/identity/OidcIdentityProvider';
 import { GitHubIdentityProvider } from '../adapters/identity/GitHubIdentityProvider';
@@ -13,7 +14,7 @@ import { SamlService } from './saml';
 import { openSecret } from './crypto';
 import { audit } from './audit';
 import { isDeprovisioned } from './scim';
-import { SsoSubject, parseSsoProviderId, ssoProviderId } from './ssoIds';
+import { SsoProtocol, SsoSubject, parseSsoProviderId, ssoProviderId } from './ssoIds';
 
 /**
  * What `WorkspaceConfig.oidcConfig` (or `Organization.oidcConfig`) holds: the config with
@@ -37,6 +38,12 @@ declare module 'fastify' {
   }
 }
 
+/** INST-13: the instance admin turned this protocol off. */
+export const disabledProtocol = (protocol: SsoProtocol) =>
+  new ForbiddenError(
+    `${protocol === 'oidc' ? 'OpenID Connect' : 'SAML'} sign-in is disabled on this instance`
+  );
+
 export const workspaceProviderId = (slug: string) =>
   ssoProviderId('oidc', { kind: 'workspace', slug });
 
@@ -48,16 +55,30 @@ export const workspaceProviderId = (slug: string) =>
 export class SsoProviders {
   private cache = new Map<string, { provider: OidcIdentityProvider | null; expires: number }>();
 
-  private fixed = new Map<string, RedirectIdentityProvider>();
+  private fixedProviders = new Map<string, RedirectIdentityProvider>();
+  private fixedRevision = -1;
 
   constructor(private app: FastifyInstance) {
     this.samlService = new SamlService(app);
-    const { oidc, github } = app.config;
-    const fixed = this.fixed;
-    if (github) {
-      fixed.set('github', new GitHubIdentityProvider(github.clientId, github.clientSecret));
+  }
+
+  /**
+   * GitHub and the instance OIDC, rebuilt when the instance settings change (INST-13:
+   * GitHub credentials and every protocol can be turned off by the instance admin).
+   */
+  private get fixed() {
+    const { settings } = this.app.container;
+    if (this.fixedRevision === settings.revision) return this.fixedProviders;
+    const fixed = new Map<string, RedirectIdentityProvider>();
+    const auth = settings.auth();
+    const { oidc } = this.app.config;
+    if (auth.github) {
+      fixed.set(
+        'github',
+        new GitHubIdentityProvider(auth.github.clientId, auth.github.clientSecret)
+      );
     }
-    if (oidc) {
+    if (oidc && auth.oidc) {
       fixed.set(
         'oidc',
         new OidcIdentityProvider({
@@ -71,6 +92,14 @@ export class SsoProviders {
         })
       );
     }
+    this.fixedProviders = fixed;
+    this.fixedRevision = settings.revision;
+    return fixed;
+  }
+
+  /** INST-13: whether workspaces and organizations may use this protocol. */
+  protocolEnabled(protocol: SsoProtocol) {
+    return this.app.container.settings.auth()[protocol];
   }
 
   list() {
@@ -86,7 +115,7 @@ export class SsoProviders {
     const fixed = this.fixed.get(id);
     if (fixed) return fixed;
     const parsed = parseSsoProviderId(id);
-    if (!parsed) return null;
+    if (!parsed || !this.protocolEnabled(parsed.protocol)) return null;
     const { protocol, subject } = parsed;
     if (protocol === 'saml') {
       return (await this.samlService.load(subject)) ? this.samlService.provider(subject) : null;

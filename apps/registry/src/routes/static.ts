@@ -15,13 +15,13 @@ const TYPES: Record<string, string> = {
  * manifests and import maps in development. With S3 or a CDN this route is unused.
  */
 const staticRoutes: FastifyPluginAsync = async (fastify) => {
-  const storage = fastify.container.instanceStorage?.storage;
-  if (!(storage instanceof LocalStorageAdapter)) return;
-
   fastify.get<{ Params: { '*': string } }>('/static/*', async (request, reply) => {
+    // The instance storage can change at runtime (INST-11): checked per request.
+    const storage = fastify.container.instanceStorage?.storage;
     const key = request.params['*'];
     let body: Buffer;
     try {
+      if (!(storage instanceof LocalStorageAdapter)) throw new Error('Not local storage');
       body = await storage.read(key); // rejects traversal outside the storage root
     } catch {
       return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Not found' } });

@@ -29,7 +29,7 @@ Large enterprises operating in regulated industries require three capabilities t
 | `ORG-01`–`ORG-04`, `ORG-08`–`ORG-15`                    | Organizations: members, workspaces, org admins, cross-workspace audit, shared modules, catalog, org API keys, dashboard | ✅ Done (M4.7)  |
 | `ORG-05`–`ORG-07`                                       | Org-level SSO (OIDC, SAML) inherited by workspaces, group rules, org SCIM                                               | ✅ Done (M4.7b) |
 | `INST-01`–`INST-10`, `INST-18`                          | Instance admin: setup wizard, health, workspace suspension and deletion, users, instance admins, instance audit log     | ✅ Done (M4.8a) |
-| `INST-11`–`INST-17`                                     | Instance settings in the database (storage, email, sign-in, branding), hot reload                                       | 📋 Planned      |
+| `INST-11`–`INST-17`                                     | Instance settings in the database (storage, email, sign-in, branding), hot reload                                       | ✅ Done (M4.8b) |
 | `IaC-01`–`IaC-14`                                       | GitOps / Infrastructure as Code                                                                                         | 📋 Planned      |
 
 See [`docs/requirements.md §16`](../requirements.md) for the full specification.
@@ -121,6 +121,23 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-09 — Instance settings (M4.8b)
+
+**Type:** Feature
+**Author:** Shashi Kumar Dhandapani
+**Refs:** INST-11 – INST-18
+
+**Summary:**
+
+- `InstanceSettings` keeps storage, email, sign-in methods and branding in `InstanceConfig` (`settings.<key>`, secrets sealed). Database values take precedence over the environment; every registry reloads them every 60 seconds and applies its own changes at once. Storage, the mailer and the GitHub / instance OIDC providers are resolved through it at request time, so changes need no restart.
+- Admin API: `GET /api/admin/settings` (secrets masked, with their source), `PUT` / `DELETE /api/admin/settings/:key`, storage Test Connection (and a test before every storage save), Send Test Email; changes audited as `instance.config_updated` with field names only.
+- INST-13: email, GitHub, OIDC and SAML can be turned off for the whole instance: disabled methods disappear from the sign-in providers, their endpoints answer `404`, and workspaces and organizations can't use or save them.
+- INST-14: `GET /api/instance` (public) serves the branding; the dashboard uses it for the header, tab title and sign-in page, and sign-in emails use the instance name.
+- Dashboard: admin pages for storage, email, sign-in methods and branding.
+- GCS joins S3 as an instance storage adapter; Azure Blob comes with BYOB (M4.9).
+
+**Tests:** `instanceSettings.test.ts`: environment defaults and admin-only access, disabling sign-in methods (providers, email endpoints, workspace SAML save and start), sealed GitHub credentials and write-only secrets, audit without values, storage switched at runtime (failed test not saved, `none`, `local`, Test Connection, reset), SMTP settings with Send Test Email failure and success, branding in the API and email subject, reload of changes from another replica.
 
 ### 2026-10-09 — Instance administration (M4.8a)
 

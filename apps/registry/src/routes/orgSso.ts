@@ -11,7 +11,7 @@ import {
 import { maskSecret, openSecret, sealSecret } from '../services/crypto';
 import { orgProvisioning } from '../services/orgProvisioning';
 import { StoredSamlConfig, generateSpKeyPair, parseIdpMetadata, samlUrls } from '../services/saml';
-import type { StoredOidcConfig } from '../services/sso';
+import { type StoredOidcConfig, disabledProtocol } from '../services/sso';
 import { SsoSubject, ssoProviderId } from '../services/ssoIds';
 
 type OrgParams = { orgSlug: string };
@@ -95,6 +95,7 @@ export function orgSsoRoutes(
   });
 
   fastify.put<{ Params: OrgParams }>(`${base}/sso/oidc`, admin, async (request) => {
+    if (!fastify.ssoProviders.protocolEnabled('oidc')) throw disabledProtocol('oidc');
     const body = OrgOidcConfigSchema.parse(request.body);
     const org = request.org!;
     const previous = org.oidcConfig as StoredOidcConfig | null;
@@ -165,6 +166,7 @@ export function orgSsoRoutes(
   );
 
   fastify.put<{ Params: OrgParams }>(`${base}/sso/saml`, admin, async (request) => {
+    if (!fastify.ssoProviders.protocolEnabled('saml')) throw disabledProtocol('saml');
     const body = OrgSamlConfigSchema.parse(request.body);
     const org = request.org!;
     const previous = org.samlConfig as StoredSamlConfig | null;

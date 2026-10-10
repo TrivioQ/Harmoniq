@@ -11,6 +11,10 @@ const ITEMS = [
   ['workspaces', '/admin/workspaces'],
   ['users', '/admin/users'],
   ['admins', '/admin/admins'],
+  ['storage', '/admin/storage'],
+  ['email', '/admin/email'],
+  ['auth', '/admin/auth'],
+  ['branding', '/admin/branding'],
   ['audit', '/admin/audit'],
 ] as const;
 

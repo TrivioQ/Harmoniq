@@ -505,7 +505,20 @@ M4.8, INST-01..10, 18. Instance admins run the installation; the role grants not
 | `DELETE /api/admin/users/:id?confirm=`      | instance admin | Erases the account (`confirm` = its email): identities, sessions, memberships, the API keys they created. `409` while they're a workspace's last owner or an organization's last admin; not yourself            |
 | `GET`, `POST /api/admin/admins`             | instance admin | INST-07: list; `{ email }` grants (the user must have signed in once)                                                                                                                                           |
 | `DELETE /api/admin/admins/:userId`          | instance admin | Revokes; `409` for the last instance admin                                                                                                                                                                      |
+| `GET /api/admin/settings`                   | instance admin | INST-11..16: `{ storage, email, auth, branding }`, each `{ source: "database" \| "environment", value }` with secrets masked                                                                                    |
+| `PUT /api/admin/settings/:key`              | instance admin | Saves a setting (below); omitted secrets keep the stored ones. Storage is tested first (write, read back, delete; `400` if it fails). Audited as `instance.config_updated` with the changed field names only    |
+| `DELETE /api/admin/settings/:key`           | instance admin | Back to the environment's value                                                                                                                                                                                 |
+| `POST /api/admin/settings/storage/test`     | instance admin | Tests the storage in use                                                                                                                                                                                        |
+| `POST /api/admin/settings/email/test`       | instance admin | INST-12: sends a test email to you; `400` with the SMTP error                                                                                                                                                   |
+| `GET /api/instance`                         | public         | INST-14: `{ branding: { name, logoUrl?, supportUrl?, accentColor? } }`                                                                                                                                          |
 | `GET /api/admin/audit?cursor=`              | instance admin | INST-18: instance changes (`instance.*`), newest first; never config values or secrets, and user deletions record the id only                                                                                   |
+
+**Instance settings** (M4.8b, INST-11..17) live in the database (secrets sealed) and override the environment, which only provides defaults; every registry reloads them every 60 seconds, and the one that saved a change applies it at once, without a restart.
+
+- `storage`: `{ adapter: "none" }`, `{ adapter: "local" }` (`LOCAL_STORAGE_DIR`), `{ adapter: "s3", bucket, region, endpoint?, accessKeyId?, secretAccessKey?, publicUrl? }` or `{ adapter: "gcs", bucket, projectId, clientEmail, privateKey?, publicUrl? }`: the default storage for published manifests and bundles.
+- `email`: `{ host, port, security: "tls" | "starttls" | "none", username?, password?, from }`.
+- `auth`: `{ email: { enabled }, github: { enabled, clientId?, clientSecret? }, oidc: { enabled }, saml: { enabled } }`. A disabled method is gone for everyone (INST-13): it leaves `GET /api/auth/providers`, its sign-in endpoints answer `404`, and workspaces and organizations can neither use nor save OIDC / SAML settings (`403`). Existing sessions continue until they expire.
+- `branding`: `{ name, logoUrl?, supportUrl?, accentColor? }`, used by the dashboard header and tab title and in emails.
 
 ## Health
 

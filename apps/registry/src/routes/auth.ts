@@ -40,7 +40,7 @@ const REFRESH_RATE_LIMIT = {
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const { config } = fastify;
-  const { systemDb, logger, mailer } = fastify.container;
+  const { systemDb, logger, settings } = fastify.container;
   // GitHub, instance OIDC and per-workspace OIDC (`oidc:<workspace>`).
   const providers = fastify.ssoProviders;
   const auth = new AuthService(systemDb, config.jwtSecret, logger, {
@@ -49,8 +49,18 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     check: (provider, token) => providers.checkSession(provider, token),
   });
 
-  // Email sign-in needs a way to send mail (SMTP, or the console mailer outside production).
-  const email = mailer ? new EmailIdentityProvider(systemDb, mailer) : null;
+  // Email sign-in needs a way to send mail (SMTP, or the console mailer outside production)
+  // and the instance to allow it (INST-13); both can change at runtime.
+  const email = new EmailIdentityProvider(
+    systemDb,
+    () => fastify.container.mailer,
+    () => settings.branding().name
+  );
+  const emailEnabled = () => settings.auth().email && !!fastify.container.mailer;
+  const emailUnavailable = (reply: FastifyReply) =>
+    reply
+      .code(404)
+      .send({ error: { code: 'NOT_FOUND', message: 'Email sign-in is not available' } });
 
   const badRequest = (reply: FastifyReply, error: ZodError | string) =>
     reply.code(400).send({
@@ -86,7 +96,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       kind: p.kind,
       displayName: p.displayName,
     }));
-    if (email) list.push({ id: email.id, kind: email.kind, displayName: email.displayName });
+    if (emailEnabled()) {
+      list.push({ id: email.id, kind: email.kind, displayName: email.displayName });
+    }
     if (config.devLogin) {
       list.push({ id: 'dev', kind: 'dev', displayName: 'Development login' });
     }
@@ -176,6 +188,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       const { code, provider } = request.body ?? {};
       if (!code || !provider || !/^(org-)?saml:/.test(provider))
         return badRequest(reply, 'code and provider are required');
+      if (!providers.protocolEnabled('saml')) {
+        return reply
+          .code(404)
+          .send({ error: { code: 'NOT_FOUND', message: 'SAML sign-in is disabled' } });
+      }
       try {
         const info = await providers.samlService.redeem(code, null, provider);
         return await finishLogin(info, provider, request.ip);
@@ -245,12 +262,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     });
   }
 
-  if (email) {
+  {
     // Always 202, whether or not an account exists (no user enumeration).
     fastify.post(
       '/api/auth/email/request',
       { config: { rateLimit: { max: 20, timeWindow: '15 minutes' } } },
       async (request, reply) => {
+        if (!emailEnabled()) return emailUnavailable(reply);
         const parsed = EmailLoginRequestSchema.safeParse(request.body);
         if (!parsed.success) return badRequest(reply, parsed.error);
         if (!isAllowedRedirect(parsed.data.redirectUri)) {
@@ -262,6 +280,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     );
 
     fastify.post('/api/auth/email/verify', { config: LOGIN_RATE_LIMIT }, async (request, reply) => {
+      if (!emailEnabled()) return emailUnavailable(reply);
       const parsed = EmailLoginVerifySchema.safeParse(request.body);
       if (!parsed.success) return badRequest(reply, parsed.error);
       try {

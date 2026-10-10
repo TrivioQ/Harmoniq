@@ -466,14 +466,14 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] `GET /admin/api/users` — all users with workspace memberships + last login
 - [x] `POST /admin/api/users/:id/revoke-sessions` (INST-10)
 - [x] `DELETE /admin/api/users/:id` — hard delete
-- [ ] `GET /admin/api/config` — return all `InstanceConfig` keys with values **redacted** for sensitive keys
-- [ ] `PUT /admin/api/config/:key` — update a config value (encrypt sensitive keys before storing)
-- [ ] `POST /admin/api/config/storage/test` — connectivity test for the configured default storage adapter
-- [ ] `POST /admin/api/config/smtp/test` — send test email to authenticated admin (INST-12)
-- [ ] Hot-reload: `pg-boss` cron `config.reload` (60s interval) refreshes registry's in-memory config snapshot from `InstanceConfig` (INST-17)
+- [x] `GET /admin/api/config` — return all `InstanceConfig` keys with values **redacted** for sensitive keys
+- [x] `PUT /admin/api/config/:key` — update a config value (encrypt sensitive keys before storing)
+- [x] `POST /admin/api/config/storage/test` — connectivity test for the configured default storage adapter
+- [x] `POST /admin/api/config/smtp/test` — send test email to authenticated admin (INST-12)
+- [x] Hot-reload (a 60 s timer per registry rather than a pg-boss cron): `config.reload` (60s interval) refreshes registry's in-memory config snapshot from `InstanceConfig` (INST-17)
 - [x] `GET /admin/setup` — serve setup wizard (only when no active `InstanceAdmin` exists)
 - [x] `POST /admin/setup` — consume `HARMONIQ_SETUP_TOKEN`, create first admin user, set initial `InstanceConfig` values (INST-01–INST-04)
-- [ ] Emit `AuditEvent` (`action: 'instance.config_updated'`, key only, no plaintext value) on every config change (INST-18)
+- [x] Emit `InstanceAuditEvent` (`action: 'instance.config_updated'`, key only, no plaintext value) on every config change (INST-18)
 
 #### Dashboard — Admin Panel Pages
 
@@ -481,10 +481,10 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] `/admin/health` — system health indicators with live-refresh
 - [x] `/admin/workspaces` — workspace list with usage, suspend/unsuspend/delete actions
 - [x] `/admin/users` — user directory, revoke sessions, delete user
-- [ ] `/admin/storage` — adapter selector + credential form + Test Connection button (INST-11)
-- [ ] `/admin/email` — SMTP config form + Send Test Email button (INST-12)
-- [ ] `/admin/auth` — enable/disable OAuth providers globally (INST-13)
-- [ ] `/admin/branding` — name, logo, support URL, accent colour (INST-14)
+- [x] `/admin/storage` — adapter selector + credential form + Test Connection button (INST-11)
+- [x] `/admin/email` — SMTP config form + Send Test Email button (INST-12)
+- [x] `/admin/auth` — enable/disable OAuth providers globally (INST-13)
+- [x] `/admin/branding` — name, logo, support URL, accent colour (INST-14)
 - [x] `/admin/admins` — grant/revoke `InstanceAdmin` role (INST-07)
 - [x] Admin nav sidebar: entirely separate from workspace nav; appears only for `InstanceAdmin` sessions
 

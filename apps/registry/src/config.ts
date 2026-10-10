@@ -77,6 +77,8 @@ export interface Config {
   manifestRateLimit: number;
   /** Outbound email. Without SMTP in production, email sign-in is unavailable. */
   mail: { smtpUrl?: string; from: string };
+  /** Where the `local` storage adapter keeps objects (also when chosen in the admin panel). */
+  localStorageDir: string;
   /** Public base URL of this registry (links to /static objects). */
   publicUrl: string;
   /**
@@ -207,6 +209,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       e.HARMONIQ_SSO_ALLOW_PRIVATE_ISSUERS === '1' ||
       e.HARMONIQ_SSO_ALLOW_PRIVATE_ISSUERS === 'true',
     mail: { smtpUrl: e.SMTP_URL, from: e.MAIL_FROM },
+    localStorageDir: e.LOCAL_STORAGE_DIR,
     publicUrl: (e.PUBLIC_URL ?? `http://localhost:${e.PORT}`).replace(/\/$/, ''),
     storage: resolveStorage(e, isProduction),
     validateBundles: e.HARMONIQ_VALIDATE_BUNDLES === '1' || e.HARMONIQ_VALIDATE_BUNDLES === 'true',

@@ -100,3 +100,112 @@ export async function revokeAdminAction(userId: string, _prev: ActionResult) {
     (t) => ({ status: 'success', message: t('adminRevoked') })
   );
 }
+
+// ─── Instance settings (INST-11..14) ─────────────────────────────────────────
+
+type SettingKey = 'storage' | 'email' | 'auth' | 'branding';
+const optional = (form: FormData, name: string) => field(form, name) || undefined;
+const checked = (form: FormData, name: string) => form.get(name) === 'on';
+
+/** The setting's body from its form; empty secrets keep the stored ones. */
+function settingBody(key: SettingKey, form: FormData) {
+  switch (key) {
+    case 'storage': {
+      const adapter = field(form, 'adapter');
+      if (adapter === 's3') {
+        return {
+          adapter,
+          bucket: field(form, 's3Bucket'),
+          region: field(form, 's3Region'),
+          endpoint: optional(form, 's3Endpoint'),
+          accessKeyId: optional(form, 's3AccessKeyId'),
+          secretAccessKey: optional(form, 's3SecretAccessKey'),
+          publicUrl: optional(form, 's3PublicUrl'),
+        };
+      }
+      if (adapter === 'gcs') {
+        return {
+          adapter,
+          bucket: field(form, 'gcsBucket'),
+          projectId: field(form, 'gcsProjectId'),
+          clientEmail: field(form, 'gcsClientEmail'),
+          privateKey: optional(form, 'gcsPrivateKey'),
+          publicUrl: optional(form, 'gcsPublicUrl'),
+        };
+      }
+      return { adapter };
+    }
+    case 'email':
+      return {
+        host: field(form, 'host'),
+        port: Number(field(form, 'port')),
+        security: field(form, 'security'),
+        username: optional(form, 'username'),
+        password: optional(form, 'password'),
+        from: field(form, 'from'),
+      };
+    case 'auth':
+      return {
+        email: { enabled: checked(form, 'email') },
+        github: {
+          enabled: checked(form, 'github'),
+          clientId: optional(form, 'githubClientId'),
+          clientSecret: optional(form, 'githubClientSecret'),
+        },
+        oidc: { enabled: checked(form, 'oidc') },
+        saml: { enabled: checked(form, 'saml') },
+      };
+    case 'branding':
+      return {
+        name: field(form, 'name'),
+        logoUrl: optional(form, 'logoUrl'),
+        supportUrl: optional(form, 'supportUrl'),
+        accentColor: optional(form, 'accentColor'),
+      };
+  }
+}
+
+export async function saveSettingAction(
+  key: SettingKey,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(`/api/admin/settings/${key}`, { method: 'PUT', body: settingBody(key, form) }),
+    (t) => ({ status: 'success', message: t('settingSaved') })
+  );
+}
+
+export async function resetSettingAction(key: SettingKey, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/settings/${key}`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('settingReset') })
+  );
+}
+
+export async function testStorageAction(_prev: ActionResult) {
+  return run(
+    () =>
+      authedFetch<{ ok: boolean; latencyMs: number; error?: string }>(
+        '/api/admin/settings/storage/test',
+        { method: 'POST' }
+      ),
+    (t, r) => {
+      const result = r as { ok: boolean; latencyMs: number; error?: string };
+      return result.ok
+        ? { status: 'success', message: t('storageOk', { ms: result.latencyMs }) }
+        : { status: 'error', message: t('storageFailed', { error: result.error ?? '' }) };
+    }
+  );
+}
+
+export async function testEmailAction(_prev: ActionResult) {
+  return run(
+    () => authedFetch<{ sentTo: string }>('/api/admin/settings/email/test', { method: 'POST' }),
+    (t, r) => ({
+      status: 'success',
+      message: t('testEmailSent', { to: (r as { sentTo: string }).sentTo }),
+    })
+  );
+}

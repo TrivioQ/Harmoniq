@@ -1,4 +1,5 @@
 import { getTranslations } from 'next-intl/server';
+import { getBranding } from '@/lib/branding';
 import type { AuthProviderSummary } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { Button } from '@/components/ui/button';
 import { registryFetch } from '@/lib/registry';
@@ -43,7 +44,9 @@ export default async function LoginPage(props: {
     <div className="flex min-h-screen items-center justify-center bg-muted/50 p-6 md:p-10">
       <div className="w-full max-w-sm bg-card text-card-foreground border rounded-xl shadow-sm">
         <div className="flex flex-col space-y-1.5 p-6">
-          <h3 className="font-semibold tracking-tight text-2xl">{t('title')}</h3>
+          <h3 className="font-semibold tracking-tight text-2xl">
+            {t('title', { name: (await getBranding()).name })}
+          </h3>
           <p className="text-sm text-muted-foreground">{t('description')}</p>
         </div>
         <div className="p-6 pt-0 space-y-4">

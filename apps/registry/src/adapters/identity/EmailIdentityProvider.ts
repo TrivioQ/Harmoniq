@@ -28,7 +28,10 @@ export class EmailIdentityProvider implements EmailProvider {
 
   constructor(
     private db: PrismaClient,
-    private mailer: IMailer
+    /** Read on every send: the instance's email settings can change at runtime (INST-12). */
+    private mailer: () => IMailer | null,
+    /** The instance's name (INST-14). */
+    private brand: () => string = () => 'Harmoniq'
   ) {}
 
   async requestLogin({
@@ -41,6 +44,8 @@ export class EmailIdentityProvider implements EmailProvider {
     nonce: string;
   }): Promise<void> {
     const email = rawEmail.trim().toLowerCase();
+    const mailer = this.mailer();
+    if (!mailer) throw new IdentityError('provider_unavailable', 'Email sign-in is not available');
     const recent = await this.db.emailLoginToken.count({
       where: { email, createdAt: { gt: new Date(Date.now() - TOKEN_TTL_MS) } },
     });
@@ -60,11 +65,12 @@ export class EmailIdentityProvider implements EmailProvider {
 
     const link = new URL(redirectUri);
     link.searchParams.set('token', token);
-    await this.mailer.send({
+    const name = this.brand();
+    await mailer.send({
       to: email,
-      subject: `Your Harmoniq sign-in code: ${code}`,
+      subject: `Your ${name} sign-in code: ${code}`,
       text: [
-        'Sign in to Harmoniq:',
+        `Sign in to ${name}:`,
         '',
         link.toString(),
         '',

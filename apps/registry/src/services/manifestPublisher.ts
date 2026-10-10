@@ -31,8 +31,8 @@ export class ManifestPublisher {
     private deps: {
       systemDb: PrismaClient;
       withTenant: <T>(workspaceId: string, fn: (tx: TenantTx) => Promise<T>) => Promise<T>;
-      /** Instance default storage, used for workspaces without their own bucket. */
-      instance: StorageTarget | null;
+      /** Instance default storage (INST-11, read live), for workspaces without a bucket. */
+      instance: () => StorageTarget | null;
       encryptionKey: Buffer;
       webhooks: WebhookDispatcher;
       logger: ILogger;
@@ -46,7 +46,7 @@ export class ManifestPublisher {
     const own = await this.deps.systemDb.workspaceStorageConfig.findUnique({
       where: { workspaceId },
     });
-    return own ? workspaceStorageTarget(own, this.deps.encryptionKey) : this.deps.instance;
+    return own ? workspaceStorageTarget(own, this.deps.encryptionKey) : this.deps.instance();
   }
 
   /** Returns null when no storage is configured (publishing disabled for this workspace). */

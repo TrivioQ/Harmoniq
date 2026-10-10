@@ -701,16 +701,16 @@ A change waiting for approval (APR-04): the API call itself, run as the requeste
 
 Key-value store for all runtime instance configuration. Used by the admin panel (§17) to store adapter credentials, SMTP settings, and OAuth secrets without requiring `.env` changes.
 
-| Column      | Type       | Notes                                                                           |
-| ----------- | ---------- | ------------------------------------------------------------------------------- |
-| `id`        | `CUID`     | Primary key                                                                     |
-| `key`       | `String`   | Unique identifier (e.g., `storage.adapter`, `smtp.host`, `auth.github.enabled`) |
-| `value`     | `Json`     | Encrypted at rest. Plaintext type varies by key.                                |
-| `updatedAt` | `DateTime` | Last write timestamp                                                            |
-| `updatedBy` | `CUID?`    | FK → User (the InstanceAdmin who last changed it)                               |
+| Column      | Type       | Notes                                                                                                                    |
+| ----------- | ---------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `id`        | `CUID`     | Primary key                                                                                                              |
+| `key`       | `String`   | `setup.completed` (INST-04) and `settings.storage`, `settings.email`, `settings.auth`, `settings.branding` (INST-11..14) |
+| `value`     | `Json`     | The validated setting; secret fields (storage keys, SMTP password, GitHub client secret) sealed with AES-256-GCM         |
+| `updatedAt` | `DateTime` | Last write timestamp                                                                                                     |
+| `updatedBy` | `CUID?`    | FK → User (the InstanceAdmin who last changed it)                                                                        |
 
 **Unique**: `key`  
-**Note**: NOT RLS-scoped. This table is instance-wide, not tenant-scoped. Only `InstanceAdmin` sessions may read/write.
+**Note**: NOT RLS-scoped. This table is instance-wide, not tenant-scoped. Only `InstanceAdmin` sessions may read/write. Settings rows override the environment; each registry reloads them every 60 seconds (INST-16/17).
 
 ---
 

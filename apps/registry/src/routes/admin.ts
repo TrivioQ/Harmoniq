@@ -14,12 +14,18 @@ import {
   SuspendWorkspaceSchema,
 } from '@harmoniq/core/dist/schemas/AdminSchemas';
 import {
+  INSTANCE_SETTING_KEYS,
+  InstanceSettingKey,
+  StorageSettings,
+} from '@harmoniq/core/dist/schemas/InstanceSettingsSchemas';
+import {
   instanceHealth,
   probeCache,
   probeDatabase,
   probeStorage,
 } from '../services/instanceHealth';
 import { deleteWorkspace } from '../services/workspaces';
+import { storageTargetFromSettings } from '../adapters/storage/createStorage';
 
 // InstanceConfig key marking the one-time setup token as consumed (INST-04).
 const SETUP_COMPLETED_KEY = 'setup.completed';
@@ -49,10 +55,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const { systemDb } = fastify.container;
   const admin = { preHandler: fastify.requireInstanceAdmin };
   const setupLimit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
-  const adapters = {
+  const { settings } = fastify.container;
+  const adapters = () => ({
     cache: fastify.config.cacheAdapter,
-    storage: fastify.config.storage.adapter,
-  };
+    storage: settings.storageAdapter(),
+  });
 
   /** INST-18: instance changes, append-only; never secrets or config values. */
   const instanceAudit = (
@@ -88,6 +95,9 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     }
   };
 
+  /** INST-14: the instance's name and look, for the dashboard (public). */
+  fastify.get('/api/instance', async () => ({ branding: settings.branding() }));
+
   fastify.get('/api/admin/setup', setupLimit, async () => ({
     needed: !(await setupConsumed()),
     tokenConfigured: !!fastify.config.setupToken,
@@ -100,7 +110,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       probeDatabase(fastify.container),
       probeCache(fastify.container),
     ]);
-    return { database, cache: { ...cache, adapter: adapters.cache } };
+    return { database, cache: { ...cache, adapter: adapters().cache } };
   });
 
   // Step 3: the default storage adapter (write, read back, delete).
@@ -108,7 +118,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     await requireSetupToken(request.body);
     const target = fastify.container.instanceStorage;
     return {
-      adapter: adapters.storage,
+      adapter: adapters().storage,
       ...(target ? await probeStorage(target) : { ok: true, latencyMs: 0 }),
     };
   });
@@ -181,7 +191,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/api/admin/health', admin, async () => {
     const [health, workspaces, modules, users] = await Promise.all([
-      instanceHealth(fastify.container, adapters),
+      instanceHealth(fastify.container, adapters()),
       systemDb.workspace.count(),
       systemDb.remoteModule.count(),
       systemDb.user.count(),
@@ -482,6 +492,84 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(204).send();
     }
   );
+
+  // ─── Instance settings (INST-11..17) ──────────────────────────────────────
+
+  const settingKey = (key: string) => {
+    if (!(INSTANCE_SETTING_KEYS as readonly string[]).includes(key)) {
+      throw new NotFoundError('Unknown setting');
+    }
+    return key as InstanceSettingKey;
+  };
+
+  /** Every setting, secrets masked, with whether it comes from the database or the env. */
+  fastify.get('/api/admin/settings', admin, async () => settings.view());
+
+  fastify.put<{ Params: { key: string } }>('/api/admin/settings/:key', admin, async (request) => {
+    const key = settingKey(request.params.key);
+    const { plain, stored, fields } = settings.prepare(key, request.body);
+    // INST-11: a storage that can't write, read back and delete is never saved.
+    if (key === 'storage') {
+      const target = storageTargetFromSettings(plain as StorageSettings, fastify.config);
+      const probe = target ? await probeStorage(target) : null;
+      if (probe && !probe.ok) {
+        throw new BadRequestError(`The storage test failed: ${probe.error}`);
+      }
+    }
+    await settings.save(key, stored, request.principal!.id);
+    // INST-18: the key and the changed field names, never the values.
+    await instanceAudit(request, {
+      action: 'instance.config_updated',
+      resourceType: 'instance_config',
+      resourceId: key,
+      metadata: { key, fields },
+    });
+    return settings.view()[key];
+  });
+
+  /** Back to the environment's defaults. */
+  fastify.delete<{ Params: { key: string } }>(
+    '/api/admin/settings/:key',
+    admin,
+    async (request, reply) => {
+      const key = settingKey(request.params.key);
+      if (!(await settings.reset(key))) throw new NotFoundError('Not set in the database');
+      await instanceAudit(request, {
+        action: 'instance.config_updated',
+        resourceType: 'instance_config',
+        resourceId: key,
+        metadata: { key, reset: true },
+      });
+      return reply.code(204).send();
+    }
+  );
+
+  // INST-11: Test Connection for the storage in use.
+  fastify.post('/api/admin/settings/storage/test', admin, async () => {
+    const target = fastify.container.instanceStorage;
+    return {
+      adapter: settings.storageAdapter(),
+      ...(target ? await probeStorage(target) : { ok: false, latencyMs: 0, error: 'No storage' }),
+    };
+  });
+
+  // INST-12: Send Test Email, to the signed-in admin.
+  fastify.post('/api/admin/settings/email/test', admin, async (request) => {
+    const mailer = fastify.container.mailer;
+    if (!mailer) throw new BadRequestError('No email is configured');
+    const user = await systemDb.user.findUniqueOrThrow({ where: { id: request.principal!.id } });
+    const name = settings.branding().name;
+    try {
+      await mailer.send({
+        to: user.email,
+        subject: `${name}: test email`,
+        text: `This test message from ${name} shows that outbound email works.`,
+      });
+    } catch (err) {
+      throw new BadRequestError(`Sending failed: ${(err as Error).message}`);
+    }
+    return { sentTo: user.email };
+  });
 
   // ─── Instance audit log (INST-18) ─────────────────────────────────────────
 

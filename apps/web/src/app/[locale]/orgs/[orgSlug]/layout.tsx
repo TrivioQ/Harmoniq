@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
+import { BrandMark } from '@/components/BrandMark';
 import { getMe } from '@/lib/registry';
 
 /** ORG-15: `/orgs/:orgSlug/…`, next to the workspace routes. */
@@ -22,9 +23,7 @@ export default async function OrgLayout(props: {
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center px-4 md:px-8">
           <div className="flex flex-1 items-center gap-4">
-            <Link href="/" className="font-semibold text-lg hover:text-primary transition-colors">
-              Harmoniq
-            </Link>
+            <BrandMark />
             <span className="text-muted-foreground text-sm">/</span>
             <span className="font-medium text-sm">{org.name}</span>
           </div>

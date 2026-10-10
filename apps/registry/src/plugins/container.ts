@@ -12,10 +12,10 @@ import { WebhookDispatcher, createWebhookDispatcher } from '../services/webhookD
 import { OrgSharedModules } from '../services/orgShared';
 import { ManifestMutations, MutationTarget } from '../services/manifestMutation';
 import { ManifestPublisher } from '../services/manifestPublisher';
-import { StorageTarget, instanceStorageTarget } from '../adapters/storage/createStorage';
+import { StorageTarget } from '../adapters/storage/createStorage';
 import { IMailer } from '@harmoniq/core/dist/ports/IMailer';
-import { SmtpMailer } from '../adapters/mail/SmtpMailer';
 import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
+import { InstanceSettings } from '../services/instanceSettings';
 
 export interface AppContainer {
   cache: ICache;
@@ -29,10 +29,15 @@ export interface AppContainer {
   webhooks: WebhookDispatcher;
   /** The single path for manifest-changing operations. */
   mutations: ManifestMutations;
-  /** null when no SMTP is configured in production (email sign-in is then disabled). */
-  mailer: IMailer | null;
-  /** Instance default storage (null when STORAGE_ADAPTER=none). */
-  instanceStorage: StorageTarget | null;
+  /**
+   * Outbound email (INST-12, live): null when none is configured in production (email
+   * sign-in is then disabled).
+   */
+  readonly mailer: IMailer | null;
+  /** Instance default storage (INST-11, live); null when there is none. */
+  readonly instanceStorage: StorageTarget | null;
+  /** INST-11..17: instance settings from the database over the environment. */
+  settings: InstanceSettings;
   publisher: ManifestPublisher;
   /** ORG-10/11: modules shared across an organization's workspaces. */
   orgShared: OrgSharedModules;
@@ -80,14 +85,14 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
   const tenant: AppContainer['withTenant'] = (workspaceId, fn) => withTenant(db, workspaceId, fn);
   const webhooks = createWebhookDispatcher({ boss, logger, withTenant: tenant });
 
-  const { mail, isProduction } = fastify.config;
-  const mailer: IMailer | null = mail.smtpUrl
-    ? new SmtpMailer(mail.smtpUrl, mail.from)
-    : isProduction
-      ? null
-      : new ConsoleMailer(logger);
+  const settings = new InstanceSettings({
+    systemDb,
+    config: fastify.config,
+    logger,
+    fallbackMailer: fastify.config.isProduction ? null : new ConsoleMailer(logger),
+  });
+  await settings.start();
 
-  const instanceStorage = instanceStorageTarget(fastify.config);
   // eslint-disable-next-line prefer-const -- used by the publisher before it is created
   let orgShared: OrgSharedModules;
   const shared = (workspaceId: string, environmentSlug: string) =>
@@ -95,7 +100,7 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
   const publisher = new ManifestPublisher({
     systemDb,
     withTenant: tenant,
-    instance: instanceStorage,
+    instance: () => settings.storage(),
     encryptionKey: fastify.config.encryptionKey,
     webhooks,
     logger,
@@ -142,13 +147,19 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
       onCommitted,
       shared,
     }),
-    instanceStorage,
     publisher,
     orgShared,
-    mailer,
+    settings,
+    get instanceStorage() {
+      return settings.storage();
+    },
+    get mailer() {
+      return settings.mailer();
+    },
   });
 
   fastify.addHook('onClose', async (instance) => {
+    instance.container.settings.stop();
     if (instance.container.boss) {
       await instance.container.boss.stop();
     }

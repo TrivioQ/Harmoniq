@@ -95,7 +95,7 @@
     "provisioning": "Aprovisionamiento (SCIM)"
   },
   "LoginPage": {
-    "title": "Iniciar sesión en Harmoniq",
+    "title": "Iniciar sesión en {name}",
     "description": "Bienvenido de nuevo. Por favor, inicie sesión en su cuenta.",
     "continueWithGithub": "Continuar con GitHub",
     "or": "O",
@@ -138,7 +138,7 @@
     "degraded": "Algo falla: abre el estado del sistema"
   },
   "AdminLayout": {
-    "title": "Administrador de Harmoniq",
+    "title": "Administración de {name}",
     "dashboard": "Tablero",
     "workspaces": "Espacios de trabajo",
     "exitAdmin": "← Salir del administrador",
@@ -146,7 +146,11 @@
     "health": "Estado",
     "users": "Usuarios",
     "admins": "Administradores",
-    "audit": "Auditoría"
+    "audit": "Auditoría",
+    "storage": "Almacenamiento",
+    "email": "Email",
+    "auth": "Métodos de inicio de sesión",
+    "branding": "Marca"
   },
   "AdminSetupPage": {
     "errorSetup": "Error al configurar el administrador",
@@ -279,7 +283,12 @@
     "sessionsRevoked": "{count, plural, =0 {Sin sesiones activas.} one {# sesión cerrada.} other {# sesiones cerradas.}}",
     "userDeleted": "Cuenta eliminada.",
     "adminGranted": "Rol de administrador concedido.",
-    "adminRevoked": "Rol de administrador revocado."
+    "adminRevoked": "Rol de administrador revocado.",
+    "settingSaved": "Guardado. Las demás réplicas lo aplican en un minuto.",
+    "settingReset": "De vuelta al valor del entorno.",
+    "storageOk": "El almacenamiento funciona ({ms} ms).",
+    "storageFailed": "La prueba de almacenamiento falló: {error}",
+    "testEmailSent": "Email de prueba enviado a {to}."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -825,5 +834,55 @@
     "title": "Registro de auditoría",
     "empty": "Aún no hay cambios en la instancia.",
     "next": "Anteriores →"
+  },
+  "AdminSettings": {
+    "fromDatabase": "Definido aquí (reemplaza al entorno).",
+    "fromEnvironment": "Del entorno del registro (.env). Guardar aquí lo reemplaza.",
+    "reset": "Volver al entorno",
+    "resetConfirm": "¿Quitar este ajuste de la base de datos y volver al valor del entorno?",
+    "save": "Guardar",
+    "keepSecret": "Déjalo vacío para conservar el valor guardado ({masked})",
+    "storageTitle": "Almacenamiento predeterminado",
+    "storageDescription": "Donde se publican manifiestos y paquetes de los espacios sin bucket propio. Los cambios llegan a todas las réplicas en un minuto, sin reiniciar.",
+    "adapter": "Adaptador",
+    "adapterNone": "Ninguno (sin publicación)",
+    "adapterLocal": "Disco del registro (desarrollo)",
+    "bucket": "Bucket",
+    "region": "Región",
+    "endpoint": "Endpoint (compatible con S3, opcional)",
+    "publicUrl": "URL pública / CDN",
+    "accessKeyId": "ID de clave de acceso (vacío: credenciales por defecto)",
+    "secret": "Clave secreta",
+    "projectId": "ID de proyecto",
+    "clientEmail": "Email de la cuenta de servicio",
+    "privateKey": "Clave privada de la cuenta de servicio",
+    "storageTestHint": "Al guardar se escribe, lee y borra un objeto de prueba; si falla, no se guarda.",
+    "storageSave": "Probar y guardar",
+    "testConnection": "Probar conexión",
+    "emailTitle": "Email (SMTP)",
+    "emailDescription": "Los enlaces y códigos de inicio de sesión se envían por este servidor.",
+    "emailFromEnv": "SMTP_URL está definido en el entorno; no se muestran sus datos.",
+    "smtpHost": "Servidor",
+    "smtpPort": "Puerto",
+    "smtpSecurity": "Seguridad",
+    "smtpPlain": "Ninguna (solo relés de confianza)",
+    "smtpFrom": "Remitente",
+    "smtpUsername": "Usuario",
+    "smtpPassword": "Contraseña",
+    "sendTest": "Enviarme un email de prueba",
+    "authTitle": "Métodos de inicio de sesión",
+    "authDescription": "Activa o desactiva métodos para todos. Un método desactivado no puede usarlo ni configurarlo ningún espacio u organización; las sesiones existentes siguen hasta que caducan.",
+    "authEmail": "Enlace y código por email",
+    "authGithub": "GitHub",
+    "githubClientId": "ID de cliente OAuth de GitHub",
+    "githubClientSecret": "Secreto del cliente",
+    "githubHint": "Vacío: las variables GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET del entorno.",
+    "authOidc": "OpenID Connect (instancia, espacios y organizaciones; Google incluido)",
+    "authSaml": "SAML 2.0 (espacios y organizaciones)",
+    "brandingTitle": "Marca",
+    "brandName": "Nombre de la instancia",
+    "brandAccent": "Color de acento",
+    "brandLogo": "URL del logotipo",
+    "brandSupport": "URL de soporte"
   }
 }
