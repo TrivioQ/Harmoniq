@@ -10,7 +10,8 @@
     "test": "vitest run",
     "lint": "eslint src",
     "schema:generate": "tsx scripts/generate-manifest-schema.ts",
-    "db:bootstrap": "tsx scripts/bootstrap-db.ts"
+    "db:bootstrap": "tsx scripts/bootstrap-db.ts",
+    "openapi:generate": "tsx scripts/generate-openapi.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",

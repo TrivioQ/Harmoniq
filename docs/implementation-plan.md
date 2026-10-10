@@ -403,9 +403,9 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] `docs/self-hosting.md`: full self-hosting guide (env vars, Docker, reverse proxy)
 - [x] `docs/sdk.md`: `@harmoniq/client` usage guide
 - [x] `docs/cli.md`: `@harmoniq/cli` command reference
-- [ ] `docs/api-reference.md`: full REST API reference (auto-generated from Fastify + `@fastify/swagger`)
+- [x] `docs/api-reference.md`: full REST API reference (auto-generated from Fastify + `@fastify/swagger`) (the reference is written by hand; `docs/openapi.json` is the generated one)
 - [ ] `docs/contributing.md`: contribution guide (Conventional Commits, PR checklist, change-doc rule)
-- [ ] OpenAPI spec: auto-generated and committed to `docs/openapi.json`
+- [x] OpenAPI spec: auto-generated and committed to `docs/openapi.json`
 
 ### Final Checklist
 
@@ -429,7 +429,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ### OpenAPI & Community Clients
 
-- [ ] Auto-generate `docs/openapi.json` from `@fastify/swagger` (OAS-01)
+- [x] Auto-generate `docs/openapi.json` from `@fastify/swagger` (OAS-01)
 - [x] Embed Scalar API Explorer at `/docs/api` (OAS-04)
 - [ ] Community-track: `harmoniq-go` + `harmoniq-python` thin clients from OpenAPI spec (OAS-03)
 

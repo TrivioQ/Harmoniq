@@ -28,6 +28,7 @@ import jobsPlugin from './plugins/jobs';
 import metricsPlugin from './plugins/metrics';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import { openapiTransform } from './openapi';
 import { ZodError } from 'zod';
 import { AppError } from '@harmoniq/core/dist/errors/AppError';
 import { Config, loadConfig } from './config';
@@ -143,10 +144,13 @@ export async function buildApp() {
   });
 
   await app.register(swagger, {
+    // OAS-01: generated from the routes; docs/openapi.json is this, committed.
+    transform: openapiTransform,
     openapi: {
       info: {
         title: 'Harmoniq Registry API',
-        description: 'API for Harmoniq Micro Frontend Registry',
+        description:
+          'Micro frontend registry: manifests, deploys, progressive delivery, governance. See docs/api-reference.md.',
         version: '1.0.0',
       },
       components: {

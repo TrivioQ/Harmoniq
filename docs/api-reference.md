@@ -4,7 +4,7 @@
 > **Format**: JSON requests and responses
 > **Interactive docs**: `GET /docs` (Swagger UI), `GET /docs/json` (OpenAPI)
 
-This page documents the endpoints that are implemented.
+This page documents the endpoints that are implemented. The machine-readable OpenAPI 3 document is [`docs/openapi.json`](./openapi.json), generated from the registry's routes (`pnpm --filter @harmoniq/registry openapi:generate`; a test fails when it is out of date) and browsable at `/docs` on the registry and `/docs/api` in the dashboard.
 
 ---
 
