@@ -4,7 +4,7 @@
 > **Format**: JSON requests and responses
 > **Interactive docs**: `GET /docs` (Swagger UI), `GET /docs/json` (OpenAPI)
 
-This page documents the endpoints that are implemented. Planned endpoints are listed at the end with their milestone.
+This page documents the endpoints that are implemented.
 
 ---
 
@@ -547,11 +547,3 @@ M4.8, INST-01..10, 18. Instance admins run the installation; the role grants not
 | `GET /health`  | Always `{ "status": "ok" }`                                                    |
 | `GET /ready`   | Checks both database roles and the cache; `503` if not ready                   |
 | `GET /metrics` | Prometheus: cache hits/misses, deploys, `harmoniq.manifest.rate_limited_total` |
-
----
-
-## Planned
-
-| Endpoint                       | Milestone |
-| ------------------------------ | --------- |
-| Plans and limits, audit export | M4.11     |

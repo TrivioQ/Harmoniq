@@ -1,7 +1,7 @@
 # Feature: Authentication
 
 > **Requirement IDs:** `SSO-01`–`SSO-08`, `SSO-21`, `SSO-22`, `INST-01`–`INST-06`, `KEY-01`–`KEY-05`
-> **Status:** `in-progress`
+> **Status:** `implemented`
 > **Phase:** M0.4 (GitHub, dev login), M1.3 (email), M4.4–M4.6 (OIDC, SAML, SCIM)
 
 How people and CI systems prove who they are to Harmoniq. Identity providers only prove identity; the registry links it to its own `User` and issues Harmoniq sessions, so no provider sits on the request path after sign-in.
@@ -18,17 +18,17 @@ How people and CI systems prove who they are to Harmoniq. Identity providers onl
 
 ## Requirements
 
-| ID            | Requirement                                      | Status                |
-| ------------- | ------------------------------------------------ | --------------------- |
-| `SSO-06`      | JIT user provisioning on first sign-in           | ✅ Done               |
-| `SSO-22`      | Pending invitations accepted on sign-in          | ✅ Done (auto-accept) |
-| `INST-01`     | First-boot setup wizard                          | ✅ Done               |
-| `INST-04`     | Setup token single use                           | ✅ Done               |
-| `INST-05/06`  | Admin panel only for instance admins             | ✅ Done               |
-| —             | GitHub OAuth (PKCE, verified primary email only) | ✅ Done               |
-| —             | Passwordless email (magic link + code)           | 📋 Planned (M1.3)     |
-| `SSO-01`–`08` | OIDC                                             | 📋 Planned (M4.4)     |
-| `SSO-09`–`20` | SAML                                             | 📋 Planned (M4.5)     |
+| ID            | Requirement                                      | Status                                                       |
+| ------------- | ------------------------------------------------ | ------------------------------------------------------------ |
+| `SSO-06`      | JIT user provisioning on first sign-in           | ✅ Done                                                      |
+| `SSO-22`      | Pending invitations accepted on sign-in          | ✅ Done (auto-accept)                                        |
+| `INST-01`     | First-boot setup wizard                          | ✅ Done                                                      |
+| `INST-04`     | Setup token single use                           | ✅ Done                                                      |
+| `INST-05/06`  | Admin panel only for instance admins             | ✅ Done                                                      |
+| —             | GitHub OAuth (PKCE, verified primary email only) | ✅ Done                                                      |
+| —             | Passwordless email (magic link + code)           | ✅ Done (M1.3)                                               |
+| `SSO-01`–`08` | OIDC                                             | ✅ Done (M4.4; see [governance](./enterprise-governance.md)) |
+| `SSO-09`–`20` | SAML                                             | ✅ Done (M4.5; see [governance](./enterprise-governance.md)) |
 
 See [`docs/requirements.md §5.21`](../requirements.md) and [`docs/product-analysis.md §5.11`](../product-analysis.md).
 

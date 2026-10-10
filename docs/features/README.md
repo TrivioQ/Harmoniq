@@ -45,8 +45,8 @@ This directory contains **one Markdown file per product feature**. Each file ser
 | File | Feature | Description | PRs / Status |
 |---------|-------------|--------------|
 | [Enterprise Governance](./enterprise-governance.md) | Org-level controls, SSO mappings, audit logs, approval policies | Active |
-| [Authentication](./authentication.md) | Sign-in (GitHub, dev, email), sessions, API keys, instance admin | In progress |
-| [Manifest Delivery](./manifest-delivery.md) | Published manifests (CDN), import maps, Native Federation | In progress |
+| [Authentication](./authentication.md) | Sign-in (GitHub, dev, email, OIDC, SAML), sessions, API keys, instance admin | Implemented |
+| [Manifest Delivery](./manifest-delivery.md) | Published manifests (CDN), import maps, Native Federation | Implemented |
 | [Progressive Delivery](./progressive-delivery.md) | Canary releases, health, alerts, staged rollouts, targeting | Implemented |
 | [Registry Core](./registry-core.md) | Manifest generation, deploy routes, caching, and auth middleware | Active |
 | [Web Dashboard](./web-dashboard.md) | Next.js Dashboard UI and OAuth flow | Active |
@@ -54,5 +54,5 @@ This directory contains **one Markdown file per product feature**. Each file ser
 | [Garbage Collection & Webhooks](./gc-and-webhooks.md) | Background jobs, data retention, and event webhooks via `pg-boss` | Active |
 | [Hardening, Observability & Docs](./hardening-observability-docs.md) | Security, OTel metrics, performance, and documentation | Active |
 | [Workspace as Code](./gitops.md) | `harmoniq.yaml` with `harmoniq plan`, `apply` and `import` | Implemented |
-| [Instance Admin & BYOB Storage](./instance-admin-and-byob-storage.md) | Global system settings and tenant-provided storage (S3/GCS/Azure) | Active |
+| [Instance Admin & BYOB Storage](./instance-admin-and-byob-storage.md) | Global system settings and tenant-provided storage (S3/GCS/Azure) | Implemented |
 | [`_template.md`](./_template.md) | Template — copy to start a new feature doc | — |

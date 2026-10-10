@@ -1,7 +1,7 @@
 # Feature: Instance Admin UI & BYOB Storage
 
 > **Requirement IDs:** `INST-01`–`INST-18`, `BYOB-01`–`BYOB-14`  
-> **Status:** `active`  
+> **Status:** `implemented`  
 > **Phase:** Phase 7 (§7.4 + §7.5)
 
 Addresses two enterprise self-hosting requirements: a first-class instance admin panel that eliminates direct `.env` editing, and per-workspace bring-your-own-bucket storage for data residency compliance (HIPAA, FedRAMP, GDPR).

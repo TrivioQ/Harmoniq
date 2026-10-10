@@ -1,7 +1,7 @@
 # Feature: Manifest Delivery
 
 > **Requirement IDs:** `IMP-01`–`IMP-06`, `BYOB-07`, `BYOB-08`, `SNAP-01`; product-analysis §5.1, §5.3
-> **Status:** `in-progress`
+> **Status:** `implemented`
 > **Phase:** M2
 
 How host apps get their manifest without depending on the registry being up.

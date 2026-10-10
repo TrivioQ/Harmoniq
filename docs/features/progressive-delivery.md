@@ -26,9 +26,9 @@ A canary is a module version that runs next to the active (stable) one in an env
 | `CAN-08` | `X-Harmoniq-Variant` and `X-Harmoniq-Cohort-Id` headers         | ✅ Done                                                 |
 | `CAN-09` | SDK exposes `variant` and `cohortId`                            | ✅ Done                                                 |
 | `CAN-10` | SDK emits `variantAssigned` on first assignment and on change   | ✅ Done                                                 |
-| `HLT-*`  | Health ingest and aggregation                                   | 📋 Planned (M3.2)                                       |
-| `ALT-*`  | Alerts and auto-rollback                                        | 📋 Planned (M3.4)                                       |
-| `STG-*`  | Staged rollouts                                                 | 📋 Planned (M3.5)                                       |
+| `HLT-*`  | Health ingest and aggregation                                   | ✅ Done (M3.2)                                          |
+| `ALT-*`  | Alerts and auto-rollback                                        | ✅ Done (M3.4)                                          |
+| `STG-*`  | Staged rollouts                                                 | ✅ Done (M3.5)                                          |
 | `DEP-01` | `dependencies` map on manifest modules                          | ✅ Done (sent by the build plugin from MF `shared`)     |
 | `DEP-02` | 422 with a conflict report on incompatible ranges               | ✅ Done (also on promote, and against host shared deps) |
 | `DEP-03` | `--force` bypass audited as `module.deploy_forced`              | ✅ Done                                                 |
