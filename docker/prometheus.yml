@@ -1,0 +1,9 @@
+# Scrapes the registry's /metrics. `registry:4000` is the Compose demo service;
+# `host.docker.internal:4000` a registry started on the host (`pnpm run dev`).
+global:
+  scrape_interval: 15s
+scrape_configs:
+  - job_name: harmoniq-registry
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['registry:4000', 'host.docker.internal:4000']

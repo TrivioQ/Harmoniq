@@ -108,7 +108,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 - [x] Initialize Fastify app with `fastify-plugin` architecture
 - [x] Register plugins: `@fastify/cors`, `@fastify/helmet`, `@fastify/rate-limit`
-- [ ] Set up OTel instrumentation: `@opentelemetry/sdk-node`, `@opentelemetry/auto-instrumentations-node`
+- [x] Set up OTel instrumentation: `@opentelemetry/sdk-node`, `@opentelemetry/auto-instrumentations-node`
 - [x] Implement `ICache` adapters:
   - `RedisCache` using `ioredis`
   - `InMemoryLRUCache` using `lru-cache`
@@ -392,10 +392,10 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ### Observability
 
-- [ ] OTel traces on all critical paths: manifest fetch, deploy, rollback, GC jobs
-- [ ] Add custom metrics: `harmoniq.manifest.cache_hits`, `harmoniq.manifest.cache_misses`, `harmoniq.deploy.count`
-- [ ] Wire Prometheus `/metrics` to Grafana dashboard (example `docker/grafana/`)
-- [ ] Structured logging: all logs include `workspaceId`, `requestId`, `duration`
+- [x] OTel traces on all critical paths: manifest fetch, deploy, rollback, GC jobs
+- [x] Add custom metrics: `harmoniq.manifest.cache_hits`, `harmoniq.manifest.cache_misses`, `harmoniq.deploy.count` (exported as `harmoniq_manifest_cache_hits_total` etc., plus `harmoniq_http_request_duration_ms`)
+- [x] Wire Prometheus `/metrics` to Grafana dashboard (example `docker/grafana/`)
+- [x] Structured logging: all logs include `workspaceId`, `requestId`, `duration`
 
 ### Documentation
 

@@ -1,3 +1,4 @@
+import { withSpan } from '../services/tracing';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';
 import { toFederationManifest, toImportMap } from '@harmoniq/core/dist/manifest/formats';
@@ -159,7 +160,24 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
    * canaries; the user's cohort decides which of them apply, and each combination is
    * built once and cached under its own key. Users without a key get the stable variant.
    */
-  async function resolve(
+  function resolve(
+    request: FastifyRequest,
+    workspaceSlug: string,
+    hostAppSlug: string | null,
+    envSlug: string
+  ): Promise<Resolved> {
+    return withSpan(
+      'harmoniq.manifest.resolve',
+      {
+        'harmoniq.workspace': workspaceSlug,
+        'harmoniq.host_app': hostAppSlug ?? '(default)',
+        'harmoniq.environment': envSlug,
+      },
+      () => resolveVariant(request, workspaceSlug, hostAppSlug, envSlug)
+    );
+  }
+
+  async function resolveVariant(
     request: FastifyRequest,
     workspaceSlug: string,
     hostAppSlug: string | null,

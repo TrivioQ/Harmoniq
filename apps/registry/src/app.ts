@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
@@ -45,6 +46,13 @@ export async function buildApp() {
 
   const app = Fastify({
     trustProxy: config.trustProxy,
+    // Structured logs carry `requestId` (and, once resolved, the workspace); `responseTime`
+    // on "request completed" is the duration. A caller's X-Request-Id is kept.
+    genReqId: (req) => {
+      const given = req.headers['x-request-id'];
+      return typeof given === 'string' && /^[\w.:-]{1,128}$/.test(given) ? given : randomUUID();
+    },
+    requestIdLogLabel: 'requestId',
     logger:
       process.env.NODE_ENV === 'production'
         ? true
@@ -57,6 +65,18 @@ export async function buildApp() {
   });
 
   app.decorate('config', config);
+  app.addHook('onRequest', async (request, reply) => {
+    reply.header('X-Request-Id', request.id);
+  });
+  // The workspace a request resolved to, on its remaining log lines.
+  app.addHook('onSend', async (request) => {
+    if (request.workspace) {
+      request.log = request.log.child({
+        workspaceId: request.workspace.id,
+        workspace: request.workspace.slug,
+      });
+    }
+  });
 
   // Services throw AppError subclasses; this is the only place they become HTTP errors.
   app.setErrorHandler((err, request, reply) => {

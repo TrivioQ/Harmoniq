@@ -1,3 +1,4 @@
+import { withSpan } from './tracing';
 import type { Environment, HostApp, Prisma, Workspace } from '@prisma/client';
 import type { TenantTx } from '@harmoniq/db';
 import type { ICache } from '@harmoniq/core/dist/ports/ICache';
@@ -65,12 +66,29 @@ export class ManifestMutations {
     }
   ) {}
 
-  async run<T>(
+  run<T>(
     target: MutationTarget,
     actor: AuditActor,
     operation: (tx: TenantTx) => Promise<MutationOutcome<T>>,
     /** `ignoreFreeze`: emergency controls (the kill switch) work in frozen environments. */
     opts: { ignoreFreeze?: boolean } = {}
+  ): Promise<{ result: T; manifest: BuiltManifest; snapshotId: string }> {
+    return withSpan(
+      'harmoniq.mutation',
+      {
+        'harmoniq.workspace': target.workspace.slug,
+        'harmoniq.environment': target.environment.slug,
+        'harmoniq.actor_type': actor.principal.type,
+      },
+      () => this.runInTransaction(target, actor, operation, opts)
+    );
+  }
+
+  private async runInTransaction<T>(
+    target: MutationTarget,
+    actor: AuditActor,
+    operation: (tx: TenantTx) => Promise<MutationOutcome<T>>,
+    opts: { ignoreFreeze?: boolean }
   ): Promise<{ result: T; manifest: BuiltManifest; snapshotId: string }> {
     const { workspace, environment } = target;
 

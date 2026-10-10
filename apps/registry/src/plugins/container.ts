@@ -16,6 +16,7 @@ import { StorageTarget } from '../adapters/storage/createStorage';
 import { IMailer } from '@harmoniq/core/dist/ports/IMailer';
 import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
 import { InstanceSettings } from '../services/instanceSettings';
+import { withSpan } from '../services/tracing';
 import { Plans } from '../services/plans';
 
 export interface AppContainer {
@@ -85,6 +86,14 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
   if (process.env.SYSTEM_DATABASE_URL && process.env.NODE_ENV !== 'test') {
     boss = new PgBoss(process.env.SYSTEM_DATABASE_URL);
     boss.on('error', (err: unknown) => logger.error('pg-boss error', err as Error));
+    // One span per job run (GC, webhooks, alerts, rollouts, scheduled operations …).
+    const work = boss.work.bind(boss) as (...args: unknown[]) => Promise<string>;
+    boss.work = ((name: string, ...rest: unknown[]) => {
+      const handler = rest.pop() as (jobs: unknown) => Promise<unknown>;
+      return work(name, ...rest, (jobs: unknown) =>
+        withSpan(`harmoniq.job ${name}`, { 'harmoniq.job': name }, () => handler(jobs))
+      );
+    }) as typeof boss.work;
     await boss.start();
     logger.info('pg-boss started');
   }

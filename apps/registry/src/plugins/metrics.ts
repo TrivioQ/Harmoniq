@@ -42,6 +42,21 @@ const metricsPlugin: FastifyPluginAsync = async (fastify, _options) => {
     description: 'Manifest requests rejected by the rate limiter, by workspace slug',
   });
 
+  // Request durations by route and status, for latency dashboards and alerts.
+  const requestDuration = meter.createHistogram('harmoniq_http_request_duration_ms', {
+    description: 'HTTP request duration in milliseconds',
+    unit: 'ms',
+  });
+  fastify.addHook('onResponse', async (request, reply) => {
+    const route = request.routeOptions.url;
+    if (!route || route === '/metrics') return;
+    requestDuration.record(reply.elapsedTime, {
+      method: request.method,
+      route,
+      status: reply.statusCode,
+    });
+  });
+
   fastify.decorate('metricMeters', {
     manifestRateLimited,
     manifestCacheHits,

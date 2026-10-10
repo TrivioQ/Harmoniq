@@ -1,3 +1,5 @@
+// Must come first: instruments modules as they are loaded.
+import './tracing';
 import { buildApp } from './app';
 import { ConfigError } from './config';
 

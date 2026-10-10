@@ -97,6 +97,12 @@ docker build -f apps/web/Dockerfile -t harmoniq/web .
 
 Both expose `/health`-style checks used by the Docker `HEALTHCHECK`. The registry also serves `GET /ready` (database and cache) for orchestrators.
 
+## Observability
+
+- **Metrics**: `GET /metrics` on the registry (Prometheus): `harmoniq_http_request_duration_ms` (histogram by method, route, status), `harmoniq_manifest_cache_hits_total` / `_misses_total`, `harmoniq_deploy_count_total`, `harmoniq_manifest_rate_limited_total`. [`docker/grafana`](../docker/grafana) has a dashboard (request rate, p95 by route, manifest p99 against the 50 ms target, cache hit ratio, 5xx, deploys, rate limiting): `docker compose -f docker/docker-compose.yml --profile observability up -d`, then http://localhost:3001.
+- **Traces**: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://otel-collector:4318`) and the registry exports OpenTelemetry traces over OTLP/HTTP: HTTP, Fastify, Postgres and Redis automatically, plus spans for manifest resolution (`harmoniq.manifest.resolve`), every change to a manifest (`harmoniq.mutation`, with workspace and environment) and every background job (`harmoniq.job <name>`). The other standard `OTEL_*` variables (service name, sampler, headers) apply.
+- **Logs**: JSON in production. Every line of a request carries `requestId` (a caller's `X-Request-Id` is kept and returned on every response), the workspace once resolved (`workspace`, `workspaceId`), and "request completed" its `responseTime` in milliseconds.
+
 ## Kubernetes (Helm)
 
 [`charts/harmoniq`](../charts/harmoniq) deploys the registry and the dashboard, each with a Service, health probes and an optional Ingress (one host each, from `urls.web` and `urls.registry`). A pre-install / pre-upgrade hook Job runs `prisma migrate deploy`. Postgres and Redis are yours: create the two roles from [`docker/init.sql`](../docker/init.sql) and pass both connection strings.
