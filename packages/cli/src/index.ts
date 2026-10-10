@@ -2,6 +2,7 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import { loginCommand } from './commands/login';
 import { whoamiCommand } from './commands/whoami';
@@ -17,11 +18,14 @@ import { doctorCommand } from './commands/doctor';
 import { applyCommand, importCommand, planCommand } from './commands/gitops';
 import { CliError, EXIT } from './lib/errors';
 
+// package.json ships in every published tarball, so this resolves from src/ and dist/ alike.
+const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
+
 export function buildProgram() {
   return new Command()
     .name('harmoniq')
     .description('Harmoniq CLI for CI/CD deployments and validation')
-    .version('1.0.0')
+    .version(version)
     .option('--json', 'Machine-readable JSON output')
     .option('--registry-url <url>', 'Registry URL (env HARMONIQ_REGISTRY_URL)')
     .option('--api-key <key>', 'API key (env HARMONIQ_API_KEY)')
