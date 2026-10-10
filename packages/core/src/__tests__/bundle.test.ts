@@ -50,4 +50,38 @@ describe('validateBundle', () => {
     });
     expect(big.errors[0]).toContain('larger');
   });
+
+  it('rejects a declared size over the limit before reading the body', async () => {
+    const result = await validateBundle('https://cdn/x.js', 'sha384-A', {
+      fetchImpl: fakeFetch(200, { 'content-length': '999999' }),
+      maxBytes: 1000,
+    });
+    expect(result.errors).toEqual(['Bundle is larger than 1000 bytes']);
+    expect(result.urlReachable).toBe(true);
+  });
+
+  it('reports a malformed integrity, unreachable hosts and timeouts', async () => {
+    const integrity = await computeIntegrity(bytes);
+    const malformed = await validateBundle('https://cdn/x.js', 'md5-abc', {
+      fetchImpl: fakeFetch(200),
+    });
+    expect(malformed.errors).toEqual(['integrity must be an SRI hash such as sha384-…']);
+    expect(malformed.integrityMatch).toBeNull();
+
+    const down = await validateBundle('https://cdn/x.js', integrity, {
+      fetchImpl: async () => {
+        throw new Error('ECONNREFUSED');
+      },
+    });
+    expect(down.errors).toEqual(['Unreachable: ECONNREFUSED']);
+
+    const slow = await validateBundle('https://cdn/x.js', integrity, {
+      timeoutMs: 10,
+      fetchImpl: (_url, init) =>
+        new Promise((_resolve, reject) =>
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+        ),
+    });
+    expect(slow.errors).toEqual(['Timed out after 10ms']);
+  });
 });

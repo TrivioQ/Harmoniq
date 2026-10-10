@@ -154,7 +154,8 @@ export const EVENTS = {
   error: 'error',
 } as const;
 
-type EventMap = {
+/** Payload of each client event. */
+export type EventMap = {
   [EVENTS.manifestUpdate]: Manifest;
   [EVENTS.variantAssigned]: VariantAssignment;
   [EVENTS.manifestStale]: { source: ManifestSource; generatedAt: string };
@@ -162,8 +163,8 @@ type EventMap = {
   [EVENTS.moduleDisabled]: { name: string; reason: string | null };
   [EVENTS.error]: Error;
 };
-type EventName = keyof EventMap;
-type Listener<E extends EventName> = (payload: EventMap[E]) => void;
+export type EventName = keyof EventMap;
+export type Listener<E extends EventName> = (payload: EventMap[E]) => void;
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const SDK_VERSION = '1.0.0';

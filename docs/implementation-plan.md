@@ -86,7 +86,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
   - `WebhookEventSchema`
 - [x] Define `AppError` hierarchy (typed error classes)
 - [x] Export shared TypeScript types for manifest, module version, audit event, etc.
-- [ ] Write unit test suite for all `@harmoniq/core` Zod schemas, DTOs, and AppErrors (>90% coverage)
+- [x] Write unit test suite for all `@harmoniq/core` Zod schemas, DTOs, and AppErrors (>90% coverage; enforced by thresholds in `packages/core/vitest.config.ts`)
 - [x] Write unit test suite for `@harmoniq/db` Prisma middleware and RLS policy hooks
 
 ### Deliverables
@@ -283,7 +283,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] `client.reportModuleError(name, { error, variant })` (HLT-01)
 - [x] Framework adapters: `@harmoniq/client/react`, `/angular`, `/vue` (ADP-01-04)
 - [x] **Zero runtime dependencies**
-- [ ] Full JSDoc + TypeDoc documentation
+- [x] Full JSDoc + TypeDoc documentation (`pnpm --filter @harmoniq/client docs:api`, checked in CI)
 - [x] Unit tests (Vitest + `msw` for mock server)
 - [x] Build: ESM + CJS + type declarations (via `tsup`)
 
@@ -386,7 +386,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 ### Performance
 
-- [ ] Benchmark manifest endpoint with `autocannon`: verify p99 < 50ms on cache hit
+- [x] Benchmark manifest endpoint with `autocannon`: verify p99 < 50ms on cache hit (`pnpm --filter @harmoniq/registry bench`, in CI)
 - [x] Profile and optimize DB queries (add indexes if needed)
 - [x] Enable HTTP/2 on registry (`TLS_CERT_FILE` / `TLS_KEY_FILE`)
 

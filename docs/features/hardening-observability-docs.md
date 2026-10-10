@@ -24,7 +24,7 @@ This feature completes the MVP phase of the Harmoniq Registry by ensuring it is 
 - We deferred Enterprise SSO (OIDC/SAML) and SCIM provisioning to a future enterprise phase.
 - Structured logging now utilizes `pino` under the hood, retaining the `ILogger` port interface for inversion of control.
 - OpenTelemetry metrics are collected via `@opentelemetry/sdk-metrics` and exposed on the `/metrics` endpoint for Prometheus scraping.
-- Performance tests use `autocannon` programmatically in the Vitest suite to ensure that local cache-hit latency remains under our p99 SLA.
+- The manifest benchmark (`apps/registry/scripts/bench-manifest.ts`, `pnpm --filter @harmoniq/registry bench`) runs `autocannon` against an in-process registry with three deployed modules and fails when p99 on a cache hit (200 or 304) exceeds 50 ms. CI runs it for 5 seconds per case.
 
 ## Breaking Changes
 
@@ -32,6 +32,22 @@ This feature completes the MVP phase of the Harmoniq Registry by ensuring it is 
 - Deployment endpoints and webhook retries now enforce a strict rate limit (`@fastify/rate-limit`).
 
 ## Change History
+
+### 2026-10-10 — Manifest benchmark, SDK API reference, core coverage gate
+
+**Type:** chore
+**PR / Branch:** feat/m4-enterprise
+**Refs:** Phase 6 performance and documentation; Phase 1 core tests
+
+#### What changed
+
+- `pnpm --filter @harmoniq/registry bench`: autocannon on the manifest endpoint (full responses and ETag revalidations), exits 1 when p99 ≥ 50 ms; runs in CI. The earlier entries below describe a Vitest autocannon test that was never added; this replaces it.
+- `pnpm --filter @harmoniq/client docs:api`: TypeDoc reference for every SDK entry point (core, React, Vue, Angular, Sentry, Datadog), warnings as errors, in CI. `EventMap`, `EventName` and `Listener` are now exported. The package publishes only `dist` without compiled tests or the generated docs.
+- `@harmoniq/core`: tests for every schema with logic, the errors and the manifest formats; coverage thresholds of 90% (statements, branches, functions, lines) in `vitest.config.ts`, checked on every `pnpm test`.
+
+#### Testing
+
+Benchmark locally (Redis cache, 50 connections): p99 9 ms for 200 responses, 6 ms for 304. Core: 69 tests, 95.5% statements, 98% branches, 100% functions.
 
 ### 2026-10-10 — Security hardening: dependency upgrades, CSP, write limits, HTTP/2
 

@@ -86,6 +86,13 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # Fails on undocumented exports leaking into signatures and broken links.
+      - name: SDK API reference (TypeDoc)
+        run: pnpm --filter @harmoniq/client docs:api
+
+      - name: Manifest benchmark (p99 < 50 ms on a cache hit)
+        run: pnpm --filter @harmoniq/registry bench -- --duration 5
+
       # Remotes built and deployed by the build plugin, loaded by a host through the MF
       # runtime plugin; also covers rollback, CDN/persisted/fallback manifests and overrides.
       - name: E2E (examples/vite-mf)

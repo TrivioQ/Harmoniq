@@ -6,6 +6,8 @@
 pnpm add @harmoniq/client
 ```
 
+Every export, with its types, is in the generated API reference: `pnpm --filter @harmoniq/client docs:api` writes it to `packages/client/dist/api-docs` (TypeDoc).
+
 ## Core client
 
 ```ts

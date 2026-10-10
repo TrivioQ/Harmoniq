@@ -11,7 +11,8 @@
     "lint": "eslint src",
     "schema:generate": "tsx scripts/generate-manifest-schema.ts",
     "db:bootstrap": "tsx scripts/bootstrap-db.ts",
-    "openapi:generate": "tsx scripts/generate-openapi.ts"
+    "openapi:generate": "tsx scripts/generate-openapi.ts",
+    "bench": "tsx scripts/bench-manifest.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1131.0",
@@ -51,9 +52,11 @@
   "devDependencies": {
     "@harmoniq/tsconfig": "workspace:*",
     "@opentelemetry/sdk-trace-base": "2.11.0",
+    "@types/autocannon": "7.12.7",
     "@types/node": "^20.12.7",
     "@types/nodemailer": "^6.4.24",
     "ajv": "^8.17.1",
+    "autocannon": "8.0.0",
     "eslint": "^9.0.0",
     "msw": "^2.4.0",
     "pino-pretty": "^11.3.0",
