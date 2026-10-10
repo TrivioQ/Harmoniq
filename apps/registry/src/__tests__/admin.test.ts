@@ -29,6 +29,33 @@ describe('Admin Routes', () => {
 
   let adminToken = '';
 
+  it('walks the wizard steps with the setup token (INST-01..03)', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/admin/setup' })).json()).toEqual({
+      needed: true,
+      tokenConfigured: true,
+    });
+    const check = await app.inject({
+      method: 'POST',
+      url: '/api/admin/setup/check',
+      payload: { setupToken: 'test-token-123' },
+    });
+    expect(check.statusCode).toBe(200);
+    expect(check.json()).toMatchObject({
+      database: { ok: true },
+      cache: { ok: true, adapter: 'memory' },
+    });
+    const storage = await app.inject({
+      method: 'POST',
+      url: '/api/admin/setup/storage',
+      payload: { setupToken: 'test-token-123' },
+    });
+    expect(storage.json()).toMatchObject({ ok: true });
+    for (const url of ['/api/admin/setup/check', '/api/admin/setup/storage']) {
+      const wrong = await app.inject({ method: 'POST', url, payload: { setupToken: 'nope' } });
+      expect(wrong.statusCode).toBe(403);
+    }
+  });
+
   it('should initialize admin via setup token', async () => {
     const res = await app.inject({
       method: 'POST',
@@ -61,7 +88,17 @@ describe('Admin Routes', () => {
       },
     });
 
-    expect(res.statusCode).toBe(400);
+    // INST-02/04: the token is consumed; every setup step is refused from now on.
+    expect(res.statusCode).toBe(403);
+    expect((await app.inject({ method: 'GET', url: '/api/admin/setup' })).json().needed).toBe(
+      false
+    );
+    const check = await app.inject({
+      method: 'POST',
+      url: '/api/admin/setup/check',
+      payload: { setupToken: 'test-token-123' },
+    });
+    expect(check.statusCode).toBe(403);
   });
 
   it('should reject setup with invalid token', async () => {
@@ -90,6 +127,13 @@ describe('Admin Routes', () => {
     const body = res.json();
     expect(body.status).toBe('ok');
     expect(body.stats).toBeDefined();
+    // INST-08: every dependency is checked.
+    expect(body.checks).toMatchObject({
+      database: { ok: true },
+      cache: { ok: true },
+      storage: { ok: true },
+      queue: { ok: true },
+    });
   });
 
   it('should reject system health without token', async () => {

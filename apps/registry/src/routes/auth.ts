@@ -343,6 +343,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         name: m.workspace.name,
         role: m.role,
         ...(m.workspace.organization && { organization: m.workspace.organization.slug }),
+        ...(m.workspace.suspendedAt && { suspended: true }),
       })),
       organizations: orgs.map((m) => ({
         slug: m.organization.slug,

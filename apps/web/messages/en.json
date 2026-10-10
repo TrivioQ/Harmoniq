@@ -26,7 +26,8 @@
     "audit": "Audit log",
     "quickstart": "Integrate",
     "scheduled": "Scheduled",
-    "approvals": "Approvals"
+    "approvals": "Approvals",
+    "suspended": "This workspace is suspended by the instance administrator: you can look around, but changes are disabled. Its manifests are still served."
   },
   "WorkspaceOverview": {
     "title": "Overview",
@@ -132,14 +133,20 @@
     "title": "Instance Overview",
     "totalWorkspaces": "Total Workspaces",
     "totalModules": "Total Modules",
-    "totalUsers": "Total Users"
+    "totalUsers": "Total Users",
+    "healthy": "All systems healthy",
+    "degraded": "Something is failing: open System health"
   },
   "AdminLayout": {
     "title": "Harmoniq Admin",
     "dashboard": "Dashboard",
     "workspaces": "Workspaces",
     "exitAdmin": "← Exit Admin",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "health": "Health",
+    "users": "Users",
+    "admins": "Instance admins",
+    "audit": "Audit log"
   },
   "AdminSetupPage": {
     "errorSetup": "Failed to setup admin",
@@ -151,7 +158,25 @@
     "successMessage": "Instance initialized. Sign in as {email} to open the admin panel.",
     "initializing": "Initializing...",
     "initialize": "Initialize Instance",
-    "goToSignIn": "Go to sign in"
+    "goToSignIn": "Go to sign in",
+    "step1": "Admin account",
+    "step2": "Database & cache",
+    "step3": "Storage",
+    "step4": "Sign-in",
+    "accountHint": "The setup token is HARMONIQ_SETUP_TOKEN from the registry environment. It works once.",
+    "next": "Next",
+    "back": "Back",
+    "retry": "Test again",
+    "checking": "Checking…",
+    "connectivityHint": "The registry checks that it can reach its database and cache.",
+    "database": "Database",
+    "cache": "Cache",
+    "storage": "Default storage",
+    "storageHint": "The registry writes, reads back and deletes a test object in the default storage (STORAGE_ADAPTER), where published manifests go.",
+    "signInHint": "You will sign in as {email} with one of these methods. Configure GitHub, OIDC or SMTP in the registry environment if the list is empty.",
+    "noSignIn": "No sign-in method is configured yet.",
+    "alreadyDone": "This instance is already set up.",
+    "noToken": "Set HARMONIQ_SETUP_TOKEN in the registry environment and restart it to run the setup."
   },
   "AdminWorkspacesPage": {
     "title": "Workspaces",
@@ -160,7 +185,23 @@
     "slug": "Slug",
     "modules": "Modules",
     "actions": "Actions",
-    "manageStorage": "Manage Storage"
+    "manageStorage": "Manage Storage",
+    "search": "Search by name or slug",
+    "searchButton": "Search",
+    "usage": "Usage",
+    "status": "Status",
+    "inOrg": "organization {org}",
+    "usageLine": "{modules} modules · {members} members · {deploys} deploys",
+    "suspended": "Suspended",
+    "active": "Active",
+    "suspend": "Suspend",
+    "unsuspend": "Unsuspend",
+    "suspendConfirm": "Suspend {slug}? Its manifests keep being served, but every change is refused.",
+    "reason": "Reason (shown to members)",
+    "delete": "Delete",
+    "deleteConfirm": "Delete {slug} and everything in it? This cannot be undone.",
+    "typeSlug": "Type the slug to confirm",
+    "next": "Next page →"
   },
   "WorkspaceStoragePage": {
     "errorUpdate": "Failed to update storage",
@@ -231,7 +272,14 @@
     "workspaceDetached": "Workspace removed from the organization.",
     "moduleShared": "Module shared with the organization.",
     "moduleUnshared": "Module no longer shared.",
-    "provisioningSaved": "Group rules saved. They apply at each user’s next sign-in or SCIM change."
+    "provisioningSaved": "Group rules saved. They apply at each user’s next sign-in or SCIM change.",
+    "workspaceSuspended": "Workspace suspended.",
+    "workspaceUnsuspended": "Workspace reactivated.",
+    "workspaceDeleted": "Workspace deleted.",
+    "sessionsRevoked": "{count, plural, =0 {No active sessions.} one {# session ended.} other {# sessions ended.}}",
+    "userDeleted": "Account deleted.",
+    "adminGranted": "Instance admin granted.",
+    "adminRevoked": "Instance admin revoked."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -731,5 +779,51 @@
     "save": "Save rules",
     "scimTitle": "SCIM",
     "scimHowItWorks": "Users created over SCIM join the organization; group rules assign their workspaces. Deactivating or deleting a user removes them from the organization and its workspaces, revokes their API keys there and ends the sessions they started through the organization’s single sign-on. The last organization admin and each workspace’s last owner are kept."
+  },
+  "AdminHealthPage": {
+    "title": "System health",
+    "ok": "Everything answers.",
+    "degraded": "At least one dependency is failing.",
+    "database": "Database",
+    "cache": "Cache",
+    "storage": "Default storage (write, read, delete)",
+    "queue": "Job queue (pg-boss)",
+    "queueInline": "No job queue: jobs run inline (no SYSTEM_DATABASE_URL).",
+    "queueTotals": "{queued} queued · {active} running",
+    "queueName": "Queue",
+    "queued": "Queued",
+    "active": "Running"
+  },
+  "AdminUsersPage": {
+    "title": "Users",
+    "search": "Search by email or name",
+    "searchButton": "Search",
+    "user": "User",
+    "workspaces": "Workspaces",
+    "lastLogin": "Last sign-in",
+    "actions": "Actions",
+    "admin": "instance admin",
+    "never": "Never",
+    "sessions": "{count, plural, =0 {no active sessions} one {# active session} other {# active sessions}}",
+    "revokeSessions": "Sign out everywhere",
+    "revokeConfirm": "End every session of {email}? Open tabs stop working within 15 minutes.",
+    "delete": "Delete account",
+    "deleteConfirm": "Erase {email}: account, sign-in links, sessions, memberships and their API keys? This cannot be undone.",
+    "typeEmail": "Type the email to confirm",
+    "next": "Next page →"
+  },
+  "AdminAdminsPage": {
+    "title": "Instance admins",
+    "description": "Instance admins run this Harmoniq installation: health, workspaces, users and settings. It grants nothing inside workspaces. People must have signed in once before they can be made admins.",
+    "email": "Email",
+    "grant": "Make admin",
+    "since": "Admin since {date}",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke instance admin from {email}?"
+  },
+  "AdminAuditPage": {
+    "title": "Audit log",
+    "empty": "No instance changes yet.",
+    "next": "Older →"
   }
 }

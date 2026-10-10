@@ -20,7 +20,11 @@ export default async function AdminPanelLayout({ children }: { children: React.R
         <AdminNav
           labels={{
             dashboard: t('dashboard'),
+            health: t('health'),
             workspaces: t('workspaces'),
+            users: t('users'),
+            admins: t('admins'),
+            audit: t('audit'),
             exitAdmin: t('exitAdmin'),
           }}
         />

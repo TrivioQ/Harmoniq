@@ -34,6 +34,9 @@ export interface WorkspaceDetail {
   slug: string;
   name: string;
   retentionDays: number;
+  /** INST-09: set while the instance admin has suspended the workspace. */
+  suspendedAt?: string | null;
+  suspendedReason?: string | null;
   role: Role | null;
   hostApps: Array<{
     slug: string;

@@ -15,6 +15,7 @@ export * from './schemas/AlertRuleSchema';
 export * from './schemas/ScheduledOperationSchema';
 export * from './manifest/dependencies';
 export * from './schemas/SsoSchema';
+export * from './schemas/AdminSchemas';
 export * from './schemas/ApiKeyCreateSchema';
 export * from './schemas/WebhookEventSchema';
 export * from './schemas/WorkspaceStorageConfigSchema';

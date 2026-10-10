@@ -485,6 +485,28 @@ Actions: `webhook` sends `alert.triggered` / `alert.resolved` to webhook endpoin
 
 `manifest_fetch_error_rate` (ALT-02) is not available: hosts don't report failed manifest fetches yet.
 
+## Instance administration
+
+M4.8, INST-01..10, 18. Instance admins run the installation; the role grants nothing inside workspaces (INST-05). Every `/api/admin/*` route except the setup wizard requires a signed-in instance admin (workspace owners get `403`; sessions from a workspace's or organization's SSO never count).
+
+| Endpoint                                    | Auth           | Notes                                                                                                                                                                                                           |
+| ------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/admin/setup`                      | public         | `{ needed, tokenConfigured }`                                                                                                                                                                                   |
+| `POST /api/admin/setup/check`               | setup token    | Wizard step 2: `{ database, cache }` checks (`{ ok, latencyMs, error? }`)                                                                                                                                       |
+| `POST /api/admin/setup/storage`             | setup token    | Wizard step 3: writes, reads back and deletes a probe object in the default storage                                                                                                                             |
+| `POST /api/admin/setup`                     | setup token    | `{ setupToken, email, name? }`: creates the first admin and consumes the token (INST-04); `400` when no sign-in method is configured. Once consumed, every setup call gets `403` (INST-02)                      |
+| `GET /api/admin/health`                     | instance admin | INST-08: `status` (`ok` / `degraded`), `checks.database`, `checks.cache`, `checks.storage` (probe), `checks.queue` (pg-boss `queued` / `active` totals and per queue), plus `stats`                             |
+| `GET /api/admin/workspaces?query=&cursor=`  | instance admin | INST-09: every workspace with organization, modules, members, deploys, suspension; 50 per page (`nextCursor`)                                                                                                   |
+| `POST /api/admin/workspaces/:ws/suspend`    | instance admin | `{ reason? }`. While suspended, every workspace call except reads gets `403 WORKSPACE_SUSPENDED` (API keys, members, scheduled and approved changes alike); manifests, import maps and health ingest still work |
+| `POST /api/admin/workspaces/:ws/unsuspend`  | instance admin |                                                                                                                                                                                                                 |
+| `DELETE /api/admin/workspaces/:ws?confirm=` | instance admin | Deletes the workspace and everything in it (`confirm` = its slug)                                                                                                                                               |
+| `GET /api/admin/users?query=&cursor=`       | instance admin | INST-10: users with memberships, last sign-in, active sessions, admin flag                                                                                                                                      |
+| `POST /api/admin/users/:id/revoke-sessions` | instance admin | Ends every session (refresh tokens now; access tokens expire within 15 minutes)                                                                                                                                 |
+| `DELETE /api/admin/users/:id?confirm=`      | instance admin | Erases the account (`confirm` = its email): identities, sessions, memberships, the API keys they created. `409` while they're a workspace's last owner or an organization's last admin; not yourself            |
+| `GET`, `POST /api/admin/admins`             | instance admin | INST-07: list; `{ email }` grants (the user must have signed in once)                                                                                                                                           |
+| `DELETE /api/admin/admins/:userId`          | instance admin | Revokes; `409` for the last instance admin                                                                                                                                                                      |
+| `GET /api/admin/audit?cursor=`              | instance admin | INST-18: instance changes (`instance.*`), newest first; never config values or secrets, and user deletions record the id only                                                                                   |
+
 ## Health
 
 | Endpoint       | Description                                                                    |

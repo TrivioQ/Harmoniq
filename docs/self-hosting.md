@@ -77,9 +77,10 @@ Never set `HARMONIQ_DEV_LOGIN` in production; the registry refuses to start with
 ### 3. First boot
 
 1. Start the registry; it logs a hint while no instance admin exists.
-2. Open `${APP_URL}/admin/setup`, enter `HARMONIQ_SETUP_TOKEN` and the admin's email. The token works once.
+2. Open `${APP_URL}/admin/setup`. The wizard asks for `HARMONIQ_SETUP_TOKEN` and the admin's email, checks the database and cache, writes and deletes a test object in the default storage, and lists the sign-in methods you configured. Finishing creates the admin; the token then stops working.
 3. Sign in with that email (email link or GitHub with the same verified address).
 4. Create a workspace from the dashboard and an API key for CI under **Settings → API keys**.
+5. The admin panel (`/admin`) shows system health and lets you manage workspaces (suspend, delete), users (end sessions, erase accounts), other instance admins and the instance audit log.
 
 ### 4. Images
 

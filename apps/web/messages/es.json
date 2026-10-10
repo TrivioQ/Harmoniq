@@ -26,7 +26,8 @@
     "audit": "Auditoría",
     "quickstart": "Integrar",
     "scheduled": "Programado",
-    "approvals": "Aprobaciones"
+    "approvals": "Aprobaciones",
+    "suspended": "El administrador de la instancia ha suspendido este espacio: puedes consultarlo, pero los cambios están desactivados. Sus manifiestos se siguen sirviendo."
   },
   "WorkspaceOverview": {
     "title": "Resumen",
@@ -132,14 +133,20 @@
     "title": "Resumen de la instancia",
     "totalWorkspaces": "Total de espacios de trabajo",
     "totalModules": "Total de módulos",
-    "totalUsers": "Total de usuarios"
+    "totalUsers": "Total de usuarios",
+    "healthy": "Todos los sistemas funcionan",
+    "degraded": "Algo falla: abre el estado del sistema"
   },
   "AdminLayout": {
     "title": "Administrador de Harmoniq",
     "dashboard": "Tablero",
     "workspaces": "Espacios de trabajo",
     "exitAdmin": "← Salir del administrador",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "health": "Estado",
+    "users": "Usuarios",
+    "admins": "Administradores",
+    "audit": "Auditoría"
   },
   "AdminSetupPage": {
     "errorSetup": "Error al configurar el administrador",
@@ -151,7 +158,25 @@
     "successMessage": "Instancia inicializada. Inicia sesión como {email} para abrir el panel de administración.",
     "initializing": "Inicializando...",
     "initialize": "Inicializar instancia",
-    "goToSignIn": "Ir a iniciar sesión"
+    "goToSignIn": "Ir a iniciar sesión",
+    "step1": "Cuenta de administrador",
+    "step2": "Base de datos y caché",
+    "step3": "Almacenamiento",
+    "step4": "Inicio de sesión",
+    "accountHint": "El token es HARMONIQ_SETUP_TOKEN del entorno del registro. Solo funciona una vez.",
+    "next": "Siguiente",
+    "back": "Atrás",
+    "retry": "Probar de nuevo",
+    "checking": "Comprobando…",
+    "connectivityHint": "El registro comprueba que llega a su base de datos y caché.",
+    "database": "Base de datos",
+    "cache": "Caché",
+    "storage": "Almacenamiento predeterminado",
+    "storageHint": "El registro escribe, lee y borra un objeto de prueba en el almacenamiento predeterminado (STORAGE_ADAPTER), donde se publican los manifiestos.",
+    "signInHint": "Iniciarás sesión como {email} con uno de estos métodos. Configura GitHub, OIDC o SMTP en el entorno del registro si la lista está vacía.",
+    "noSignIn": "Aún no hay ningún método de inicio de sesión configurado.",
+    "alreadyDone": "Esta instancia ya está configurada.",
+    "noToken": "Define HARMONIQ_SETUP_TOKEN en el entorno del registro y reinícialo para ejecutar la configuración."
   },
   "AdminWorkspacesPage": {
     "title": "Espacios de trabajo",
@@ -160,7 +185,23 @@
     "slug": "Slug",
     "modules": "Módulos",
     "actions": "Acciones",
-    "manageStorage": "Gestionar almacenamiento"
+    "manageStorage": "Gestionar almacenamiento",
+    "search": "Buscar por nombre o slug",
+    "searchButton": "Buscar",
+    "usage": "Uso",
+    "status": "Estado",
+    "inOrg": "organización {org}",
+    "usageLine": "{modules} módulos · {members} miembros · {deploys} despliegues",
+    "suspended": "Suspendido",
+    "active": "Activo",
+    "suspend": "Suspender",
+    "unsuspend": "Reactivar",
+    "suspendConfirm": "¿Suspender {slug}? Sus manifiestos se siguen sirviendo, pero se rechaza cualquier cambio.",
+    "reason": "Motivo (visible para los miembros)",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar {slug} y todo su contenido? No se puede deshacer.",
+    "typeSlug": "Escribe el slug para confirmar",
+    "next": "Página siguiente →"
   },
   "WorkspaceStoragePage": {
     "errorUpdate": "No se pudo actualizar el almacenamiento",
@@ -231,7 +272,14 @@
     "workspaceDetached": "Espacio de trabajo quitado de la organización.",
     "moduleShared": "Módulo compartido con la organización.",
     "moduleUnshared": "El módulo ya no se comparte.",
-    "provisioningSaved": "Reglas de grupos guardadas. Se aplican en el próximo inicio de sesión o cambio SCIM de cada usuario."
+    "provisioningSaved": "Reglas de grupos guardadas. Se aplican en el próximo inicio de sesión o cambio SCIM de cada usuario.",
+    "workspaceSuspended": "Espacio de trabajo suspendido.",
+    "workspaceUnsuspended": "Espacio de trabajo reactivado.",
+    "workspaceDeleted": "Espacio de trabajo eliminado.",
+    "sessionsRevoked": "{count, plural, =0 {Sin sesiones activas.} one {# sesión cerrada.} other {# sesiones cerradas.}}",
+    "userDeleted": "Cuenta eliminada.",
+    "adminGranted": "Rol de administrador concedido.",
+    "adminRevoked": "Rol de administrador revocado."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -731,5 +779,51 @@
     "save": "Guardar reglas",
     "scimTitle": "SCIM",
     "scimHowItWorks": "Los usuarios creados por SCIM se unen a la organización; las reglas de grupos asignan sus espacios de trabajo. Desactivar o eliminar un usuario lo quita de la organización y de sus espacios, revoca allí sus claves de API y cierra las sesiones iniciadas con el inicio de sesión único de la organización. Se conservan el último administrador de la organización y el último propietario de cada espacio."
+  },
+  "AdminHealthPage": {
+    "title": "Estado del sistema",
+    "ok": "Todo responde.",
+    "degraded": "Al menos una dependencia está fallando.",
+    "database": "Base de datos",
+    "cache": "Caché",
+    "storage": "Almacenamiento predeterminado (escribir, leer, borrar)",
+    "queue": "Cola de trabajos (pg-boss)",
+    "queueInline": "Sin cola de trabajos: se ejecutan en línea (sin SYSTEM_DATABASE_URL).",
+    "queueTotals": "{queued} en cola · {active} en ejecución",
+    "queueName": "Cola",
+    "queued": "En cola",
+    "active": "En ejecución"
+  },
+  "AdminUsersPage": {
+    "title": "Usuarios",
+    "search": "Buscar por email o nombre",
+    "searchButton": "Buscar",
+    "user": "Usuario",
+    "workspaces": "Espacios de trabajo",
+    "lastLogin": "Último inicio de sesión",
+    "actions": "Acciones",
+    "admin": "administrador",
+    "never": "Nunca",
+    "sessions": "{count, plural, =0 {sin sesiones activas} one {# sesión activa} other {# sesiones activas}}",
+    "revokeSessions": "Cerrar todas las sesiones",
+    "revokeConfirm": "¿Cerrar todas las sesiones de {email}? Las pestañas abiertas dejan de funcionar en 15 minutos.",
+    "delete": "Eliminar cuenta",
+    "deleteConfirm": "¿Borrar {email}: cuenta, vínculos de inicio de sesión, sesiones, membresías y sus claves de API? No se puede deshacer.",
+    "typeEmail": "Escribe el email para confirmar",
+    "next": "Página siguiente →"
+  },
+  "AdminAdminsPage": {
+    "title": "Administradores de la instancia",
+    "description": "Los administradores gestionan esta instalación de Harmoniq: estado, espacios de trabajo, usuarios y ajustes. No concede nada dentro de los espacios. La persona debe haber iniciado sesión una vez.",
+    "email": "Email",
+    "grant": "Hacer administrador",
+    "since": "Administrador desde {date}",
+    "revoke": "Revocar",
+    "revokeConfirm": "¿Revocar el rol de administrador a {email}?"
+  },
+  "AdminAuditPage": {
+    "title": "Registro de auditoría",
+    "empty": "Aún no hay cambios en la instancia.",
+    "next": "Anteriores →"
   }
 }

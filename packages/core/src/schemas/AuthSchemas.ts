@@ -60,6 +60,8 @@ export const MeResponseSchema = z.object({
       role: z.enum(['owner', 'admin', 'developer', 'viewer']),
       /** The workspace's organization, if any. */
       organization: z.string().optional(),
+      /** INST-09: suspended by the instance admin (read-only). */
+      suspended: z.boolean().optional(),
     })
   ),
   organizations: z

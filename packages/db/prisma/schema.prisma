@@ -35,6 +35,9 @@ model Workspace {
   retentionDays              Int                     @default(90)
   /// Let deploys create short-lived preview environments (e.g. `pr-123`).
   allowEphemeralEnvironments Boolean                 @default(false)
+  /// INST-09: set by an instance admin; writes are refused, manifests are still served.
+  suspendedAt                DateTime?
+  suspendedReason            String?
   createdAt                  DateTime                @default(now())
   updatedAt                  DateTime                @updatedAt
   organization               Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
@@ -696,6 +699,21 @@ model InstanceConfig {
   value     Json
   updatedAt DateTime @updatedAt
   updatedBy String
+}
+
+/// INST-18: instance-level changes (config, admins, workspace suspension, users). Append-only.
+model InstanceAuditEvent {
+  id           String    @id @default(cuid())
+  actorType    ActorType
+  actorId      String
+  action       String
+  resourceType String
+  resourceId   String
+  metadata     Json?
+  ip           String?
+  createdAt    DateTime  @default(now())
+
+  @@index([createdAt(sort: Desc)])
 }
 
 model InstanceAdmin {

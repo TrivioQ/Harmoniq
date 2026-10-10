@@ -538,9 +538,10 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 
 #### `Workspace` — New Columns
 
-| Column           | Type      | Notes                                                   |
-| ---------------- | --------- | ------------------------------------------------------- |
-| `organizationId` | `String?` | FK → Organization. Null = standalone workspace (ORG-03) |
+| Column                           | Type                   | Notes                                                                         |
+| -------------------------------- | ---------------------- | ----------------------------------------------------------------------------- |
+| `organizationId`                 | `String?`              | FK → Organization. Null = standalone workspace (ORG-03)                       |
+| `suspendedAt`, `suspendedReason` | `DateTime?`, `String?` | INST-09: set by an instance admin; writes are refused, manifests still served |
 
 ---
 
@@ -597,6 +598,22 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 | `createdBy`      | `String?`   | User id                      |
 | `createdAt`      | `DateTime`  |                              |
 | `revokedAt`      | `DateTime?` | Null = active                |
+
+### `InstanceAuditEvent`
+
+INST-18: instance-level changes (setup, workspace suspension and deletion, users, instance admins, instance config). Append-only for `harmoniq_app` (`UPDATE`/`DELETE` revoked); never holds config values or secrets.
+
+| Column                       | Type             | Notes                                  |
+| ---------------------------- | ---------------- | -------------------------------------- |
+| `id`                         | `CUID`           | Primary key                            |
+| `actorType`, `actorId`       | `Enum`, `String` | The instance admin (or `system:setup`) |
+| `action`                     | `String`         | `instance.*`                           |
+| `resourceType`, `resourceId` | `String`         |                                        |
+| `metadata`                   | `Json?`          |                                        |
+| `ip`                         | `String?`        |                                        |
+| `createdAt`                  | `DateTime`       |                                        |
+
+**Index**: `createdAt DESC`. Not tenant-scoped.
 
 ### `OrganizationAuditEvent`
 

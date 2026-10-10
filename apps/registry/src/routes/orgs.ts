@@ -20,7 +20,7 @@ import { formatOrgApiKey, generateApiKeySecret } from '../auth/apiKeys';
 import { ssoScope } from '../plugins/authenticate';
 import { audit } from '../services/audit';
 import { invalidateManifest } from '../services/cacheKeys';
-import { createWorkspace } from '../services/workspaces';
+import { createWorkspace, deleteWorkspace } from '../services/workspaces';
 import { orgSsoRoutes } from './orgSso';
 
 declare module 'fastify' {
@@ -453,20 +453,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         if (request.query.confirm !== workspace.slug) {
           throw new BadRequestError('Confirm the deletion with ?confirm=<workspace slug>');
         }
-        const envs = await systemDb.environment.findMany({
-          where: { hostApp: { workspaceId: workspace.id } },
-          include: { hostApp: { select: { slug: true } } },
-        });
-        // Its shared modules leave the siblings' manifests first (fan-out needs the org).
-        await systemDb.remoteModule.updateMany({
-          where: { workspaceId: workspace.id, orgShared: true },
-          data: { orgShared: false },
-        });
-        await orgShared.fanOut(workspace.id, undefined, { force: true });
-        await systemDb.workspace.delete({ where: { id: workspace.id } });
-        for (const env of envs) {
-          await invalidateManifest(cache, workspace.slug, env.hostApp.slug, env.slug);
-        }
+        await deleteWorkspace(fastify.container, workspace);
         await orgAudit(request, {
           action: 'org.workspace_delete',
           resourceType: 'workspace',

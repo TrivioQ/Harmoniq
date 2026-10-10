@@ -19,6 +19,10 @@ export default async function WorkspaceLayout(props: {
     me.workspaces.find((w) => w.slug === params.workspaceSlug) ??
     (await workspaceApi.get(params.workspaceSlug).catch(() => null));
   if (!workspace) notFound();
+  // INST-09: from /api/me (`suspended`) or the workspace itself (`suspendedAt`).
+  const suspended =
+    ('suspended' in workspace && !!workspace.suspended) ||
+    ('suspendedAt' in workspace && !!workspace.suspendedAt);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -67,6 +71,11 @@ export default async function WorkspaceLayout(props: {
           </nav>
         </div>
       </header>
+      {suspended && (
+        <div role="status" className="bg-amber-50 text-amber-900 text-sm px-4 md:px-8 py-2">
+          {t('suspended')}
+        </div>
+      )}
       <main className="flex-1 bg-muted/20">{props.children}</main>
     </div>
   );

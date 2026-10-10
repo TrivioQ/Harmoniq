@@ -295,6 +295,16 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     }
   };
 
+  // INST-09: a suspended workspace stays readable (and its manifests served) but refuses
+  // every change, including scheduled and approved ones (they run through these routes).
+  const suspended = (workspace: Workspace, permission: Permission) =>
+    !!workspace.suspendedAt && permission !== 'workspace:read';
+  const SUSPENDED = [
+    403,
+    'WORKSPACE_SUSPENDED',
+    'This workspace is suspended by the instance administrator; changes are disabled',
+  ] as const;
+
   function requireWorkspace(
     permission: Permission,
     opts: { allowInstanceAdmin?: boolean } = {}
@@ -327,6 +337,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
         if (!scopesAllow(principal.scopes, permission)) {
           return deny(reply, 403, 'FORBIDDEN', `API key lacks a scope granting ${permission}`);
         }
+        if (suspended(workspace, permission)) return deny(reply, ...SUSPENDED);
         request.workspace = workspace;
         return;
       }
@@ -356,6 +367,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       }
 
       if (opts.allowInstanceAdmin && principal.isInstanceAdmin) {
+        if (suspended(workspace, permission)) return deny(reply, ...SUSPENDED);
         request.workspace = workspace;
         return;
       }
@@ -396,6 +408,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
           );
         }
       }
+      if (suspended(workspace, permission)) return deny(reply, ...SUSPENDED);
       request.workspace = workspace;
       request.workspaceRole = membership.role;
     };

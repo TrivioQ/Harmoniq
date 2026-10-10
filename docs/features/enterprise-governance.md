@@ -28,6 +28,8 @@ Large enterprises operating in regulated industries require three capabilities t
 | `APR-01`–`APR-18`                                       | Change Approval Workflows                                                                                               | ✅ Done (M4.3)  |
 | `ORG-01`–`ORG-04`, `ORG-08`–`ORG-15`                    | Organizations: members, workspaces, org admins, cross-workspace audit, shared modules, catalog, org API keys, dashboard | ✅ Done (M4.7)  |
 | `ORG-05`–`ORG-07`                                       | Org-level SSO (OIDC, SAML) inherited by workspaces, group rules, org SCIM                                               | ✅ Done (M4.7b) |
+| `INST-01`–`INST-10`, `INST-18`                          | Instance admin: setup wizard, health, workspace suspension and deletion, users, instance admins, instance audit log     | ✅ Done (M4.8a) |
+| `INST-11`–`INST-17`                                     | Instance settings in the database (storage, email, sign-in, branding), hot reload                                       | 📋 Planned      |
 | `IaC-01`–`IaC-14`                                       | GitOps / Infrastructure as Code                                                                                         | 📋 Planned      |
 
 See [`docs/requirements.md §16`](../requirements.md) for the full specification.
@@ -119,6 +121,25 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-09 — Instance administration (M4.8a)
+
+**Type:** Feature
+**Author:** Shashi Kumar Dhandapani
+**Refs:** INST-01 – INST-10, INST-18
+
+**Summary:**
+
+- Setup wizard in four steps (account, database and cache, default storage probe, sign-in methods), each step proving the one-time setup token; finishing creates the first admin and consumes the token, after which every setup call gets `403`.
+- `GET /api/admin/health`: database, cache, storage (write, read back, delete) and pg-boss queue depth; `degraded` when any fails.
+- Workspaces: list with usage, suspend (with a reason) and unsuspend, delete with the slug typed back. A suspended workspace stays readable and its manifests are served; every other workspace call gets `403 WORKSPACE_SUSPENDED`, and members see a banner.
+- Users: search, memberships, last sign-in and active sessions; end every session; erase an account (not while they're a workspace's last owner or an organization's last admin).
+- Instance admins: grant by email, revoke (never the last one).
+- `InstanceAuditEvent` (append-only) records every instance change; user deletions keep the id only.
+- Dashboard: admin panel pages for health, workspaces, users, instance admins and the audit log.
+- Migration `20261009170000_instance_admin`.
+
+**Tests:** `admin.test.ts` (wizard steps with and without the token, token consumed, health checks); `instanceAdmin.test.ts` (admin-only access, suspension: writes refused for keys and owners while reads and manifests work, user listing, session revocation, guarded deletion, admin grant and revoke, audit without emails, workspace deletion).
 
 ### 2026-10-09 — Organization SSO and SCIM (M4.7b)
 

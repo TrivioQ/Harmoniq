@@ -74,6 +74,9 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         name: workspace.name,
         retentionDays: workspace.retentionDays,
         allowEphemeralEnvironments: workspace.allowEphemeralEnvironments,
+        // INST-09: changes are refused while suspended.
+        suspendedAt: workspace.suspendedAt,
+        suspendedReason: workspace.suspendedReason,
         role: request.workspaceRole ?? null,
         hostApps: hostApps.map((h) => ({
           slug: h.slug,

@@ -452,41 +452,41 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 #### Database
 
-- [ ] Add `InstanceConfig` model: `key` (unique), `value` (Json, encrypted at rest), `updatedAt`, `updatedBy`
-- [ ] Add `InstanceAdmin` model: `userId` (unique FK), `grantedBy`, `createdAt`, `revokedAt`
+- [x] Add `InstanceConfig` model: `key` (unique), `value` (Json, encrypted at rest), `updatedAt`, `updatedBy`
+- [x] Add `InstanceAdmin` model: `userId` (unique FK), `grantedBy`, `createdAt`, `revokedAt`
 - [ ] Prisma migration: instance tables (NOT RLS-scoped — instance-wide)
 
 #### Registry — Admin API
 
-- [ ] Admin auth middleware: extract session, verify `InstanceAdmin` record is active. Reject all `/admin/*` routes for non-admin sessions — even workspace `owner` (INST-06)
-- [ ] `GET /admin/api/health` — DB ping, Redis ping, storage adapter ping, `pg-boss` queue depth, active job count (INST-08)
-- [ ] `GET /admin/api/workspaces` — all workspaces with usage metrics
-- [ ] `POST /admin/api/workspaces/:id/suspend` and `/unsuspend` (INST-09)
-- [ ] `DELETE /admin/api/workspaces/:id` — hard delete
-- [ ] `GET /admin/api/users` — all users with workspace memberships + last login
-- [ ] `POST /admin/api/users/:id/revoke-sessions` (INST-10)
-- [ ] `DELETE /admin/api/users/:id` — hard delete
+- [x] Admin auth middleware: extract session, verify `InstanceAdmin` record is active. Reject all `/admin/*` routes for non-admin sessions — even workspace `owner` (INST-06)
+- [x] `GET /admin/api/health` — DB ping, Redis ping, storage adapter ping, `pg-boss` queue depth, active job count (INST-08)
+- [x] `GET /admin/api/workspaces` — all workspaces with usage metrics
+- [x] `POST /admin/api/workspaces/:id/suspend` and `/unsuspend` (INST-09)
+- [x] `DELETE /admin/api/workspaces/:id` — hard delete
+- [x] `GET /admin/api/users` — all users with workspace memberships + last login
+- [x] `POST /admin/api/users/:id/revoke-sessions` (INST-10)
+- [x] `DELETE /admin/api/users/:id` — hard delete
 - [ ] `GET /admin/api/config` — return all `InstanceConfig` keys with values **redacted** for sensitive keys
 - [ ] `PUT /admin/api/config/:key` — update a config value (encrypt sensitive keys before storing)
 - [ ] `POST /admin/api/config/storage/test` — connectivity test for the configured default storage adapter
 - [ ] `POST /admin/api/config/smtp/test` — send test email to authenticated admin (INST-12)
 - [ ] Hot-reload: `pg-boss` cron `config.reload` (60s interval) refreshes registry's in-memory config snapshot from `InstanceConfig` (INST-17)
-- [ ] `GET /admin/setup` — serve setup wizard (only when no active `InstanceAdmin` exists)
-- [ ] `POST /admin/setup` — consume `HARMONIQ_SETUP_TOKEN`, create first admin user, set initial `InstanceConfig` values (INST-01–INST-04)
+- [x] `GET /admin/setup` — serve setup wizard (only when no active `InstanceAdmin` exists)
+- [x] `POST /admin/setup` — consume `HARMONIQ_SETUP_TOKEN`, create first admin user, set initial `InstanceConfig` values (INST-01–INST-04)
 - [ ] Emit `AuditEvent` (`action: 'instance.config_updated'`, key only, no plaintext value) on every config change (INST-18)
 
 #### Dashboard — Admin Panel Pages
 
-- [ ] `/admin/setup` — 4-step first-boot wizard: account → connectivity → storage → OAuth (INST-03)
-- [ ] `/admin/health` — system health indicators with live-refresh
-- [ ] `/admin/workspaces` — workspace list with usage, suspend/unsuspend/delete actions
-- [ ] `/admin/users` — user directory, revoke sessions, delete user
+- [x] `/admin/setup` — 4-step first-boot wizard: account → connectivity → storage → OAuth (INST-03)
+- [x] `/admin/health` — system health indicators with live-refresh
+- [x] `/admin/workspaces` — workspace list with usage, suspend/unsuspend/delete actions
+- [x] `/admin/users` — user directory, revoke sessions, delete user
 - [ ] `/admin/storage` — adapter selector + credential form + Test Connection button (INST-11)
 - [ ] `/admin/email` — SMTP config form + Send Test Email button (INST-12)
 - [ ] `/admin/auth` — enable/disable OAuth providers globally (INST-13)
 - [ ] `/admin/branding` — name, logo, support URL, accent colour (INST-14)
-- [ ] `/admin/admins` — grant/revoke `InstanceAdmin` role (INST-07)
-- [ ] Admin nav sidebar: entirely separate from workspace nav; appears only for `InstanceAdmin` sessions
+- [x] `/admin/admins` — grant/revoke `InstanceAdmin` role (INST-07)
+- [x] Admin nav sidebar: entirely separate from workspace nav; appears only for `InstanceAdmin` sessions
 
 #### Test Suite
 

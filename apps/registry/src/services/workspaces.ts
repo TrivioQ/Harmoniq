@@ -1,5 +1,8 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ConflictError } from '@harmoniq/core/dist/errors/AppError';
+import type { ICache } from '@harmoniq/core/dist/ports/ICache';
+import { invalidateManifest } from './cacheKeys';
+import type { OrgSharedModules } from './orgShared';
 
 /**
  * A new workspace with its creator as owner and a default host app (staging and
@@ -52,5 +55,30 @@ export async function createWorkspace(
       throw new ConflictError(`Workspace slug "${input.slug}" is taken`);
     }
     throw err;
+  }
+}
+
+/**
+ * Deletes a workspace and everything in it (ORG-08, INST-09). Its org-shared modules
+ * leave the siblings' manifests first (the fan-out needs the organization), and its
+ * cached manifests are dropped.
+ */
+export async function deleteWorkspace(
+  container: { systemDb: PrismaClient; cache: ICache; orgShared: OrgSharedModules },
+  workspace: { id: string; slug: string }
+) {
+  const { systemDb, cache, orgShared } = container;
+  const envs = await systemDb.environment.findMany({
+    where: { hostApp: { workspaceId: workspace.id } },
+    include: { hostApp: { select: { slug: true } } },
+  });
+  const shared = await systemDb.remoteModule.updateMany({
+    where: { workspaceId: workspace.id, orgShared: true },
+    data: { orgShared: false },
+  });
+  if (shared.count) await orgShared.fanOut(workspace.id, undefined, { force: true });
+  await systemDb.workspace.delete({ where: { id: workspace.id } });
+  for (const env of envs) {
+    await invalidateManifest(cache, workspace.slug, env.hostApp.slug, env.slug);
   }
 }
