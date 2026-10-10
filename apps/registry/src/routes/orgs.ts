@@ -21,6 +21,16 @@ import { ssoScope } from '../plugins/authenticate';
 import { audit } from '../services/audit';
 import { invalidateManifest } from '../services/cacheKeys';
 import { createWorkspace, deleteWorkspace } from '../services/workspaces';
+import {
+  ExportRow,
+  NEWEST_FIRST,
+  afterWhere,
+  dateRange,
+  exportFormat,
+  keysetRows,
+  mergeNewestFirst,
+  sendExport,
+} from '../services/auditExport';
 import { orgSsoRoutes } from './orgSso';
 
 declare module 'fastify' {
@@ -585,6 +595,73 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       nextCursor:
         merged.length > limit && last ? `${last.createdAt.toISOString()}|${last.id}` : null,
     };
+  });
+
+  /** ORG-09: compliance export of the organization's audit log (workspaces and org). */
+  fastify.get<{
+    Params: OrgParams;
+    Querystring: {
+      format?: string;
+      workspace?: string;
+      actor?: string;
+      action?: string;
+      from?: string;
+      to?: string;
+    };
+  }>('/api/orgs/:orgSlug/audit/export', admin, async (request, reply) => {
+    const org = request.org!;
+    const q = request.query;
+    const format = exportFormat(q.format);
+    const filters = {
+      ...dateRange(q),
+      ...(q.actor && { actorId: q.actor }),
+      ...(q.action && { action: { startsWith: q.action } }),
+    };
+    const workspaces = await systemDb.workspace.findMany({
+      where: { organizationId: org.id, ...(q.workspace && { slug: q.workspace }) },
+      select: { id: true, slug: true },
+    });
+    const slugOf = new Map(workspaces.map((w) => [w.id, w.slug]));
+    await orgAudit(request, {
+      action: 'org.audit_export',
+      resourceType: 'organization',
+      resourceId: org.id,
+      metadata: {
+        format,
+        filters: {
+          workspace: q.workspace,
+          actor: q.actor,
+          action: q.action,
+          from: q.from,
+          to: q.to,
+        },
+      },
+    });
+    const workspaceRows = keysetRows(async (after, take) =>
+      (
+        await systemDb.auditEvent.findMany({
+          where: { workspaceId: { in: [...slugOf.keys()] }, ...filters, ...afterWhere(after) },
+          orderBy: NEWEST_FIRST,
+          take,
+        })
+      ).map((e) => ({ ...e, workspace: slugOf.get(e.workspaceId) ?? null }))
+    );
+    const orgRows = q.workspace
+      ? (async function* () {})()
+      : keysetRows(async (after, take) =>
+          (
+            await systemDb.organizationAuditEvent.findMany({
+              where: { organizationId: org.id, ...filters, ...afterWhere(after) },
+              orderBy: NEWEST_FIRST,
+              take,
+            })
+          ).map((e) => ({ ...e, workspace: null }))
+        );
+    return sendExport(reply, mergeNewestFirst<ExportRow>(workspaceRows, orgRows), {
+      format,
+      name: org.slug,
+      workspaceColumn: true,
+    });
   });
 
   // ─── Module catalog (ORG-10/12) ───────────────────────────────────────────

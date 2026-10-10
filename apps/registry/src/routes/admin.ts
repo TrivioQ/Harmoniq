@@ -9,6 +9,7 @@ import {
 } from '@harmoniq/core/dist/errors/AppError';
 import {
   GrantInstanceAdminSchema,
+  SetPlanSchema,
   SetupCompleteSchema,
   SetupTokenSchema,
   SuspendWorkspaceSchema,
@@ -26,6 +27,14 @@ import {
 } from '../services/instanceHealth';
 import { deleteWorkspace } from '../services/workspaces';
 import { storageTargetFromSettings } from '../adapters/storage/createStorage';
+import {
+  NEWEST_FIRST,
+  afterWhere,
+  dateRange,
+  exportFormat,
+  keysetRows,
+  sendExport,
+} from '../services/auditExport';
 
 // InstanceConfig key marking the one-time setup token as consumed (INST-04).
 const SETUP_COMPLETED_KEY = 'setup.completed';
@@ -217,7 +226,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           ...cursorWhere(request.query.cursor),
         },
         include: {
-          organization: { select: { slug: true } },
+          organization: { select: { slug: true, plan: true } },
+          WorkspaceConfig: { select: { plan: true } },
           _count: {
             select: { RemoteModules: true, WorkspaceMembers: true, ModuleVersions: true },
           },
@@ -231,6 +241,9 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           slug: w.slug,
           name: w.name,
           organization: w.organization?.slug ?? null,
+          // PLN-01: the workspace's own plan; its organization's applies when higher.
+          plan: w.WorkspaceConfig?.plan ?? 'hobby',
+          organizationPlan: w.organization?.plan ?? null,
           modules: w._count.RemoteModules,
           members: w._count.WorkspaceMembers,
           deploys: w._count.ModuleVersions,
@@ -308,6 +321,68 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         metadata: { slug: workspace.slug },
       });
       return reply.code(204).send();
+    }
+  );
+
+  // ─── Plans (PLN-01..03) ───────────────────────────────────────────────────
+
+  fastify.put<{ Params: { slug: string } }>(
+    '/api/admin/workspaces/:slug/plan',
+    admin,
+    async (request) => {
+      const { plan } = SetPlanSchema.parse(request.body);
+      const workspace = await workspaceBySlug(request.params.slug);
+      await systemDb.workspaceConfig.upsert({
+        where: { workspaceId: workspace.id },
+        create: { workspaceId: workspace.id, plan },
+        update: { plan },
+      });
+      fastify.container.plans.forget();
+      await instanceAudit(request, {
+        action: 'instance.workspace_plan',
+        resourceType: 'workspace',
+        resourceId: workspace.id,
+        metadata: { slug: workspace.slug, plan },
+      });
+      return { slug: workspace.slug, plan };
+    }
+  );
+
+  fastify.get('/api/admin/orgs', admin, async () => {
+    const orgs = await systemDb.organization.findMany({
+      where: { deletedAt: null },
+      include: { _count: { select: { Workspaces: true, Members: true } } },
+      orderBy: { name: 'asc' },
+    });
+    return {
+      organizations: orgs.map((o) => ({
+        slug: o.slug,
+        name: o.name,
+        plan: o.plan,
+        workspaces: o._count.Workspaces,
+        members: o._count.Members,
+      })),
+    };
+  });
+
+  fastify.put<{ Params: { slug: string } }>(
+    '/api/admin/orgs/:slug/plan',
+    admin,
+    async (request) => {
+      const { plan } = SetPlanSchema.parse(request.body);
+      const org = await systemDb.organization.findFirst({
+        where: { slug: request.params.slug, deletedAt: null },
+      });
+      if (!org) throw new NotFoundError('Organization not found');
+      await systemDb.organization.update({ where: { id: org.id }, data: { plan } });
+      fastify.container.plans.forget();
+      await instanceAudit(request, {
+        action: 'instance.org_plan',
+        resourceType: 'organization',
+        resourceId: org.id,
+        metadata: { slug: org.slug, plan },
+      });
+      return { slug: org.slug, plan };
     }
   );
 
@@ -572,6 +647,33 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // ─── Instance audit log (INST-18) ─────────────────────────────────────────
+
+  fastify.get<{ Querystring: { format?: string; action?: string; from?: string; to?: string } }>(
+    '/api/admin/audit/export',
+    admin,
+    async (request, reply) => {
+      const q = request.query;
+      const format = exportFormat(q.format);
+      const where = {
+        ...(q.action && { action: { startsWith: q.action } }),
+        ...dateRange(q),
+      };
+      await instanceAudit(request, {
+        action: 'instance.audit_export',
+        resourceType: 'instance',
+        resourceId: 'instance',
+        metadata: { format, filters: { action: q.action, from: q.from, to: q.to } },
+      });
+      const rows = keysetRows((after, take) =>
+        systemDb.instanceAuditEvent.findMany({
+          where: { ...where, ...afterWhere(after) },
+          orderBy: NEWEST_FIRST,
+          take,
+        })
+      );
+      return sendExport(reply, rows, { format, name: 'instance', workspaceColumn: false });
+    }
+  );
 
   fastify.get<{ Querystring: { cursor?: string } }>('/api/admin/audit', admin, async (request) => {
     const events = await systemDb.instanceAuditEvent.findMany({

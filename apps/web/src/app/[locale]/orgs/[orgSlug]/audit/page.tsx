@@ -1,6 +1,7 @@
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { orgApi } from '@/lib/orgApi';
+import { AuditExportLinks } from '@/components/AuditExportLinks';
 
 const input = 'rounded-md border px-3 py-1.5 text-sm';
 
@@ -26,6 +27,12 @@ export default async function OrgAuditPage(props: {
   return (
     <>
       <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+      <AuditExportLinks
+        scope="org"
+        slug={orgSlug}
+        action={query.action}
+        workspace={query.workspace}
+      />
       <form className="flex flex-wrap gap-2" method="get">
         <select
           name="workspace"

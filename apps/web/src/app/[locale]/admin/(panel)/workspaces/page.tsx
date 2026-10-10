@@ -7,6 +7,7 @@ import {
   suspendWorkspaceAction,
   unsuspendWorkspaceAction,
 } from '../actions';
+import { PlanForm } from '../PlanForm';
 
 const th = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
 const td = 'px-4 py-3 text-sm text-gray-700 align-top';
@@ -43,6 +44,7 @@ export default async function AdminWorkspacesPage(props: {
             <tr>
               <th className={th}>{t('name')}</th>
               <th className={th}>{t('usage')}</th>
+              <th className={th}>{t('plan')}</th>
               <th className={th}>{t('status')}</th>
               <th className={th}>{t('actions')}</th>
             </tr>
@@ -66,6 +68,14 @@ export default async function AdminWorkspacesPage(props: {
                     members: ws.members,
                     deploys: ws.deploys,
                   })}
+                </td>
+                <td className={td}>
+                  <PlanForm target={{ kind: 'workspace', slug: ws.slug }} plan={ws.plan} />
+                  {ws.organizationPlan && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      {t('orgPlan', { plan: ws.organizationPlan })}
+                    </div>
+                  )}
                 </td>
                 <td className={td}>
                   {ws.suspendedAt ? (

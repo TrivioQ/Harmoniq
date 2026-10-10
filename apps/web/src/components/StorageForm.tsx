@@ -18,9 +18,12 @@ type Provider = 'S3' | 'GCS' | 'AZURE';
 export function StorageForm({
   slug,
   initial,
+  plan,
 }: {
   slug: string;
   initial: WorkspaceStorageConfigResponse | null;
+  /** BYOB-01: whether the workspace's plan includes its own bucket. */
+  plan?: { allowed: boolean; name: string };
 }) {
   const t = useTranslations('WorkspaceStoragePage');
   const [saveState, save, saving] = useActionState<StorageState, FormData>(
@@ -82,6 +85,17 @@ export function StorageForm({
       <input id={name} name={name} defaultValue={saved?.[name]} className={input} {...props} />
     </div>
   );
+
+  if (plan && !plan.allowed && !saved) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">{t('instanceDefaultHint')}</p>
+        <p className="p-3 bg-amber-50 text-amber-900 text-sm rounded-md">
+          {t('upgrade', { plan: plan.name })}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

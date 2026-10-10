@@ -21,7 +21,7 @@ Self-hosted enterprise deployments have two distinct operator roles — the _ser
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `INST-01`–`INST-18` | Instance Admin UI                                                                                                            | ✅ Done (M4.8; see [enterprise governance](./enterprise-governance.md)) |
 | `BYOB-02`–`BYOB-14` | Bring-Your-Own-Bucket Storage: S3 (keys or IAM role, S3-compatible endpoints), GCS, Azure; verification, fail-closed deploys | ✅ Done (M4.9)                                                          |
-| `BYOB-01`           | Plan gating (startup / enterprise only)                                                                                      | 📋 Planned (M4.11)                                                      |
+| `BYOB-01`           | Plan gating (startup / enterprise only, with plan enforcement)                                                               | ✅ Done (M4.11)                                                         |
 
 See [`docs/requirements.md §17`](../requirements.md) and [`§18`](../requirements.md) for the full specification.
 

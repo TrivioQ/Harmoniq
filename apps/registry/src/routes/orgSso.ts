@@ -169,6 +169,7 @@ export function orgSsoRoutes(
     if (!fastify.ssoProviders.protocolEnabled('saml')) throw disabledProtocol('saml');
     const body = OrgSamlConfigSchema.parse(request.body);
     const org = request.org!;
+    await fastify.container.plans.requireForOrg(org.id, 'saml');
     const previous = org.samlConfig as StoredSamlConfig | null;
     // SSO-18: generated once per organization, the private key sealed at rest.
     const keys = previous
@@ -288,6 +289,7 @@ export function orgSsoRoutes(
 
   // Creates or rotates the token (shown once); the old one stops working at once.
   fastify.post<{ Params: OrgParams }>(`${base}/scim/token`, admin, async (request) => {
+    await fastify.container.plans.requireForOrg(request.org!.id, 'scim');
     const token = `hq_scim_${randomBytes(32).toString('base64url')}`;
     await systemDb.organization.update({
       where: { id: request.org!.id },

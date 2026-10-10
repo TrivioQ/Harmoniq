@@ -19,3 +19,13 @@ export const SuspendWorkspaceSchema = z.object({
 export const GrantInstanceAdminSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
 });
+
+/** PLN-01: workspace and organization plans. */
+export const PlanSchema = z.enum(['hobby', 'startup', 'enterprise']);
+export type Plan = z.infer<typeof PlanSchema>;
+
+/** Plan-gated features (PLN-03, BYOB-01, SSO-24). */
+export const PlanFeatureSchema = z.enum(['byob', 'approvals', 'saml', 'scim']);
+export type PlanFeature = z.infer<typeof PlanFeatureSchema>;
+
+export const SetPlanSchema = z.object({ plan: PlanSchema });

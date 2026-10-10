@@ -76,6 +76,7 @@ const approvalRoutes: FastifyPluginAsync = async (fastify) => {
       const body = ApprovalPolicySchema.parse(request.body);
       const env = await findEnv(request);
       const workspace = request.workspace!;
+      await fastify.container.plans.requireForWorkspace(workspace.id, 'approvals');
       return withTenant(workspace.id, async (tx) => {
         const data = { ...body, ticketUrlPattern: body.ticketUrlPattern ?? null };
         const policy = await tx.approvalPolicy.upsert({

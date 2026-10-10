@@ -30,6 +30,8 @@ export interface AdminWorkspace {
   slug: string;
   name: string;
   organization: string | null;
+  plan: 'hobby' | 'startup' | 'enterprise';
+  organizationPlan: string | null;
   modules: number;
   members: number;
   deploys: number;
@@ -133,6 +135,16 @@ export const adminApi = {
       `/api/admin/users${query(params)}`
     ),
   admins: () => authedFetch<{ admins: InstanceAdminEntry[] }>('/api/admin/admins'),
+  orgs: () =>
+    authedFetch<{
+      organizations: Array<{
+        slug: string;
+        name: string;
+        plan: 'hobby' | 'startup' | 'enterprise';
+        workspaces: number;
+        members: number;
+      }>;
+    }>('/api/admin/orgs'),
   audit: (params: { cursor?: string }) =>
     authedFetch<{ events: InstanceAuditEvent[]; nextCursor: string | null }>(
       `/api/admin/audit${query(params)}`

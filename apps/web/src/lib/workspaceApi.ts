@@ -34,6 +34,9 @@ export interface WorkspaceDetail {
   slug: string;
   name: string;
   retentionDays: number;
+  /** PLN-01..03: the plan in effect and what it allows. */
+  plan?: 'hobby' | 'startup' | 'enterprise';
+  features?: Record<'byob' | 'approvals' | 'saml' | 'scim', boolean>;
   /** INST-09: set while the instance admin has suspended the workspace. */
   suspendedAt?: string | null;
   suspendedReason?: string | null;

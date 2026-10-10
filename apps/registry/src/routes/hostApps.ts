@@ -60,6 +60,7 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const workspace = request.workspace!;
       const publishTarget = await publisher.targetFor(workspace.id);
+      const plan = await fastify.container.plans.planOf({ id: workspace.id });
       const hostApps = await withTenant(workspace.id, (tx) =>
         tx.hostApp.findMany({
           orderBy: [{ isDefault: 'desc' }, { slug: 'asc' }],
@@ -77,6 +78,9 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         // INST-09: changes are refused while suspended.
         suspendedAt: workspace.suspendedAt,
         suspendedReason: workspace.suspendedReason,
+        // PLN-01..03: what the workspace's plan allows (everything when not enforced).
+        plan,
+        features: fastify.container.plans.features(plan),
         role: request.workspaceRole ?? null,
         hostApps: hostApps.map((h) => ({
           slug: h.slug,

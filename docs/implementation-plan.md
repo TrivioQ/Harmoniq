@@ -522,7 +522,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] `Workspace Settings → Storage` page: BYOB provider selector, credential form (S3/GCS/Azure fields), CDN prefix, path prefix
 - [x] Test Connection button (BYOB-05): calls `/storage/test`, displays latency or error message
 - [x] Migration advisory banner shown when BYOB is first enabled (BYOB-12)
-- [ ] Plan gate: storage page shows upgrade prompt for `hobby` plan (BYOB-01) — M4.11
+- [x] Plan gate: storage page shows upgrade prompt for `hobby` plan (BYOB-01)
 
 #### Test Suite
 

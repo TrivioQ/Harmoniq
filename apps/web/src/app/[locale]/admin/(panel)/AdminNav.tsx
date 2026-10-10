@@ -9,6 +9,7 @@ const ITEMS = [
   ['dashboard', '/admin'],
   ['health', '/admin/health'],
   ['workspaces', '/admin/workspaces'],
+  ['orgs', '/admin/orgs'],
   ['users', '/admin/users'],
   ['admins', '/admin/admins'],
   ['storage', '/admin/storage'],

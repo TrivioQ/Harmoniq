@@ -66,3 +66,10 @@ export class StorageUnavailableError extends AppError {
     super('STORAGE_UNAVAILABLE', message, 503, metadata);
   }
 }
+
+/** PLN-03: the feature needs a higher plan than the workspace (or organization) has. */
+export class PlanRequiredError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('PLAN_REQUIRED', message, 402, metadata);
+  }
+}

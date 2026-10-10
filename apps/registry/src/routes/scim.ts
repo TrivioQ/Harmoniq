@@ -710,6 +710,8 @@ const scimSettings = async (fastify: FastifyInstance) => {
   // Creates or rotates the token (shown once); the old one stops working at once.
   fastify.post<{ Params: { workspaceSlug: string } }>(`${path}/token`, admin, async (request) => {
     const workspace = request.workspace!;
+    // SSO-24: an enterprise feature.
+    await fastify.container.plans.requireForWorkspace(workspace.id, 'scim');
     const token = `hq_scim_${randomBytes(32).toString('base64url')}`;
     const data = {
       scimEnabled: true,

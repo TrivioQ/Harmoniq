@@ -25,6 +25,7 @@ export default async function AdminPanelLayout({ children }: { children: React.R
             dashboard: t('dashboard'),
             health: t('health'),
             workspaces: t('workspaces'),
+            orgs: t('orgs'),
             users: t('users'),
             admins: t('admins'),
             storage: t('storage'),

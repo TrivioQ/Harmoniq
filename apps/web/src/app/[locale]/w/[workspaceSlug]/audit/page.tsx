@@ -2,6 +2,7 @@ import { getFormatter, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { workspaceApi } from '@/lib/workspaceApi';
 import { AuditLine } from '../AuditLine';
+import { AuditExportLinks } from '@/components/AuditExportLinks';
 
 const FILTERS = ['', 'module.', 'env.', 'apiKey.', 'member.', 'webhook.'] as const;
 
@@ -14,6 +15,7 @@ export default async function AuditPage(props: {
   const { action, cursor } = await props.searchParams;
   const t = await getTranslations('AuditPage');
   const format = await getFormatter();
+  const { role } = await workspaceApi.get(workspaceSlug);
   const { events, nextCursor } = await workspaceApi.audit(workspaceSlug, {
     action,
     cursor,
@@ -33,6 +35,9 @@ export default async function AuditPage(props: {
         <h2 className="text-3xl font-bold tracking-tight">{t('title')}</h2>
         <p className="text-muted-foreground mt-2">{t('description')}</p>
       </div>
+      {(role === 'admin' || role === 'owner') && (
+        <AuditExportLinks scope="workspace" slug={workspaceSlug} action={action} />
+      )}
 
       <nav className="flex flex-wrap gap-2" aria-label={t('filter')}>
         {FILTERS.map((f) => (

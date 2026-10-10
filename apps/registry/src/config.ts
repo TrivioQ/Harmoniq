@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  Plan,
+  PlanFeature,
+  PlanFeatureSchema,
+  PlanSchema,
+} from '@harmoniq/core/dist/schemas/AdminSchemas';
 
 // Secrets that have shipped in examples, charts or code. Never acceptable in production.
 const KNOWN_DEFAULT_SECRETS = new Set([
@@ -37,6 +43,12 @@ const EnvSchema = z.object({
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('Harmoniq <no-reply@harmoniq.local>'),
   HARMONIQ_MANIFEST_RATE_LIMIT: z.coerce.number().int().positive().default(600),
+  HARMONIQ_MANIFEST_RATE_LIMIT_STARTUP: z.coerce.number().int().positive().default(3000),
+  HARMONIQ_MANIFEST_RATE_LIMIT_ENTERPRISE: z.coerce.number().int().positive().default(10000),
+  /** PLN-03: gate features by plan (hosted). Off: every plan has every feature (PLN-02). */
+  HARMONIQ_PLAN_ENFORCEMENT: z.string().optional(),
+  /** PLN-02: JSON `{ "hobby": ["approvals"], … }` replacing the features of those plans. */
+  HARMONIQ_PLAN_FEATURES: z.string().optional(),
   TRUST_PROXY: z.string().optional(),
   OIDC_ISSUER: z.string().url().optional(),
   OIDC_CLIENT_ID: z.string().optional(),
@@ -74,7 +86,11 @@ export interface Config {
   /** Fetch and verify every bundle on deploy (dry runs always validate). */
   validateBundles: boolean;
   /** RL-01: manifest requests per minute per (workspace, client IP). */
+  /** RL-01/04: manifest requests per minute per (workspace, IP), by plan. */
   manifestRateLimit: number;
+  manifestRateLimits: Record<Plan, number>;
+  /** PLN-02/03: enforce plan features; the feature matrix (overridable). */
+  plans: { enforced: boolean; features: Record<Plan, PlanFeature[]> };
   /** Outbound email. Without SMTP in production, email sign-in is unavailable. */
   mail: { smtpUrl?: string; from: string };
   /** Where the `local` storage adapter keeps objects (also when chosen in the admin panel). */
@@ -102,6 +118,28 @@ export interface Config {
 }
 
 export class ConfigError extends Error {}
+
+/** PLN-03 defaults: BYOB-01 (startup+), SSO-24 (SCIM, enterprise). */
+export const DEFAULT_PLAN_FEATURES: Record<Plan, PlanFeature[]> = {
+  hobby: [],
+  startup: ['byob', 'approvals'],
+  enterprise: ['byob', 'approvals', 'saml', 'scim'],
+};
+
+function planFeatures(json: string | undefined): Record<Plan, PlanFeature[]> {
+  if (!json) return DEFAULT_PLAN_FEATURES;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new ConfigError('HARMONIQ_PLAN_FEATURES must be JSON, e.g. {"hobby":["approvals"]}');
+  }
+  const result = z.record(PlanSchema, z.array(PlanFeatureSchema)).safeParse(parsed);
+  if (!result.success) {
+    throw new ConfigError(`HARMONIQ_PLAN_FEATURES: ${result.error.issues[0].message}`);
+  }
+  return { ...DEFAULT_PLAN_FEATURES, ...result.data };
+}
 
 function resolveStorage(e: z.infer<typeof EnvSchema>, isProduction: boolean): Config['storage'] {
   // Local disk by default in development; production must choose explicitly.
@@ -195,6 +233,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         : undefined,
     devLogin,
     manifestRateLimit: e.HARMONIQ_MANIFEST_RATE_LIMIT,
+    manifestRateLimits: {
+      hobby: e.HARMONIQ_MANIFEST_RATE_LIMIT,
+      startup: e.HARMONIQ_MANIFEST_RATE_LIMIT_STARTUP,
+      enterprise: e.HARMONIQ_MANIFEST_RATE_LIMIT_ENTERPRISE,
+    },
+    plans: {
+      enforced: e.HARMONIQ_PLAN_ENFORCEMENT === '1' || e.HARMONIQ_PLAN_ENFORCEMENT === 'true',
+      features: planFeatures(e.HARMONIQ_PLAN_FEATURES),
+    },
     oidc:
       e.OIDC_ISSUER && e.OIDC_CLIENT_ID && e.OIDC_CLIENT_SECRET
         ? {

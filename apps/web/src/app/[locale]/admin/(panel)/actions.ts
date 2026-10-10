@@ -217,3 +217,20 @@ export async function testEmailAction(_prev: ActionResult) {
     })
   );
 }
+
+// ─── Plans (PLN-01) ──────────────────────────────────────────────────────────
+
+export async function setPlanAction(
+  target: { kind: 'workspace' | 'org'; slug: string },
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const path =
+    target.kind === 'workspace'
+      ? `/api/admin/workspaces/${enc(target.slug)}/plan`
+      : `/api/admin/orgs/${enc(target.slug)}/plan`;
+  return run(
+    () => authedFetch(path, { method: 'PUT', body: { plan: field(form, 'plan') } }),
+    (t) => ({ status: 'success', message: t('planSet') })
+  );
+}

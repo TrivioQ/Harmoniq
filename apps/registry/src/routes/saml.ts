@@ -155,6 +155,7 @@ const samlRoutes: FastifyPluginAsync = async (fastify) => {
       if (!fastify.ssoProviders.protocolEnabled('saml')) throw disabled('saml');
       const body = SamlConfigSchema.parse(request.body);
       const workspace = request.workspace!;
+      await fastify.container.plans.requireForWorkspace(workspace.id, 'saml');
       const current = await withTenant(workspace.id, (tx) =>
         tx.workspaceConfig.findUnique({ where: { workspaceId: workspace.id } })
       );

@@ -30,6 +30,7 @@ Large enterprises operating in regulated industries require three capabilities t
 | `ORG-05`–`ORG-07`                                       | Org-level SSO (OIDC, SAML) inherited by workspaces, group rules, org SCIM                                               | ✅ Done (M4.7b) |
 | `INST-01`–`INST-10`, `INST-18`                          | Instance admin: setup wizard, health, workspace suspension and deletion, users, instance admins, instance audit log     | ✅ Done (M4.8a) |
 | `INST-11`–`INST-17`                                     | Instance settings in the database (storage, email, sign-in, branding), hot reload                                       | ✅ Done (M4.8b) |
+| `PLN-01`–`PLN-03`, `RL-04`                              | Plans: per-workspace and per-organization plans, feature gating (opt-in), rate limit tiers; audit export                | ✅ Done (M4.11) |
 | `IaC-09`–`IaC-12`                                       | Workspace as code: `harmoniq.yaml`, plan, apply, import ([details](./gitops.md))                                        | ✅ Done (M4.10) |
 | `IaC-01`–`IaC-04`, `IaC-13`–`IaC-14`                    | Terraform provider, GitLab CI component                                                                                 | 📋 Planned      |
 
@@ -122,6 +123,21 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-10 — Plans, limits and audit export (M4.11)
+
+**Type:** Feature
+**Author:** Shashi Kumar Dhandapani
+**Refs:** PLN-01 – PLN-03, RL-04, BYOB-01, SSO-24, AUD-03
+
+**Summary:**
+
+- `Plans` service: a workspace's plan is its own (`WorkspaceConfig.plan`) or its organization's, whichever is higher, cached for a minute. Instance admins set plans (`PUT /api/admin/workspaces/:ws/plan`, `PUT /api/admin/orgs/:org/plan`, audited) in the admin panel (workspaces and a new organizations page).
+- Feature gating is opt-in (`HARMONIQ_PLAN_ENFORCEMENT=1`, for hosted offerings; PLN-02 keeps self-hosted instances unrestricted): workspace buckets (startup+), approval policies including those declared in `harmoniq.yaml` (startup+), SAML and SCIM (enterprise) answer `402 PLAN_REQUIRED` with the plan needed; configurations made earlier keep working. `HARMONIQ_PLAN_FEATURES` replaces the matrix. `GET /api/workspaces/:ws` reports `plan` and `features`; the storage settings show an upgrade notice.
+- RL-04: manifest rate limits by plan (`HARMONIQ_MANIFEST_RATE_LIMIT`, `_STARTUP`, `_ENTERPRISE`).
+- Audit export for compliance: workspace (`GET /api/workspaces/:ws/audit/export`, admins), organization (merged across workspaces and org events) and instance logs, as CSV (formula-safe) or JSON Lines, streamed in batches; every export is itself audited. Download links on the three audit pages (through a dashboard route that forwards the session).
+
+**Tests:** `plans.test.ts` (402s with the required plan for every gated feature including GitOps, plan changes by instance admins only, organization plan precedence, rate limit tiers); `auditExport.test.ts` (more than one batch, newest first, CSV quoting and formula neutralization, JSON Lines with filters, the export recorded, permissions, organization merge, instance export).
 
 ### 2026-10-09 — Instance settings (M4.8b)
 

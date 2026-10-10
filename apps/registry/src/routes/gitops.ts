@@ -28,6 +28,10 @@ const gitopsRoutes: FastifyPluginAsync = async (fastify) => {
           issues: parsed.error.issues.map((i) => `${i.path.join('.') || '(file)'}: ${i.message}`),
         });
       }
+      // PLN-03: declaring approval policies needs the plan that has them.
+      if (parsed.data.hostApps?.some((h) => h.environments?.some((e) => e.approvalPolicy))) {
+        await fastify.container.plans.requireForWorkspace(workspace.id, 'approvals');
+      }
       const outcome = await withTenant(
         workspace.id,
         async (tx) => {

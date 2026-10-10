@@ -16,6 +16,7 @@ import { StorageTarget } from '../adapters/storage/createStorage';
 import { IMailer } from '@harmoniq/core/dist/ports/IMailer';
 import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
 import { InstanceSettings } from '../services/instanceSettings';
+import { Plans } from '../services/plans';
 
 export interface AppContainer {
   cache: ICache;
@@ -42,6 +43,8 @@ export interface AppContainer {
   readonly instanceStorage: StorageTarget | null;
   /** INST-11..17: instance settings from the database over the environment. */
   settings: InstanceSettings;
+  /** PLN-01..03, RL-04: plans and what they allow. */
+  plans: Plans;
   publisher: ManifestPublisher;
   /** ORG-10/11: modules shared across an organization's workspaces. */
   orgShared: OrgSharedModules;
@@ -155,6 +158,7 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     publisher,
     orgShared,
     settings,
+    plans: new Plans({ systemDb, config: fastify.config }),
     get instanceStorage() {
       return settings.storage();
     },

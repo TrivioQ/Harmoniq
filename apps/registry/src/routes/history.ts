@@ -3,6 +3,15 @@ import type { Prisma } from '@prisma/client';
 import { BadRequestError, NotFoundError } from '@harmoniq/core/dist/errors/AppError';
 import type { Manifest } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import { diffManifests } from '@harmoniq/core/dist/manifest/diff';
+import { audit } from '../services/audit';
+import {
+  NEWEST_FIRST,
+  afterWhere,
+  dateRange,
+  exportFormat,
+  keysetRows,
+  sendExport,
+} from '../services/auditExport';
 
 type WsParams = { workspaceSlug: string };
 type EnvParams = WsParams & { hostAppSlug: string; env: string };
@@ -67,6 +76,54 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
         })),
         nextCursor: events.length > limit ? page[page.length - 1].id : null,
       };
+    }
+  );
+
+  /** Compliance export: every matching event as CSV or JSON Lines (admins). */
+  fastify.get<{
+    Params: WsParams;
+    Querystring: { format?: string; actor?: string; action?: string; from?: string; to?: string };
+  }>(
+    '/api/workspaces/:workspaceSlug/audit/export',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request, reply) => {
+      const workspace = request.workspace!;
+      const q = request.query;
+      const format = exportFormat(q.format);
+      const where: Prisma.AuditEventWhereInput = {
+        workspaceId: workspace.id,
+        ...(q.actor && { actorId: q.actor }),
+        ...(q.action &&
+          (q.action.endsWith('.') ? { action: { startsWith: q.action } } : { action: q.action })),
+        ...dateRange(q),
+      };
+      // Who exported what is part of the record.
+      await withTenant(workspace.id, (tx) =>
+        audit(
+          tx,
+          workspace.id,
+          { principal: request.principal!, ip: request.ip },
+          {
+            action: 'audit.export',
+            resourceType: 'workspace',
+            resourceId: workspace.id,
+            metadata: {
+              format,
+              filters: { actor: q.actor, action: q.action, from: q.from, to: q.to },
+            },
+          }
+        )
+      );
+      const rows = keysetRows((after, take) =>
+        withTenant(workspace.id, (tx) =>
+          tx.auditEvent.findMany({
+            where: { ...where, ...afterWhere(after) },
+            orderBy: NEWEST_FIRST,
+            take,
+          })
+        )
+      );
+      return sendExport(reply, rows, { format, name: workspace.slug, workspaceColumn: false });
     }
   );
 

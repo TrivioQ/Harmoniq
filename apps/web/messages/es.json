@@ -150,7 +150,8 @@
     "storage": "Almacenamiento",
     "email": "Email",
     "auth": "Métodos de inicio de sesión",
-    "branding": "Marca"
+    "branding": "Marca",
+    "orgs": "Organizaciones"
   },
   "AdminSetupPage": {
     "errorSetup": "Error al configurar el administrador",
@@ -205,7 +206,9 @@
     "delete": "Eliminar",
     "deleteConfirm": "¿Eliminar {slug} y todo su contenido? No se puede deshacer.",
     "typeSlug": "Escribe el slug para confirmar",
-    "next": "Página siguiente →"
+    "next": "Página siguiente →",
+    "plan": "Plan",
+    "orgPlan": "Plan de la organización: {plan}"
   },
   "WorkspaceStoragePage": {
     "errorUpdate": "No se pudo actualizar el almacenamiento",
@@ -247,7 +250,8 @@
     "migrationAdvisory": "Los módulos ya desplegados siguen sirviéndose desde donde están (el almacenamiento de la instancia) hasta que los vuelvas a desplegar. Los nuevos despliegues usan este bucket.",
     "remove": "Quitar bucket",
     "removeConfirm": "¿Quitar este bucket? Los nuevos despliegues irán al almacenamiento de la instancia; los módulos desplegados conservan sus URL.",
-    "removed": "Bucket quitado; los nuevos despliegues usan el almacenamiento de la instancia."
+    "removed": "Bucket quitado; los nuevos despliegues usan el almacenamiento de la instancia.",
+    "upgrade": "Un bucket propio requiere el plan startup o superior (este espacio está en {plan}). Consulta al administrador de la instancia."
   },
   "Actions": {
     "unexpectedError": "Algo salió mal. Inténtalo de nuevo.",
@@ -308,7 +312,8 @@
     "settingReset": "De vuelta al valor del entorno.",
     "storageOk": "El almacenamiento funciona ({ms} ms).",
     "storageFailed": "La prueba de almacenamiento falló: {error}",
-    "testEmailSent": "Email de prueba enviado a {to}."
+    "testEmailSent": "Email de prueba enviado a {to}.",
+    "planSet": "Plan actualizado."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -906,5 +911,24 @@
     "brandSupport": "URL de soporte",
     "container": "Contenedor",
     "connectionString": "Cadena de conexión"
+  },
+  "AuditExport": {
+    "label": "Exportar todos los eventos que coinciden:"
+  },
+  "AdminPlans": {
+    "plan": "Plan",
+    "set": "Aplicar",
+    "hobby": "Hobby",
+    "startup": "Startup",
+    "enterprise": "Enterprise"
+  },
+  "AdminOrgsPage": {
+    "title": "Organizaciones",
+    "description": "Un espacio de trabajo usa el plan de su organización cuando es superior al suyo.",
+    "empty": "Aún no hay organizaciones.",
+    "name": "Organización",
+    "size": "Tamaño",
+    "plan": "Plan",
+    "sizeLine": "{workspaces} espacios · {members} miembros"
   }
 }

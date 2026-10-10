@@ -108,6 +108,8 @@ const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
   // BYOB-04/06: verified before anything is saved; 400 with the storage's error otherwise.
   fastify.post<{ Params: Params }>(path, admin, async (request) => {
     const workspace = request.workspace!;
+    // BYOB-01: a plan feature.
+    await fastify.container.plans.requireForWorkspace(workspace.id, 'byob');
     const body = WorkspaceStorageConfigSchema.parse(request.body);
     const existing = await current(workspace.id);
     const config = await candidate(body, existing);
