@@ -22,7 +22,13 @@ import { AuthService } from '../services/authService';
 import { ssoScope } from '../plugins/authenticate';
 import { provisionSsoMember } from '../services/sso';
 import { provisionOrgSsoMember } from '../services/orgProvisioning';
-import { SsoSubject, effectiveSso, sameSubject, ssoProviderId } from '../services/ssoIds';
+import {
+  SsoSubject,
+  effectiveSso,
+  ownSsoAllowed,
+  sameSubject,
+  ssoProviderId,
+} from '../services/ssoIds';
 import { openSecret, sealSecret } from '../services/crypto';
 import { Prisma } from '@prisma/client';
 
@@ -162,8 +168,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
             target: { slug: org.slug, name: org.name },
           });
         }
-        const config = await systemDb.workspaceConfig.findUnique({
-          where: { workspaceId: verified.workspaceId! },
+        const config = await systemDb.workspaceConfig.findFirst({
+          where: { workspaceId: verified.workspaceId!, workspace: ownSsoAllowed },
           include: { workspace: { select: { slug: true, name: true } } },
         });
         const protocol = config && protocolOf(config);
@@ -183,6 +189,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       const configs = await systemDb.workspaceConfig.findMany({
         where: {
           OR: [{ oidcConfig: { not: Prisma.DbNull } }, { samlConfig: { not: Prisma.DbNull } }],
+          workspace: ownSsoAllowed,
         },
         include: { workspace: { select: { slug: true, name: true } } },
       });

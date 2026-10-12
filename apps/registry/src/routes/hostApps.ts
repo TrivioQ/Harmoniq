@@ -25,6 +25,7 @@ import {
   FreezeRequestSchema,
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import { audit } from '../services/audit';
+import { assertRetention, orgPolicyFor } from '../services/policy';
 import { createWorkspace } from '../services/workspaces';
 import { assertMayCreateTenant } from '../services/tenancyPolicy';
 import { restoreWorkspace, softDeleteWorkspace } from '../services/tenantLifecycle';
@@ -214,6 +215,9 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
       const body = UpdateWorkspaceSchema.parse(request.body);
       const workspace = request.workspace!;
       const updated = await withTenant(workspace.id, async (tx) => {
+        if (body.retentionDays !== undefined) {
+          assertRetention(await orgPolicyFor(tx, workspace.organizationId), body.retentionDays);
+        }
         const ws = await tx.workspace.update({ where: { id: workspace.id }, data: body });
         await audit(tx, workspace.id, actor(request), {
           action: 'workspace.update',

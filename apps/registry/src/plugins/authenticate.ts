@@ -10,6 +10,7 @@ import { isApiKeyFormat, parseApiKey, parseOrgApiKey } from '../auth/apiKeys';
 import { Permission, higherRole, roleAllows, scopesAllow } from '../auth/permissions';
 import { verifyAccessToken } from '../auth/tokens';
 import { SsoSubject, effectiveSso, parseSsoProviderId, sameSubject } from '../services/ssoIds';
+import { ipAllowed } from '../services/policy';
 
 export type Principal =
   | {
@@ -67,8 +68,23 @@ declare module 'fastify' {
      * memberships, scopes and revocations apply as for a direct call.
      */
     internalHeaders: (runAs: { type: 'user' | 'apiKey'; id: string }) => Record<string, string>;
+    /**
+     * POL-08: whether `ip` may reach the organization (`management`: dashboard and API;
+     * `delivery`: manifests and health, only when the policy includes them).
+     */
+    ipAllowedForOrg: (
+      organizationId: string,
+      ip: string,
+      kind: 'management' | 'delivery'
+    ) => Promise<boolean>;
+    /** POL-08: a preHandler for public delivery routes with `:workspaceSlug`. */
+    requireDeliveryIp: Handler;
+    /** Drop cached org network policies (after the policy changes). */
+    forgetOrgPolicy: (organizationId: string) => void;
   }
 }
+
+const IP_POLICY_TTL_MS = 30_000;
 
 interface CachedKey {
   keyId: string;
@@ -104,6 +120,103 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
 
   // Verified keys, keyed by sha256(raw token): avoids an argon2 hash on every CI request.
   const keyCache = new Map<string, CachedKey>();
+
+  // POL-08: org network policies and workspace → organization, briefly cached (every
+  // workspace request and, when opted in, every manifest request checks them).
+  const ipPolicies = new Map<string, { list: string[]; manifests: boolean; expires: number }>();
+
+  async function ipAllowedForOrg(
+    organizationId: string,
+    ip: string,
+    kind: 'management' | 'delivery'
+  ) {
+    const now = Date.now();
+    let policy = ipPolicies.get(organizationId);
+    if (!policy || policy.expires <= now) {
+      const row = await systemDb.orgPolicy.findUnique({
+        where: { organizationId },
+        select: { ipAllowlist: true, ipAllowlistManifests: true },
+      });
+      policy = {
+        list: row?.ipAllowlist ?? [],
+        manifests: row?.ipAllowlistManifests ?? false,
+        expires: now + IP_POLICY_TTL_MS,
+      };
+      if (ipPolicies.size > 5_000) ipPolicies.clear();
+      ipPolicies.set(organizationId, policy);
+    }
+    if (kind === 'delivery' && !policy.manifests) return true;
+    try {
+      return ipAllowed(policy.list, ip);
+    } catch {
+      // A list saved before validation tightened: fail closed.
+      return false;
+    }
+  }
+
+  const ipDenied = (reply: FastifyReply, ip: string) =>
+    deny(reply, 403, 'IP_NOT_ALLOWED', `Access from ${ip} is not allowed by the organization`);
+
+  /** POL-08 for a workspace request (none for in-process calls, checked at creation). */
+  async function ipRefusal(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    workspace: { organizationId: string | null }
+  ) {
+    if (!workspace.organizationId || request.internal) return null;
+    return (await ipAllowedForOrg(workspace.organizationId, request.ip, 'management'))
+      ? null
+      : ipDenied(reply, request.ip);
+  }
+
+  /**
+   * Manifests and health take no database query per request: the workspaces whose
+   * organization extends its allowlist to them are loaded together, every 30 s at most
+   * (and at once after a policy change on this replica).
+   */
+  let delivery: { bySlug: Map<string, string[]>; expires: number } = {
+    bySlug: new Map(),
+    expires: 0,
+  };
+  let deliveryLoading: Promise<void> | null = null;
+  async function deliveryLists() {
+    if (delivery.expires > Date.now()) return delivery.bySlug;
+    deliveryLoading ??= (async () => {
+      const policies = await systemDb.orgPolicy.findMany({
+        where: { ipAllowlistManifests: true, NOT: { ipAllowlist: { isEmpty: true } } },
+        select: { organizationId: true, ipAllowlist: true },
+      });
+      const workspaces = policies.length
+        ? await systemDb.workspace.findMany({
+            where: { organizationId: { in: policies.map((p) => p.organizationId) } },
+            select: { slug: true, organizationId: true },
+          })
+        : [];
+      const listOf = new Map(policies.map((p) => [p.organizationId, p.ipAllowlist]));
+      delivery = {
+        bySlug: new Map(workspaces.map((w) => [w.slug, listOf.get(w.organizationId!)!])),
+        expires: Date.now() + IP_POLICY_TTL_MS,
+      };
+    })().finally(() => {
+      deliveryLoading = null;
+    });
+    await deliveryLoading;
+    return delivery.bySlug;
+  }
+
+  async function requireDeliveryIp(request: FastifyRequest, reply: FastifyReply) {
+    const { workspaceSlug } = request.params as { workspaceSlug?: string };
+    if (!workspaceSlug) return;
+    const list = (await deliveryLists()).get(workspaceSlug);
+    if (!list) return;
+    let allowed = false;
+    try {
+      allowed = ipAllowed(list, request.ip);
+    } catch {
+      allowed = false;
+    }
+    if (!allowed) return ipDenied(reply, request.ip);
+  }
 
   function forgetApiKey(keyId: string) {
     for (const [hash, entry] of keyCache) {
@@ -395,6 +508,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
         }
         const refusal = lifecycleRefusal(workspace, permission, opts);
         if (refusal) return deny(reply, ...refusal);
+        if (await ipRefusal(request, reply, workspace)) return reply;
         request.workspace = workspace;
         return;
       }
@@ -478,6 +592,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       }
       const refusal = lifecycleRefusal(workspace, permission, opts);
       if (refusal) return deny(reply, ...refusal);
+      if (await ipRefusal(request, reply, workspace)) return reply;
       request.workspace = workspace;
       request.workspaceRole = membership.role;
       request.viaOrgAdmin = !!orgAdminRole;
@@ -488,6 +603,12 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
   fastify.decorate('requireWorkspace', requireWorkspace);
   fastify.decorate('requireInstanceAdmin', requireInstanceAdmin);
   fastify.decorate('forgetApiKey', forgetApiKey);
+  fastify.decorate('ipAllowedForOrg', ipAllowedForOrg);
+  fastify.decorate('requireDeliveryIp', requireDeliveryIp);
+  fastify.decorate('forgetOrgPolicy', (organizationId: string) => {
+    ipPolicies.delete(organizationId);
+    delivery.expires = 0;
+  });
   fastify.decorate('internalHeaders', (runAs: { type: 'user' | 'apiKey'; id: string }) => ({
     [INTERNAL]: internalSecret,
     [RUN_AS]: `${runAs.type}:${runAs.id}`,

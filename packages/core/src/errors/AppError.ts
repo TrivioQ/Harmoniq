@@ -83,3 +83,10 @@ export class PlanRequiredError extends AppError {
     super('PLAN_REQUIRED', message, 402, metadata);
   }
 }
+
+/** POL-01..08: the change is weaker than the organization's policy allows. */
+export class PolicyViolationError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('POLICY_VIOLATION', message, 409, metadata);
+  }
+}

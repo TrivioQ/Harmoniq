@@ -655,8 +655,36 @@ model Organization {
   ScimUsers          ScimUser[]
   ScimGroups         ScimGroup[]
   VerifiedDomains    VerifiedDomain[]
+  Policy             OrgPolicy?
 
   @@index([purgeAfter])
+}
+
+/// POL-01..08: organization-wide policy, edited by org admins. Workspaces may be stricter,
+/// never weaker. Readable from the organization's workspaces (RLS), writable in org scope.
+model OrgPolicy {
+  organizationId       String       @id
+  /// POL-02: `[{ environmentPattern, requiredApprovers, eligibleRoles, requireChangeTicket,
+  /// ticketUrlPattern?, expiryHours }]`.
+  approvalDefaults     Json         @default("[]")
+  /// POL-03
+  maxApiKeyDays        Int?
+  allowedKeyScopes     String[]     @default([])
+  /// POL-04
+  minRetentionDays     Int?
+  /// POL-05: `[{ id, environmentPattern, from?, until?, reason, override?: { until, reason, by } }]`.
+  freezeWindows        Json         @default("[]")
+  /// POL-06
+  lockSso              Boolean      @default(false)
+  /// POL-07
+  sessionMaxHours      Int?
+  idleTimeoutMinutes   Int?
+  /// POL-08: CIDR blocks; manifests and health only with `ipAllowlistManifests`.
+  ipAllowlist          String[]     @default([])
+  ipAllowlistManifests Boolean      @default(false)
+  updatedAt            DateTime     @updatedAt
+  updatedBy            String?
+  organization         Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model OrganizationMember {

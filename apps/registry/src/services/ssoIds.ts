@@ -1,7 +1,7 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 /**
  * Whose single sign-on a provider belongs to: a workspace's own (SSO-01..20) or an
@@ -37,6 +37,18 @@ export const sameSubject = (a: SsoSubject | null, b: SsoSubject | null) =>
   !!a && !!b && a.kind === b.kind && a.slug === b.slug;
 
 /**
+ * POL-06: workspaces whose own SSO may be used: standalone, or their organization doesn't
+ * lock SSO. A locked organization's workspaces always use the organization's SSO.
+ */
+export const ownSsoAllowed: Prisma.WorkspaceWhereInput = {
+  OR: [
+    { organizationId: null },
+    { organization: { is: { Policy: { is: null } } } },
+    { organization: { is: { Policy: { is: { lockSso: false } } } } },
+  ],
+};
+
+/**
  * ORG-05: whose single sign-on a workspace uses: its own when it has one (it overrides
  * the organization's), else its organization's, else none. `forceSso` comes from the same.
  */
@@ -44,8 +56,8 @@ export async function effectiveSso(
   db: PrismaClient,
   workspace: { id: string; slug: string; organizationId: string | null }
 ): Promise<{ subject: SsoSubject | null; forceSso: boolean }> {
-  const own = await db.workspaceConfig.findUnique({
-    where: { workspaceId: workspace.id },
+  const own = await db.workspaceConfig.findFirst({
+    where: { workspaceId: workspace.id, workspace: ownSsoAllowed },
     select: { oidcConfig: true, samlConfig: true, forceSso: true },
   });
   if (own?.oidcConfig || own?.samlConfig) {

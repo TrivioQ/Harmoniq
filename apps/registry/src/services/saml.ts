@@ -14,7 +14,7 @@ import {
 } from '@harmoniq/core/dist/ports/IdentityProvider';
 import type { SamlConfig } from '@harmoniq/core/dist/schemas/SsoSchema';
 import { openSecret } from './crypto';
-import { SsoSubject, ssoProviderId } from './ssoIds';
+import { SsoSubject, ownSsoAllowed, ssoProviderId } from './ssoIds';
 
 /**
  * What `WorkspaceConfig.samlConfig` (or `Organization.samlConfig`) holds: the config
@@ -154,7 +154,7 @@ export class SamlService {
       subject.kind === 'workspace'
         ? (
             await systemDb.workspaceConfig.findFirst({
-              where: { workspace: { slug: subject.slug } },
+              where: { workspace: { slug: subject.slug, ...ownSsoAllowed } },
             })
           )?.samlConfig
         : (

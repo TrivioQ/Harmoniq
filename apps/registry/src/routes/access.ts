@@ -15,6 +15,12 @@ import { ApiKeyCreateSchema } from '@harmoniq/core/dist/schemas/ApiKeyCreateSche
 import { displayPrefix, formatApiKey, generateApiKeySecret } from '../auth/apiKeys';
 import { audit } from '../services/audit';
 import {
+  assertKeyPolicy,
+  cappedExpiry,
+  keyPolicyViolations,
+  orgPolicyFor,
+} from '../services/policy';
+import {
   acceptUrl,
   createInvitation,
   invitationDto,
@@ -99,6 +105,8 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
     const workspace = request.workspace!;
     const { secret, keyHash } = await generateApiKeySecret();
     const record = await withTenant(workspace.id, async (tx) => {
+      // POL-03: the organization's lifetime and scope limits.
+      assertKeyPolicy(await orgPolicyFor(tx, workspace.organizationId), data);
       if (data.moduleIds.length) {
         const found = await tx.remoteModule.count({ where: { id: { in: data.moduleIds } } });
         if (found !== data.moduleIds.length) {
@@ -130,10 +138,16 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/workspaces/:workspaceSlug/api-keys',
     admin,
     async (request) => {
-      const keys = await withTenant(request.workspace!.id, (tx) =>
-        tx.apiKey.findMany({ orderBy: { createdAt: 'desc' } })
-      );
-      return { keys: keys.map(keyDto) };
+      const workspace = request.workspace!;
+      const { keys, policy } = await withTenant(workspace.id, async (tx) => ({
+        keys: await tx.apiKey.findMany({ orderBy: { createdAt: 'desc' } }),
+        policy: await orgPolicyFor(tx, workspace.organizationId),
+      }));
+      // POL-03: existing keys that break the organization's policy are flagged.
+      return {
+        keys: keys.map((k) => ({ ...keyDto(k), policyViolations: k.revokedAt ? [] : keyPolicyViolations(policy, k),
+        })),
+      };
     }
   );
 
@@ -192,16 +206,18 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { gracePeriodHours } = RotateSchema.parse(request.body ?? {});
       const workspace = request.workspace!;
-      const old = await withTenant(workspace.id, (tx) =>
-        tx.apiKey.findUnique({ where: { id: request.params.keyId } })
-      );
+      const { old, policy } = await withTenant(workspace.id, async (tx) => ({
+        old: await tx.apiKey.findUnique({ where: { id: request.params.keyId } }),
+        policy: await orgPolicyFor(tx, workspace.organizationId),
+      }));
       if (!old || old.revokedAt) throw new NotFoundError('API key not found');
 
       const { record, raw } = await issueKey(request, {
         name: old.name,
         scopes: old.scopes,
         moduleIds: old.moduleIds,
-        expiresAt: old.expiresAt,
+        // POL-03: a rotated key gets no more than the policy's lifetime.
+        expiresAt: cappedExpiry(policy, old.expiresAt),
       });
       await withTenant(workspace.id, async (tx) => {
         await tx.apiKey.update({

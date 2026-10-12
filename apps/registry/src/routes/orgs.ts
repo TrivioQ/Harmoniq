@@ -45,6 +45,13 @@ import {
 } from '../services/auditExport';
 import { orgSsoRoutes } from './orgSso';
 import { orgDomainRoutes } from './domains';
+import { orgPolicyRoutes } from './policy';
+import {
+  assertKeyPolicy,
+  cappedExpiry,
+  keyPolicyViolations,
+  orgPolicyFor,
+} from '../services/policy';
 import { proposeTransfer, transferDto } from './transfers';
 import {
   acceptUrl,
@@ -127,6 +134,14 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
 
+  const refuseIp = (reply: FastifyReply, ip: string) =>
+    reply.code(403).send({
+      error: {
+        code: 'IP_NOT_ALLOWED',
+        message: `Access from ${ip} is not allowed by the organization`,
+      },
+    });
+
   /**
    * `member`: any org role; `admin`: org_admin; `auditor`: org_admin or org_auditor (PPL-08:
    * read-only access to the audit log, settings and people).
@@ -158,6 +173,9 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
         if (orgSuspended(request, org)) return refuseSuspended(reply);
+        if (!(await fastify.ipAllowedForOrg(org.id, request.ip, 'management'))) {
+          return refuseIp(reply, request.ip);
+        }
         request.org = org;
         return;
       }
@@ -205,6 +223,11 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: { code: 'FORBIDDEN', message: 'Requires an organization admin' } });
       }
       if (orgSuspended(request, org)) return refuseSuspended(reply);
+      // POL-08: members only from allowed networks (instance admins without a role are not
+      // the organization's to restrict).
+      if (role && !(await fastify.ipAllowedForOrg(org.id, request.ip, 'management'))) {
+        return refuseIp(reply, request.ip);
+      }
       request.org = org;
       request.orgRole = role;
     };
@@ -1479,7 +1502,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // ─── Org API keys (ORG-13) ────────────────────────────────────────────────
 
   fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug/keys', admin, async (request) => {
-    const { keys, workspaces, creators } = await inOrg(request, async (tx) => {
+    const { keys, workspaces, creators, policy } = await inOrg(request, async (tx) => {
       const keys = await tx.orgApiKey.findMany({
         where: { organizationId: request.org!.id },
         orderBy: { createdAt: 'desc' },
@@ -1492,7 +1515,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         where: { id: { in: keys.flatMap((k) => (k.createdBy ? [k.createdBy] : [])) } },
         select: { id: true, email: true },
       });
-      return { keys, workspaces, creators };
+      return { keys, workspaces, creators, policy: await orgPolicyFor(tx, request.org!.id) };
     });
     const slugOf = new Map(workspaces.map((w) => [w.id, w.slug]));
     const emailOf = new Map(creators.map((u) => [u.id, u.email]));
@@ -1503,6 +1526,8 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         createdBy: k.createdBy
           ? { id: k.createdBy, email: emailOf.get(k.createdBy) ?? null }
           : null,
+        // POL-03
+        policyViolations: k.revokedAt ? [] : keyPolicyViolations(policy, k),
       })),
     };
   });
@@ -1519,6 +1544,8 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       expiresAt: Date | null;
     }
   ) {
+    // POL-03: the organization's own key policy applies to its keys too.
+    assertKeyPolicy(await orgPolicyFor(tx, request.org!.id), data);
     const { secret, keyHash } = await generateApiKeySecret();
     const created = await tx.orgApiKey.create({
       data: {
@@ -1605,7 +1632,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           scopes: old.scopes,
           workspaceIds: old.workspaceScope,
           moduleIds: old.moduleScope,
-          expiresAt: old.expiresAt,
+          expiresAt: cappedExpiry(await orgPolicyFor(tx, old.organizationId), old.expiresAt),
         });
         await tx.orgApiKey.update({
           where: { id: old.id },
@@ -1655,6 +1682,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
 
   orgSsoRoutes(fastify, { admin, reader: auditor, orgAudit });
   orgDomainRoutes(fastify, { admin, orgAudit });
+  orgPolicyRoutes(fastify, { admin, reader: auditor, orgAudit });
 };
 
 export default orgRoutes;

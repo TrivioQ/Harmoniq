@@ -889,20 +889,20 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Database
 
-- [ ] `OrgPolicy` model (one per organization): `approvalDefaults` (Json: `[{ environmentPattern, requiredApprovers, eligibleRoles, requireChangeTicket, ticketUrlPattern, expiryHours }]`), `maxApiKeyDays?`, `allowedKeyScopes[]`, `minRetentionDays?`, `freezeWindows` (Json), `lockSso`, `sessionMaxHours?`, `idleTimeoutMinutes?`, `requireMfa`, `ipAllowlist[]`, `ipAllowlistManifests`, `updatedAt`, `updatedBy`; org RLS
+- [x] `OrgPolicy` model (one per organization): `approvalDefaults` (Json: `[{ environmentPattern, requiredApprovers, eligibleRoles, requireChangeTicket, ticketUrlPattern, expiryHours }]`), `maxApiKeyDays?`, `allowedKeyScopes[]`, `minRetentionDays?`, `freezeWindows` (Json), `lockSso`, `sessionMaxHours?`, `idleTimeoutMinutes?`, `ipAllowlist[]`, `ipAllowlistManifests`, `updatedAt`, `updatedBy`; org RLS (readable from the org's workspaces). `requireMfa` moves to SES-03 (9.7), with MFA itself
 
 #### Registry
 
-- [ ] `GET/PUT /api/orgs/:org/policy` with field-level before/after audit (`org.policy_updated`) (POL-01)
-- [ ] `services/policy.ts`: effective policy (instance → org → workspace, strictest wins) with sources; `GET /api/workspaces/:ws/policy` (POL-09)
-- [ ] Approval gate: when no stricter workspace policy exists, apply the org default matching the environment slug; workspace `PUT …/approval-policy` rejects weaker policies (`409 POLICY_VIOLATION`) (POL-02, ORG-08)
-- [ ] Key creation and rotation (workspace and org): enforce `maxApiKeyDays` and `allowedKeyScopes`; `policyViolations` on key lists (POL-03)
-- [ ] `PATCH /api/workspaces/:ws` and `harmoniq.yaml` apply: refuse `retentionDays` below the floor (POL-04)
-- [ ] `isFrozen` includes org freeze windows by environment pattern; org admin override endpoint with ENV-FRZ-03 audit metadata (POL-05)
-- [ ] Workspace SSO save refused while `lockSso`; `effectiveSso` ignores workspace SSO when locked (POL-06)
-- [ ] Refresh: enforce `sessionMaxHours` / `idleTimeoutMinutes` for users whose memberships are in the org (most restrictive) (POL-07)
-- [ ] IP allowlist check in `requireWorkspace` / `requireOrg` (users and keys); manifest and health routes only when `ipAllowlistManifests`; honours `trustProxy` (POL-08)
-- [ ] GitOps: `harmoniq.yaml` plan shows policy violations before apply
+- [x] `GET/PUT /api/orgs/:org/policy` with field-level before/after audit (`org.policy_updated`) (POL-01)
+- [x] `services/policy.ts`: effective policy (instance → org → workspace, strictest wins) with sources; `GET /api/workspaces/:ws/policy` (POL-09)
+- [x] Approval gate: when no stricter workspace policy exists, apply the org default matching the environment slug; workspace `PUT …/approval-policy` rejects weaker policies (`409 POLICY_VIOLATION`) (POL-02, ORG-08)
+- [x] Key creation and rotation (workspace and org): enforce `maxApiKeyDays` and `allowedKeyScopes`; `policyViolations` on key lists (POL-03)
+- [x] `PATCH /api/workspaces/:ws` and `harmoniq.yaml` apply: refuse `retentionDays` below the floor (POL-04)
+- [x] `isFrozen` includes org freeze windows by environment pattern; org admin override endpoint with ENV-FRZ-03 audit metadata (POL-05)
+- [x] Workspace SSO save refused while `lockSso`; `effectiveSso` ignores workspace SSO when locked (POL-06)
+- [x] Refresh: enforce `sessionMaxHours` / `idleTimeoutMinutes` for users whose memberships are in the org (most restrictive) (POL-07)
+- [x] IP allowlist check in `requireWorkspace` / `requireOrg` (users and keys); manifest and health routes only when `ipAllowlistManifests`; honours `trustProxy`; saving a list that excludes the caller is refused; manifests checked from memory, refreshed every 30 s (POL-08)
+- [x] GitOps: `harmoniq.yaml` plan shows policy violations before apply
 
 #### Dashboard
 
@@ -911,11 +911,11 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Test Suite
 
-- [ ] Policy resolution matrix (instance, org, workspace) for every field
-- [ ] Approval defaults applied to a workspace with no policy; weaker workspace policy refused; GitOps path
-- [ ] Key policy on create and rotate for workspace and org keys
-- [ ] Org freeze on matching environments only; override audited
-- [ ] Locked SSO; session lifetime and idle timeout at refresh; IP allowlist with and without proxies
+- [x] Policy resolution matrix (instance, org, workspace) for every field
+- [x] Approval defaults applied to a workspace with no policy; weaker workspace policy refused; GitOps path
+- [x] Key policy on create and rotate for workspace and org keys
+- [x] Org freeze on matching environments only; override audited
+- [x] Locked SSO; session lifetime and idle timeout at refresh; IP allowlist with and without proxies
 
 ### 9.6 Usage, Quotas & Plans (M5.6)
 

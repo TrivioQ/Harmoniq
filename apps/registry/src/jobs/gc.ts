@@ -31,13 +31,15 @@ export async function handleSoftDelete(
       FROM (
         SELECT v."id",
                v."deployedAt",
-               w."retentionDays",
+               -- POL-04: never below the organization's floor.
+               GREATEST(w."retentionDays", COALESCE(op."minRetentionDays", 0)) AS "retentionDays",
                row_number() OVER (
                  PARTITION BY v."remoteModuleId", v."environmentId"
                  ORDER BY v."deployedAt" DESC
                ) AS rank
         FROM "ModuleVersion" v
         JOIN "Workspace" w ON w."id" = v."workspaceId"
+        LEFT JOIN "OrgPolicy" op ON op."organizationId" = w."organizationId"
         WHERE v."deletedAt" IS NULL
       ) AS ranked
       WHERE mv."id" = ranked."id"
@@ -51,9 +53,11 @@ export async function handleSoftDelete(
       UPDATE "ManifestSnapshot" AS s
       SET "deletedAt" = now()
       FROM "Workspace" w
+      LEFT JOIN "OrgPolicy" op ON op."organizationId" = w."organizationId"
       WHERE w."id" = s."workspaceId"
         AND s."deletedAt" IS NULL
-        AND s."createdAt" < now() - make_interval(days => w."retentionDays")`;
+        AND s."createdAt" < now() - make_interval(
+          days => GREATEST(w."retentionDays", COALESCE(op."minRetentionDays", 0)))`;
     logger.info(`Soft deleted ${snapshots} manifest snapshots`);
   } catch (err) {
     logger.error('Failed to run gc.softDelete', err as Error);

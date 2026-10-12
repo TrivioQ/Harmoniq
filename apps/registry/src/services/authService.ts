@@ -206,6 +206,14 @@ export class AuthService {
       return null;
     }
 
+    // POL-07: the strictest session policy of the user's organizations.
+    const ended = await this.sessionPolicyEnds(record, now);
+    if (ended) {
+      await this.revokeFamily(record.familyId);
+      this.logger.info(`auth.session_ended user=${record.userId} reason=${ended}`);
+      return null;
+    }
+
     const claimed = await this.db.refreshToken.updateMany({
       where: { id: record.id, usedAt: null },
       data: { usedAt: new Date(now) },
@@ -248,6 +256,52 @@ export class AuthService {
       ssoRefreshToken,
       ssoCheckedAt,
     });
+  }
+
+  /**
+   * POL-07: why the organization policy ends this session (null: it may continue). The
+   * session started with the family's first token; it was last active when this token was
+   * issued (access tokens last minutes, so an active session refreshes often).
+   */
+  private async sessionPolicyEnds(
+    record: { userId: string; familyId: string; createdAt: Date },
+    now: number
+  ): Promise<'session_max' | 'idle_timeout' | null> {
+    const policies = await this.db.orgPolicy.findMany({
+      where: {
+        OR: [{ sessionMaxHours: { not: null } }, { idleTimeoutMinutes: { not: null } }],
+        organization: {
+          deletedAt: null,
+          OR: [
+            { Members: { some: { userId: record.userId } } },
+            {
+              Workspaces: {
+                some: { WorkspaceMembers: { some: { userId: record.userId } } },
+              },
+            },
+          ],
+        },
+      },
+      select: { sessionMaxHours: true, idleTimeoutMinutes: true },
+    });
+    if (!policies.length) return null;
+    const strictest = (values: (number | null)[]) => {
+      const set = values.filter((v): v is number => v !== null);
+      return set.length ? Math.min(...set) : null;
+    };
+    const idle = strictest(policies.map((p) => p.idleTimeoutMinutes));
+    if (idle !== null && now - record.createdAt.getTime() > idle * 60_000) return 'idle_timeout';
+    const maxHours = strictest(policies.map((p) => p.sessionMaxHours));
+    if (maxHours !== null) {
+      const first = await this.db.refreshToken.findFirst({
+        where: { familyId: record.familyId },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      });
+      const started = (first ?? record).createdAt.getTime();
+      if (now - started > maxHours * 3_600_000) return 'session_max';
+    }
+    return null;
   }
 
   async logout(rawToken: string): Promise<void> {

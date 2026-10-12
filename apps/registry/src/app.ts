@@ -34,6 +34,7 @@ import invitationRoutes from './routes/invitations';
 import accessRequestRoutes from './routes/accessRequests';
 import workspaceRoutes from './routes/workspaces';
 import gitopsRoutes from './routes/gitops';
+import workspacePolicyRoutes from './routes/policy';
 import authRoutes from './routes/auth';
 import jobsPlugin from './plugins/jobs';
 import metricsPlugin from './plugins/metrics';
@@ -261,6 +262,7 @@ export async function buildApp() {
   await app.register(staticRoutes);
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
+  await app.register(workspacePolicyRoutes);
   await app.register(workspaceRoutes);
   await app.register(domainRoutes);
   await app.register(transferRoutes);

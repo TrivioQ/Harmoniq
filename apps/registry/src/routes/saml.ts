@@ -20,6 +20,8 @@ import {
   samlUrls,
 } from '../services/saml';
 import { ssoProviderId } from '../services/ssoIds';
+import { PolicyViolationError } from '@harmoniq/core/dist/errors/AppError';
+import { orgPolicyFor } from '../services/policy';
 
 type SlugParams = { workspaceSlug: string };
 
@@ -160,6 +162,14 @@ const samlRoutes: FastifyPluginAsync = async (fastify) => {
       if (!fastify.ssoProviders.protocolEnabled('saml')) throw disabled('saml');
       const body = SamlConfigSchema.parse(request.body);
       const workspace = request.workspace!;
+      // POL-06: a locked organization's workspaces use the organization's SSO only.
+      await withTenant(workspace.id, async (tx) => {
+        if ((await orgPolicyFor(tx, workspace.organizationId))?.lockSso) {
+          throw new PolicyViolationError(
+            "The organization locks single sign-on: its workspaces use the organization's"
+          );
+        }
+      });
       await fastify.container.plans.requireForWorkspace(workspace.id, 'saml');
       const current = await withTenant(workspace.id, (tx) =>
         tx.workspaceConfig.findUnique({ where: { workspaceId: workspace.id } })

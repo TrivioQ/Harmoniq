@@ -60,6 +60,11 @@ func (c *Client) DeleteOrgsMembersByMemberId(ctx context.Context, orgSlug string
 	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/members/"+url.PathEscape(memberId), nil, query)
 }
 
+// DeleteOrgsPolicyFreezeWindowsOverride calls DELETE /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations).
+func (c *Client) DeleteOrgsPolicyFreezeWindowsOverride(ctx context.Context, orgSlug string, windowId string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/policy/freeze-windows/"+url.PathEscape(windowId)+"/override", nil, query)
+}
+
 // DeleteOrgsScim calls DELETE /api/orgs/{orgSlug}/scim (Organizations).
 func (c *Client) DeleteOrgsScim(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/scim", nil, query)
@@ -335,6 +340,11 @@ func (c *Client) GetOrgsPeople(ctx context.Context, orgSlug string, query url.Va
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/people", nil, query)
 }
 
+// GetOrgsPolicy calls GET /api/orgs/{orgSlug}/policy (Organizations).
+func (c *Client) GetOrgsPolicy(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/policy", nil, query)
+}
+
 // GetOrgsProvisioning calls GET /api/orgs/{orgSlug}/provisioning (Organizations).
 func (c *Client) GetOrgsProvisioning(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/provisioning", nil, query)
@@ -488,6 +498,11 @@ func (c *Client) GetWorkspacesModulesOwners(ctx context.Context, workspaceSlug s
 // GetWorkspacesModulesVersions calls GET /api/workspaces/{workspaceSlug}/modules/{moduleRef}/versions (Modules and versions).
 func (c *Client) GetWorkspacesModulesVersions(ctx context.Context, workspaceSlug string, moduleRef string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/modules/"+url.PathEscape(moduleRef)+"/versions", nil, query)
+}
+
+// GetWorkspacesPolicy calls GET /api/workspaces/{workspaceSlug}/policy (Workspaces).
+func (c *Client) GetWorkspacesPolicy(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/policy", nil, query)
 }
 
 // GetWorkspacesScheduledOperations calls GET /api/workspaces/{workspaceSlug}/scheduled-operations (Scheduled operations).
@@ -698,6 +713,11 @@ func (c *Client) PostOrgsKeysRotate(ctx context.Context, orgSlug string, keyId s
 // PostOrgsMembers calls POST /api/orgs/{orgSlug}/members (Organizations).
 func (c *Client) PostOrgsMembers(ctx context.Context, orgSlug string, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/members", body, query)
+}
+
+// PostOrgsPolicyFreezeWindowsOverride calls POST /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations).
+func (c *Client) PostOrgsPolicyFreezeWindowsOverride(ctx context.Context, orgSlug string, windowId string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/policy/freeze-windows/"+url.PathEscape(windowId)+"/override", nil, query)
 }
 
 // PostOrgsScimToken calls POST /api/orgs/{orgSlug}/scim/token (Organizations).
@@ -943,6 +963,11 @@ func (c *Client) PutAdminSettingsByKey(ctx context.Context, key string, query ur
 // PutAdminWorkspacesPlan calls PUT /api/admin/workspaces/{slug}/plan (Instance administration).
 func (c *Client) PutAdminWorkspacesPlan(ctx context.Context, slug string, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "PUT", "/api/admin/workspaces/"+url.PathEscape(slug)+"/plan", body, query)
+}
+
+// PutOrgsPolicy calls PUT /api/orgs/{orgSlug}/policy (Organizations).
+func (c *Client) PutOrgsPolicy(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "PUT", "/api/orgs/"+url.PathEscape(orgSlug)+"/policy", nil, query)
 }
 
 // PutOrgsProvisioning calls PUT /api/orgs/{orgSlug}/provisioning (Organizations).

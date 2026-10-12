@@ -51,6 +51,10 @@ class Client(BaseClient):
         """DELETE /api/orgs/{orgSlug}/members/{memberId} (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/members/" + _q(member_id), None, query)
 
+    def delete_orgs_policy_freeze_windows_override(self, org_slug, window_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/policy/freeze-windows/" + _q(window_id) + "/override", None, query)
+
     def delete_orgs_scim(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug}/scim (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/scim", None, query)
@@ -271,6 +275,10 @@ class Client(BaseClient):
         """GET /api/orgs/{orgSlug}/people (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/people", None, query)
 
+    def get_orgs_policy(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/policy (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/policy", None, query)
+
     def get_orgs_provisioning(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/provisioning (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/provisioning", None, query)
@@ -394,6 +402,10 @@ class Client(BaseClient):
     def get_workspaces_modules_versions(self, workspace_slug, module_ref, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/modules/{moduleRef}/versions (Modules and versions)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/modules/" + _q(module_ref) + "/versions", None, query)
+
+    def get_workspaces_policy(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/policy (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/policy", None, query)
 
     def get_workspaces_scheduled_operations(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/scheduled-operations (Scheduled operations)."""
@@ -562,6 +574,10 @@ class Client(BaseClient):
     def post_orgs_members(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/members (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/members", body, query)
+
+    def post_orgs_policy_freeze_windows_override(self, org_slug, window_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/policy/freeze-windows/" + _q(window_id) + "/override", None, query)
 
     def post_orgs_scim_token(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/scim/token (Organizations)."""
@@ -758,6 +774,10 @@ class Client(BaseClient):
     def put_admin_workspaces_plan(self, slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PUT /api/admin/workspaces/{slug}/plan (Instance administration)."""
         return self.request("PUT", "/api/admin/workspaces/" + _q(slug) + "/plan", body, query)
+
+    def put_orgs_policy(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PUT /api/orgs/{orgSlug}/policy (Organizations)."""
+        return self.request("PUT", "/api/orgs/" + _q(org_slug) + "/policy", None, query)
 
     def put_orgs_provisioning(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PUT /api/orgs/{orgSlug}/provisioning (Organizations)."""

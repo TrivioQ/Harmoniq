@@ -17,7 +17,13 @@ import { SamlService } from './saml';
 import { openSecret } from './crypto';
 import { audit } from './audit';
 import { isDeprovisioned } from './scim';
-import { SsoProtocol, SsoSubject, parseSsoProviderId, ssoProviderId } from './ssoIds';
+import {
+  SsoProtocol,
+  SsoSubject,
+  ownSsoAllowed,
+  parseSsoProviderId,
+  ssoProviderId,
+} from './ssoIds';
 
 /**
  * What `WorkspaceConfig.oidcConfig` (or `Organization.oidcConfig`) holds: the config with
@@ -138,7 +144,7 @@ export class SsoProviders {
       subject.kind === 'workspace'
         ? (
             await systemDb.workspaceConfig.findFirst({
-              where: { workspace: { slug: subject.slug } },
+              where: { workspace: { slug: subject.slug, ...ownSsoAllowed } },
             })
           )?.oidcConfig
         : (

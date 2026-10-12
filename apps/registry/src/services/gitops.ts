@@ -7,6 +7,7 @@ import type { TenantTx } from '@harmoniq/db';
 import { BadRequestError, ValidationError } from '@harmoniq/core/dist/errors/AppError';
 import type { GitOpsChange, GitOpsConfig } from '@harmoniq/core/dist/schemas/GitOpsConfigSchema';
 import { openSecret, sealSecret } from './crypto';
+import { approvalDefaultFor, orgPolicyFor, weakerThan } from './policy';
 
 /*
  * IaC-09..12: reconciles a workspace with its `harmoniq.yaml`. Declared resources are
@@ -135,6 +136,24 @@ export async function reconcile(
       problems.push(
         `alert rule "${r.name}": no environment ${r.environment} in ${key.split('/')[0]}`
       );
+    }
+  }
+  // POL-02: approval policies weaker than the organization's defaults, shown by the plan.
+  const { organizationId } = await tx.workspace.findUniqueOrThrow({
+    where: { id: workspaceId },
+    select: { organizationId: true },
+  });
+  const orgPolicy = await orgPolicyFor(tx, organizationId);
+  for (const h of config.hostApps ?? []) {
+    for (const e of h.environments ?? []) {
+      const floor = approvalDefaultFor(orgPolicy, e.slug);
+      if (!floor || e.approvalPolicy === undefined) continue;
+      const reasons = e.approvalPolicy
+        ? weakerThan({ ...e.approvalPolicy, ticketUrlPattern: null }, floor)
+        : [];
+      for (const reason of reasons) {
+        problems.push(`${h.slug}/${e.slug}: approval policy ${reason} (organization policy)`);
+      }
     }
   }
   if (problems.length) throw new ValidationError('The configuration has problems', { problems });

@@ -13,6 +13,7 @@ import { AuditActor, audit } from './audit';
 import { BuiltManifest, buildManifest } from './manifestBuilder';
 import { invalidateManifest, lastKnownGoodKey, manifestKey } from './cacheKeys';
 import { WebhookDispatcher } from './webhookDispatcher';
+import { activeOrgFreeze, orgPolicyFor } from './policy';
 
 export const MANIFEST_CACHE_TTL_SECONDS = 3600;
 
@@ -98,6 +99,33 @@ export class ManifestMutations {
     const committed = await this.deps.withTenant(workspace.id, async (tx) => {
       // Read inside the transaction so a concurrent freeze can't slip past (ENV-FRZ-02).
       const env = await tx.environment.findUniqueOrThrow({ where: { id: environment.id } });
+      // POL-05: an organization freeze window binds every workspace; only an org admin's
+      // override lets changes through (a workspace owner's override does not).
+      const orgFreeze = opts.ignoreFreeze
+        ? null
+        : activeOrgFreeze(
+            await orgPolicyFor(
+              tx,
+              (
+                await tx.workspace.findUniqueOrThrow({
+                  where: { id: workspace.id },
+                  select: { organizationId: true },
+                })
+              ).organizationId
+            ),
+            env.slug
+          );
+      if (orgFreeze && !orgFreeze.overridden) {
+        throw new LockedError(
+          `Environment "${env.slug}" is frozen by the organization: ${orgFreeze.window.reason}`,
+          {
+            environment: env.slug,
+            organizationFreeze: orgFreeze.window.id,
+            freezeUntil: orgFreeze.window.until ?? null,
+            reason: orgFreeze.window.reason,
+          }
+        );
+      }
       const frozen = isFrozen(env);
       if (frozen && !opts.ignoreFreeze && actor.freezeOverride) {
         // ENV-FRZ-03: an owner's documented override (authorized by the route).
@@ -132,6 +160,12 @@ export class ManifestMutations {
       const outcome = await operation(tx);
       if (actor.approval) {
         outcome.audit.metadata = { ...outcome.audit.metadata, approval: actor.approval };
+      }
+      if (orgFreeze?.overridden) {
+        outcome.audit.metadata = {
+          ...outcome.audit.metadata,
+          orgFreezeOverride: { window: orgFreeze.window.id, ...orgFreeze.window.override },
+        };
       }
       if (overrideWindow) {
         outcome.audit.metadata = {

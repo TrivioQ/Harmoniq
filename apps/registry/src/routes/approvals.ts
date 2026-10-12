@@ -10,6 +10,7 @@ import {
   ApprovalDecisionSchema,
 } from '@harmoniq/core/dist/schemas/ApprovalDecisionSchema';
 import { audit } from '../services/audit';
+import { assertApprovalPolicy, orgPolicyFor } from '../services/policy';
 import { claim, decisionEligibility, executeRequest } from '../services/approvals';
 
 type EnvParams = { workspaceSlug: string; hostAppSlug: string; envSlug: string };
@@ -82,6 +83,8 @@ const approvalRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.container.plans.requireForWorkspace(workspace.id, 'approvals');
       return withTenant(workspace.id, async (tx) => {
         const data = { ...body, ticketUrlPattern: body.ticketUrlPattern ?? null };
+        // POL-02: stricter than the organization's default, never weaker.
+        assertApprovalPolicy(await orgPolicyFor(tx, workspace.organizationId), env.slug, data);
         const policy = await tx.approvalPolicy.upsert({
           where: {
             workspaceId_environmentId: { workspaceId: workspace.id, environmentId: env.id },

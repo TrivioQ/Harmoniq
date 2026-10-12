@@ -397,7 +397,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   // HST-01: canonical endpoint. Public (MAN-05).
   fastify.get<{ Params: CanonicalParams; Querystring: { pretty?: string } }>(
     '/api/manifest/:workspaceSlug/:hostAppSlug/:env',
-    { config: rateLimit },
+    // POL-08: the organization's allowlist, when it includes manifests.
+    { config: rateLimit, preHandler: fastify.requireDeliveryIp },
     (request, reply) =>
       serve(
         request,
@@ -411,7 +412,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   // HST-02: legacy endpoint, resolves to the workspace's default host app.
   fastify.get<{ Params: LegacyParams; Querystring: { pretty?: string } }>(
     '/api/manifest/:workspaceSlug/:env',
-    { config: rateLimit },
+    // POL-08: the organization's allowlist, when it includes manifests.
+    { config: rateLimit, preHandler: fastify.requireDeliveryIp },
     (request, reply) =>
       serve(request, reply, request.params.workspaceSlug, null, request.params.env)
   );
@@ -419,7 +421,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   // IMP-01..06: standards-compliant import map (also valid for SystemJS).
   fastify.get<{ Params: CanonicalParams; Querystring: { format?: string } }>(
     '/api/importmap/:workspaceSlug/:hostAppSlug/:env',
-    { config: rateLimit },
+    // POL-08: the organization's allowlist, when it includes manifests.
+    { config: rateLimit, preHandler: fastify.requireDeliveryIp },
     (request, reply) =>
       serveDerived(
         request,
@@ -435,7 +438,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   // Native Federation (`@angular-architects/native-federation`): { name: remoteEntry URL }.
   fastify.get<{ Params: CanonicalParams }>(
     '/api/federation-manifest/:workspaceSlug/:hostAppSlug/:env',
-    { config: rateLimit },
+    // POL-08: the organization's allowlist, when it includes manifests.
+    { config: rateLimit, preHandler: fastify.requireDeliveryIp },
     (request, reply) =>
       serveDerived(request, reply, 'federation', 'application/json', toFederationManifest)
   );

@@ -30,6 +30,8 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/health/:workspaceSlug/:hostAppSlug/:env',
     {
       bodyLimit: 64 * 1024,
+      // POL-08: the organization's allowlist, when it includes manifests and health.
+      preHandler: fastify.requireDeliveryIp,
       config: {
         rateLimit: {
           max: 120,
