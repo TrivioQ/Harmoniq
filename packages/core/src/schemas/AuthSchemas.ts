@@ -111,6 +111,13 @@ export const MeResponseSchema = z.object({
   deletedWorkspaces: z
     .array(z.object({ slug: z.string(), name: z.string(), purgeAfter: z.string().nullable() }))
     .default([]),
+  /** INST-31: an instance admin's role and what it may do (absent for everyone else). */
+  instanceAdmin: z
+    .object({
+      role: z.enum(['instance_owner', 'instance_operator', 'instance_support', 'instance_billing']),
+      capabilities: z.array(z.string()),
+    })
+    .optional(),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 

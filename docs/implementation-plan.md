@@ -1022,10 +1022,10 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Dashboard
 
-- [ ] `/admin/admins`: role picker, pending invitations, role badges; navigation hides what the role can't do
-- [ ] Re-authentication dialog before destructive actions
-- [ ] `/admin/api-keys` page; `/admin/settings` pages for the new keys with source badges (database or environment); history drawer with diff and restore; export and import
-- [ ] Encryption page: active key id, values per key, "re-seal now"
+- [x] `/admin/admins`: role picker, pending invitations, role badges; navigation hides what the role can't do (`/api/me` returns `instanceAdmin: { role, capabilities }`; owner-only pages leave the nav)
+- [x] Re-authentication dialog before destructive actions (a `REAUTH_REQUIRED` refusal makes `ActionForm` ask for a TOTP or recovery code, then the action is submitted again; without MFA, sign in again)
+- [x] `/admin/api-keys` page; `/admin/settings` pages for the new keys with source badges (database or environment); history drawer with diff and restore; export and import (`/admin/settings/:key`: JSON editor for `plans`, `rateLimits`, `gc`, `bundles`; versions with changed fields and restore for every key)
+- [x] Encryption page: active key id, values per key, "re-seal now"
 
 #### Test Suite
 

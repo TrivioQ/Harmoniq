@@ -101,6 +101,14 @@ describe('Instance admin access (INST-31..33)', () => {
     const status = async (as: string, method: Method, url: string, body?: object) =>
       (await api(as, method, url, body)).statusCode;
 
+    // The dashboard learns the role (to hide what it can't do); others get nothing.
+    expect((await api(billing.token, 'GET', '/api/me')).json().instanceAdmin).toEqual({
+      role: 'instance_billing',
+      capabilities: ['read', 'plans'],
+    });
+    expect(
+      (await api(await fx.session(target), 'GET', '/api/me')).json().instanceAdmin
+    ).toBeUndefined();
     // Everyone reads.
     for (const a of [support, billing, operator, owner]) {
       expect(await status(a.token, 'GET', '/api/admin/users')).toBe(200);

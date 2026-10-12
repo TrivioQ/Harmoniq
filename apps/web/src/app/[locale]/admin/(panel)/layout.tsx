@@ -25,6 +25,7 @@ export default async function AdminPanelLayout({ children }: { children: React.R
           </span>
         </div>
         <AdminNav
+          owner={(me.instanceAdmin?.capabilities ?? ['owner']).includes('owner')}
           labels={{
             dashboard: t('dashboard'),
             health: t('health'),
@@ -37,6 +38,9 @@ export default async function AdminPanelLayout({ children }: { children: React.R
             email: t('email'),
             auth: t('auth'),
             branding: t('branding'),
+            settings: t('settings'),
+            apiKeys: t('apiKeys'),
+            encryption: t('encryption'),
             audit: t('audit'),
             exitAdmin: t('exitAdmin'),
           }}

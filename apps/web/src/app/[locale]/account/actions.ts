@@ -119,3 +119,21 @@ export async function disableMfaAction(_prev: ActionResult, form: FormData) {
     (t) => ({ status: 'success', message: t('mfaDisabled') })
   );
 }
+
+/**
+ * INST-32: proves it is still you with a TOTP or recovery code; this session's new tokens
+ * count as re-authenticated for 10 minutes (destructive admin actions).
+ */
+export async function reauthAction(_prev: ActionResult, form: FormData): Promise<ActionResult> {
+  const store = await cookies();
+  const refreshToken = store.get(REFRESH_COOKIE)?.value;
+  return run(
+    async () => {
+      const session = await authedFetch<SessionResponse>('/api/auth/reauth', {
+        body: { code: code(form), refreshToken },
+      });
+      setSessionCookies(store, session);
+    },
+    (t) => ({ status: 'success', message: t('reauthenticated') })
+  );
+}

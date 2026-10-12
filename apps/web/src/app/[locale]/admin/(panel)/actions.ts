@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { getTranslations } from 'next-intl/server';
 import type { ActionResult } from '@/lib/actionResult';
 import { RegistryError, authedFetch } from '@/lib/registry';
+import type { SettingKey } from '@/lib/adminApi';
 
 // INST-07..10: every change goes through the registry's admin API, which checks the
 // instance admin and records it (INST-18).
@@ -27,6 +28,8 @@ async function run(
     return {
       status: 'error',
       message: err instanceof RegistryError ? err.message : t('unexpectedError'),
+      // INST-32: ActionForm then asks for a code and the action is submitted again.
+      ...(err instanceof RegistryError && err.code === 'REAUTH_REQUIRED' && { reauth: true }),
     };
   }
 }
@@ -155,10 +158,88 @@ export async function deleteUserAction(
   );
 }
 
+/** INST-31: grants a role, or invites an email that hasn't signed in yet. */
 export async function grantAdminAction(_prev: ActionResult, form: FormData) {
   return run(
-    () => authedFetch('/api/admin/admins', { body: { email: field(form, 'email') } }),
-    (t) => ({ status: 'success', message: t('adminGranted') })
+    () =>
+      authedFetch<{ invited?: boolean }>('/api/admin/admins', {
+        body: { email: field(form, 'email'), role: field(form, 'role') || 'instance_owner' },
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: (r as { invited?: boolean }).invited ? t('adminInvited') : t('adminGranted'),
+    })
+  );
+}
+
+export async function changeAdminRoleAction(
+  userId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(`/api/admin/admins/${enc(userId)}`, {
+        method: 'PATCH',
+        body: { role: field(form, 'role') },
+      }),
+    (t) => ({ status: 'success', message: t('adminRoleChanged') })
+  );
+}
+
+export async function revokeAdminInvitationAction(id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/admin-invitations/${enc(id)}`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('invitationRevoked') })
+  );
+}
+
+// ─── Instance API keys (INST-33) ─────────────────────────────────────────────
+
+export async function createInstanceKeyAction(
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const expires = field(form, 'expiresAt');
+  return run(
+    () =>
+      authedFetch<{ key: string }>('/api/admin/api-keys', {
+        body: {
+          name: field(form, 'name'),
+          scopes: [field(form, 'scope') === 'instance:admin' ? 'instance:admin' : 'instance:read'],
+          ...(expires && { expiresAt: new Date(`${expires}T23:59:59.999Z`).toISOString() }),
+        },
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: t('instanceKeyCreated'),
+      secret: (r as { key: string }).key,
+    })
+  );
+}
+
+export async function revokeInstanceKeyAction(id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/api-keys/${enc(id)}`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('keyRevoked') })
+  );
+}
+
+// ─── Encryption (INST-26) ────────────────────────────────────────────────────
+
+export async function resealAction(_prev: ActionResult) {
+  return run(
+    () =>
+      authedFetch<{ queued: boolean; resealed?: number }>('/api/admin/encryption/reseal', {
+        method: 'POST',
+      }),
+    (t, r) => {
+      const result = r as { queued: boolean; resealed?: number };
+      return {
+        status: 'success',
+        message: result.queued ? t('resealQueued') : t('resealed', { count: result.resealed ?? 0 }),
+      };
+    }
   );
 }
 
@@ -171,12 +252,12 @@ export async function revokeAdminAction(userId: string, _prev: ActionResult) {
 
 // ─── Instance settings (INST-11..14) ─────────────────────────────────────────
 
-type SettingKey = 'storage' | 'email' | 'auth' | 'branding' | 'tenancy';
+type FormSettingKey = 'storage' | 'email' | 'auth' | 'branding' | 'tenancy';
 const optional = (form: FormData, name: string) => field(form, name) || undefined;
 const checked = (form: FormData, name: string) => form.get(name) === 'on';
 
 /** The setting's body from its form; empty secrets keep the stored ones. */
-function settingBody(key: SettingKey, form: FormData) {
+function settingBody(key: FormSettingKey, form: FormData) {
   switch (key) {
     case 'storage': {
       const adapter = field(form, 'adapter');
@@ -257,7 +338,7 @@ function settingBody(key: SettingKey, form: FormData) {
 }
 
 export async function saveSettingAction(
-  key: SettingKey,
+  key: FormSettingKey,
   _prev: ActionResult,
   form: FormData
 ): Promise<ActionResult> {
@@ -284,6 +365,64 @@ export async function resetSettingAction(key: SettingKey, _prev: ActionResult) {
   return run(
     () => authedFetch(`/api/admin/settings/${key}`, { method: 'DELETE' }),
     (t) => ({ status: 'success', message: t('settingReset') })
+  );
+}
+
+/** INST-34: settings edited as JSON (plans, rate limits, GC, bundles). */
+export async function saveSettingJsonAction(
+  key: SettingKey,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  let value: unknown;
+  try {
+    value = JSON.parse(field(form, 'value') || '{}');
+  } catch {
+    const t = await getTranslations('Actions');
+    return { status: 'error', message: t('settingNotJson') };
+  }
+  return run(
+    () => authedFetch(`/api/admin/settings/${key}`, { method: 'PUT', body: value }),
+    (t) => ({ status: 'success', message: t('settingSaved') })
+  );
+}
+
+/** INST-35: a saved version becomes the current value (recorded as a new version). */
+export async function restoreSettingVersionAction(
+  key: SettingKey,
+  version: number,
+  _prev: ActionResult
+) {
+  return run(
+    () => authedFetch(`/api/admin/settings/${key}/history/${version}/restore`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('settingRestored', { version }) })
+  );
+}
+
+/** INST-35: an export, checked first (dry run); applied when `apply` is ticked. */
+export async function importSettingsAction(
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const apply = checked(form, 'apply');
+  return run(
+    () =>
+      authedFetch<{ settings: Array<{ key: string; changed: string[] }> }>(
+        '/api/admin/settings/import',
+        { method: 'PUT', body: { yaml: String(form.get('yaml') ?? ''), dryRun: !apply } }
+      ),
+    (t, r) => {
+      const changes = (r as { settings: Array<{ key: string; changed: string[] }> }).settings
+        .filter((s) => s.changed.length)
+        .map((s) => `${s.key}: ${s.changed.join(', ')}`);
+      if (!changes.length) return { status: 'success', message: t('importNoChanges') };
+      return {
+        status: 'success',
+        message: apply
+          ? t('importApplied', { changes: changes.join('; ') })
+          : t('importPreview', { changes: changes.join('; ') }),
+      };
+    }
   );
 }
 

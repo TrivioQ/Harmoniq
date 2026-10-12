@@ -68,13 +68,67 @@ export interface AdminUser {
   suspendedReason?: string | null;
 }
 
+export const ADMIN_ROLES = [
+  'instance_owner',
+  'instance_operator',
+  'instance_support',
+  'instance_billing',
+] as const;
+export type AdminRole = (typeof ADMIN_ROLES)[number];
+
 export interface InstanceAdminEntry {
   id: string;
   email: string;
   name: string | null;
   lastLoginAt: string | null;
+  /** INST-31/32 */
+  mfa?: boolean;
+  role?: AdminRole;
+  capabilities?: string[];
   grantedBy: string;
   since: string;
+}
+
+/** INST-31: an email invited to administer the instance, accepted at its next sign-in. */
+export interface AdminInvitation {
+  id: string;
+  email: string;
+  role: AdminRole;
+  expiresAt: string;
+  createdAt: string;
+}
+
+/** INST-33 */
+export interface InstanceApiKeyEntry {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: Array<'instance:read' | 'instance:admin'>;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  revokedAt: string | null;
+}
+
+/** INST-35: one saved version of a setting (secrets never shown). */
+export interface SettingVersion {
+  version: number;
+  source: 'save' | 'restore' | 'import' | 'reset';
+  createdAt: string;
+  createdBy: string;
+  value: Record<string, unknown>;
+  changed: string[];
+  secretsChanged: boolean;
+}
+
+/** INST-26: sealed values per encryption key. */
+export interface EncryptionReport {
+  active: string;
+  keys: Array<{ id: string; label: string; active: boolean; values: number }>;
+  legacy: number;
+  unknownKeys: Array<{ id: string; values: number }>;
+  stale: number;
 }
 
 export interface InstanceAuditEvent {
@@ -144,7 +198,39 @@ export interface InstanceSettingsView {
     creation?: 'anyone' | 'verified_domains' | 'instance_admins';
     allowedDomains?: string[];
   }>;
+  /** INST-34: plans, rate limits, retention and bundle validation. */
+  plans?: SettingView;
+  rateLimits?: SettingView;
+  gc?: SettingView<{
+    keepVersions?: number;
+    defaultRetentionDays?: number;
+    healthEventRetentionHours?: number;
+    healthRollupRetentionDays?: number;
+  }>;
+  bundles?: SettingView<{ validate?: boolean }>;
 }
+
+export const SETTING_KEYS = [
+  'storage',
+  'email',
+  'auth',
+  'branding',
+  'tenancy',
+  'plans',
+  'rateLimits',
+  'gc',
+  'bundles',
+] as const;
+export type SettingKey = (typeof SETTING_KEYS)[number];
+
+/** Settings with a page of their own; the others are edited as JSON at /admin/settings/:key. */
+export const SETTING_PAGES: Partial<Record<SettingKey, string>> = {
+  storage: '/admin/storage',
+  email: '/admin/email',
+  auth: '/admin/auth',
+  tenancy: '/admin/auth',
+  branding: '/admin/branding',
+};
 
 const query = (params: Record<string, string | undefined>) => {
   const qs = new URLSearchParams(
@@ -165,7 +251,16 @@ export const adminApi = {
     authedFetch<{ users: AdminUser[]; nextCursor: string | null }>(
       `/api/admin/users${query(params)}`
     ),
-  admins: () => authedFetch<{ admins: InstanceAdminEntry[] }>('/api/admin/admins'),
+  admins: () =>
+    authedFetch<{ admins: InstanceAdminEntry[]; invitations?: AdminInvitation[] }>(
+      '/api/admin/admins'
+    ),
+  apiKeys: () => authedFetch<{ keys: InstanceApiKeyEntry[] }>('/api/admin/api-keys'),
+  settingHistory: (key: SettingKey) =>
+    authedFetch<{ versions: SettingVersion[] }>(
+      `/api/admin/settings/${encodeURIComponent(key)}/history`
+    ),
+  encryption: () => authedFetch<EncryptionReport>('/api/admin/encryption'),
   orgs: () =>
     authedFetch<{
       organizations: Array<{

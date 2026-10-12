@@ -22,6 +22,7 @@ import { EmailIdentityProvider } from '../adapters/identity/EmailIdentityProvide
 import { AuthService, ClientInfo } from '../services/authService';
 import { accountRoutes } from './account';
 import { ssoScope } from '../plugins/authenticate';
+import { capabilitiesOf } from '../services/adminAccess';
 import { provisionSsoMember } from '../services/sso';
 import { provisionOrgSsoMember } from '../services/orgProvisioning';
 import {
@@ -489,6 +490,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
             name: m.workspace.name,
             purgeAfter: m.workspace.purgeAfter?.toISOString() ?? null,
           })),
+      ...(!scope &&
+        user.isInstanceAdmin &&
+        principal.instanceRole && {
+          instanceAdmin: {
+            role: principal.instanceRole,
+            capabilities: capabilitiesOf(principal.instanceRole),
+          },
+        }),
     };
     return body;
   });
