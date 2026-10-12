@@ -6,6 +6,8 @@ import type { WorkspaceStorageConfigResponse } from '@harmoniq/core/dist/schemas
 import { authedFetch } from '@/lib/registry';
 import { StorageForm } from '@/components/StorageForm';
 import { workspaceApi } from '@/lib/workspaceApi';
+import { ActionForm } from '@/components/ActionForm';
+import { deleteWorkspaceAction } from '../../../lifecycleActions';
 
 export default async function StorageSettingsPage(props: {
   params: Promise<{ workspaceSlug: string }>;
@@ -19,13 +21,37 @@ export default async function StorageSettingsPage(props: {
     workspaceApi.get(workspaceSlug),
   ]);
   return (
-    <section className="rounded-xl border bg-card p-6 space-y-4 max-w-2xl">
-      <h3 className="font-semibold">{t('storage')}</h3>
-      <StorageForm
-        slug={workspaceSlug}
-        initial={res.storageConfig}
-        plan={{ allowed: detail.features?.byob ?? true, name: detail.plan ?? 'hobby' }}
-      />
-    </section>
+    <>
+      <section className="rounded-xl border bg-card p-6 space-y-4 max-w-2xl">
+        <h3 className="font-semibold">{t('storage')}</h3>
+        <StorageForm
+          slug={workspaceSlug}
+          initial={res.storageConfig}
+          plan={{ allowed: detail.features?.byob ?? true, name: detail.plan ?? 'hobby' }}
+        />
+      </section>
+      {/* TLC-01: owners delete the workspace; restorable for a while (TLC-02). */}
+      {detail.role === 'owner' && (
+        <section className="rounded-xl border border-red-200 bg-card p-6 space-y-3 max-w-2xl">
+          <h3 className="font-semibold text-red-700">{t('dangerZone')}</h3>
+          <p className="text-sm text-muted-foreground">{t('deleteHint')}</p>
+          <ActionForm
+            action={deleteWorkspaceAction.bind(null, workspaceSlug)}
+            submitLabel={t('deleteWorkspace')}
+            variant="danger"
+            confirm={t('deleteConfirm', { workspace: workspaceSlug })}
+            className="flex flex-wrap gap-2"
+          >
+            <input
+              name="confirm"
+              required
+              placeholder={workspaceSlug}
+              aria-label={t('typeSlug')}
+              className="rounded-md border px-3 py-1.5 text-sm font-mono"
+            />
+          </ActionForm>
+        </section>
+      )}
+    </>
   );
 }

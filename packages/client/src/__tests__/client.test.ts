@@ -249,6 +249,24 @@ describe('HarmoniqClient', () => {
       expect(client.getModuleEntry('checkout')?.version).toBe('0.9.0');
     });
 
+    it('treats a deleted workspace (410) like a missing one: fallback, no tight retry loop', async () => {
+      const { fetchImpl } = fakeRegistry([410]);
+      const client = new HarmoniqClient({
+        ...options(fetchImpl, 1_000),
+        fallbackManifest: manifest('0.9.0'),
+      });
+      await client.init();
+      expect(client.getSource()).toBe('fallback');
+      expect(client.getModuleEntry('checkout')?.version).toBe('0.9.0');
+      const calls = (fetchImpl as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
+      // Backoff after failures: a few seconds bring at most a couple more attempts.
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(
+        (fetchImpl as unknown as { mock: { calls: unknown[] } }).mock.calls.length - calls
+      ).toBeLessThanOrEqual(3);
+      client.destroy();
+    });
+
     it('ignores a persisted manifest for another environment', async () => {
       const store = memoryStore();
       store.setItem(

@@ -71,6 +71,10 @@ class Client(BaseClient):
         """DELETE /api/workspaces/{workspaceSlug}/api-keys/{keyId} (API keys and members)."""
         return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug) + "/api-keys/" + _q(key_id), None, query)
 
+    def delete_workspaces_by_workspace_slug(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/workspaces/{workspaceSlug} (Workspaces)."""
+        return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug), None, query)
+
     def delete_workspaces_domains_by_domain(self, workspace_slug, domain, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/workspaces/{workspaceSlug}/domains/{domain} (Workspaces)."""
         return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug) + "/domains/" + _q(domain), None, query)
@@ -427,6 +431,18 @@ class Client(BaseClient):
         """POST /api/admin/admins (Instance administration)."""
         return self.request("POST", "/api/admin/admins", body, query)
 
+    def post_admin_orgs_restore(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/orgs/{slug}/restore (Instance administration)."""
+        return self.request("POST", "/api/admin/orgs/" + _q(slug) + "/restore", None, query)
+
+    def post_admin_orgs_suspend(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/orgs/{slug}/suspend (Instance administration)."""
+        return self.request("POST", "/api/admin/orgs/" + _q(slug) + "/suspend", None, query)
+
+    def post_admin_orgs_unsuspend(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/orgs/{slug}/unsuspend (Instance administration)."""
+        return self.request("POST", "/api/admin/orgs/" + _q(slug) + "/unsuspend", None, query)
+
     def post_admin_settings_email_test(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/settings/email/test (Instance administration)."""
         return self.request("POST", "/api/admin/settings/email/test", None, query)
@@ -450,6 +466,10 @@ class Client(BaseClient):
     def post_admin_users_revoke_sessions(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/users/{id}/revoke-sessions (Instance administration)."""
         return self.request("POST", "/api/admin/users/" + _q(id) + "/revoke-sessions", None, query)
+
+    def post_admin_workspaces_restore(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/workspaces/{slug}/restore (Instance administration)."""
+        return self.request("POST", "/api/admin/workspaces/" + _q(slug) + "/restore", None, query)
 
     def post_admin_workspaces_suspend(self, slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/workspaces/{slug}/suspend (Instance administration)."""
@@ -594,6 +614,10 @@ class Client(BaseClient):
     def post_workspaces_modules_upload_url(self, workspace_slug, module_ref, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/modules/{moduleRef}/upload-url (Modules and versions)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/modules/" + _q(module_ref) + "/upload-url", None, query)
+
+    def post_workspaces_restore(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/restore (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/restore", None, query)
 
     def post_workspaces_scheduled_operations(self, workspace_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/scheduled-operations (Scheduled operations)."""

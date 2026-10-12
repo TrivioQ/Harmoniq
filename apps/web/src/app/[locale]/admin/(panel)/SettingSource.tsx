@@ -10,7 +10,7 @@ export async function SettingSource({
   settingKey,
   source,
 }: {
-  settingKey: 'storage' | 'email' | 'auth' | 'branding';
+  settingKey: 'storage' | 'email' | 'auth' | 'branding' | 'tenancy';
   source: 'database' | 'environment';
 }) {
   const t = await getTranslations('AdminSettings');

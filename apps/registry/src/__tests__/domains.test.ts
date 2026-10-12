@@ -124,7 +124,11 @@ describe('Verified domains (DOM-01..05)', () => {
     expect(ok.json().verified).toBe(true);
     expect(
       await db().organizationAuditEvent.findFirst({
-        where: { action: 'domain.verify', resourceId: domain, organization: { slug: orgA } },
+        where: {
+          action: 'domain.verify',
+          resourceId: domain,
+          organizationId: (await db().organization.findUniqueOrThrow({ where: { slug: orgA } })).id,
+        },
       })
     ).not.toBeNull();
   });

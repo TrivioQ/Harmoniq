@@ -85,6 +85,11 @@ func (c *Client) DeleteWorkspacesApiKeysByKeyId(ctx context.Context, workspaceSl
 	return c.Do(ctx, "DELETE", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/api-keys/"+url.PathEscape(keyId), nil, query)
 }
 
+// DeleteWorkspacesByWorkspaceSlug calls DELETE /api/workspaces/{workspaceSlug} (Workspaces).
+func (c *Client) DeleteWorkspacesByWorkspaceSlug(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/workspaces/"+url.PathEscape(workspaceSlug), nil, query)
+}
+
 // DeleteWorkspacesDomainsByDomain calls DELETE /api/workspaces/{workspaceSlug}/domains/{domain} (Workspaces).
 func (c *Client) DeleteWorkspacesDomainsByDomain(ctx context.Context, workspaceSlug string, domain string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/domains/"+url.PathEscape(domain), nil, query)
@@ -530,6 +535,21 @@ func (c *Client) PostAdminAdmins(ctx context.Context, body any, query url.Values
 	return c.Do(ctx, "POST", "/api/admin/admins", body, query)
 }
 
+// PostAdminOrgsRestore calls POST /api/admin/orgs/{slug}/restore (Instance administration).
+func (c *Client) PostAdminOrgsRestore(ctx context.Context, slug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/orgs/"+url.PathEscape(slug)+"/restore", nil, query)
+}
+
+// PostAdminOrgsSuspend calls POST /api/admin/orgs/{slug}/suspend (Instance administration).
+func (c *Client) PostAdminOrgsSuspend(ctx context.Context, slug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/orgs/"+url.PathEscape(slug)+"/suspend", nil, query)
+}
+
+// PostAdminOrgsUnsuspend calls POST /api/admin/orgs/{slug}/unsuspend (Instance administration).
+func (c *Client) PostAdminOrgsUnsuspend(ctx context.Context, slug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/orgs/"+url.PathEscape(slug)+"/unsuspend", nil, query)
+}
+
 // PostAdminSettingsEmailTest calls POST /api/admin/settings/email/test (Instance administration).
 func (c *Client) PostAdminSettingsEmailTest(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/admin/settings/email/test", nil, query)
@@ -558,6 +578,11 @@ func (c *Client) PostAdminSetupStorage(ctx context.Context, query url.Values) (*
 // PostAdminUsersRevokeSessions calls POST /api/admin/users/{id}/revoke-sessions (Instance administration).
 func (c *Client) PostAdminUsersRevokeSessions(ctx context.Context, id string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/admin/users/"+url.PathEscape(id)+"/revoke-sessions", nil, query)
+}
+
+// PostAdminWorkspacesRestore calls POST /api/admin/workspaces/{slug}/restore (Instance administration).
+func (c *Client) PostAdminWorkspacesRestore(ctx context.Context, slug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/workspaces/"+url.PathEscape(slug)+"/restore", nil, query)
 }
 
 // PostAdminWorkspacesSuspend calls POST /api/admin/workspaces/{slug}/suspend (Instance administration).
@@ -738,6 +763,11 @@ func (c *Client) PostWorkspacesModulesRollback(ctx context.Context, workspaceSlu
 // PostWorkspacesModulesUploadUrl calls POST /api/workspaces/{workspaceSlug}/modules/{moduleRef}/upload-url (Modules and versions).
 func (c *Client) PostWorkspacesModulesUploadUrl(ctx context.Context, workspaceSlug string, moduleRef string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/modules/"+url.PathEscape(moduleRef)+"/upload-url", nil, query)
+}
+
+// PostWorkspacesRestore calls POST /api/workspaces/{workspaceSlug}/restore (Workspaces).
+func (c *Client) PostWorkspacesRestore(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/restore", nil, query)
 }
 
 // PostWorkspacesScheduledOperations calls POST /api/workspaces/{workspaceSlug}/scheduled-operations (Scheduled operations).

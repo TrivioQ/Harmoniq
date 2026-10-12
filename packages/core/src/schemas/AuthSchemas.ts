@@ -72,6 +72,10 @@ export const MeResponseSchema = z.object({
       z.object({ slug: z.string(), name: z.string(), role: z.enum(['org_admin', 'org_member']) })
     )
     .default([]),
+  /** TLC-02: deleted workspaces you own, restorable until `purgeAfter`. */
+  deletedWorkspaces: z
+    .array(z.object({ slug: z.string(), name: z.string(), purgeAfter: z.string().nullable() }))
+    .default([]),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 

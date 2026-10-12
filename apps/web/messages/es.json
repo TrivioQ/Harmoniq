@@ -15,7 +15,10 @@
     "orgAdmin": "Administrador de la organización",
     "orgMember": "Miembro de la organización",
     "createOrg": "Crear una organización",
-    "createOrgHint": "Agrupa los espacios de trabajo de tus equipos: un registro de auditoría, un catálogo de módulos, módulos compartidos y claves de CI entre espacios."
+    "createOrgHint": "Agrupa los espacios de trabajo de tus equipos: un registro de auditoría, un catálogo de módulos, módulos compartidos y claves de CI entre espacios.",
+    "recentlyDeleted": "Eliminados recientemente",
+    "purgedOn": "Se purgará el {date} si no se restaura",
+    "restore": "Restaurar"
   },
   "WorkspaceLayout": {
     "overview": "Resumen",
@@ -92,7 +95,12 @@
     "alerts": "Alertas",
     "approvalRules": "Reglas de aprobación",
     "sso": "Inicio de sesión único",
-    "provisioning": "Aprovisionamiento (SCIM)"
+    "provisioning": "Aprovisionamiento (SCIM)",
+    "dangerZone": "Zona de peligro",
+    "deleteHint": "Al eliminarlo, sus manifiestos y claves de API dejan de funcionar al instante. Los propietarios pueden restaurarlo hasta que se purgue; después desaparecen él y sus bundles almacenados, pero se conserva su registro de auditoría.",
+    "deleteWorkspace": "Eliminar espacio de trabajo",
+    "deleteConfirm": "¿Eliminar {workspace}? Los hosts dejarán de cargar sus módulos.",
+    "typeSlug": "Escribe el slug del espacio de trabajo para confirmar"
   },
   "LoginPage": {
     "title": "Iniciar sesión en {name}",
@@ -208,7 +216,10 @@
     "typeSlug": "Escribe el slug para confirmar",
     "next": "Página siguiente →",
     "plan": "Plan",
-    "orgPlan": "Plan de la organización: {plan}"
+    "orgPlan": "Plan de la organización: {plan}",
+    "deleted": "Eliminado",
+    "purgeAfter": "Se purga después del {date}",
+    "restore": "Restaurar"
   },
   "WorkspaceStoragePage": {
     "errorUpdate": "No se pudo actualizar el almacenamiento",
@@ -318,7 +329,11 @@
     "orgMemberRemoved": "Eliminado de la organización y de {workspaces, plural, =0 {ningún espacio de trabajo} one {# espacio de trabajo} other {# espacios de trabajo}}; {keys, plural, =0 {ninguna clave de API revocada} one {# clave de API revocada} other {# claves de API revocadas}}. Se mantiene como último propietario de: {lastOwner}.",
     "domainClaimed": "Dominio añadido. Publica su registro TXT y verifícalo.",
     "domainVerified": "{domain} está verificado.",
-    "domainRemoved": "{domain} eliminado."
+    "domainRemoved": "{domain} eliminado.",
+    "workspaceRestored": "{workspace} se ha restaurado.",
+    "orgSuspended": "Organización suspendida: sus espacios de trabajo son de solo lectura.",
+    "orgUnsuspended": "Organización reactivada.",
+    "orgRestored": "Organización restaurada."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -751,7 +766,13 @@
     "attachHint": "Debes ser propietario del espacio.",
     "attachSubmit": "Añadir",
     "recentDeploys": "Despliegues recientes",
-    "noDeploys": "Aún no hay despliegues."
+    "noDeploys": "Aún no hay despliegues.",
+    "deleted": "Eliminado",
+    "deletedUntil": "Eliminado · se puede restaurar hasta el {date}",
+    "restore": "Restaurar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar {workspace}? Los hosts dejarán de cargar sus módulos; se puede restaurar hasta que se purgue.",
+    "typeSlug": "Escribe el slug del espacio de trabajo para confirmar"
   },
   "OrgCatalog": {
     "title": "Catálogo de módulos",
@@ -919,7 +940,13 @@
     "brandLogo": "URL del logotipo",
     "brandSupport": "URL de soporte",
     "container": "Contenedor",
-    "connectionString": "Cadena de conexión"
+    "connectionString": "Cadena de conexión",
+    "tenancyTitle": "Quién puede crear organizaciones y espacios de trabajo",
+    "tenancyDescription": "Los administradores de la instancia siempre pueden, y los administradores de una organización siempre pueden añadirle espacios de trabajo.",
+    "tenancy_anyone": "Cualquiera que pueda iniciar sesión",
+    "tenancy_verified_domains": "Personas cuyo dominio de correo aparece abajo o está verificado por una organización o un espacio de trabajo",
+    "tenancy_instance_admins": "Solo administradores de la instancia",
+    "tenancyAllowedDomains": "Dominios de correo aprobados (separados por comas)"
   },
   "AuditExport": {
     "label": "Exportar todos los eventos que coinciden:"
@@ -938,7 +965,16 @@
     "name": "Organización",
     "size": "Tamaño",
     "plan": "Plan",
-    "sizeLine": "{workspaces} espacios · {members} miembros"
+    "sizeLine": "{workspaces} espacios · {members} miembros",
+    "status": "Estado",
+    "deleted": "Eliminada",
+    "deletedUntil": "Eliminada · se puede restaurar hasta el {date}",
+    "restore": "Restaurar",
+    "suspended": "Suspendida",
+    "unsuspend": "Reactivar",
+    "suspend": "Suspender",
+    "suspendConfirm": "¿Suspender {org}? Todos sus espacios de trabajo pasan a solo lectura.",
+    "reason": "Motivo (opcional)"
   },
   "DomainSettings": {
     "title": "Dominios verificados",

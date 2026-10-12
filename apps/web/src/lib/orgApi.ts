@@ -23,6 +23,9 @@ export interface OrgHome {
     members: number;
     modules: number;
     lastDeployAt: string | null;
+    /** TLC-02: deleted, restorable until `purgeAfter`. */
+    deletedAt?: string | null;
+    purgeAfter?: string | null;
     health: { samples: number; errorRate: number } | null;
   }>;
   recentDeploys: Array<{

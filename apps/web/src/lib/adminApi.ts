@@ -40,6 +40,9 @@ export interface AdminWorkspace {
   deploys: number;
   suspendedAt: string | null;
   suspendedReason: string | null;
+  /** TLC-02: deleted, restorable until `purgeAfter`. */
+  deletedAt: string | null;
+  purgeAfter: string | null;
   createdAt: string;
 }
 
@@ -121,6 +124,11 @@ export interface InstanceSettingsView {
     supportUrl?: string;
     accentColor?: string;
   }>;
+  /** TLC-08: who may create organizations and standalone workspaces. */
+  tenancy?: SettingView<{
+    creation?: 'anyone' | 'verified_domains' | 'instance_admins';
+    allowedDomains?: string[];
+  }>;
 }
 
 const query = (params: Record<string, string | undefined>) => {
@@ -151,6 +159,10 @@ export const adminApi = {
         plan: 'hobby' | 'startup' | 'enterprise';
         workspaces: number;
         members: number;
+        suspendedAt: string | null;
+        suspendedReason: string | null;
+        deletedAt: string | null;
+        purgeAfter: string | null;
       }>;
     }>('/api/admin/orgs'),
   audit: (params: { cursor?: string }) =>

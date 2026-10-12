@@ -786,43 +786,44 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Database
 
-- [ ] `Workspace`: `deletedAt`, `purgeAfter`, `deletedBy`; `Organization`: `purgeAfter`, `suspendedAt`, `suspendedReason`
+- [x] `Workspace`: `deletedAt`, `purgeAfter`, `deletedBy`; `Organization`: `purgeAfter`, `suspendedAt`, `suspendedReason`; `OrganizationAuditEvent` and `ScimAuditEvent` lose their org FK (migration `20261011150000_tenant_lifecycle`)
 - [x] `AuditEvent`, `ScimAuditEvent`: cascading foreign keys to `Workspace` dropped (migration `20261011140000_audit_outlives_workspace`; organizations are soft-deleted, so `OrganizationAuditEvent` keeps its key) (AUD-05, ADR-011)
-- [ ] `ModuleVersion.storageBackend` (`instance` | `byob`) so purge knows where each bundle lives
+- [x] ~~`ModuleVersion.storageBackend`~~ not needed: the purge deletes bundle keys from the workspace's bucket and the instance storage
 - [ ] `TenantExport` model: `scope`, `scopeId`, `status`, `requestedBy`, `storagePath?`, `expiresAt`, `error?`
 - [ ] `OwnershipTransfer` model: `scope`, `scopeId`, `fromUserId`, `toUserId`, `expiresAt`, `acceptedAt?`, `cancelledAt?`
 
 #### Registry
 
-- [ ] `DELETE /api/workspaces/:ws?confirm=<slug>` for owners of standalone workspaces (TLC-01)
-- [ ] Soft delete in `services/workspaces.ts` for every delete path (owner, org admin, instance admin): set `deletedAt`/`purgeAfter`, refuse writes (`410 WORKSPACE_DELETED`), manifests `410 Gone`, slug reserved; `HARMONIQ_TENANT_RESTORE_DAYS=0` purges at once (TLC-02)
-- [ ] `POST /api/workspaces/:ws/restore`, `POST /api/orgs/:org/restore`, `POST /api/admin/workspaces/:slug/restore`, `POST /api/admin/orgs/:slug/restore` (TLC-02)
-- [ ] pg-boss `tenant.purge` (hourly): for workspaces past `purgeAfter`, delete bundles (instance and BYOB), published manifest and import-map copies, cache keys, then the rows; idempotent; `instance.workspace_purged` audit (TLC-03)
-- [ ] Organization soft delete and purge; slug released after purge (TLC-03)
-- [ ] `POST /api/admin/orgs/:slug/suspend` / `unsuspend`; `requireWorkspace` and `requireOrg` refuse writes when the workspace's organization is suspended; org keys refused for writes (TLC-04)
+- [x] `DELETE /api/workspaces/:ws?confirm=<slug>` for workspace owners (TLC-01)
+- [x] Soft delete (`services/tenantLifecycle.ts`) for every delete path (owner, org admin or org key, instance admin): `deletedAt`/`purgeAfter`, `410 WORKSPACE_DELETED` from `requireWorkspace`, manifests `410 Gone` (no last-known-good), published copies removed, shared modules unshared, slug reserved; `HARMONIQ_TENANT_RESTORE_DAYS=0` purges at once (TLC-02)
+- [x] `POST /api/workspaces/:ws/restore` (owners, org admins), `POST /api/admin/workspaces/:slug/restore`, `POST /api/admin/orgs/:slug/restore` (an organization's admins lose access when it is deleted, so instance admins restore it) (TLC-02)
+- [x] pg-boss `tenant.purge` (hourly, `purgeDueTenants`): workspaces past `purgeAfter` through `deleteWorkspace` (bundles, published copies, rows; audit kept), audited as `instance.workspace_purged` (TLC-03)
+- [x] Organization soft delete (`purgeAfter`) and purge once it has no workspaces; slug released (`instance.org_purged`) (TLC-03)
+- [x] `POST /api/admin/orgs/:slug/suspend` / `unsuspend`; `requireWorkspace` refuses changes in a suspended organization's workspaces (users and org keys, `403 ORGANIZATION_SUSPENDED`) and `requireOrg` refuses non-GET org routes (TLC-04)
 - [ ] Ownership transfer: `POST /api/workspaces/:ws/transfer`, `POST /api/orgs/:org/transfer`, `POST /api/transfers/:id/accept|cancel` (TLC-06)
 - [ ] Exports: `POST /api/workspaces/:ws/exports`, `POST /api/orgs/:org/exports`, `GET …/exports/:id` (signed download, 24 h); pg-boss `tenant.export` (TLC-07)
-- [ ] Instance setting `tenancy` (`creation: anyone | verified_domains | instance_admins`, allowed domains) enforced in `POST /api/orgs` and `POST /api/workspaces` (TLC-08)
+- [x] Instance setting `tenancy` (`creation: anyone | verified_domains | instance_admins`, `allowedDomains`) enforced in `POST /api/orgs` and `POST /api/workspaces`; org admins still create workspaces in their organization (TLC-08)
 - [x] GC `gc.auditRetention` (daily): events of deleted workspaces older than `HARMONIQ_AUDIT_RETENTION_DAYS` are removed (AUD-05)
 - [x] `GET /api/admin/workspace-audit/:workspaceId/export`: a deleted workspace's audit log for instance admins (AUD-05)
 - [x] Until soft delete: `deleteWorkspace` collects bundle keys and published paths, deletes the rows, then the objects in the workspace's bucket and the instance storage (best effort, counted in the deletion's audit event) (TLC-03, gap analysis P0-3)
-- [ ] `@harmoniq/client`: treat a `410` manifest like `404` (fallback manifest, no retry storm); changeset
+- [x] `@harmoniq/client`: a `410` manifest already falls back like `404` with backoff; covered by a test, no release needed
 
 #### Dashboard
 
-- [ ] Workspace settings danger zone: delete (type the slug), transfer ownership
-- [ ] Deleted-workspace page with restore (for those allowed) and the purge date
+- [x] Workspace settings danger zone: delete (type the slug) for owners
+- [ ] Transfer ownership (with TLC-06)
+- [x] Deleted workspaces you own on the home page (`/api/me` `deletedWorkspaces`), with restore and the purge date; org home shows deleted workspaces with restore, and delete (type the slug)
 - [ ] Org settings danger zone (with 9.4): delete, restore, transfer; exports list with download links
-- [ ] Admin panel: org suspend/unsuspend, workspace and org restore; `/admin/auth` creation policy
+- [x] Admin panel: org suspend/unsuspend and restore, workspace restore and deletion status; `/admin/auth` creation policy
 
 #### Test Suite
 
-- [ ] Soft delete: writes 410, manifest 410, restore brings everything back, slug can't be taken while pending
-- [ ] Purge: instance and BYOB objects deleted (mock storage), published copies deleted, rows gone, audit rows kept; rerun is a no-op
-- [ ] Org suspension: workspace writes refused for members, org admins and org keys; manifests served
+- [x] Soft delete, restore, 410s for users, keys and (cached) manifests, `/api/me` (`tenantLifecycle.test.ts`)
+- [x] Purge and immediate purge (`tenantLifecycle.test.ts`, `workspaceDeletion.test.ts`)
+- [x] Org suspension (`tenantLifecycle.test.ts`)
 - [ ] Transfer: accept, cancel, expiry, last-owner rules
 - [ ] Export: contents, permissions, expiry
-- [ ] Creation policy: each mode for org and workspace creation
+- [x] Creation policy, every mode (`tenancyPolicy.test.ts`)
 
 ### 9.3 People & Invitations (M5.3)
 

@@ -248,7 +248,11 @@ describe('Organizations (M4.7, ORG-01..15)', () => {
       (await api(bob, 'DELETE', `/api/orgs/${org}/workspaces/${shop}?delete=true&confirm=${shop}`))
         .statusCode
     ).toBe(204);
-    expect(await app.container.systemDb.workspace.findUnique({ where: { id: shopId } })).toBeNull();
+    // TLC-02: deleted, restorable until purged; it no longer counts for deleting the org.
+    expect(
+      (await app.container.systemDb.workspace.findUniqueOrThrow({ where: { id: shopId } }))
+        .deletedAt
+    ).not.toBeNull();
     expect((await api(alice, 'DELETE', `/api/orgs/${org}`)).statusCode).toBe(204);
     expect((await api(alice, 'GET', `/api/orgs/${org}`)).statusCode).toBe(404);
   });

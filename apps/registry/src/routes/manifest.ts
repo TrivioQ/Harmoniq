@@ -3,7 +3,7 @@
 
 import { withSpan } from '../services/tracing';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
-import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';
+import { GoneError, NotFoundError } from '@harmoniq/core/dist/errors/AppError';
 import { toFederationManifest, toImportMap } from '@harmoniq/core/dist/manifest/formats';
 import { BuiltManifest, buildManifest } from '../services/manifestBuilder';
 import { manifestJsonSchema } from '../services/manifestJsonSchema';
@@ -141,6 +141,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
     });
+    // TLC-02: a deleted workspace's manifests are gone (restorable until the purge).
+    if (workspace?.deletedAt) throw new GoneError('This workspace was deleted');
     const hostApp = workspace?.HostApps[0];
     const environment = hostApp?.Environments[0];
     if (!workspace || !hostApp || !environment) {
@@ -183,15 +185,18 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
       const workspace = await systemDb.workspace.findUnique({
         where: { slug: workspaceSlug },
         select: {
+          deletedAt: true,
           HostApps: {
             select: { slug: true, isDefault: true },
             orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
           },
         },
       });
+      if (workspace?.deletedAt) throw new GoneError('This workspace was deleted');
       const hosts = workspace?.HostApps ?? [];
       host = hosts.find((h) => h.isDefault)?.slug ?? (hosts.length === 1 ? hosts[0].slug : '');
     } catch (err) {
+      if (err instanceof GoneError) throw err;
       const lkg = await cache.get(lastKnownDefaultHostKey(workspaceSlug));
       if (lkg) return lkg;
       throw err;
@@ -245,6 +250,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
           );
           throw err;
         }
+        // Never a last-known-good copy of a deleted workspace.
+        if (err instanceof GoneError) throw err;
         const lkg = await cache.get(lastKnownGoodKey(workspaceSlug, host, envSlug));
         if (!lkg) throw err;
         logger.error('Serving last-known-good manifest after build failure', err as Error);

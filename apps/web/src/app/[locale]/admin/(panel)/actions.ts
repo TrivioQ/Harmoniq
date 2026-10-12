@@ -52,6 +52,45 @@ export async function unsuspendWorkspaceAction(slug: string, _prev: ActionResult
   );
 }
 
+/** TLC-02: undoes a deletion before the purge. */
+export async function restoreWorkspaceAction(slug: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/workspaces/${enc(slug)}/restore`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('workspaceRestored', { workspace: slug }) })
+  );
+}
+
+/** TLC-04: every workspace of the organization becomes read-only. */
+export async function suspendOrgAction(
+  slug: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const reason = field(form, 'reason');
+  return run(
+    () =>
+      authedFetch(`/api/admin/orgs/${enc(slug)}/suspend`, {
+        body: reason ? { reason } : {},
+      }),
+    (t) => ({ status: 'success', message: t('orgSuspended') })
+  );
+}
+
+export async function unsuspendOrgAction(slug: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/orgs/${enc(slug)}/unsuspend`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('orgUnsuspended') })
+  );
+}
+
+/** TLC-02: an organization its admins deleted, back before the purge. */
+export async function restoreOrgAction(slug: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/orgs/${enc(slug)}/restore`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('orgRestored') })
+  );
+}
+
 export async function deleteWorkspaceAction(
   slug: string,
   _prev: ActionResult,
@@ -106,7 +145,7 @@ export async function revokeAdminAction(userId: string, _prev: ActionResult) {
 
 // ─── Instance settings (INST-11..14) ─────────────────────────────────────────
 
-type SettingKey = 'storage' | 'email' | 'auth' | 'branding';
+type SettingKey = 'storage' | 'email' | 'auth' | 'branding' | 'tenancy';
 const optional = (form: FormData, name: string) => field(form, name) || undefined;
 const checked = (form: FormData, name: string) => form.get(name) === 'on';
 
@@ -165,6 +204,14 @@ function settingBody(key: SettingKey, form: FormData) {
         },
         oidc: { enabled: checked(form, 'oidc') },
         saml: { enabled: checked(form, 'saml') },
+      };
+    case 'tenancy':
+      return {
+        creation: field(form, 'creation') || 'anyone',
+        allowedDomains: field(form, 'allowedDomains')
+          .split(/[\s,]+/)
+          .map((d) => d.trim())
+          .filter(Boolean),
       };
     case 'branding':
       return {

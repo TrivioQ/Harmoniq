@@ -30,7 +30,7 @@ import {
   probeDatabase,
   probeStorage,
 } from '../services/instanceHealth';
-import { deleteWorkspace } from '../services/workspaces';
+import { restoreWorkspace, softDeleteWorkspace } from '../services/tenantLifecycle';
 import { storageTargetFromSettings } from '../adapters/storage/createStorage';
 import {
   NEWEST_FIRST,
@@ -258,6 +258,9 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           members: w._count.WorkspaceMembers,
           deploys: w._count.ModuleVersions,
           suspendedAt: w.suspendedAt,
+          // TLC-02: deleted, restorable until `purgeAfter`.
+          deletedAt: w.deletedAt,
+          purgeAfter: w.purgeAfter,
           suspendedReason: w.suspendedReason,
           createdAt: w.createdAt,
         })),
@@ -323,14 +326,39 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (request.query.confirm !== workspace.slug) {
         throw new BadRequestError('Confirm the deletion with ?confirm=<workspace slug>');
       }
-      const purged = await deleteWorkspace(fastify.container, workspace);
+      if (workspace.deletedAt) throw new ConflictError('The workspace is already deleted');
+      // TLC-02: restorable for HARMONIQ_TENANT_RESTORE_DAYS (0: purged at once).
+      const result = await softDeleteWorkspace(
+        fastify.container,
+        workspace,
+        { type: 'user', id: request.principal!.id },
+        fastify.config.tenantRestoreDays
+      );
       await instanceAudit(request, {
         action: 'instance.workspace_delete',
         resourceType: 'workspace',
         resourceId: workspace.id,
-        metadata: { slug: workspace.slug, ...purged },
+        metadata: { slug: workspace.slug, ...result },
       });
       return reply.code(204).send();
+    }
+  );
+
+  /** TLC-02: undoes a deletion before the purge. */
+  fastify.post<{ Params: { slug: string } }>(
+    '/api/admin/workspaces/:slug/restore',
+    admin,
+    async (request) => {
+      const workspace = await workspaceBySlug(request.params.slug);
+      if (!workspace.deletedAt) throw new ConflictError('The workspace is not deleted');
+      await restoreWorkspace(fastify.container, workspace);
+      await instanceAudit(request, {
+        action: 'instance.workspace_restore',
+        resourceType: 'workspace',
+        resourceId: workspace.id,
+        metadata: { slug: workspace.slug },
+      });
+      return { slug: workspace.slug, deletedAt: null };
     }
   );
 
@@ -359,8 +387,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   fastify.get('/api/admin/orgs', admin, async () => {
+    // Deleted organizations too (until purged), so they can be restored.
     const orgs = await systemDb.organization.findMany({
-      where: { deletedAt: null },
       include: { _count: { select: { Workspaces: true, Members: true } } },
       orderBy: { name: 'asc' },
     });
@@ -371,9 +399,83 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         plan: o.plan,
         workspaces: o._count.Workspaces,
         members: o._count.Members,
+        suspendedAt: o.suspendedAt,
+        suspendedReason: o.suspendedReason,
+        deletedAt: o.deletedAt,
+        purgeAfter: o.purgeAfter,
       })),
     };
   });
+
+  const orgBySlug = async (slug: string) => {
+    const org = await systemDb.organization.findUnique({ where: { slug } });
+    if (!org) throw new NotFoundError('Organization not found');
+    return org;
+  };
+
+  /**
+   * TLC-04: every workspace of the organization (and its org keys) refuses changes while
+   * suspended; reads and manifests keep working.
+   */
+  fastify.post<{ Params: { slug: string } }>(
+    '/api/admin/orgs/:slug/suspend',
+    admin,
+    async (request) => {
+      const { reason } = SuspendWorkspaceSchema.parse(request.body ?? {});
+      const org = await orgBySlug(request.params.slug);
+      const updated = await systemDb.organization.update({
+        where: { id: org.id },
+        data: { suspendedAt: org.suspendedAt ?? new Date(), suspendedReason: reason ?? null },
+      });
+      await instanceAudit(request, {
+        action: 'instance.org_suspend',
+        resourceType: 'organization',
+        resourceId: org.id,
+        metadata: { slug: org.slug, reason: reason ?? null },
+      });
+      return { slug: org.slug, suspendedAt: updated.suspendedAt, suspendedReason: reason ?? null };
+    }
+  );
+
+  fastify.post<{ Params: { slug: string } }>(
+    '/api/admin/orgs/:slug/unsuspend',
+    admin,
+    async (request) => {
+      const org = await orgBySlug(request.params.slug);
+      await systemDb.organization.update({
+        where: { id: org.id },
+        data: { suspendedAt: null, suspendedReason: null },
+      });
+      await instanceAudit(request, {
+        action: 'instance.org_unsuspend',
+        resourceType: 'organization',
+        resourceId: org.id,
+        metadata: { slug: org.slug },
+      });
+      return { slug: org.slug, suspendedAt: null };
+    }
+  );
+
+  /** TLC-02: an organization its admins deleted, back before the purge. */
+  fastify.post<{ Params: { slug: string } }>(
+    '/api/admin/orgs/:slug/restore',
+    admin,
+    async (request) => {
+      const org = await orgBySlug(request.params.slug);
+      if (!org.deletedAt) throw new ConflictError('The organization is not deleted');
+      await systemDb.organization.update({
+        where: { id: org.id },
+        data: { deletedAt: null, purgeAfter: null },
+      });
+      await instanceAudit(request, {
+        action: 'instance.org_restore',
+        resourceType: 'organization',
+        resourceId: org.id,
+        metadata: { slug: org.slug },
+      });
+      return { slug: org.slug, deletedAt: null };
+    }
+  );
 
   fastify.put<{ Params: { slug: string } }>(
     '/api/admin/orgs/:slug/plan',

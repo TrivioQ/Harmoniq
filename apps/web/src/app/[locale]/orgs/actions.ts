@@ -67,6 +67,24 @@ export async function attachWorkspaceAction(
   );
 }
 
+/** TLC-02: deletes a workspace of the organization (restorable until the purge). */
+export async function deleteOrgWorkspaceAction(
+  orgSlug: string,
+  workspace: string,
+  _prev: ActionResult,
+  form: FormData
+) {
+  const confirm = field(form, 'confirm');
+  return run(
+    () =>
+      authedFetch(
+        org(orgSlug, `/workspaces/${enc(workspace)}?delete=true&confirm=${enc(confirm)}`),
+        { method: 'DELETE' }
+      ),
+    (t) => ({ status: 'success', message: t('workspaceDeleted', { workspace }) })
+  );
+}
+
 export async function detachWorkspaceAction(
   orgSlug: string,
   workspace: string,

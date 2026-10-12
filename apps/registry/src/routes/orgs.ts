@@ -24,7 +24,9 @@ import { formatOrgApiKey, generateApiKeySecret } from '../auth/apiKeys';
 import { ssoScope } from '../plugins/authenticate';
 import { audit } from '../services/audit';
 import { invalidateManifest } from '../services/cacheKeys';
-import { createWorkspace, deleteWorkspace } from '../services/workspaces';
+import { createWorkspace } from '../services/workspaces';
+import { assertMayCreateTenant } from '../services/tenancyPolicy';
+import { softDeleteWorkspace } from '../services/tenantLifecycle';
 import { offboardOrgMember } from '../services/orgProvisioning';
 import { ssoProviderIds } from '../services/ssoIds';
 import {
@@ -61,6 +63,18 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   const inOrg = <T>(request: FastifyRequest, fn: (tx: TenantTx) => Promise<T>) =>
     withOrg(request.org!.id, fn);
 
+  /** TLC-04: a suspended organization stays readable but refuses every change. */
+  const orgSuspended = (request: FastifyRequest, org: Organization) =>
+    !!org.suspendedAt && request.method !== 'GET';
+  const refuseSuspended = (reply: FastifyReply) =>
+    reply.code(403).send({
+      error: {
+        code: 'ORGANIZATION_SUSPENDED',
+        message:
+          'This organization is suspended by the instance administrator; changes are disabled',
+      },
+    });
+
   function requireOrg(level: 'member' | 'admin', opts: { allowOrgKey?: boolean } = {}) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
       await fastify.authenticate(request, reply);
@@ -87,6 +101,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
             },
           });
         }
+        if (orgSuspended(request, org)) return refuseSuspended(reply);
         request.org = org;
         return;
       }
@@ -128,6 +143,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           .code(403)
           .send({ error: { code: 'FORBIDDEN', message: 'Requires an organization admin' } });
       }
+      if (orgSuspended(request, org)) return refuseSuspended(reply);
       request.org = org;
       request.orgRole = role;
     };
@@ -163,7 +179,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
 
   const workspaceIn = async (request: FastifyRequest, slug: string) => {
     const workspace = await inOrg(request, (tx) =>
-      tx.workspace.findFirst({ where: { slug, organizationId: request.org!.id } })
+      tx.workspace.findFirst({ where: { slug, organizationId: request.org!.id, deletedAt: null } })
     );
     if (!workspace) throw new NotFoundError('Workspace not found in this organization');
     return workspace;
@@ -177,6 +193,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       throw new ForbiddenError('Organizations are created by users signed in directly');
     }
     const body = CreateOrganizationSchema.parse(request.body);
+    await assertMayCreateTenant(fastify.container, principal, 'organization');
     try {
       // The organization doesn't exist yet, so there is no org scope to create it in.
       // eslint-disable-next-line no-restricted-syntax -- MT-09: creates a new tenant
@@ -285,6 +302,9 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           members: w._count.WorkspaceMembers,
           modules: w._count.RemoteModules,
           lastDeployAt: lastDeploy.get(w.id)?.toISOString() ?? null,
+          // TLC-02: deleted workspaces stay listed (restorable) until the purge.
+          deletedAt: w.deletedAt?.toISOString() ?? null,
+          purgeAfter: w.purgeAfter?.toISOString() ?? null,
           health: h?.sampleCount
             ? { samples: h.sampleCount, errorRate: (h.errorCount ?? 0) / h.sampleCount }
             : null,
@@ -320,10 +340,19 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete<{ Params: OrgParams }>('/api/orgs/:orgSlug', admin, async (request, reply) => {
     const org = request.org!;
     await inOrg(request, async (tx) => {
-      if (await tx.workspace.count({ where: { organizationId: org.id } })) {
+      // Deleted workspaces don't count: they leave the organization when purged.
+      if (await tx.workspace.count({ where: { organizationId: org.id, deletedAt: null } })) {
         throw new ConflictError('Detach or delete the organization’s workspaces first');
       }
-      await tx.organization.update({ where: { id: org.id }, data: { deletedAt: new Date() } });
+      // TLC-02: an instance admin can restore it until `purgeAfter`; then it is purged.
+      const now = new Date();
+      await tx.organization.update({
+        where: { id: org.id },
+        data: {
+          deletedAt: now,
+          purgeAfter: new Date(now.getTime() + fastify.config.tenantRestoreDays * 86_400_000),
+        },
+      });
       await tx.orgApiKey.updateMany({
         where: { organizationId: org.id, revokedAt: null },
         data: { revokedAt: new Date() },
@@ -577,12 +606,19 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         if (request.query.confirm !== workspace.slug) {
           throw new BadRequestError('Confirm the deletion with ?confirm=<workspace slug>');
         }
-        const purged = await deleteWorkspace(fastify.container, workspace);
+        // TLC-02: restorable by its owner or an org admin until the purge.
+        const principal = request.principal!;
+        const result = await softDeleteWorkspace(
+          fastify.container,
+          workspace,
+          { type: principal.type === 'apiKey' ? 'apiKey' : 'user', id: principal.id },
+          fastify.config.tenantRestoreDays
+        );
         await orgAudit(request, {
           action: 'org.workspace_delete',
           resourceType: 'workspace',
           resourceId: workspace.id,
-          metadata: { slug: workspace.slug, ...purged },
+          metadata: { slug: workspace.slug, ...result },
         });
         return reply.code(204).send();
       }

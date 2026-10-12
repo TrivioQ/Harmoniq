@@ -387,10 +387,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       where: {
         userId: principal.id,
         joinedAt: { not: null },
-        ...(scope?.kind === 'workspace' && { workspace: { slug: scope.slug } }),
-        ...(scope?.kind === 'organization' && {
-          workspace: { organization: { slug: scope.slug } },
-        }),
+        workspace: {
+          // TLC-02: deleted workspaces leave the list (restored ones come back).
+          deletedAt: null,
+          ...(scope?.kind === 'workspace' && { slug: scope.slug }),
+          ...(scope?.kind === 'organization' && { organization: { slug: scope.slug } }),
+        },
       },
       include: { workspace: { include: { organization: { select: { slug: true } } } } },
       orderBy: { workspace: { name: 'asc' } },
@@ -428,6 +430,25 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         name: m.organization.name,
         role: m.role as 'org_admin' | 'org_member',
       })),
+      // TLC-02: their pages answer 410, so owners find them (and restore them) here.
+      deletedWorkspaces: scope
+        ? []
+        : (
+            await systemDb.workspaceMember.findMany({
+              where: {
+                userId: principal.id,
+                role: 'owner',
+                joinedAt: { not: null },
+                workspace: { deletedAt: { not: null } },
+              },
+              include: { workspace: { select: { slug: true, name: true, purgeAfter: true } } },
+              orderBy: { workspace: { name: 'asc' } },
+            })
+          ).map((m) => ({
+            slug: m.workspace.slug,
+            name: m.workspace.name,
+            purgeAfter: m.workspace.purgeAfter?.toISOString() ?? null,
+          })),
     };
     return body;
   });

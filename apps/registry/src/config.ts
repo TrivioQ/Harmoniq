@@ -50,6 +50,7 @@ const EnvSchema = z.object({
   HARMONIQ_GC_KEEP_VERSIONS: z.coerce.number().int().min(1).default(10),
   HARMONIQ_DOMAIN_GRACE_DAYS: z.coerce.number().int().min(0).max(365).default(30),
   HARMONIQ_AUDIT_RETENTION_DAYS: z.coerce.number().int().min(1).default(400),
+  HARMONIQ_TENANT_RESTORE_DAYS: z.coerce.number().int().min(0).max(365).default(30),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   HARMONIQ_DEV_LOGIN: z.string().optional(),
@@ -117,6 +118,8 @@ export interface Config {
   domainGraceDays: number;
   /** AUD-05: days a deleted workspace's audit events are kept (counted from each event). */
   auditRetentionDays: number;
+  /** TLC-02: days a deleted workspace or organization can be restored; 0 purges at once. */
+  tenantRestoreDays: number;
   github?: { clientId: string; clientSecret: string };
   /** SSO-03: instance-wide OIDC sign-in from env vars (provider id `oidc`). */
   oidc?: { issuer: string; clientId: string; clientSecret: string; displayName: string };
@@ -331,6 +334,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     gcKeepVersions: e.HARMONIQ_GC_KEEP_VERSIONS,
     domainGraceDays: e.HARMONIQ_DOMAIN_GRACE_DAYS,
     auditRetentionDays: e.HARMONIQ_AUDIT_RETENTION_DAYS,
+    tenantRestoreDays: e.HARMONIQ_TENANT_RESTORE_DAYS,
     github:
       e.GITHUB_CLIENT_ID && e.GITHUB_CLIENT_SECRET
         ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }

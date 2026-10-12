@@ -15,7 +15,10 @@
     "orgAdmin": "Organization admin",
     "orgMember": "Organization member",
     "createOrg": "Create an organization",
-    "createOrgHint": "Group your teams’ workspaces: one audit log, a module catalog, shared modules and CI keys across workspaces."
+    "createOrgHint": "Group your teams’ workspaces: one audit log, a module catalog, shared modules and CI keys across workspaces.",
+    "recentlyDeleted": "Recently deleted",
+    "purgedOn": "Purged on {date} unless restored",
+    "restore": "Restore"
   },
   "WorkspaceLayout": {
     "overview": "Overview",
@@ -92,7 +95,12 @@
     "alerts": "Alerts",
     "approvalRules": "Approval rules",
     "sso": "Single sign-on",
-    "provisioning": "Provisioning (SCIM)"
+    "provisioning": "Provisioning (SCIM)",
+    "dangerZone": "Danger zone",
+    "deleteHint": "Deleting stops its manifests and API keys at once. Owners can restore it until it is purged, then it and its stored bundles are gone; its audit log is kept.",
+    "deleteWorkspace": "Delete workspace",
+    "deleteConfirm": "Delete {workspace}? Hosts stop loading its modules.",
+    "typeSlug": "Type the workspace slug to confirm"
   },
   "LoginPage": {
     "title": "Sign in to {name}",
@@ -208,7 +216,10 @@
     "typeSlug": "Type the slug to confirm",
     "next": "Next page →",
     "plan": "Plan",
-    "orgPlan": "Organization plan: {plan}"
+    "orgPlan": "Organization plan: {plan}",
+    "deleted": "Deleted",
+    "purgeAfter": "Purged after {date}",
+    "restore": "Restore"
   },
   "WorkspaceStoragePage": {
     "errorUpdate": "Failed to update storage",
@@ -318,7 +329,11 @@
     "orgMemberRemoved": "Removed from the organization and {workspaces, plural, =0 {no workspaces} one {# workspace} other {# workspaces}}; {keys, plural, =0 {no API keys} one {# API key} other {# API keys}} revoked. Kept as the last owner of: {lastOwner}.",
     "domainClaimed": "Domain added. Publish its TXT record, then verify it.",
     "domainVerified": "{domain} is verified.",
-    "domainRemoved": "{domain} removed."
+    "domainRemoved": "{domain} removed.",
+    "workspaceRestored": "{workspace} is restored.",
+    "orgSuspended": "Organization suspended: its workspaces are read-only.",
+    "orgUnsuspended": "Organization unsuspended.",
+    "orgRestored": "Organization restored."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -751,7 +766,13 @@
     "attachHint": "You must own the workspace.",
     "attachSubmit": "Add",
     "recentDeploys": "Recent deploys",
-    "noDeploys": "No deploys yet."
+    "noDeploys": "No deploys yet.",
+    "deleted": "Deleted",
+    "deletedUntil": "Deleted · restorable until {date}",
+    "restore": "Restore",
+    "delete": "Delete",
+    "deleteConfirm": "Delete {workspace}? Hosts stop loading its modules; it can be restored until it is purged.",
+    "typeSlug": "Type the workspace slug to confirm"
   },
   "OrgCatalog": {
     "title": "Module catalog",
@@ -919,7 +940,13 @@
     "brandLogo": "Logo URL",
     "brandSupport": "Support URL",
     "container": "Container",
-    "connectionString": "Connection string"
+    "connectionString": "Connection string",
+    "tenancyTitle": "Who can create organizations and workspaces",
+    "tenancyDescription": "Instance admins always can, and organization admins can always add workspaces to their organization.",
+    "tenancy_anyone": "Anyone who can sign in",
+    "tenancy_verified_domains": "People whose email domain is listed below or verified by an organization or workspace",
+    "tenancy_instance_admins": "Instance admins only",
+    "tenancyAllowedDomains": "Approved email domains (comma-separated)"
   },
   "AuditExport": {
     "label": "Export all matching events:"
@@ -938,7 +965,16 @@
     "name": "Organization",
     "size": "Size",
     "plan": "Plan",
-    "sizeLine": "{workspaces} workspaces · {members} members"
+    "sizeLine": "{workspaces} workspaces · {members} members",
+    "status": "Status",
+    "deleted": "Deleted",
+    "deletedUntil": "Deleted · restorable until {date}",
+    "restore": "Restore",
+    "suspended": "Suspended",
+    "unsuspend": "Unsuspend",
+    "suspend": "Suspend",
+    "suspendConfirm": "Suspend {org}? All its workspaces become read-only.",
+    "reason": "Reason (optional)"
   },
   "DomainSettings": {
     "title": "Verified domains",

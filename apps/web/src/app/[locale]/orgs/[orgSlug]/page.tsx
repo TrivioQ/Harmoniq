@@ -5,7 +5,13 @@ import { getFormatter, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
 import { orgApi } from '@/lib/orgApi';
-import { attachWorkspaceAction, createOrgWorkspaceAction, detachWorkspaceAction } from '../actions';
+import {
+  attachWorkspaceAction,
+  createOrgWorkspaceAction,
+  deleteOrgWorkspaceAction,
+  detachWorkspaceAction,
+} from '../actions';
+import { restoreWorkspaceAction } from '../../lifecycleActions';
 
 const input = 'rounded-md border px-3 py-1.5 text-sm';
 
@@ -40,10 +46,23 @@ export default async function OrgHomePage(props: { params: Promise<{ orgSlug: st
             {org.workspaces.map((w) => (
               <tr key={w.slug} className="border-t">
                 <td className="p-3">
-                  <Link href={`/w/${w.slug}`} className="font-medium hover:text-primary">
-                    {w.name}
-                  </Link>
+                  {w.deletedAt ? (
+                    <span className="font-medium text-muted-foreground line-through">{w.name}</span>
+                  ) : (
+                    <Link href={`/w/${w.slug}`} className="font-medium hover:text-primary">
+                      {w.name}
+                    </Link>
+                  )}
                   <div className="text-xs text-muted-foreground font-mono">{w.slug}</div>
+                  {w.deletedAt && (
+                    <span className="mt-1 inline-block rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-800">
+                      {w.purgeAfter
+                        ? t('deletedUntil', {
+                            date: format.dateTime(new Date(w.purgeAfter), 'short'),
+                          })
+                        : t('deleted')}
+                    </span>
+                  )}
                 </td>
                 <td className="p-3">{w.modules}</td>
                 <td className="p-3">{w.members}</td>
@@ -62,13 +81,38 @@ export default async function OrgHomePage(props: { params: Promise<{ orgSlug: st
                     : '—'}
                 </td>
                 {admin && (
-                  <td className="p-3 text-right">
-                    <ActionForm
-                      action={detachWorkspaceAction.bind(null, org.slug, w.slug)}
-                      submitLabel={t('detach')}
-                      confirm={t('detachConfirm', { workspace: w.name })}
-                      variant="outline"
-                    />
+                  <td className="p-3 text-right space-y-2">
+                    {w.deletedAt ? (
+                      <ActionForm
+                        action={restoreWorkspaceAction.bind(null, w.slug)}
+                        submitLabel={t('restore')}
+                        variant="outline"
+                      />
+                    ) : (
+                      <>
+                        <ActionForm
+                          action={detachWorkspaceAction.bind(null, org.slug, w.slug)}
+                          submitLabel={t('detach')}
+                          confirm={t('detachConfirm', { workspace: w.name })}
+                          variant="outline"
+                        />
+                        <ActionForm
+                          action={deleteOrgWorkspaceAction.bind(null, org.slug, w.slug)}
+                          submitLabel={t('delete')}
+                          confirm={t('deleteConfirm', { workspace: w.name })}
+                          variant="danger"
+                          className="flex justify-end gap-2"
+                        >
+                          <input
+                            name="confirm"
+                            required
+                            placeholder={w.slug}
+                            aria-label={t('typeSlug')}
+                            className="w-32 rounded-md border px-2 py-1 text-xs font-mono"
+                          />
+                        </ActionForm>
+                      </>
+                    )}
                   </td>
                 )}
               </tr>

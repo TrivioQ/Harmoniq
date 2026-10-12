@@ -786,6 +786,15 @@ Per-workspace BYOB storage adapter override (§18). When present, the registry r
 
 ## New Tables (Phase 9 — Tenant Administration)
 
+### Column additions (migration `20261011150000_tenant_lifecycle`)
+
+| Model          | Columns                                                   | Notes                                                                                      |
+| -------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `Workspace`    | `deletedAt?`, `deletedBy?`, `purgeAfter?` (index)         | TLC-02/03: deleted, restorable until `purgeAfter`, then purged by `tenant.purge`           |
+| `Organization` | `purgeAfter?` (index), `suspendedAt?`, `suspendedReason?` | TLC-02/03/04: restore window after `deletedAt`; suspension makes every workspace read-only |
+
+`OrganizationAuditEvent` and `ScimAuditEvent` no longer have foreign keys to `Organization` (AUD-05): a purged organization's trail stays.
+
 ### `VerifiedDomain`
 
 DOM-01..05 (migration `20261011120000_verified_domains`). A domain claimed by an organization or a workspace, proven with the DNS TXT record `_harmoniq-challenge.<domain>` = `harmoniq-verification=<token>`. Many tenants may claim a domain; only one can verify it.
@@ -814,7 +823,6 @@ DOM-01..05 (migration `20261011120000_verified_domains`). A domain claimed by an
 
 | Change                                                                                               | Sub-phase | Requirements              |
 | ---------------------------------------------------------------------------------------------------- | --------- | ------------------------- |
-| `Workspace.deletedAt/purgeAfter/deletedBy`; `Organization.purgeAfter/suspendedAt/suspendedReason`    | 9.2       | TLC-02–TLC-04             |
 | `ModuleVersion.storageBackend`, `TenantExport`, `OwnershipTransfer`                                  | 9.2       | TLC-03, TLC-06/07         |
 | `Invitation` (org or workspace, token hash, expiry); pending `WorkspaceMember` rows migrated into it | 9.3       | PPL-01, PPL-02            |
 | `AccessRequest`; `OrgRole` adds `org_billing`, `org_auditor`                                         | 9.3       | PPL-07, PPL-08            |

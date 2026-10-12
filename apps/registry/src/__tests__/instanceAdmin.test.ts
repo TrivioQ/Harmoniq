@@ -162,13 +162,14 @@ describe('Instance administration (M4.8, INST-05..10, 18)', () => {
     expect(JSON.stringify(deletion)).not.toContain(ownerUser.email);
   });
 
-  it('hard-deletes a workspace with confirmation (INST-09)', async () => {
+  it('deletes a workspace with confirmation (INST-09, restorable: TLC-02)', async () => {
     const { workspace } = await fx.workspace();
     const url = `/api/admin/workspaces/${workspace.slug}`;
     expect((await api(root, 'DELETE', url)).statusCode).toBe(400);
     expect((await api(root, 'DELETE', `${url}?confirm=${workspace.slug}`)).statusCode).toBe(204);
     expect(
-      await app.container.systemDb.workspace.findUnique({ where: { id: workspace.id } })
-    ).toBeNull();
+      (await app.container.systemDb.workspace.findUniqueOrThrow({ where: { id: workspace.id } }))
+        .deletedAt
+    ).not.toBeNull();
   });
 });

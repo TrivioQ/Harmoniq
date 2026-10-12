@@ -244,7 +244,7 @@ This document records the key architectural decisions made for the Harmoniq proj
 
 ## ADR-011: Tenant Soft Delete, Purge and Audit Retention
 
-**Status**: Partly implemented 2026-10-11: audit rows outlive the workspace (no foreign key, retention GC, instance-admin export) and deletion purges stored objects. Soft delete and restore remain proposed (Phase 9.2, TLC-02).
+**Status**: Accepted, implemented 2026-10-11 (Phase 9.2): soft delete and restore for workspaces and organizations, the hourly `tenant.purge` job, audit trails without foreign keys, retention GC and the instance-admin export.
 
 **Context**: Deleting a workspace is a hard delete today. Audit, SCIM audit and approval rows cascade away with it, which breaks compliance retention. Bundles (instance storage and the workspace's own bucket) and published manifest copies stay in storage, and the purge GC can't find them once the version rows are gone. Deletion also can't be undone.
 
@@ -263,7 +263,7 @@ This document records the key architectural decisions made for the Harmoniq proj
 
 - Every query that lists workspaces must exclude `deletedAt` (or rely on a view or a Prisma extension).
 - Hosted operators that need immediate erasure set `HARMONIQ_TENANT_RESTORE_DAYS=0`.
-- Until soft delete lands, deletion is immediate: the object keys are collected, the rows deleted, then the objects deleted best effort (from the workspace's bucket and the instance storage). Failures are counted in the deletion's audit event and logged, but not retried; the `tenant.purge` job will retry them.
+- The purge collects the object keys, deletes the rows, then the objects (best effort, from the workspace's bucket and the instance storage). Failures are counted in the `instance.workspace_purged` event and logged; they are not retried, because the rows that named the objects are gone.
 
 ---
 

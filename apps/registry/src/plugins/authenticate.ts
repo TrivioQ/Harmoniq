@@ -54,7 +54,10 @@ declare module 'fastify' {
      * Requires access to the workspace in `:workspaceSlug` with `permission`. API keys must
      * belong to that workspace; users must be joined members (non-members get 404).
      */
-    requireWorkspace: (permission: Permission, opts?: { allowInstanceAdmin?: boolean }) => Handler;
+    requireWorkspace: (
+      permission: Permission,
+      opts?: { allowInstanceAdmin?: boolean; allowDeleted?: boolean }
+    ) => Handler;
     requireInstanceAdmin: Handler;
     /** Drop cached verifications for a key, e.g. after revocation. */
     forgetApiKey: (keyId: string) => void;
@@ -317,27 +320,58 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     }
   };
 
-  // INST-09: a suspended workspace stays readable (and its manifests served) but refuses
-  // every change, including scheduled and approved ones (they run through these routes).
-  const suspended = (workspace: Workspace, permission: Permission) =>
-    !!workspace.suspendedAt && permission !== 'workspace:read';
-  const SUSPENDED = [
-    403,
-    'WORKSPACE_SUSPENDED',
-    'This workspace is suspended by the instance administrator; changes are disabled',
-  ] as const;
+  type LoadedWorkspace = Workspace & { organization: { suspendedAt: Date | null } | null };
+
+  /**
+   * INST-09 / TLC-04: a suspended workspace, or a workspace of a suspended organization,
+   * stays readable (and its manifests served) but refuses every change, including scheduled
+   * and approved ones (they run through these routes). TLC-02: a deleted workspace answers
+   * 410 to everything except the routes that restore it.
+   */
+  function lifecycleRefusal(
+    workspace: LoadedWorkspace,
+    permission: Permission,
+    opts: { allowDeleted?: boolean }
+  ): [number, string, string] | null {
+    if (workspace.deletedAt && !opts.allowDeleted) {
+      return [
+        410,
+        'WORKSPACE_DELETED',
+        `This workspace was deleted; it can be restored until ${workspace.purgeAfter?.toISOString() ?? 'it is purged'}`,
+      ];
+    }
+    if (permission === 'workspace:read') return null;
+    if (workspace.suspendedAt) {
+      return [
+        403,
+        'WORKSPACE_SUSPENDED',
+        'This workspace is suspended by the instance administrator; changes are disabled',
+      ];
+    }
+    if (workspace.organization?.suspendedAt) {
+      return [
+        403,
+        'ORGANIZATION_SUSPENDED',
+        "This workspace's organization is suspended by the instance administrator; changes are disabled",
+      ];
+    }
+    return null;
+  }
 
   function requireWorkspace(
     permission: Permission,
-    opts: { allowInstanceAdmin?: boolean } = {}
+    opts: { allowInstanceAdmin?: boolean; allowDeleted?: boolean } = {}
   ): Handler {
     return async (request, reply) => {
       const principal = await resolvePrincipal(request);
       if (!principal) return deny(reply, 401, 'UNAUTHORIZED', 'Missing or invalid credentials');
 
       const { workspaceSlug } = request.params as { workspaceSlug?: string };
-      const workspace = workspaceSlug
-        ? await systemDb.workspace.findUnique({ where: { slug: workspaceSlug } })
+      const workspace: LoadedWorkspace | null = workspaceSlug
+        ? await systemDb.workspace.findUnique({
+            where: { slug: workspaceSlug },
+            include: { organization: { select: { suspendedAt: true } } },
+          })
         : null;
 
       if (principal.type === 'apiKey') {
@@ -359,7 +393,8 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
         if (!scopesAllow(principal.scopes, permission)) {
           return deny(reply, 403, 'FORBIDDEN', `API key lacks a scope granting ${permission}`);
         }
-        if (suspended(workspace, permission)) return deny(reply, ...SUSPENDED);
+        const refusal = lifecycleRefusal(workspace, permission, opts);
+        if (refusal) return deny(reply, ...refusal);
         request.workspace = workspace;
         return;
       }
@@ -389,7 +424,8 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       }
 
       if (opts.allowInstanceAdmin && principal.isInstanceAdmin) {
-        if (suspended(workspace, permission)) return deny(reply, ...SUSPENDED);
+        const refusal = lifecycleRefusal(workspace, permission, opts);
+        if (refusal) return deny(reply, ...refusal);
         request.workspace = workspace;
         return;
       }
@@ -440,7 +476,8 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
           );
         }
       }
-      if (suspended(workspace, permission)) return deny(reply, ...SUSPENDED);
+      const refusal = lifecycleRefusal(workspace, permission, opts);
+      if (refusal) return deny(reply, ...refusal);
       request.workspace = workspace;
       request.workspaceRole = membership.role;
       request.viaOrgAdmin = !!orgAdminRole;

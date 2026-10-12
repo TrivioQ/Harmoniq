@@ -26,6 +26,8 @@ import {
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import { audit } from '../services/audit';
 import { createWorkspace } from '../services/workspaces';
+import { assertMayCreateTenant } from '../services/tenancyPolicy';
+import { restoreWorkspace, softDeleteWorkspace } from '../services/tenantLifecycle';
 import { ssoScope } from '../plugins/authenticate';
 import { isFrozen } from '../services/manifestMutation';
 import { publishedPaths } from '../services/manifestPublisher';
@@ -53,6 +55,7 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
       );
     }
     const body = CreateWorkspaceSchema.parse(request.body);
+    await assertMayCreateTenant(fastify.container, principal, 'workspace');
     const workspace = await createWorkspace(
       // eslint-disable-next-line no-restricted-syntax -- MT-09: creates a new tenant
       systemDb,
@@ -137,6 +140,70 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
           })),
         })),
       };
+    }
+  );
+
+  /**
+   * TLC-01/02: an owner deletes the workspace (`?confirm=<slug>`). It can be restored by an
+   * owner or an org admin for HARMONIQ_TENANT_RESTORE_DAYS, then it is purged.
+   */
+  fastify.delete<{ Params: WsParams; Querystring: { confirm?: string } }>(
+    '/api/workspaces/:workspaceSlug',
+    { preHandler: fastify.requireWorkspace('workspace:owner') },
+    async (request, reply) => {
+      const workspace = request.workspace!;
+      if (request.principal!.type !== 'user') {
+        throw new ForbiddenError(
+          'Workspaces are deleted by people (or with an org key through the organization)'
+        );
+      }
+      if (request.query.confirm !== workspace.slug) {
+        throw new BadRequestError('Confirm the deletion with ?confirm=<workspace slug>');
+      }
+      // Recorded first: the workspace's own log is where its owners look.
+      await withTenant(workspace.id, (tx) =>
+        audit(
+          tx,
+          workspace.id,
+          { principal: request.principal!, ip: request.ip },
+          {
+            action: 'workspace.delete',
+            resourceType: 'workspace',
+            resourceId: workspace.id,
+            metadata: { restoreDays: fastify.config.tenantRestoreDays },
+          }
+        )
+      );
+      await softDeleteWorkspace(
+        fastify.container,
+        workspace,
+        { type: 'user', id: request.principal!.id },
+        fastify.config.tenantRestoreDays
+      );
+      return reply.code(204).send();
+    }
+  );
+
+  /** TLC-02: undoes a deletion before the purge (owners and org admins). */
+  fastify.post<{ Params: WsParams }>(
+    '/api/workspaces/:workspaceSlug/restore',
+    { preHandler: fastify.requireWorkspace('workspace:admin', { allowDeleted: true }) },
+    async (request) => {
+      const workspace = request.workspace!;
+      if (request.workspaceRole !== 'owner' && !request.viaOrgAdmin) {
+        throw new ForbiddenError('Only owners and organization admins can restore a workspace');
+      }
+      if (!workspace.deletedAt) throw new ConflictError('The workspace is not deleted');
+      await restoreWorkspace(fastify.container, workspace);
+      await withTenant(workspace.id, (tx) =>
+        audit(
+          tx,
+          workspace.id,
+          { principal: request.principal!, ip: request.ip },
+          { action: 'workspace.restore', resourceType: 'workspace', resourceId: workspace.id }
+        )
+      );
+      return { slug: workspace.slug, deletedAt: null };
     }
   );
 

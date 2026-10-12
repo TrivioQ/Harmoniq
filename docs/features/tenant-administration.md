@@ -28,8 +28,9 @@ The audience is org admins (self-service tenant administration), security and co
 | `TLC-05`                                                | Every workspace can get an owner: org admins act as owners while none has joined and can always assign owners; `owners` on org workspace creation                                          | ✅ Done (9.1, including Terraform `owners`) |
 | `DOM-01`–`DOM-05`                                       | Verified domains (DNS TXT), one verified owner per domain, discovery and trusted emails on verified domains, grace period, daily re-checks                                                 | ✅ Done (9.1)                               |
 | `PPL-04`, `PPL-05`                                      | Offboarding: org member removal cascades to workspaces, keys and org-SSO sessions; workspace member removal revokes their keys                                                             | ✅ Done (9.1)                               |
-| `TLC-03`                                                | Deleting a workspace removes its bundles and published copies (immediately, best effort; the retrying purge job comes with soft delete)                                                    | 🔄 Partial                                  |
-| `TLC-01`, `TLC-02`, `TLC-04`, `TLC-06`–`TLC-08`         | Owner self-delete, soft delete and restore, org suspension, transfers, exports, creation policy                                                                                            | 📋 Planned (9.2)                            |
+| `TLC-03`                                                | Purge after the restore window: bundles and published copies (bucket and instance storage), rows; slug released                                                                            | ✅ Done (9.2)                               |
+| `TLC-01`, `TLC-02`, `TLC-04`, `TLC-08`                  | Owner self-delete, soft delete and restore, org suspension, creation policy                                                                                                                | ✅ Done (9.2)                               |
+| `TLC-06`, `TLC-07`                                      | Ownership transfers, tenant exports                                                                                                                                                        | 📋 Planned (9.2)                            |
 | `AUD-05`                                                | Audit history survives workspace deletion; retention GC; export of a deleted workspace's log                                                                                               | ✅ Done (9.2 item, delivered with 9.1)      |
 | `PPL-02` (scope)                                        | A sign-in accepts only invitations its session can reach                                                                                                                                   | ✅ Done                                     |
 | `PPL-01`–`PPL-03`, `PPL-06`–`PPL-08`                    | Invitations (emailed, expiring), People directory, effective access, access requests, billing/auditor roles                                                                                | 📋 Planned (9.3)                            |
@@ -151,6 +152,34 @@ All API additions are additive. New org roles don't change the meaning of `org_a
 ---
 
 ## Change History
+
+### 2026-10-11 — Phase 9.2: soft delete, restore, purge, org suspension, creation policy
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** TLC-01, TLC-02, TLC-03, TLC-04, TLC-08, AUD-05, ADR-011
+
+#### What changed
+
+- **TLC-01/02:**
+  - Workspace owners delete their workspace with `DELETE /api/workspaces/:ws?confirm=`. Every delete path (owner, org admin or org key, instance admin) is now a soft delete (`services/tenantLifecycle.ts`).
+  - A deleted workspace answers `410 WORKSPACE_DELETED`, and its manifests `410 Gone`, with no last-known-good fallback. Its published copies leave the CDN and its shared modules leave the organization's manifests. It drops out of `/api/me` and the org views (`withOrg` skips deleted workspaces).
+  - Owners and org admins restore it (`POST /api/workspaces/:ws/restore`), and so do instance admins.
+  - Deleted organizations get a `purgeAfter` and can be restored by instance admins.
+- **TLC-03:** the hourly `tenant.purge` job purges workspaces past `purgeAfter` (objects, then rows), then organizations with no workspaces left, which frees their slug. `HARMONIQ_TENANT_RESTORE_DAYS` (default 30; `0` purges at once).
+- **TLC-04:** instance admins suspend and unsuspend an organization. Its workspaces and org keys refuse changes (`403 ORGANIZATION_SUSPENDED`), and so do its non-GET org routes.
+- **TLC-08:** instance setting `tenancy` (`anyone`, `verified_domains` with `allowedDomains`, `instance_admins`) for creating organizations and standalone workspaces.
+- **AUD-05:** `OrganizationAuditEvent` and `ScimAuditEvent` lose their organization FK (migration `20261011150000_tenant_lifecycle`).
+- **Dashboard:**
+  - Workspace settings: a danger zone for owners.
+  - Home page: "Recently deleted" with restore.
+  - Org home: deleted badges, and delete and restore actions.
+  - Admin panel: deletion status and restore for workspaces; suspend, unsuspend and restore for organizations; the creation policy on the sign-in page.
+- `@harmoniq/client`: a test confirms a `410` manifest falls back like `404`, with backoff.
+
+#### Testing
+
+`tenantLifecycle.test.ts` (owner-only delete, 410s for users, keys and cached manifests, `/api/me`, restore, published copies, purge and immediate purge, admin delete and restore, org delete, restore and purge with slug reuse, org suspension), `tenancyPolicy.test.ts` (every mode, org admins unaffected, validation). Existing deletion tests now expect a soft delete. Registry 57 files / 388 tests.
 
 ### 2026-10-11 — Terraform workspace owners, separate metrics port
 

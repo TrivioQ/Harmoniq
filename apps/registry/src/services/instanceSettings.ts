@@ -13,6 +13,8 @@ import {
   InstanceSettingSchemas,
   INSTANCE_SETTING_KEYS,
   StorageSettings,
+  TenancySettings,
+  TenancySettingsSchema,
 } from '@harmoniq/core/dist/schemas/InstanceSettingsSchemas';
 import type { AuthMethod, Config } from '../config';
 import {
@@ -29,6 +31,7 @@ const SECRETS: Record<InstanceSettingKey, string[]> = {
   email: ['password'],
   auth: ['github.clientSecret'],
   branding: [],
+  tenancy: [],
 };
 
 const RELOAD_MS = 60_000;
@@ -321,6 +324,11 @@ export class InstanceSettings {
     return warnings;
   }
 
+  /** TLC-08: who may create organizations and standalone workspaces. */
+  tenancy(): TenancySettings {
+    return TenancySettingsSchema.parse(this.plain('tenancy') ?? {});
+  }
+
   /** INST-14. */
   branding(): BrandingSettings {
     return (this.plain('branding') as BrandingSettings | null) ?? { name: 'Harmoniq' };
@@ -352,6 +360,7 @@ export class InstanceSettings {
         saml: { enabled: true },
       },
       branding: { name: 'Harmoniq' },
+      tenancy: { creation: 'anyone', allowedDomains: [] },
     };
     const locked = this.lockedAuthSettings();
     const view = Object.fromEntries(

@@ -89,7 +89,27 @@ export const BrandingSettingsSchema = z.object({
 });
 export type BrandingSettings = z.infer<typeof BrandingSettingsSchema>;
 
-export const INSTANCE_SETTING_KEYS = ['storage', 'email', 'auth', 'branding'] as const;
+/**
+ * TLC-08: who may create organizations and standalone workspaces. Instance admins always
+ * can; organization admins always create workspaces inside their organization.
+ */
+export const TenancySettingsSchema = z.object({
+  creation: z.enum(['anyone', 'verified_domains', 'instance_admins']).default('anyone'),
+  /** With `verified_domains`: these email domains too, besides domains a tenant verified. */
+  allowedDomains: z
+    .array(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .regex(/^(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63}$/, 'A domain such as example.com')
+    )
+    .max(100)
+    .default([]),
+});
+export type TenancySettings = z.infer<typeof TenancySettingsSchema>;
+
+export const INSTANCE_SETTING_KEYS = ['storage', 'email', 'auth', 'branding', 'tenancy'] as const;
 export type InstanceSettingKey = (typeof INSTANCE_SETTING_KEYS)[number];
 
 export const InstanceSettingSchemas = {
@@ -97,4 +117,5 @@ export const InstanceSettingSchemas = {
   email: EmailSettingsSchema,
   auth: AuthSettingsSchema,
   branding: BrandingSettingsSchema,
+  tenancy: TenancySettingsSchema,
 } as const;

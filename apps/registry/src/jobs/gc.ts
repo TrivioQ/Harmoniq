@@ -8,6 +8,7 @@ import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import { createWorkspaceStorage } from '../adapters/storage/createStorage';
 import { invalidateManifest } from '../services/cacheKeys';
 import { publishedPaths } from '../services/manifestPublisher';
+import { purgeDueTenants } from '../services/tenantLifecycle';
 
 /** Deletes bundle objects for one workspace. Throws if they could not be removed. */
 export type PurgeObjects = (workspaceId: string, storagePaths: string[]) => Promise<void>;
@@ -281,6 +282,11 @@ export async function registerGcJobs(fastify: FastifyInstance) {
   boss.work('gc.auditRetention', () =>
     handleAuditRetention(db, logger, fastify.config.auditRetentionDays)
   );
+
+  // TLC-03: workspaces and organizations past their restore window - Hourly
+  await boss.createQueue('tenant.purge');
+  await boss.schedule('tenant.purge', '20 * * * *');
+  boss.work('tenant.purge', () => purgeDueTenants(fastify.container));
 
   // 5. Orphan Scan - Weekly
   await boss.schedule('gc.orphanScan', '0 0 * * 0');

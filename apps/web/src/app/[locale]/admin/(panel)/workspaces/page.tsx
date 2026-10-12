@@ -7,6 +7,7 @@ import { ActionForm } from '@/components/ActionForm';
 import { adminApi } from '@/lib/adminApi';
 import {
   deleteWorkspaceAction,
+  restoreWorkspaceAction,
   suspendWorkspaceAction,
   unsuspendWorkspaceAction,
 } from '../actions';
@@ -81,7 +82,18 @@ export default async function AdminWorkspacesPage(props: {
                   )}
                 </td>
                 <td className={td}>
-                  {ws.suspendedAt ? (
+                  {ws.deletedAt ? (
+                    <span className="text-red-700">
+                      {t('deleted')}
+                      {ws.purgeAfter && (
+                        <span className="block text-xs text-gray-500">
+                          {t('purgeAfter', {
+                            date: format.dateTime(new Date(ws.purgeAfter), 'short'),
+                          })}
+                        </span>
+                      )}
+                    </span>
+                  ) : ws.suspendedAt ? (
                     <span className="text-red-700">
                       {t('suspended')}
                       {ws.suspendedReason && (
@@ -93,7 +105,13 @@ export default async function AdminWorkspacesPage(props: {
                   )}
                 </td>
                 <td className={`${td} space-y-2`}>
-                  {ws.suspendedAt ? (
+                  {ws.deletedAt ? (
+                    <ActionForm
+                      action={restoreWorkspaceAction.bind(null, ws.slug)}
+                      submitLabel={t('restore')}
+                      variant="outline"
+                    />
+                  ) : ws.suspendedAt ? (
                     <ActionForm
                       action={unsuspendWorkspaceAction.bind(null, ws.slug)}
                       submitLabel={t('unsuspend')}
@@ -110,21 +128,23 @@ export default async function AdminWorkspacesPage(props: {
                       <input name="reason" placeholder={t('reason')} className={small} />
                     </ActionForm>
                   )}
-                  <ActionForm
-                    action={deleteWorkspaceAction.bind(null, ws.slug)}
-                    submitLabel={t('delete')}
-                    variant="danger"
-                    confirm={t('deleteConfirm', { slug: ws.slug })}
-                    className="flex gap-2 items-start"
-                  >
-                    <input
-                      name="confirm"
-                      required
-                      placeholder={ws.slug}
-                      aria-label={t('typeSlug')}
-                      className={small}
-                    />
-                  </ActionForm>
+                  {!ws.deletedAt && (
+                    <ActionForm
+                      action={deleteWorkspaceAction.bind(null, ws.slug)}
+                      submitLabel={t('delete')}
+                      variant="danger"
+                      confirm={t('deleteConfirm', { slug: ws.slug })}
+                      className="flex gap-2 items-start"
+                    >
+                      <input
+                        name="confirm"
+                        required
+                        placeholder={ws.slug}
+                        aria-label={t('typeSlug')}
+                        className={small}
+                      />
+                    </ActionForm>
+                  )}
                   <Link
                     href={`/admin/workspaces/${ws.slug}`}
                     className="block text-xs text-indigo-600 hover:text-indigo-900"

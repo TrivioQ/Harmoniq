@@ -38,6 +38,11 @@ model Workspace {
   /// INST-09: set by an instance admin; writes are refused, manifests are still served.
   suspendedAt                DateTime?
   suspendedReason            String?
+  /// TLC-02: deleted, restorable until `purgeAfter`; refused with 410, manifests included.
+  deletedAt                  DateTime?
+  deletedBy                  String?
+  /// TLC-03: the `tenant.purge` job deletes the workspace and its objects after this.
+  purgeAfter                 DateTime?
   createdAt                  DateTime                @default(now())
   updatedAt                  DateTime                @updatedAt
   organization               Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
@@ -63,6 +68,8 @@ model Workspace {
   ApprovalPolicies           ApprovalPolicy[]
   VerifiedDomains            VerifiedDomain[]
   DeploymentRequests         DeploymentRequest[]
+
+  @@index([purgeAfter])
 }
 
 enum Role {
@@ -538,16 +545,15 @@ model ScimGroup {
 }
 
 model ScimAuditEvent {
-  id             String        @id @default(cuid())
+  id             String   @id @default(cuid())
   workspaceId    String?
   organizationId String?
   operation      String
   scimUserId     String
   payload        Json
   statusCode     Int
-  createdAt      DateTime      @default(now())
-  /// AUD-05: no foreign key to Workspace, so SCIM history outlives a deleted workspace.
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  // AUD-05: no foreign keys, so SCIM history outlives a deleted workspace or organization.
 
   @@index([workspaceId, createdAt(sort: Desc)])
   @@index([organizationId, createdAt(sort: Desc)])
@@ -621,31 +627,36 @@ model DeploymentApproval {
 }
 
 model Organization {
-  id                 String                   @id @default(cuid())
-  slug               String                   @unique
+  id                 String               @id @default(cuid())
+  slug               String               @unique
   name               String
-  plan               String                   @default("hobby")
+  plan               String               @default("hobby")
   /// ORG-05: inherited by workspaces without their own SSO.
   oidcConfig         Json?
   samlConfig         Json?
-  forceSso           Boolean                  @default(false)
-  trustedDomains     String[]                 @default([])
+  forceSso           Boolean              @default(false)
+  trustedDomains     String[]             @default([])
   /// ORG-07: `{ rules: [{ group, workspace, role }], adminGroups }`.
   provisioning       Json?
-  scimEnabled        Boolean                  @default(false)
+  scimEnabled        Boolean              @default(false)
   /// sha256 of the org SCIM bearer token.
-  scimTokenHash      String?                  @unique
+  scimTokenHash      String?              @unique
   scimTokenCreatedAt DateTime?
-  createdAt          DateTime                 @default(now())
+  createdAt          DateTime             @default(now())
   deletedAt          DateTime?
+  /// TLC-02/03: restorable by an instance admin until then; purged (slug released) after.
+  purgeAfter         DateTime?
+  /// TLC-04: every workspace of the organization refuses changes while set.
+  suspendedAt        DateTime?
+  suspendedReason    String?
   Workspaces         Workspace[]
   Members            OrganizationMember[]
   OrgApiKeys         OrgApiKey[]
-  AuditEvents        OrganizationAuditEvent[]
   ScimUsers          ScimUser[]
   ScimGroups         ScimGroup[]
-  ScimAuditEvents    ScimAuditEvent[]
   VerifiedDomains    VerifiedDomain[]
+
+  @@index([purgeAfter])
 }
 
 model OrganizationMember {
@@ -681,8 +692,9 @@ model OrgApiKey {
 }
 
 /// Org-level changes (members, workspaces, keys); workspace changes stay in AuditEvent.
+/// AUD-05: no foreign key to Organization: the trail outlives a purged organization.
 model OrganizationAuditEvent {
-  id             String       @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   actorType      ActorType
   actorId        String
@@ -691,8 +703,7 @@ model OrganizationAuditEvent {
   resourceId     String
   metadata       Json?
   ip             String?
-  createdAt      DateTime     @default(now())
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
 
   @@index([organizationId, createdAt(sort: Desc)])
 }

@@ -9,6 +9,7 @@ import type { StorageTarget } from '../adapters/storage/createStorage';
 import { buildApp } from '../app';
 import { handleAuditRetention } from '../jobs/gc';
 import { deleteWorkspace } from '../services/workspaces';
+import { purgeDueTenants } from '../services/tenantLifecycle';
 import { Fixtures, bearer } from './helpers/fixtures';
 
 /** A storage target that records deletions (and can be made to fail). */
@@ -121,18 +122,25 @@ describe('Workspace deletion (AUD-05, TLC-03)', () => {
 
   it('keeps the audit trail, exportable by instance admins (AUD-05)', async () => {
     const workspace = await seeded();
+    // Deleted by an instance admin (soft, TLC-02), then purged: the trail stays.
     const res = await app.inject({
       method: 'DELETE',
       url: `/api/admin/workspaces/${workspace.slug}?confirm=${workspace.slug}`,
       headers: bearer(root),
     });
     expect(res.statusCode).toBe(204);
+    await db().workspace.update({
+      where: { id: workspace.id },
+      data: { purgeAfter: new Date(Date.now() - 1000) },
+    });
+    await purgeDueTenants(app.container);
+    expect(await db().workspace.findUnique({ where: { id: workspace.id } })).toBeNull();
     expect(await db().auditEvent.count({ where: { workspaceId: workspace.id } })).toBe(1);
     expect(
       await db().instanceAuditEvent.findFirst({
         where: { action: 'instance.workspace_delete', resourceId: workspace.id },
       })
-    ).toMatchObject({ metadata: expect.objectContaining({ objectsFailed: expect.any(Number) }) });
+    ).toMatchObject({ metadata: expect.objectContaining({ purgeAfter: expect.any(String) }) });
 
     const exported = await app.inject({
       method: 'GET',
