@@ -1018,7 +1018,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Instance API keys: `GET/POST/DELETE /api/admin/api-keys`; `hq_inst_` parsing in `authenticate.ts`; `instance:read` for GET admin routes, `instance:admin` for the rest (but not admins or keys); refused on every route outside `/api/admin`; changes made with them are audited as the key (INST-33)
 - [x] Settings keys `plans`, `rateLimits`, `gc` (versions kept, default retention, health-event and rollup retention), `bundles` in `InstanceSettingsSchemas` (`tenancy` and `auth.session` already were), read through `InstanceSettings` on each use by `Plans`, the rate limiter, deploys, health ingest, workspace creation and GC jobs, with env fallback (INST-34)
 - [x] Settings versions on every save, restore, import and reset; `GET /api/admin/settings/:key/history` (changed fields, secrets never shown), `POST …/history/:version/restore`; `GET /api/admin/settings/export` and `PUT /api/admin/settings/import` (YAML, secrets excluded, dry-run diff by default) (INST-35)
-- [ ] Terraform provider: `harmoniq_instance_setting`, `harmoniq_instance_admin`, plan resources (with instance keys)
+- [x] Terraform provider: `harmoniq_instance_setting`, `harmoniq_workspace_plan` and `harmoniq_organization_plan` (with instance keys; `GET /api/admin/{workspaces,orgs}/:slug/plan` added for them). No `harmoniq_instance_admin`: instance keys can never manage admins or keys (INST-33), so admins stay in the panel
 
 #### Dashboard
 
@@ -1033,6 +1033,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Role → capability matrix over every `/api/admin` route
 - [x] Step-up window, admin session cap, IP allowlist with `trustProxy`
 - [x] Instance keys: scopes, expiry, revocation, refused on workspace and org routes
+- [x] Terraform acceptance test for settings and plans with an instance key (drift from the panel shows as a diff; CI completes the first-boot setup to get one)
 - [x] New settings take effect without restart and on other replicas (as `instanceSettings.test.ts`); history, restore and import dry-run
 
 ### 9.10 System Admin Dashboard & Operations (M5.10)

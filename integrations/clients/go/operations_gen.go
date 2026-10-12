@@ -265,6 +265,11 @@ func (c *Client) GetAdminOrgs(ctx context.Context, query url.Values) (*Response,
 	return c.Do(ctx, "GET", "/api/admin/orgs", nil, query)
 }
 
+// GetAdminOrgsPlan calls GET /api/admin/orgs/{slug}/plan (Instance administration).
+func (c *Client) GetAdminOrgsPlan(ctx context.Context, slug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/orgs/"+url.PathEscape(slug)+"/plan", nil, query)
+}
+
 // GetAdminSettings calls GET /api/admin/settings (Instance administration).
 func (c *Client) GetAdminSettings(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/settings", nil, query)
@@ -303,6 +308,11 @@ func (c *Client) GetAdminWorkspaceAuditExport(ctx context.Context, workspaceId s
 // GetAdminWorkspaces calls GET /api/admin/workspaces (Instance administration).
 func (c *Client) GetAdminWorkspaces(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/workspaces", nil, query)
+}
+
+// GetAdminWorkspacesPlan calls GET /api/admin/workspaces/{slug}/plan (Instance administration).
+func (c *Client) GetAdminWorkspacesPlan(ctx context.Context, slug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/workspaces/"+url.PathEscape(slug)+"/plan", nil, query)
 }
 
 // GetFederationManifestByWorkspaceSlugAndHostAppSlugAndEnv calls GET /api/federation-manifest/{workspaceSlug}/{hostAppSlug}/{env} (Manifests).

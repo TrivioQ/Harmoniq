@@ -235,6 +235,31 @@ describe('Instance admin access (INST-31..33)', () => {
         orderBy: { createdAt: 'desc' },
       })
     ).toMatchObject({ actorType: 'apiKey', actorId: write.id });
+    // What the Terraform provider does: read and set plans and settings.
+    const plan = `/api/admin/workspaces/${workspace.slug}/plan`;
+    expect((await api(read.key, 'GET', plan)).json()).toMatchObject({
+      slug: workspace.slug,
+      plan: 'hobby',
+      overrides: null,
+    });
+    expect(
+      (
+        await api(write.key, 'PUT', plan, {
+          plan: 'startup',
+          overrides: { limits: { modules: 50 } },
+        })
+      ).statusCode
+    ).toBe(200);
+    expect((await api(read.key, 'GET', plan)).json()).toMatchObject({
+      plan: 'startup',
+      overrides: { limits: { modules: 50 } },
+    });
+    expect((await api(read.key, 'GET', '/api/admin/workspaces/nope-nope/plan')).statusCode).toBe(
+      404
+    );
+    expect((await api(write.key, 'PUT', '/api/admin/settings/gc', { keepVersions: 7 })).json())
+      .toMatchObject({ source: 'database', value: { keepVersions: 7 } });
+    expect((await api(write.key, 'DELETE', '/api/admin/settings/gc')).statusCode).toBe(204);
     // No escalation, no tenants.
     expect(
       (

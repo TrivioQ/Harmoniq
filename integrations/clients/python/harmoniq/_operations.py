@@ -215,6 +215,10 @@ class Client(BaseClient):
         """GET /api/admin/orgs (Instance administration)."""
         return self.request("GET", "/api/admin/orgs", None, query)
 
+    def get_admin_orgs_plan(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/orgs/{slug}/plan (Instance administration)."""
+        return self.request("GET", "/api/admin/orgs/" + _q(slug) + "/plan", None, query)
+
     def get_admin_settings(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/settings (Instance administration)."""
         return self.request("GET", "/api/admin/settings", None, query)
@@ -246,6 +250,10 @@ class Client(BaseClient):
     def get_admin_workspaces(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/workspaces (Instance administration)."""
         return self.request("GET", "/api/admin/workspaces", None, query)
+
+    def get_admin_workspaces_plan(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/workspaces/{slug}/plan (Instance administration)."""
+        return self.request("GET", "/api/admin/workspaces/" + _q(slug) + "/plan", None, query)
 
     def get_federation_manifest_by_workspace_slug_and_host_app_slug_and_env(self, workspace_slug, host_app_slug, env, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/federation-manifest/{workspaceSlug}/{hostAppSlug}/{env} (Manifests)."""

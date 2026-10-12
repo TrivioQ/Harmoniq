@@ -438,6 +438,22 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }
 
+  /** PLN-01, PLN-06: a workspace's plan, trial and overrides (for automation). */
+  fastify.get<{ Params: { slug: string } }>(
+    '/api/admin/workspaces/:slug/plan',
+    admin,
+    async (request) => {
+      const workspace = await workspaceBySlug(request.params.slug);
+      const current = await systemDb.workspaceConfig.findUnique({
+        where: { workspaceId: workspace.id },
+      });
+      return planDto(
+        workspace.slug,
+        current ?? { plan: 'hobby', planExpiresAt: null, basePlan: null, planOverrides: null }
+      );
+    }
+  );
+
   fastify.put<{ Params: { slug: string } }>(
     '/api/admin/workspaces/:slug/plan',
     admin,
@@ -576,6 +592,18 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         metadata: { slug: org.slug },
       });
       return { slug: org.slug, deletedAt: null };
+    }
+  );
+
+  fastify.get<{ Params: { slug: string } }>(
+    '/api/admin/orgs/:slug/plan',
+    admin,
+    async (request) => {
+      const org = await systemDb.organization.findFirst({
+        where: { slug: request.params.slug, deletedAt: null },
+      });
+      if (!org) throw new NotFoundError('Organization not found');
+      return planDto(org.slug, org);
     }
   );
 

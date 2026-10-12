@@ -7777,6 +7777,29 @@
       }
     },
     "/api/admin/workspaces/{slug}/plan": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
       "put": {
         "tags": ["Instance administration"],
         "requestBody": {
@@ -7995,6 +8018,29 @@
       }
     },
     "/api/admin/orgs/{slug}/plan": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
       "put": {
         "tags": ["Instance administration"],
         "requestBody": {
