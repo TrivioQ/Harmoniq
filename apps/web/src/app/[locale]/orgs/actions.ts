@@ -374,6 +374,7 @@ export async function saveOrgPolicyAction(
     minRetentionDays: optionalInt(form, 'minRetentionDays'),
     freezeWindows,
     lockSso: form.get('lockSso') === 'on',
+    requireMfa: form.get('requireMfa') === 'on',
     sessionMaxHours: optionalInt(form, 'sessionMaxHours'),
     idleTimeoutMinutes: optionalInt(form, 'idleTimeoutMinutes'),
     ipAllowlist: lines(field(form, 'ipAllowlist')),

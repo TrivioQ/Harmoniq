@@ -253,6 +253,11 @@ export default async function OrgPoliciesPage(props: { params: Promise<{ orgSlug
           <input type="checkbox" name="lockSso" defaultChecked={policy.lockSso} />
           {t('lockSso')}
         </label>
+        {/* SES-03 */}
+        <label className="text-sm flex items-center gap-2">
+          <input type="checkbox" name="requireMfa" defaultChecked={policy.requireMfa} />
+          {t('requireMfa')}
+        </label>
         <p className="text-xs text-muted-foreground">
           {t.rich('lockSsoHint', {
             link: (chunks) => (

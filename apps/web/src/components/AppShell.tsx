@@ -141,6 +141,10 @@ export async function UserMenu({ me }: { me: MeResponse }) {
         <Link href="/" className={item}>
           {t('home')}
         </Link>
+        {/* SES-02/03: sessions and multi-factor authentication. */}
+        <Link href="/account" className={item}>
+          {t('account')}
+        </Link>
         {me.user.isInstanceAdmin && (
           <Link href="/admin" className={item}>
             {t('admin')}

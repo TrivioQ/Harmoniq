@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { NextRequest } from 'next/server';
-import type { SessionResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
-import { isSameOrigin, loginErrorRedirect, redirectTo } from '@/lib/http';
+import type { SignInResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
+import { isSameOrigin, loginErrorRedirect, redirectTo, signInResponse } from '@/lib/http';
 import { registryFetch } from '@/lib/registry';
-import { clearEmailNonceCookie, setSessionCookies } from '@/lib/session';
+import { clearEmailNonceCookie } from '@/lib/session';
 
 // Completes sign-in with the 6-digit code (works on any device).
 export async function POST(request: NextRequest) {
@@ -14,16 +14,15 @@ export async function POST(request: NextRequest) {
   const email = String(form.get('email') ?? '').trim();
   const code = String(form.get('code') ?? '').replace(/\s/g, '');
 
-  let session: SessionResponse;
+  let session: SignInResponse;
   try {
-    session = await registryFetch<SessionResponse>('/api/auth/email/verify', {
+    session = await registryFetch<SignInResponse>('/api/auth/email/verify', {
       body: { email, code },
     });
   } catch {
     return redirectTo(`/auth/login?sent=1&email=${encodeURIComponent(email)}&error=invalid_code`);
   }
-  const response = redirectTo('/');
-  setSessionCookies(response.cookies, session);
+  const response = signInResponse(session);
   clearEmailNonceCookie(response.cookies);
   return response;
 }

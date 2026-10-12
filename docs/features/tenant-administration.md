@@ -36,7 +36,7 @@ The audience is org admins (self-service tenant administration), security and co
 | `TAD-01`, `TAD-04`–`TAD-08`, `AUD-07`, `AUD-08`         | Org settings page, org key rotation and parity, paginated org home and catalog with status, consumers and filters, shared navigation, readable audit actors and filters                                            | ✅ Done (9.4)                               |
 | `POL-01`–`POL-09`, `TAD-03`                             | Organization policy: approval defaults (complete `ORG-08`), key limits, retention floor, org freeze windows with override, locked SSO, session limits, IP allowlist, effective policy per workspace, policies page | ✅ Done (9.5)                               |
 | `PLN-04`–`PLN-06`, `USG-01`–`USG-04`, `MT-12`, `TAD-02` | Usage metering, numeric quotas, overrides and trials, per-tenant API rate limits, usage pages (complete `INST-09`)                                                                                                 | ✅ Done (9.6)                               |
-| `SES-01`–`SES-04`                                       | Session settings, self-service sessions, TOTP MFA, user suspension                                                                                                                                                 | 📋 Planned (9.7)                            |
+| `SES-01`–`SES-04`                                       | Session limits as instance settings, session list and revocation, TOTP MFA with recovery codes and org `requireMfa`, user suspension                                                                               | ✅ Done (9.7)                               |
 | `AUD-06`, `AUD-09`, `TAD-09`, `TAD-10`                  | Audit streaming, hash-chained audit, org notifications and webhooks                                                                                                                                                | 📋 Planned (9.8)                            |
 | `INST-19`–`INST-22`                                     | Operator tooling: org administration, support access, user/workspace CSV, announcements (with the rest of system administration in [instance admin](./instance-admin-and-byob-storage.md))                         | 📋 Planned (9.10)                           |
 
@@ -150,12 +150,57 @@ Instance admins no longer get workspace access implicitly. Only the storage rout
 | With plan enforcement on, quotas refuse creates past the plan's limits (`402 QUOTA_EXCEEDED`); defaults apply unless `HARMONIQ_PLAN_LIMITS` is set                                                                                                                                                            | Self-hosters without enforcement see no change. Hosted instances: set `HARMONIQ_PLAN_LIMITS` before upgrading, or give tenants overrides.                                     |
 | Writes to workspace and organization routes share a per-tenant budget instead of a per-credential one; deploys are limited per workspace (was per IP), health reports per workspace (was per workspace and IP)                                                                                                | Raise `HARMONIQ_API_RATE_LIMIT*`, `HARMONIQ_DEPLOY_RATE_LIMIT*` or `HARMONIQ_HEALTH_RATE_LIMIT*`.                                                                             |
 | `PUT /api/admin/{workspaces,orgs}/:slug/plan` answers `{ slug, plan, expiresAt, basePlan, overrides }`                                                                                                                                                                                                        | Additive.                                                                                                                                                                     |
+| A sign-in by a user who turned MFA on answers `{ mfaRequired, challenge }` instead of tokens                                                                                                                                                                                                                  | Only for users who enrol. API clients signing users in must call `POST /api/auth/mfa/verify`.                                                                                 |
+| Access tokens of an ended session or a suspended user stop at once (they used to last up to 15 minutes)                                                                                                                                                                                                       | None.                                                                                                                                                                         |
 
 All API additions are additive. New org roles don't change the meaning of `org_admin` / `org_member`.
 
 ---
 
 ## Change History
+
+### 2026-10-12 — Phase 9.7: identity and session security
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** SES-01–SES-04, TAD-08
+
+#### What changed
+
+- **Migration** `20261012150000_identity_security`:
+  - `User`: suspension and MFA columns.
+  - `RefreshToken`: `mfaVerified`, `ip` and `userAgent`.
+  - `OrgPolicy.requireMfa`.
+- **SES-01:** `auth.session` (`maxDays`, `idleMinutes`) replaces the fixed 30 days, and is editable in the admin panel. `AuthService.sessionLimits` combines it with the organizations' POL-07 limits.
+- **SES-02:**
+  - `/api/me/sessions` lists and ends sessions.
+  - Access tokens carry the session id (`sid`), and the registry refuses those of ended sessions.
+  - The dashboard forwards the browser's user agent and IP.
+- **SES-03:**
+  - `services/totp.ts`, `routes/account.ts` (setup, enable, recovery codes, disable), and the challenge with `POST /api/auth/mfa/verify`.
+  - `requireMfa` is enforced with the IP policy in `requireWorkspace` and `requireOrg`, and SSO sessions are exempt.
+  - Admins can reset a user's MFA.
+- **SES-04:** suspend and unsuspend users. Sign-in, refresh, live access tokens and keys the user created are refused. Neither yourself nor the last active instance admin can be suspended.
+- **Dashboard:**
+  - `/account` (sessions, MFA) and `/account/mfa` (QR code from the `qrcode` package, rendered on the server), linked from the user menu (completes TAD-08).
+  - `/auth/mfa` for the code.
+  - Admin users: suspend, unsuspend, reset MFA, badges.
+  - Session limits in the admin auth settings.
+  - `requireMfa` on the policies page.
+
+#### Testing
+
+`identitySecurity.test.ts` covers:
+
+- the RFC 6238 test vector, the window and replay;
+- instance session limits shortened (only) by org policy, with the idle timeout at refresh;
+- the session list scoped to its user, ending one (its token stops at once) and ending all others;
+- TOTP enrolment, the sign-in challenge, wrong and replayed codes, single-use recovery codes, tenant SSO exempt, and turning MFA off with a code;
+- `requireMfa` on workspace and org routes, verified and SSO sessions passing;
+- suspension refusing sign-in, refresh, the live token and the user's key, then unsuspend restoring them;
+- the admin MFA reset.
+
+Registry: 63 files, 436 tests. The browser flow (dev sign-in, the MFA cookie, a wrong then a right code, the account page) was run against a local registry and dashboard.
 
 ### 2026-10-12 — Phase 9.6: usage, quotas and plans
 

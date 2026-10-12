@@ -24,7 +24,8 @@ const LOGIN_PATH = new RegExp(`^${localePrefix}/auth/login/?$`);
 
 async function refreshSession(
   refreshToken: string,
-  forwardedFor: string | null
+  forwardedFor: string | null,
+  userAgent: string | null
 ): Promise<SessionResponse | null> {
   try {
     const res = await fetch(`${getRegistryUrl()}/api/auth/refresh`, {
@@ -32,6 +33,7 @@ async function refreshSession(
       headers: {
         'Content-Type': 'application/json',
         ...(forwardedFor && { 'X-Forwarded-For': forwardedFor }),
+        ...(userAgent && { 'User-Agent': userAgent }),
       },
       body: JSON.stringify({ refreshToken }),
       cache: 'no-store',
@@ -72,7 +74,11 @@ async function route(request: NextRequest): Promise<NextResponse> {
 
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
   const session = refreshToken
-    ? await refreshSession(refreshToken, request.headers.get('x-forwarded-for'))
+    ? await refreshSession(
+        refreshToken,
+        request.headers.get('x-forwarded-for'),
+        request.headers.get('user-agent')
+      )
     : null;
   if (session) {
     // Update the incoming request too: next-intl forwards these headers downstream, so

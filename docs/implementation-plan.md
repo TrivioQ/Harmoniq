@@ -877,7 +877,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Org home: search, pagination, delete workspace (slug confirmation), suspended and frozen badges, pending approvals panel (TAD-06)
 - [x] Catalog: search, filters, pagination, consumers drawer (TAD-07)
 - [x] Audit pages (org, workspace, instance): actor labels, actor and date filters, metadata drawer (AUD-07/08)
-- [x] Shared app shell: org/workspace switcher, breadcrumbs, user menu (sessions, sign-out) in org, workspace and admin layouts (TAD-08) (sessions entry with SES-02, 9.7)
+- [x] Shared app shell: org/workspace switcher, breadcrumbs, user menu (sessions, sign-out) in org, workspace and admin layouts (TAD-08) (sessions entry: the account page, 9.7)
 - [x] `messages/en.json` and `messages/es.json` for every new string
 
 #### Test Suite
@@ -965,8 +965,8 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Dashboard
 
-- [ ] Account page: sessions, MFA setup with QR code and recovery codes
-- [ ] Admin users page: suspend and unsuspend, suspended badge
+- [x] Account page: sessions, MFA setup with QR code and recovery codes
+- [x] Admin users page: suspend and unsuspend, suspended badge
 
 #### Test Suite
 

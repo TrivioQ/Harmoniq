@@ -164,7 +164,9 @@
       "invalid_code": "El código es incorrecto o caducó.",
       "other_browser": "Abre el enlace en el navegador donde lo solicitaste, o introduce el código del correo.",
       "sso_not_found": "No hay inicio de sesión único para ese dominio. Usa otro método o pregunta a tu administrador.",
-      "email_required": "Introduce tu correo."
+      "email_required": "Introduce tu correo.",
+      "account_suspended": "Esta cuenta está suspendida. Contacta con tu administrador.",
+      "mfa_expired": "El inicio de sesión tardó demasiado. Vuelve a empezar."
     },
     "emailLabel": "Correo",
     "emailSubmit": "Enviarme un enlace de acceso",
@@ -390,7 +392,15 @@
     "policySaved": "Políticas guardadas.",
     "freezeOverridden": "Los cambios pasan la congelación durante {hours, plural, one {# hora} other {# horas}}.",
     "freezeOverrideEnded": "La congelación vuelve a aplicarse.",
-    "overridesNotJson": "Las excepciones deben ser JSON válido (ver el ejemplo del campo)."
+    "overridesNotJson": "Las excepciones deben ser JSON válido (ver el ejemplo del campo).",
+    "sessionEnded": "Sesión cerrada.",
+    "sessionsEnded": "{count, plural, =0 {No hay otras sesiones.} one {# sesión cerrada.} other {# sesiones cerradas.}}",
+    "mfaEnabled": "La autenticación multifactor está activa.",
+    "recoveryCodesReplaced": "Nuevos códigos de recuperación; los anteriores ya no sirven.",
+    "mfaDisabled": "La autenticación multifactor está desactivada.",
+    "userSuspended": "Usuario suspendido.",
+    "userUnsuspended": "Usuario reactivado.",
+    "mfaReset": "MFA restablecida; sus sesiones se cerraron."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -1004,7 +1014,15 @@
     "delete": "Eliminar cuenta",
     "deleteConfirm": "¿Borrar {email}: cuenta, vínculos de inicio de sesión, sesiones, membresías y sus claves de API? No se puede deshacer.",
     "typeEmail": "Escribe el email para confirmar",
-    "next": "Página siguiente →"
+    "next": "Página siguiente →",
+    "mfa": "MFA",
+    "suspended": "Suspendido",
+    "suspend": "Suspender",
+    "suspendConfirm": "¿Suspender a {email}? Se cierran sus sesiones y sus claves de API dejan de funcionar.",
+    "unsuspend": "Reactivar",
+    "reason": "Motivo (opcional)",
+    "resetMfa": "Restablecer MFA",
+    "resetMfaConfirm": "¿Desactivar la MFA de {email}? Hazlo solo tras confirmar quién lo pide."
   },
   "AdminAdminsPage": {
     "title": "Administradores de la instancia",
@@ -1078,7 +1096,11 @@
     "tenancy_anyone": "Cualquiera que pueda iniciar sesión",
     "tenancy_verified_domains": "Personas cuyo dominio de correo aparece abajo o está verificado por una organización o un espacio de trabajo",
     "tenancy_instance_admins": "Solo administradores de la instancia",
-    "tenancyAllowedDomains": "Dominios de correo aprobados (separados por comas)"
+    "tenancyAllowedDomains": "Dominios de correo aprobados (separados por comas)",
+    "sessionLegend": "Sesiones",
+    "sessionMaxDays": "Las sesiones terminan tras (días)",
+    "sessionIdleMinutes": "Las sesiones inactivas terminan tras (minutos)",
+    "noIdleLimit": "Sin límite de inactividad"
   },
   "AuditExport": {
     "label": "Exportar todos los eventos que coinciden:"
@@ -1272,7 +1294,8 @@
     "stricterApprovals": "{environment}: {approvers} aprobadores o menos roles",
     "ownApprovals": "{environment}: su propia política de aprobación",
     "ownSso": "Su propio inicio de sesión único",
-    "comparedFirst": "Solo se comparan los primeros {count} espacios."
+    "comparedFirst": "Solo se comparan los primeros {count} espacios.",
+    "requireMfa": "Los miembros deben usar autenticación multifactor cuando no entran con inicio de sesión único"
   },
   "OrgUsage": {
     "title": "Uso",
@@ -1331,5 +1354,47 @@
     "unlimited": "Ilimitado",
     "ok": "Dentro de los límites",
     "next": "Página siguiente"
+  },
+  "MfaPage": {
+    "title": "Verificación en dos pasos",
+    "description": "Introduce el código de 6 dígitos de tu aplicación de autenticación.",
+    "invalid": "Ese código no es válido. Prueba con el actual.",
+    "code": "Código",
+    "verify": "Verificar",
+    "recoveryHint": "¿Perdiste el dispositivo? Introduce uno de tus códigos de recuperación.",
+    "back": "Volver al inicio de sesión"
+  },
+  "AccountPage": {
+    "title": "Cuenta",
+    "sessions": "Sesiones iniciadas",
+    "endOthers": "Cerrar sesión en los demás sitios",
+    "endOthersConfirm": "¿Cerrar todas las demás sesiones? Esta sigue abierta.",
+    "unknownBrowser": "Navegador desconocido",
+    "thisSession": "Esta sesión",
+    "mfaVerified": "Verificada con MFA",
+    "via": "con {provider}",
+    "lastActive": "activa {when}",
+    "signedIn": "iniciada el {when}",
+    "end": "Cerrar sesión",
+    "mfa": "Autenticación multifactor",
+    "mfaOn": "Activa desde el {date}. Quedan {left, plural, one {# código de recuperación} other {# códigos de recuperación}}.",
+    "newCodes": "Nuevos códigos de recuperación",
+    "newCodesSubmit": "Reemplazar",
+    "codesOnce": "Guarda estos códigos de recuperación ahora; cada uno sirve una vez y no se vuelven a mostrar.",
+    "code": "Código actual",
+    "turnOff": "Desactivar",
+    "turnOffSubmit": "Desactivar MFA",
+    "turnOffConfirm": "¿Desactivar la autenticación multifactor? Las organizaciones que la exigen rechazarán tus sesiones.",
+    "mfaOff": "Los inicios de sesión con correo o GitHub piden un código de una aplicación de autenticación. Los inicios con el inicio de sesión único de tu organización no cambian.",
+    "setUp": "Configurar",
+    "setupExpired": "La configuración caducó. Vuelve a empezar desde tu cuenta.",
+    "backToAccount": "Volver a tu cuenta",
+    "setupTitle": "Configurar una aplicación de autenticación",
+    "step1": "Abre una aplicación de autenticación (1Password, Google Authenticator, Authy…).",
+    "step2": "Escanea el código o escribe la clave de abajo.",
+    "step3": "Introduce el código de 6 dígitos que muestra la aplicación.",
+    "qr": "Código QR para tu aplicación de autenticación",
+    "manualKey": "Clave:",
+    "confirm": "Activar"
   }
 }

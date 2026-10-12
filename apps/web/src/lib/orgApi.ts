@@ -186,6 +186,8 @@ export interface OrgPolicy {
   minRetentionDays: number | null;
   freezeWindows: OrgFreezeWindow[];
   lockSso: boolean;
+  /** SES-03 */
+  requireMfa: boolean;
   sessionMaxHours: number | null;
   idleTimeoutMinutes: number | null;
   ipAllowlist: string[];

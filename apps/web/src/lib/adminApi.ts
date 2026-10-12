@@ -61,6 +61,10 @@ export interface AdminUser {
   isInstanceAdmin: boolean;
   activeSessions: number;
   workspaces: Array<{ slug: string; role: string }>;
+  /** SES-03/04 */
+  mfaEnabled?: boolean;
+  suspendedAt?: string | null;
+  suspendedReason?: string | null;
 }
 
 export interface InstanceAdminEntry {
@@ -120,6 +124,8 @@ export interface InstanceSettingsView {
     github?: { enabled: boolean; clientId?: string; clientSecret?: string };
     oidc?: { enabled: boolean };
     saml?: { enabled: boolean };
+    /** SES-01 */
+    session?: { maxDays: number; idleMinutes: number | null };
   }> & {
     /** Switches HARMONIQ_AUTH_METHODS keeps off; the panel can't turn them on. */
     locked: Array<'email' | 'github' | 'oidc' | 'saml'>;

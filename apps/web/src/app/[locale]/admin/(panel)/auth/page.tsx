@@ -71,6 +71,33 @@ export default async function AdminAuthPage() {
           </fieldset>
           {toggle('oidc', t('authOidc'), v.oidc?.enabled)}
           {toggle('saml', t('authSaml'), v.saml?.enabled)}
+          {/* SES-01: organizations can only shorten these (POL-07). */}
+          <fieldset className="grid gap-3 sm:grid-cols-2 border rounded-md p-3">
+            <legend className="text-sm font-medium px-1">{t('sessionLegend')}</legend>
+            <label className="text-sm space-y-1 block">
+              <span>{t('sessionMaxDays')}</span>
+              <input
+                name="sessionMaxDays"
+                type="number"
+                min={1}
+                max={365}
+                defaultValue={v.session?.maxDays ?? 30}
+                className={input}
+              />
+            </label>
+            <label className="text-sm space-y-1 block">
+              <span>{t('sessionIdleMinutes')}</span>
+              <input
+                name="sessionIdleMinutes"
+                type="number"
+                min={5}
+                max={129600}
+                defaultValue={v.session?.idleMinutes ?? ''}
+                placeholder={t('noIdleLimit')}
+                className={input}
+              />
+            </label>
+          </fieldset>
         </ActionForm>
       </section>
 

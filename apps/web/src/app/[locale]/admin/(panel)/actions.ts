@@ -115,6 +115,32 @@ export async function revokeSessionsAction(userId: string, _prev: ActionResult) 
   );
 }
 
+/** SES-04 */
+export async function suspendUserAction(userId: string, _prev: ActionResult, form: FormData) {
+  return run(
+    () =>
+      authedFetch(`/api/admin/users/${enc(userId)}/suspend`, {
+        body: { reason: field(form, 'reason') || undefined },
+      }),
+    (t) => ({ status: 'success', message: t('userSuspended') })
+  );
+}
+
+export async function unsuspendUserAction(userId: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/users/${enc(userId)}/unsuspend`, { method: 'POST', body: {} }),
+    (t) => ({ status: 'success', message: t('userUnsuspended') })
+  );
+}
+
+/** SES-03: a lost device and lost recovery codes. */
+export async function resetMfaAction(userId: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/users/${enc(userId)}/mfa`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('mfaReset') })
+  );
+}
+
 export async function deleteUserAction(
   userId: string,
   _prev: ActionResult,
@@ -204,6 +230,13 @@ function settingBody(key: SettingKey, form: FormData) {
         },
         oidc: { enabled: checked(form, 'oidc') },
         saml: { enabled: checked(form, 'saml') },
+        // SES-01: blank idle timeout means none.
+        session: {
+          maxDays: Number(field(form, 'sessionMaxDays') || 30),
+          idleMinutes: field(form, 'sessionIdleMinutes')
+            ? Number(field(form, 'sessionIdleMinutes'))
+            : null,
+        },
       };
     case 'tenancy':
       return {

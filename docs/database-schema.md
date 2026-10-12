@@ -33,14 +33,19 @@ Workspace (RLS tenant) ── WorkspaceMember ── User
 
 ### `User`
 
-| Column      | Type       | Notes                   |
-| ----------- | ---------- | ----------------------- |
-| `id`        | `CUID`     | Primary key             |
-| `email`     | `String`   | Unique                  |
-| `name`      | `String?`  | Display name from OAuth |
-| `avatarUrl` | `String?`  |                         |
-| `createdAt` | `DateTime` |                         |
-| `updatedAt` | `DateTime` |                         |
+| Column                           | Type                   | Notes                                                   |
+| -------------------------------- | ---------------------- | ------------------------------------------------------- |
+| `id`                             | `CUID`                 | Primary key                                             |
+| `email`                          | `String`               | Unique                                                  |
+| `name`                           | `String?`              | Display name from OAuth                                 |
+| `avatarUrl`                      | `String?`              |                                                         |
+| `suspendedAt`, `suspendedReason` | `DateTime?`, `String?` | SES-04: set by an instance admin                        |
+| `mfaSecretSealed`                | `String?`              | SES-03: TOTP secret, sealed (`HARMONIQ_ENCRYPTION_KEY`) |
+| `mfaEnabledAt`                   | `DateTime?`            | MFA is on once set                                      |
+| `mfaRecoveryCodes`               | `String[]`             | sha256 of each unused recovery code                     |
+| `mfaLastStep`                    | `Int?`                 | Last TOTP time step accepted (no replay)                |
+| `createdAt`                      | `DateTime`             |                                                         |
+| `updatedAt`                      | `DateTime`             |                                                         |
 
 ### `Workspace`
 
@@ -163,15 +168,19 @@ Workspace (RLS tenant) ── WorkspaceMember ── User
 
 ### `RefreshToken`
 
-| Column      | Type        | Notes                                   |
-| ----------- | ----------- | --------------------------------------- |
-| `id`        | `CUID`      | Primary key                             |
-| `userId`    | `CUID`      | FK → User                               |
-| `tokenHash` | `String`    | bcrypt hash of opaque token             |
-| `expiresAt` | `DateTime`  | Default: 30 days                        |
-| `usedAt`    | `DateTime?` | Set on rotation (invalidates after use) |
-| `revokedAt` | `DateTime?` | Set on logout                           |
-| `createdAt` | `DateTime`  |                                         |
+| Column            | Type        | Notes                                                             |
+| ----------------- | ----------- | ----------------------------------------------------------------- |
+| `id`              | `CUID`      | Primary key                                                       |
+| `userId`          | `CUID`      | FK → User                                                         |
+| `tokenHash`       | `String`    | sha256 of the opaque token                                        |
+| `familyId`        | `String`    | The session; reuse of a rotated token revokes the family          |
+| `expiresAt`       | `DateTime`  | SES-01: the earlier of the session's maximum and the idle timeout |
+| `provider`        | `String?`   | How the session signed in                                         |
+| `mfaVerified`     | `Boolean`   | SES-03: the session passed a second factor                        |
+| `ip`, `userAgent` | `String?`   | SES-02: where it was used from                                    |
+| `usedAt`          | `DateTime?` | Set on rotation (invalidates after use)                           |
+| `revokedAt`       | `DateTime?` | Set on logout                                                     |
+| `createdAt`       | `DateTime`  |                                                                   |
 
 ### `WebhookEndpoint`
 
@@ -641,6 +650,7 @@ POL-01..08: one row per organization (`organizationId` is the key; deleted with 
 | `minRetentionDays`       | `Int?`                | Retention floor (PATCH and GC)                                                                                   |
 | `freezeWindows`          | `Json`                | `[{ id, environmentPattern, from, until, reason, override: { until, reason, by } }]`                             |
 | `lockSso`                | `Boolean`             | Workspace SSO ignored and refused                                                                                |
+| `requireMfa`             | `Boolean`             | SES-03: members signing in without SSO need MFA                                                                  |
 | `sessionMaxHours`        | `Int?`                | Checked at refresh                                                                                               |
 | `idleTimeoutMinutes`     | `Int?`                | Checked at refresh                                                                                               |
 | `ipAllowlist`            | `String[]`            | CIDR blocks or addresses                                                                                         |

@@ -164,7 +164,9 @@
       "invalid_code": "That code is incorrect or expired.",
       "other_browser": "Open the link in the browser where you requested it, or enter the code from the email instead.",
       "sso_not_found": "No single sign-on is set up for that email domain. Use another sign-in method or ask your workspace admin.",
-      "email_required": "Enter your email."
+      "email_required": "Enter your email.",
+      "account_suspended": "This account is suspended. Contact your administrator.",
+      "mfa_expired": "The sign-in took too long. Please start again."
     },
     "emailLabel": "Email",
     "emailSubmit": "Email me a sign-in link",
@@ -390,7 +392,15 @@
     "policySaved": "Policies saved.",
     "freezeOverridden": "Changes go through the freeze for {hours, plural, one {# hour} other {# hours}}.",
     "freezeOverrideEnded": "The freeze applies again.",
-    "overridesNotJson": "The overrides must be valid JSON (see the example in the field)."
+    "overridesNotJson": "The overrides must be valid JSON (see the example in the field).",
+    "sessionEnded": "Session ended.",
+    "sessionsEnded": "{count, plural, =0 {No other sessions.} one {# session ended.} other {# sessions ended.}}",
+    "mfaEnabled": "Multi-factor authentication is on.",
+    "recoveryCodesReplaced": "New recovery codes; the old ones no longer work.",
+    "mfaDisabled": "Multi-factor authentication is off.",
+    "userSuspended": "User suspended.",
+    "userUnsuspended": "User unsuspended.",
+    "mfaReset": "MFA reset; their sessions ended."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -1004,7 +1014,15 @@
     "delete": "Delete account",
     "deleteConfirm": "Erase {email}: account, sign-in links, sessions, memberships and their API keys? This cannot be undone.",
     "typeEmail": "Type the email to confirm",
-    "next": "Next page →"
+    "next": "Next page →",
+    "mfa": "MFA",
+    "suspended": "Suspended",
+    "suspend": "Suspend",
+    "suspendConfirm": "Suspend {email}? They are signed out and their API keys stop working.",
+    "unsuspend": "Unsuspend",
+    "reason": "Reason (optional)",
+    "resetMfa": "Reset MFA",
+    "resetMfaConfirm": "Turn off MFA for {email}? Do this only once you have confirmed who is asking."
   },
   "AdminAdminsPage": {
     "title": "Instance admins",
@@ -1078,7 +1096,11 @@
     "tenancy_anyone": "Anyone who can sign in",
     "tenancy_verified_domains": "People whose email domain is listed below or verified by an organization or workspace",
     "tenancy_instance_admins": "Instance admins only",
-    "tenancyAllowedDomains": "Approved email domains (comma-separated)"
+    "tenancyAllowedDomains": "Approved email domains (comma-separated)",
+    "sessionLegend": "Sessions",
+    "sessionMaxDays": "Sessions end after (days)",
+    "sessionIdleMinutes": "Idle sessions end after (minutes)",
+    "noIdleLimit": "No idle limit"
   },
   "AuditExport": {
     "label": "Export all matching events:"
@@ -1272,7 +1294,8 @@
     "stricterApprovals": "{environment}: {approvers} approvers or fewer roles",
     "ownApprovals": "{environment}: its own approval policy",
     "ownSso": "Its own single sign-on",
-    "comparedFirst": "Only the first {count} workspaces are compared."
+    "comparedFirst": "Only the first {count} workspaces are compared.",
+    "requireMfa": "Members must use multi-factor authentication when they don’t sign in with single sign-on"
   },
   "OrgUsage": {
     "title": "Usage",
@@ -1331,5 +1354,47 @@
     "unlimited": "Unlimited",
     "ok": "Within limits",
     "next": "Next page"
+  },
+  "MfaPage": {
+    "title": "Two-step verification",
+    "description": "Enter the 6-digit code from your authenticator app.",
+    "invalid": "That code is not valid. Try the current one.",
+    "code": "Code",
+    "verify": "Verify",
+    "recoveryHint": "Lost your device? Enter one of your recovery codes instead.",
+    "back": "Back to sign-in"
+  },
+  "AccountPage": {
+    "title": "Account",
+    "sessions": "Signed-in sessions",
+    "endOthers": "Sign out everywhere else",
+    "endOthersConfirm": "End every other session? This one stays signed in.",
+    "unknownBrowser": "Unknown browser",
+    "thisSession": "This session",
+    "mfaVerified": "Verified with MFA",
+    "via": "via {provider}",
+    "lastActive": "active {when}",
+    "signedIn": "signed in {when}",
+    "end": "Sign out",
+    "mfa": "Multi-factor authentication",
+    "mfaOn": "On since {date}. {left, plural, one {# recovery code} other {# recovery codes}} left.",
+    "newCodes": "New recovery codes",
+    "newCodesSubmit": "Replace",
+    "codesOnce": "Save these recovery codes now; each works once and they are not shown again.",
+    "code": "Current code",
+    "turnOff": "Turn off",
+    "turnOffSubmit": "Turn off MFA",
+    "turnOffConfirm": "Turn off multi-factor authentication? Organizations that require it will refuse your sessions.",
+    "mfaOff": "Sign-ins with email or GitHub ask for a code from an authenticator app. Sign-ins through your organization’s single sign-on are not affected.",
+    "setUp": "Set up",
+    "setupExpired": "The setup expired. Start it again from your account.",
+    "backToAccount": "Back to your account",
+    "setupTitle": "Set up an authenticator app",
+    "step1": "Open an authenticator app (1Password, Google Authenticator, Authy…).",
+    "step2": "Scan the code, or type the key below.",
+    "step3": "Enter the 6-digit code the app shows.",
+    "qr": "QR code for your authenticator app",
+    "manualKey": "Key:",
+    "confirm": "Turn on"
   }
 }

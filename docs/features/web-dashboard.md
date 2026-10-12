@@ -38,6 +38,27 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 
 ## Change History
 
+### 2026-10-12 — Account, MFA and suspension pages (Phase 9.7)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** SES-01–SES-04, TAD-08
+
+#### What changed
+
+- `/account`:
+  - Sessions: browser and OS from the user agent, IP, provider, MFA badge. End one, or sign out everywhere else.
+  - MFA: set up, new recovery codes and turn off, each with a code.
+- `/account/mfa`: a QR code (SVG from `qrcode`, rendered on the server) and the key. The secret waits in an HttpOnly cookie for 10 minutes.
+- `/auth/mfa` and `POST /api/auth/mfa`: sign-in routes send MFA users there with the challenge in an HttpOnly cookie (`lib/http.ts`, `signInResponse`).
+- The user menu links to the account. Login shows `account_suspended` and `mfa_expired`.
+- Admin: suspend with a reason, unsuspend, reset MFA, badges; session limits in auth settings.
+- Org policies: `requireMfa`.
+
+#### Testing
+
+Typecheck, lint, unit tests and the production build. Against a local registry: the account page (Chrome on macOS detected), enrolment, a dev sign-in redirected to `/auth/mfa`, a wrong code back to the form, the right code signing in and clearing the cookie, the session shown as verified, the setup QR code, and the admin users and auth pages.
+
 ### 2026-10-12 — Usage pages (Phase 9.6)
 
 **Type:** feature  

@@ -55,6 +55,7 @@ Keys may be restricted to specific modules (`moduleIds`). Creating keys and mana
 | 402    | `QUOTA_EXCEEDED`             | A create would go past a plan quota (`details`: `quota`, `limit`, `used`, `plan`); only with plan enforcement |
 | 409    | `POLICY_VIOLATION`           | The change is weaker than the organization's policy allows (`details` says how), POL-02..06                   |
 | 403    | `IP_NOT_ALLOWED`             | The caller's address is outside the organization's IP allowlist (POL-08)                                      |
+| 403    | `MFA_REQUIRED`               | The organization requires MFA and this session signed in without SSO and without a second factor (SES-03)     |
 | 403    | `SSO_REQUIRED`, `SSO_SCOPED` | Forced single sign-on, or a session from another tenant's single sign-on                                      |
 | 422    | `VALIDATION_ERROR`           | Bundle failed validation (`details.validation`)                                                               |
 | 402    | `PLAN_REQUIRED`              | The feature needs a higher plan (`details.feature`, `plan`, `requiredPlan`); only with plan enforcement       |
@@ -313,11 +314,28 @@ Events: `deploy.approval_requested`, `deploy.approved`, `deploy.rejected`, `depl
 
 `GET /api/auth/providers`, `POST /api/auth/:provider/start`, `POST /api/auth/:provider/callback`, `POST /api/auth/refresh`, `POST /api/auth/logout`, `GET /api/me`. See [`features/authentication.md`](./features/authentication.md).
 
+**Second factor** (SES-03): a sign-in that doesn't go through a workspace's or organization's SSO, by a user with MFA, answers `{ mfaRequired: true, challenge, expiresAt }` instead of a session. `POST /api/auth/mfa/verify` with `{ challenge, code }` (a 6-digit TOTP code, or a recovery code) answers with the session; a wrong code is `401 MFA_INVALID`, an expired challenge (5 minutes) `401 MFA_EXPIRED`. A suspended account gets `403 ACCOUNT_SUSPENDED` (SES-04).
+
+### Your account
+
+| Endpoint                                  | Notes                                                                                                                                                                      |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/me/sessions`                    | SES-02: `{ sessions: [{ id, provider, createdAt, lastActiveAt, expiresAt, ip, userAgent, mfa, current }] }`, most recently used first                                      |
+| `DELETE /api/me/sessions/:id`             | Ends one of your sessions (`404` for anyone else's); its access tokens stop within 15 seconds                                                                              |
+| `DELETE /api/me/sessions?includeCurrent=` | Ends every other session (`includeCurrent=true`: this one too); `{ ended }`                                                                                                |
+| `GET /api/me/mfa`                         | `{ enabled, enabledAt, recoveryCodesLeft, sessionVerified }`                                                                                                               |
+| `POST /api/me/mfa/setup`                  | `{ secret, otpauthUrl }`: a new secret to enrol (MFA is on only after `enable`; `409` when already on)                                                                     |
+| `POST /api/me/mfa/enable`                 | `{ code, refreshToken? }` → `{ recoveryCodes, session }`: ten recovery codes, shown once; with `refreshToken`, that session is marked verified and its new tokens returned |
+| `POST /api/me/mfa/recovery-codes`         | `{ code }` → new recovery codes (the old ones stop working)                                                                                                                |
+| `DELETE /api/me/mfa`                      | `{ code }` (TOTP or recovery code): turns MFA off                                                                                                                          |
+
+Session limits (SES-01) are the instance setting `auth.session` (`{ maxDays: 30, idleMinutes: null }` by default, `PUT /api/admin/settings/auth`); organization policy (POL-07) can only shorten them. Refresh tokens expire at the earlier of the session's maximum and the idle timeout.
+
 ## Module health
 
 ### `POST /api/health/:workspaceSlug/:hostAppSlug/:env` (public)
 
-Load outcomes from host apps (the SDK sends these when `reportHealth` is on). JSON or `text/plain` body (so `navigator.sendBeacon` works cross-origin without a preflight), at most 50 events, 64 KB; 120 requests/minute per workspace and client IP.
+Load outcomes from host apps (the SDK sends these when `reportHealth` is on). JSON or `text/plain` body (so `navigator.sendBeacon` works cross-origin without a preflight), at most 50 events, 64 KB; limited per workspace by plan (`HARMONIQ_HEALTH_RATE_LIMIT*`, MT-12).
 
 ```json
 {
@@ -618,6 +636,8 @@ M4.8, INST-01..10, 18. Instance admins run the installation; the role grants not
 | `GET /api/admin/audit/export?format=csv\|jsonl&action=&from=&to=`                        | instance admin | The instance log as a download (recorded as `instance.audit_export`)                                                                                                                                                                                                                                                                                                                           |
 | `PUT /api/admin/workspaces/:ws/plan`, `PUT /api/admin/orgs/:org/plan`                    | instance admin | PLN-01, PLN-06: `{ plan, overrides?: { features?, limits? } \| null, expiresAt?, basePlan? }`. `expiresAt` makes it a trial that falls back to `basePlan` (default: the plan before); `overrides` replaces the tenant's (null clears, omitted keeps). Answers `{ slug, plan, expiresAt, basePlan, overrides }`. Recorded as `instance.workspace_plan` / `instance.org_plan` and `plan.changed` |
 | `GET /api/admin/usage?days=&cursor=&format=csv`                                          | instance admin | USG-03: every live workspace's usage against its quotas, 50 at a time (`nextCursor`), with `totals`; CSV has every workspace                                                                                                                                                                                                                                                                   |
+| `POST /api/admin/users/:id/suspend`, `POST …/unsuspend`                                  | instance admin | SES-04: `{ reason? }`. Sign-in (`403 ACCOUNT_SUSPENDED`), refresh, live access tokens and API keys the user created are refused until unsuspended; their sessions end. Not yourself, nor the last active instance admin (`instance.user_suspend`, `instance.user_unsuspend`)                                                                                                                   |
+| `DELETE /api/admin/users/:id/mfa`                                                        | instance admin | SES-03: turns a user's MFA off (lost device and codes) and ends their sessions (`instance.user_mfa_reset`)                                                                                                                                                                                                                                                                                     |
 | `GET /api/admin/orgs`                                                                    | instance admin | Organizations (deleted ones too, until purged) with plan, workspace and member counts, `suspendedAt`, `suspendedReason`, `deletedAt`, `purgeAfter`                                                                                                                                                                                                                                             |
 | `POST /api/admin/orgs/:org/suspend`, `POST …/unsuspend`                                  | instance admin | TLC-04: `{ reason? }`. Every workspace of the organization (and its org keys) refuses changes with `403 ORGANIZATION_SUSPENDED`, and so do its non-GET org routes; reads and manifests keep working                                                                                                                                                                                            |
 | `POST /api/admin/orgs/:org/restore`                                                      | instance admin | TLC-02: an organization its admins deleted, back before `purgeAfter` (its org keys stay revoked)                                                                                                                                                                                                                                                                                               |

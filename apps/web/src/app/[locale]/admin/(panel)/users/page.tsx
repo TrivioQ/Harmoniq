@@ -5,7 +5,13 @@ import { getFormatter, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
 import { adminApi } from '@/lib/adminApi';
-import { deleteUserAction, revokeSessionsAction } from '../actions';
+import {
+  deleteUserAction,
+  resetMfaAction,
+  revokeSessionsAction,
+  suspendUserAction,
+  unsuspendUserAction,
+} from '../actions';
 
 const th = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
 const td = 'px-4 py-3 text-sm text-gray-700 align-top';
@@ -53,7 +59,16 @@ export default async function AdminUsersPage(props: {
                     {u.isInstanceAdmin && (
                       <span className="ml-2 text-xs text-indigo-700">{t('admin')}</span>
                     )}
+                    {u.mfaEnabled && <span className="ml-2 text-xs text-blue-700">{t('mfa')}</span>}
+                    {u.suspendedAt && (
+                      <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-800">
+                        {t('suspended')}
+                      </span>
+                    )}
                   </div>
+                  {u.suspendedReason && (
+                    <div className="text-xs text-red-700">{u.suspendedReason}</div>
+                  )}
                   {u.name && <div className="text-xs text-gray-500">{u.name}</div>}
                 </td>
                 <td className={td}>
@@ -68,6 +83,36 @@ export default async function AdminUsersPage(props: {
                   </div>
                 </td>
                 <td className={`${td} space-y-2`}>
+                  {u.suspendedAt ? (
+                    <ActionForm
+                      action={unsuspendUserAction.bind(null, u.id)}
+                      submitLabel={t('unsuspend')}
+                      variant="outline"
+                    />
+                  ) : (
+                    <ActionForm
+                      action={suspendUserAction.bind(null, u.id)}
+                      submitLabel={t('suspend')}
+                      confirm={t('suspendConfirm', { email: u.email })}
+                      variant="outline"
+                      className="flex gap-2 items-start"
+                    >
+                      <input
+                        name="reason"
+                        placeholder={t('reason')}
+                        aria-label={t('reason')}
+                        className="rounded-md border px-2 py-1 text-xs"
+                      />
+                    </ActionForm>
+                  )}
+                  {u.mfaEnabled && (
+                    <ActionForm
+                      action={resetMfaAction.bind(null, u.id)}
+                      submitLabel={t('resetMfa')}
+                      confirm={t('resetMfaConfirm', { email: u.email })}
+                      variant="outline"
+                    />
+                  )}
                   <ActionForm
                     action={revokeSessionsAction.bind(null, u.id)}
                     submitLabel={t('revokeSessions')}
