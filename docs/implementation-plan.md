@@ -992,7 +992,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Dashboard
 
-- [ ] Org settings: audit sinks (status, last delivery, test), webhooks, notification channels
+- [x] `/orgs/:org/integrations`: audit sinks (status, last delivery, test), webhooks, notification channels; audit trail verification on the audit pages
 
 #### Test Suite
 
