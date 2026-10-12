@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { z } from 'zod';
+import { PlanFeatureSchema, PlanLimitsSchema } from './AdminSchemas';
 
 // INST-11..17: instance settings kept in the database (secrets sealed). They take
 // precedence over the environment, which only provides the defaults. Secrets are
@@ -132,7 +133,56 @@ export const TenancySettingsSchema = z.object({
 });
 export type TenancySettings = z.infer<typeof TenancySettingsSchema>;
 
-export const INSTANCE_SETTING_KEYS = ['storage', 'email', 'auth', 'branding', 'tenancy'] as const;
+// ─── INST-34: settings that used to come only from the environment ──────────
+// Every field is optional: what isn't set keeps the environment's value.
+
+const count = (max: number) => z.number().int().min(1).max(max);
+const byPlan = <T extends z.ZodTypeAny>(value: T) =>
+  z.object({ hobby: value.optional(), startup: value.optional(), enterprise: value.optional() });
+
+/** PLN-02..05: enforcement, features and quotas per plan (over HARMONIQ_PLAN_*). */
+export const PlansSettingsSchema = z.object({
+  enforced: z.boolean().optional(),
+  features: byPlan(z.array(PlanFeatureSchema)).optional(),
+  limits: byPlan(PlanLimitsSchema).optional(),
+});
+export type PlansSettings = z.infer<typeof PlansSettingsSchema>;
+
+/** RL-01..04, MT-12: per minute (over HARMONIQ_*_RATE_LIMIT*). */
+export const RateLimitSettingsSchema = z.object({
+  manifest: byPlan(count(1_000_000)).optional(),
+  write: count(100_000).optional(),
+  api: byPlan(count(1_000_000)).optional(),
+  deploy: byPlan(count(100_000)).optional(),
+  health: byPlan(count(10_000_000)).optional(),
+});
+export type RateLimitSettings = z.infer<typeof RateLimitSettingsSchema>;
+
+/** GC-03/06, HLT: retention (over HARMONIQ_GC_KEEP_VERSIONS and the built-in defaults). */
+export const GcSettingsSchema = z.object({
+  keepVersions: count(1000).optional(),
+  /** For new workspaces. */
+  defaultRetentionDays: count(3650).optional(),
+  healthEventRetentionHours: count(24 * 30).optional(),
+  healthRollupRetentionDays: count(400).optional(),
+});
+export type GcSettings = z.infer<typeof GcSettingsSchema>;
+
+/** VAL-02/03: validate bundles on every deploy (over HARMONIQ_VALIDATE_BUNDLES). */
+export const BundleSettingsSchema = z.object({ validate: z.boolean().optional() });
+export type BundleSettings = z.infer<typeof BundleSettingsSchema>;
+
+export const INSTANCE_SETTING_KEYS = [
+  'storage',
+  'email',
+  'auth',
+  'branding',
+  'tenancy',
+  'plans',
+  'rateLimits',
+  'gc',
+  'bundles',
+] as const;
 export type InstanceSettingKey = (typeof INSTANCE_SETTING_KEYS)[number];
 
 export const InstanceSettingSchemas = {
@@ -141,4 +191,8 @@ export const InstanceSettingSchemas = {
   auth: AuthSettingsSchema,
   branding: BrandingSettingsSchema,
   tenancy: TenancySettingsSchema,
+  plans: PlansSettingsSchema,
+  rateLimits: RateLimitSettingsSchema,
+  gc: GcSettingsSchema,
+  bundles: BundleSettingsSchema,
 } as const;

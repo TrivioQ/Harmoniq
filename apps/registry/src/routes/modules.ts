@@ -551,7 +551,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           keyGenerator: (req: FastifyRequest) =>
             `deploy:${(req.params as ModuleParams).workspaceSlug}`,
           max: async (req: FastifyRequest) =>
-            config.deployRateLimits[
+            fastify.container.settings.rateLimits().deploy[
               await fastify.container.plans.planOf({
                 slug: (req.params as ModuleParams).workspaceSlug,
               })
@@ -590,7 +590,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
 
       // VAL-02/03: dry runs always validate; real deploys when HARMONIQ_VALIDATE_BUNDLES=1.
       const validation =
-        body.dryRun || config.validateBundles
+        body.dryRun || fastify.container.settings.bundles().validate
           ? await validateBundleSafely(body.url, body.integrity, {
               allowHttp: !config.isProduction,
             })

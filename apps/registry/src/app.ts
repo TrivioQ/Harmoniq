@@ -208,11 +208,12 @@ export async function buildApp() {
               tenant === 'workspaceSlug'
                 ? await app.container.plans.planOf({ slug })
                 : await app.container.plans.planOfOrgSlug(slug);
-            return config.apiRateLimits[plan];
+            return app.container.settings.rateLimits().api[plan];
           },
         }
       : {
-          max: config.writeRateLimit,
+          // INST-34: read per request, so a change in the admin panel applies at once.
+          max: () => app.container.settings.rateLimits().write,
           timeWindow: '1 minute',
           keyGenerator: (request: { headers: Record<string, unknown>; ip: string }) => {
             const auth = request.headers.authorization;

@@ -1096,7 +1096,13 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       const workspace = await createWorkspace(
         // eslint-disable-next-line no-restricted-syntax -- MT-09: creates a new tenant
         systemDb,
-        { name: body.name, slug: body.slug, owners: body.owners, organizationId: request.org!.id },
+        {
+          name: body.name,
+          slug: body.slug,
+          owners: body.owners,
+          organizationId: request.org!.id,
+          retentionDays: fastify.container.settings.gc().defaultRetentionDays,
+        },
         principal.type === 'apiKey'
           ? { apiKeyId: principal.id, ip: request.ip }
           : { userId: principal.id, ip: request.ip },

@@ -60,7 +60,7 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     const workspace = await createWorkspace(
       // eslint-disable-next-line no-restricted-syntax -- MT-09: creates a new tenant
       systemDb,
-      body,
+      { ...body, retentionDays: fastify.container.settings.gc().defaultRetentionDays },
       { userId: principal.id, ip: request.ip },
       fastify.container.cache
     );

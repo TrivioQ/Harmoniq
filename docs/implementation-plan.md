@@ -1016,8 +1016,8 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] `requireInstanceAdmin` with a role → capability map (`services/adminAccess.ts`): every role reads, listed writes need their capability, any other write is owner-only; `POST /api/admin/admins` accepts `role` and invites unknown emails; `PATCH …/admins/:userId` changes a role; one active instance owner always remains (INST-31)
 - [x] Step-up: `POST /api/auth/reauth` (a TOTP or recovery code) and every sign-in set the `rat` claim; destructive admin routes require it within 10 minutes (`403 REAUTH_REQUIRED`); admin session cap (`auth.session.adminMaxHours`, default 12); admins need MFA or instance OIDC (`HARMONIQ_ADMIN_REQUIRE_MFA`, default on in production); optional `HARMONIQ_ADMIN_IP_ALLOWLIST` (INST-32)
 - [x] Instance API keys: `GET/POST/DELETE /api/admin/api-keys`; `hq_inst_` parsing in `authenticate.ts`; `instance:read` for GET admin routes, `instance:admin` for the rest (but not admins or keys); refused on every route outside `/api/admin`; changes made with them are audited as the key (INST-33)
-- [ ] Settings keys `plans`, `rateLimits`, `gc`, `bundles`, `tenancy`, `session`, `health` in `InstanceSettingsSchemas`, read through `InstanceSettings` by `Plans`, the rate limiter and GC jobs with env fallback (INST-34)
-- [ ] Settings versions on every save; `GET /api/admin/settings/:key/history`, `POST …/history/:version/restore`; `GET /api/admin/settings/export` and `PUT /api/admin/settings/import` (YAML, secrets excluded, dry-run diff) (INST-35)
+- [x] Settings keys `plans`, `rateLimits`, `gc` (versions kept, default retention, health-event and rollup retention), `bundles` in `InstanceSettingsSchemas` (`tenancy` and `auth.session` already were), read through `InstanceSettings` on each use by `Plans`, the rate limiter, deploys, health ingest, workspace creation and GC jobs, with env fallback (INST-34)
+- [x] Settings versions on every save, restore, import and reset; `GET /api/admin/settings/:key/history` (changed fields, secrets never shown), `POST …/history/:version/restore`; `GET /api/admin/settings/export` and `PUT /api/admin/settings/import` (YAML, secrets excluded, dry-run diff by default) (INST-35)
 - [ ] Terraform provider: `harmoniq_instance_setting`, `harmoniq_instance_admin`, plan resources (with instance keys)
 
 #### Dashboard
@@ -1033,7 +1033,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Role → capability matrix over every `/api/admin` route
 - [x] Step-up window, admin session cap, IP allowlist with `trustProxy`
 - [x] Instance keys: scopes, expiry, revocation, refused on workspace and org routes
-- [ ] New settings take effect without restart and on other replicas (as `instanceSettings.test.ts`); history, restore and import dry-run
+- [x] New settings take effect without restart and on other replicas (as `instanceSettings.test.ts`); history, restore and import dry-run
 
 ### 9.10 System Admin Dashboard & Operations (M5.10)
 

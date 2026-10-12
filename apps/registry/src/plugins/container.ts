@@ -188,7 +188,16 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     await orgShared.fanOut(target.workspace.id, target.environment.slug);
   };
 
-  const plans = new Plans({ systemDb, config: fastify.config });
+  const plans = new Plans({
+    systemDb,
+    config: fastify.config,
+    live: () => ({
+      plans: { ...fastify.config.plans, ...settings.plans() },
+      manifestRateLimits: settings.rateLimits().manifest,
+    }),
+  });
+  // A plan setting changed (here or on another replica): entitlements are recomputed.
+  settings.onChange(() => plans.forget());
   const usage = new UsageMeter({ systemDb, logger });
   const orgEvents = new OrgEvents({
     systemDb,

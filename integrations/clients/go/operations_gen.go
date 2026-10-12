@@ -270,6 +270,16 @@ func (c *Client) GetAdminSettings(ctx context.Context, query url.Values) (*Respo
 	return c.Do(ctx, "GET", "/api/admin/settings", nil, query)
 }
 
+// GetAdminSettingsExport calls GET /api/admin/settings/export (Instance administration).
+func (c *Client) GetAdminSettingsExport(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/settings/export", nil, query)
+}
+
+// GetAdminSettingsHistory calls GET /api/admin/settings/{key}/history (Instance administration).
+func (c *Client) GetAdminSettingsHistory(ctx context.Context, key string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/settings/"+url.PathEscape(key)+"/history", nil, query)
+}
+
 // GetAdminSetup calls GET /api/admin/setup (Instance administration).
 func (c *Client) GetAdminSetup(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/setup", nil, query)
@@ -780,6 +790,11 @@ func (c *Client) PostAdminSettingsEmailTest(ctx context.Context, query url.Value
 	return c.Do(ctx, "POST", "/api/admin/settings/email/test", nil, query)
 }
 
+// PostAdminSettingsHistoryRestore calls POST /api/admin/settings/{key}/history/{version}/restore (Instance administration).
+func (c *Client) PostAdminSettingsHistoryRestore(ctx context.Context, key string, version string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/settings/"+url.PathEscape(key)+"/history/"+url.PathEscape(version)+"/restore", nil, query)
+}
+
 // PostAdminSettingsStorageTest calls POST /api/admin/settings/storage/test (Instance administration).
 func (c *Client) PostAdminSettingsStorageTest(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/admin/settings/storage/test", nil, query)
@@ -1173,6 +1188,11 @@ func (c *Client) PutAdminOrgsPlan(ctx context.Context, slug string, body any, qu
 // PutAdminSettingsByKey calls PUT /api/admin/settings/{key} (Instance administration).
 func (c *Client) PutAdminSettingsByKey(ctx context.Context, key string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "PUT", "/api/admin/settings/"+url.PathEscape(key), nil, query)
+}
+
+// PutAdminSettingsImport calls PUT /api/admin/settings/import (Instance administration).
+func (c *Client) PutAdminSettingsImport(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "PUT", "/api/admin/settings/import", nil, query)
 }
 
 // PutAdminWorkspacesPlan calls PUT /api/admin/workspaces/{slug}/plan (Instance administration).

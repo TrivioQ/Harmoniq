@@ -80,11 +80,17 @@ export class Plans {
     private deps: {
       systemDb: PrismaClient;
       config: Pick<Config, 'plans' | 'manifestRateLimits'>;
+      /** INST-34: the admin panel's values over the environment's, read on each use. */
+      live?: () => Pick<Config, 'plans' | 'manifestRateLimits'>;
     }
   ) {}
 
+  private get cfg() {
+    return this.deps.live?.() ?? this.deps.config;
+  }
+
   get enforced() {
-    return this.deps.config.plans.enforced;
+    return this.cfg.plans.enforced;
   }
 
   private cached(key: string, load: () => Promise<Entitlements>) {
@@ -97,7 +103,7 @@ export class Plans {
   }
 
   private resolve(plan: Plan, layers: PlanOverrides[]): Entitlements {
-    const { features, limits } = this.deps.config.plans;
+    const { features, limits } = this.cfg.plans;
     const result: Entitlements = {
       plan,
       features: Object.fromEntries(FEATURES.map((f) => [f, features[plan].includes(f)])) as Record<
@@ -173,7 +179,7 @@ export class Plans {
   }
 
   allows(plan: Plan, feature: PlanFeature) {
-    return !this.enforced || this.deps.config.plans.features[plan].includes(feature);
+    return !this.enforced || this.cfg.plans.features[plan].includes(feature);
   }
 
   /** Which features the plan has, for the dashboard. */
@@ -186,7 +192,7 @@ export class Plans {
 
   private refuse(feature: PlanFeature, plan: Plan): never {
     const needed = (Object.keys(RANK) as Plan[]).find((p) =>
-      this.deps.config.plans.features[p].includes(feature)
+      this.cfg.plans.features[p].includes(feature)
     );
     throw new PlanRequiredError(
       `${LABEL[feature]} needs ${needed ? `the ${needed} plan` : 'a higher plan'} (this is on ${plan})`,
@@ -207,6 +213,6 @@ export class Plans {
   /** RL-04: manifest requests per minute for the workspace. */
   async manifestRateLimit(workspaceSlug: string | undefined) {
     const plan = workspaceSlug ? await this.planOf({ slug: workspaceSlug }) : 'hobby';
-    return this.deps.config.manifestRateLimits[plan];
+    return this.cfg.manifestRateLimits[plan];
   }
 }

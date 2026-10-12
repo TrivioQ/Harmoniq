@@ -39,7 +39,7 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
           keyGenerator: (req: FastifyRequest) =>
             `health:${(req.params as IngestParams).workspaceSlug}`,
           max: async (req: FastifyRequest) =>
-            fastify.config.healthRateLimits[
+            fastify.container.settings.rateLimits().health[
               await fastify.container.plans.planOf({
                 slug: (req.params as IngestParams).workspaceSlug,
               })

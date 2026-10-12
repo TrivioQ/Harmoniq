@@ -18,7 +18,14 @@ import { type ManifestPublisher, publishedPaths } from './manifestPublisher';
  */
 export async function createWorkspace(
   systemDb: PrismaClient,
-  input: { name: string; slug: string; organizationId?: string; owners?: string[] },
+  input: {
+    name: string;
+    slug: string;
+    organizationId?: string;
+    owners?: string[];
+    /** INST-34: the instance's default (90 days unless set in the admin panel). */
+    retentionDays?: number;
+  },
   /** A user becomes the owner. An org API key (IaC-01) creates it ownerless: org admins administer it. */
   creator: { userId: string; ip?: string } | { apiKeyId: string; ip?: string },
   /** Drops "not found" answers cached for the slug before it existed. */
@@ -29,7 +36,12 @@ export async function createWorkspace(
   try {
     created = await systemDb.$transaction(async (tx) => {
       const ws = await tx.workspace.create({
-        data: { name: input.name, slug: input.slug, organizationId: input.organizationId },
+        data: {
+          name: input.name,
+          slug: input.slug,
+          organizationId: input.organizationId,
+          ...(input.retentionDays && { retentionDays: input.retentionDays }),
+        },
       });
       if ('userId' in creator) {
         await tx.workspaceMember.create({

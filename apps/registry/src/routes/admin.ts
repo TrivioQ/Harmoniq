@@ -6,6 +6,7 @@
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { createHash, timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import {
   BadRequestError,
   ConflictError,
@@ -44,6 +45,7 @@ import {
 } from '../services/auditExport';
 import { recordPlanChange } from '../services/planChanges';
 import { verifyChain } from '../services/auditChain';
+import { changedPaths } from '../services/instanceSettings';
 import { RESEAL_QUEUE, resealAll, sealedValueReport } from '../services/reseal';
 import { reportDays, sendUsageCsv, usageTotals, workspaceUsage } from '../services/usageReport';
 import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
@@ -1126,9 +1128,17 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   /** Every setting, secrets masked, with whether it comes from the database or the env. */
   fastify.get('/api/admin/settings', admin, async () => settings.view());
 
-  fastify.put<{ Params: { key: string } }>('/api/admin/settings/:key', admin, async (request) => {
-    const key = settingKey(request.params.key);
-    const { plain, stored, fields } = settings.prepare(key, request.body);
+  /**
+   * Validates and saves one setting: the lockout guard for `auth` (INST-23), the storage
+   * test (INST-11), a version (INST-35) and an audit event with the changed field names.
+   */
+  async function applySetting(
+    request: FastifyRequest,
+    key: InstanceSettingKey,
+    input: unknown,
+    source: 'save' | 'restore' | 'import' = 'save'
+  ) {
+    const { plain, stored, fields } = settings.prepare(key, input);
     // INST-23: never lock the instance (or the admin saving) out of the admin panel.
     let lockedOut: string[] = [];
     if (key === 'auth') {
@@ -1151,14 +1161,25 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         throw new BadRequestError(`The storage test failed: ${probe.error}`);
       }
     }
-    await settings.save(key, stored, request.principal!.id);
+    await settings.save(key, stored, request.principal!.id, source);
     // INST-18: the key and the changed field names, never the values.
     await instanceAudit(request, {
       action: 'instance.config_updated',
       resourceType: 'instance_config',
       resourceId: key,
-      metadata: { key, fields, ...(lockedOut.length && { adminsLockedOut: lockedOut.length }) },
+      metadata: {
+        key,
+        fields,
+        ...(source !== 'save' && { source }),
+        ...(lockedOut.length && { adminsLockedOut: lockedOut.length }),
+      },
     });
+    return { lockedOut };
+  }
+
+  fastify.put<{ Params: { key: string } }>('/api/admin/settings/:key', admin, async (request) => {
+    const key = settingKey(request.params.key);
+    const { lockedOut } = await applySetting(request, key, request.body);
     // Other admins who can no longer sign in, so the panel can warn about them.
     return lockedOut.length
       ? { ...settings.view()[key], adminsLockedOut: lockedOut }
@@ -1171,7 +1192,9 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     admin,
     async (request, reply) => {
       const key = settingKey(request.params.key);
-      if (!(await settings.reset(key))) throw new NotFoundError('Not set in the database');
+      if (!(await settings.reset(key, request.principal!.id))) {
+        throw new NotFoundError('Not set in the database');
+      }
       await instanceAudit(request, {
         action: 'instance.config_updated',
         resourceType: 'instance_config',
@@ -1181,6 +1204,84 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(204).send();
     }
   );
+
+  // ─── Settings history, export and import (INST-35) ────────────────────────
+
+  fastify.get<{ Params: { key: string } }>(
+    '/api/admin/settings/:key/history',
+    admin,
+    async (request) => {
+      const key = settingKey(request.params.key);
+      return { key, versions: await settings.history(key) };
+    }
+  );
+
+  /** Saves an older version again (as a new version), with the usual checks. */
+  fastify.post<{ Params: { key: string; version: string } }>(
+    '/api/admin/settings/:key/history/:version/restore',
+    admin,
+    async (request) => {
+      const key = settingKey(request.params.key);
+      const found = await settings.savedVersion(key, Number(request.params.version));
+      if (!found) throw new NotFoundError('No such version');
+      if (found.source === 'reset') {
+        await settings.reset(key, request.principal!.id);
+      } else {
+        await applySetting(
+          request,
+          key,
+          settings.openStored(key, found.value as Record<string, unknown>),
+          'restore'
+        );
+      }
+      return settings.view()[key];
+    }
+  );
+
+  /** Every setting stored in the database, secrets left out, as YAML. */
+  fastify.get('/api/admin/settings/export', admin, async (request, reply) => {
+    await instanceAudit(request, {
+      action: 'instance.config_export',
+      resourceType: 'instance',
+      resourceId: 'instance',
+    });
+    return reply
+      .header('Content-Type', 'application/yaml; charset=utf-8')
+      .header(
+        'Content-Disposition',
+        `attachment; filename="harmoniq-settings-${new Date().toISOString().slice(0, 10)}.yaml"`
+      )
+      .send(settings.exportYaml());
+  });
+
+  /**
+   * Applies an export (`{ yaml, dryRun }`): each setting it holds is validated as a save
+   * would be (secrets left out keep the stored ones). A dry run only reports the changes.
+   */
+  fastify.put('/api/admin/settings/import', admin, async (request) => {
+    const body = z
+      .object({ yaml: z.string().min(1).max(1_000_000), dryRun: z.boolean().default(true) })
+      .parse(request.body);
+    const incoming = settings.parseImport(body.yaml);
+    const view = settings.view();
+    const plan = (Object.keys(incoming) as InstanceSettingKey[]).map((key) => {
+      const { plain } = settings.prepare(key, incoming[key]);
+      const current = view[key].source === 'database' ? view[key].value : {};
+      return {
+        key,
+        changed: changedPaths(
+          settings.withoutSecrets(key, current as Record<string, unknown>),
+          settings.withoutSecrets(key, plain)
+        ),
+      };
+    });
+    if (!body.dryRun) {
+      for (const { key, changed } of plan) {
+        if (changed.length) await applySetting(request, key, incoming[key], 'import');
+      }
+    }
+    return { dryRun: body.dryRun, settings: plan };
+  });
 
   // INST-11: Test Connection for the storage in use.
   fastify.post('/api/admin/settings/storage/test', admin, async () => {

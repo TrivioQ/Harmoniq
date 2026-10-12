@@ -145,20 +145,26 @@ export async function handleHardDelete(db: PrismaClient, logger: ILogger, purge?
   }
 }
 
-export async function handleHealthEventPurge(db: PrismaClient, logger: ILogger) {
+export async function handleHealthEventPurge(
+  db: PrismaClient,
+  logger: ILogger,
+  retention: { healthEventRetentionHours: number; healthRollupRetentionDays: number } = {
+    healthEventRetentionHours: 24,
+    healthRollupRetentionDays: 30,
+  }
+) {
   logger.info('Running gc.healthEventPurge job');
   try {
-    const oneDayAgo = new Date();
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-
     const events = await db.moduleHealthEvent.deleteMany({
       where: {
-        reportedAt: { lt: oneDayAgo },
+        reportedAt: { lt: new Date(Date.now() - retention.healthEventRetentionHours * 3_600_000) },
       },
     });
-    // Hourly rollups (sparklines) are kept for 30 days.
+    // Hourly rollups (sparklines).
     const rollups = await db.moduleHealthRollup.deleteMany({
-      where: { hour: { lt: new Date(Date.now() - 30 * 86_400_000) } },
+      where: {
+        hour: { lt: new Date(Date.now() - retention.healthRollupRetentionDays * 86_400_000) },
+      },
     });
     logger.info(`Purged ${events.count} health events and ${rollups.count} hourly rollups`);
   } catch (err) {
@@ -251,7 +257,9 @@ export async function registerGcJobs(fastify: FastifyInstance) {
   // 1. Soft Delete Job - Daily
   await boss.schedule('gc.softDelete', '0 0 * * *');
   boss.work('gc.softDelete', () =>
-    handleSoftDelete(db, logger, { keepVersions: fastify.config.gcKeepVersions })
+    handleSoftDelete(db, logger, {
+      keepVersions: fastify.container.settings.gc().keepVersions,
+    })
   );
 
   // 2. Hard Delete Job - Weekly
@@ -260,7 +268,9 @@ export async function registerGcJobs(fastify: FastifyInstance) {
 
   // 3. Health Event Purge - Daily
   await boss.schedule('gc.healthEventPurge', '0 0 * * *');
-  boss.work('gc.healthEventPurge', () => handleHealthEventPurge(db, logger));
+  boss.work('gc.healthEventPurge', () =>
+    handleHealthEventPurge(db, logger, fastify.container.settings.gc())
+  );
 
   // 4. Expired preview environments - Hourly
   const onDeleted: OnEnvironmentDeleted = async (env) => {

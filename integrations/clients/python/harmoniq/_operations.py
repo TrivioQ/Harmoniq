@@ -219,6 +219,14 @@ class Client(BaseClient):
         """GET /api/admin/settings (Instance administration)."""
         return self.request("GET", "/api/admin/settings", None, query)
 
+    def get_admin_settings_export(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/settings/export (Instance administration)."""
+        return self.request("GET", "/api/admin/settings/export", None, query)
+
+    def get_admin_settings_history(self, key, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/settings/{key}/history (Instance administration)."""
+        return self.request("GET", "/api/admin/settings/" + _q(key) + "/history", None, query)
+
     def get_admin_setup(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/setup (Instance administration)."""
         return self.request("GET", "/api/admin/setup", None, query)
@@ -627,6 +635,10 @@ class Client(BaseClient):
         """POST /api/admin/settings/email/test (Instance administration)."""
         return self.request("POST", "/api/admin/settings/email/test", None, query)
 
+    def post_admin_settings_history_restore(self, key, version, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/settings/{key}/history/{version}/restore (Instance administration)."""
+        return self.request("POST", "/api/admin/settings/" + _q(key) + "/history/" + _q(version) + "/restore", None, query)
+
     def post_admin_settings_storage_test(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/settings/storage/test (Instance administration)."""
         return self.request("POST", "/api/admin/settings/storage/test", None, query)
@@ -942,6 +954,10 @@ class Client(BaseClient):
     def put_admin_settings_by_key(self, key, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PUT /api/admin/settings/{key} (Instance administration)."""
         return self.request("PUT", "/api/admin/settings/" + _q(key), None, query)
+
+    def put_admin_settings_import(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PUT /api/admin/settings/import (Instance administration)."""
+        return self.request("PUT", "/api/admin/settings/import", None, query)
 
     def put_admin_workspaces_plan(self, slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PUT /api/admin/workspaces/{slug}/plan (Instance administration)."""
