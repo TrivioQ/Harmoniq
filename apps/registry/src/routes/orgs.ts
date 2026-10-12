@@ -47,6 +47,8 @@ import {
 import { orgSsoRoutes } from './orgSso';
 import { orgDomainRoutes } from './domains';
 import { orgPolicyRoutes } from './policy';
+import { orgEventRoutes } from './orgEvents';
+import type { OrgEventName } from '@harmoniq/core/dist/schemas/OrgEventsSchema';
 import {
   assertKeyPolicy,
   cappedExpiry,
@@ -70,6 +72,8 @@ declare module 'fastify' {
     org?: Organization;
     /** The caller's role in `org` (undefined for instance admins without one). */
     orgRole?: OrgRole;
+    /** TAD-09/10: org audit events of this request, sent as org events once it succeeds. */
+    orgEvents?: Array<{ action: string; resourceId: string; metadata?: Record<string, unknown> }>;
   }
 }
 
@@ -86,6 +90,21 @@ const RotateOrgKeySchema = z.object({
     .max(24 * 30)
     .default(24),
 });
+
+/** TAD-09/10: org audit actions that are also organization events. */
+const ORG_EVENTS: Record<string, OrgEventName> = {
+  'org.member_add': 'org.member.added',
+  'org.member_role_change': 'org.member.role_changed',
+  'org.member_remove': 'org.member.removed',
+  'org.workspace_create': 'org.workspace.created',
+  'org.workspace_attach': 'org.workspace.attached',
+  'org.workspace_delete': 'org.workspace.deleted',
+  'org.workspace_detach': 'org.workspace.detached',
+  'org.key_create': 'org.key.created',
+  'org.key_rotate': 'org.key.rotated',
+  'org.key_revoke': 'org.key.revoked',
+  'org.policy_updated': 'org.policy.updated',
+};
 
 /** TAD-05: keys not used for this long are flagged in the list. */
 const UNUSED_KEY_DAYS = 90;
@@ -261,6 +280,47 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       request.orgRole = role;
     };
   }
+  /* eslint-disable no-restricted-syntax -- MT-09: after the response, names and emails for the events (read-only lookups) */
+  // TAD-09/10: a successful request's org events go to webhooks and notification channels
+  // (a failed one may have rolled back what its audit events describe).
+  fastify.addHook('onResponse', async (request, reply) => {
+    const pending = request.orgEvents;
+    if (!pending?.length || !request.org || reply.statusCode >= 400) return;
+    const orgId = request.org.id;
+    for (const e of pending) {
+      const name = ORG_EVENTS[e.action];
+      const m = e.metadata ?? {};
+      let payload: Record<string, unknown>;
+      if (name.startsWith('org.member.')) {
+        const member = await systemDb.organizationMember.findUnique({
+          where: { id: e.resourceId },
+          select: { user: { select: { email: true } } },
+        });
+        const user =
+          member?.user ??
+          (typeof m.userId === 'string'
+            ? await systemDb.user.findUnique({ where: { id: m.userId }, select: { email: true } })
+            : null);
+        payload = {
+          email: m.email ?? user?.email ?? null,
+          role: m.role ?? m.to ?? null,
+          ...(m.from !== undefined && { from: m.from }),
+        };
+      } else if (name.startsWith('org.workspace.')) {
+        payload = { workspace: m.slug ?? null, workspaceId: e.resourceId };
+      } else if (name.startsWith('org.key.')) {
+        const key = m.name
+          ? null
+          : await systemDb.orgApiKey.findUnique({ where: { id: e.resourceId } });
+        payload = { keyId: e.resourceId, name: m.name ?? key?.name ?? null };
+      } else {
+        payload = { fields: Object.keys((m.changes as object) ?? {}) };
+      }
+      await fastify.container.orgEvents.emit(orgId, name, payload);
+    }
+  });
+  /* eslint-enable no-restricted-syntax */
+
   const member = { preHandler: requireOrg('member') };
   const admin = { preHandler: requireOrg('admin') };
   const adminOrOrgKey = { preHandler: requireOrg('admin', { allowOrgKey: true }) };
@@ -278,6 +338,13 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     },
     tx?: TenantTx
   ) => {
+    if (ORG_EVENTS[event.action]) {
+      (request.orgEvents ??= []).push({
+        action: event.action,
+        resourceId: event.resourceId,
+        metadata: event.metadata,
+      });
+    }
     const write = (db: TenantTx) =>
       db.organizationAuditEvent.create({
         data: {
@@ -1745,6 +1812,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   orgSsoRoutes(fastify, { admin, reader: auditor, orgAudit });
   orgDomainRoutes(fastify, { admin, orgAudit });
   orgPolicyRoutes(fastify, { admin, reader: auditor, orgAudit });
+  orgEventRoutes(fastify, { admin, orgAudit });
 
   // ─── Usage (USG-03, TAD-02) ───────────────────────────────────────────────
 

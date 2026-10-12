@@ -80,6 +80,11 @@ func (c *Client) DeleteOrgsMembersByMemberId(ctx context.Context, orgSlug string
 	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/members/"+url.PathEscape(memberId), nil, query)
 }
 
+// DeleteOrgsNotificationsById calls DELETE /api/orgs/{orgSlug}/notifications/{id} (Organizations).
+func (c *Client) DeleteOrgsNotificationsById(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/notifications/"+url.PathEscape(id), nil, query)
+}
+
 // DeleteOrgsPolicyFreezeWindowsOverride calls DELETE /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations).
 func (c *Client) DeleteOrgsPolicyFreezeWindowsOverride(ctx context.Context, orgSlug string, windowId string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/policy/freeze-windows/"+url.PathEscape(windowId)+"/override", nil, query)
@@ -98,6 +103,11 @@ func (c *Client) DeleteOrgsSsoOidc(ctx context.Context, orgSlug string, query ur
 // DeleteOrgsSsoSaml calls DELETE /api/orgs/{orgSlug}/sso/saml (Organizations).
 func (c *Client) DeleteOrgsSsoSaml(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/sso/saml", nil, query)
+}
+
+// DeleteOrgsWebhooksById calls DELETE /api/orgs/{orgSlug}/webhooks/{id} (Organizations).
+func (c *Client) DeleteOrgsWebhooksById(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/webhooks/"+url.PathEscape(id), nil, query)
 }
 
 // DeleteOrgsWorkspacesByWorkspaceSlug calls DELETE /api/orgs/{orgSlug}/workspaces/{workspaceSlug} (Organizations).
@@ -380,6 +390,11 @@ func (c *Client) GetOrgsModulesConsumers(ctx context.Context, orgSlug string, mo
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/modules/"+url.PathEscape(moduleId)+"/consumers", nil, query)
 }
 
+// GetOrgsNotifications calls GET /api/orgs/{orgSlug}/notifications (Organizations).
+func (c *Client) GetOrgsNotifications(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/notifications", nil, query)
+}
+
 // GetOrgsPeople calls GET /api/orgs/{orgSlug}/people (Organizations).
 func (c *Client) GetOrgsPeople(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/people", nil, query)
@@ -428,6 +443,21 @@ func (c *Client) GetOrgsSsoSamlTestByTestId(ctx context.Context, orgSlug string,
 // GetOrgsUsage calls GET /api/orgs/{orgSlug}/usage (Organizations).
 func (c *Client) GetOrgsUsage(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/usage", nil, query)
+}
+
+// GetOrgsWebhooks calls GET /api/orgs/{orgSlug}/webhooks (Organizations).
+func (c *Client) GetOrgsWebhooks(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/webhooks", nil, query)
+}
+
+// GetOrgsWebhooksDeadLetters calls GET /api/orgs/{orgSlug}/webhooks-dead-letters (Organizations).
+func (c *Client) GetOrgsWebhooksDeadLetters(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/webhooks-dead-letters", nil, query)
+}
+
+// GetOrgsWebhooksDeliveries calls GET /api/orgs/{orgSlug}/webhooks/{id}/deliveries (Organizations).
+func (c *Client) GetOrgsWebhooksDeliveries(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/webhooks/"+url.PathEscape(id)+"/deliveries", nil, query)
 }
 
 // GetSchemaHarmoniqJson calls GET /api/schema/harmoniq.json (Manifests).
@@ -625,6 +655,16 @@ func (c *Client) PatchOrgsMembersByMemberId(ctx context.Context, orgSlug string,
 	return c.Do(ctx, "PATCH", "/api/orgs/"+url.PathEscape(orgSlug)+"/members/"+url.PathEscape(memberId), body, query)
 }
 
+// PatchOrgsNotificationsById calls PATCH /api/orgs/{orgSlug}/notifications/{id} (Organizations).
+func (c *Client) PatchOrgsNotificationsById(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "PATCH", "/api/orgs/"+url.PathEscape(orgSlug)+"/notifications/"+url.PathEscape(id), nil, query)
+}
+
+// PatchOrgsWebhooksById calls PATCH /api/orgs/{orgSlug}/webhooks/{id} (Organizations).
+func (c *Client) PatchOrgsWebhooksById(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "PATCH", "/api/orgs/"+url.PathEscape(orgSlug)+"/webhooks/"+url.PathEscape(id), nil, query)
+}
+
 // PatchWorkspacesAlertsByRuleId calls PATCH /api/workspaces/{workspaceSlug}/alerts/{ruleId} (Alerts).
 func (c *Client) PatchWorkspacesAlertsByRuleId(ctx context.Context, workspaceSlug string, ruleId string, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "PATCH", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/alerts/"+url.PathEscape(ruleId), body, query)
@@ -800,6 +840,16 @@ func (c *Client) PostOrgsMembers(ctx context.Context, orgSlug string, body any, 
 	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/members", body, query)
 }
 
+// PostOrgsNotifications calls POST /api/orgs/{orgSlug}/notifications (Organizations).
+func (c *Client) PostOrgsNotifications(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/notifications", nil, query)
+}
+
+// PostOrgsNotificationsTest calls POST /api/orgs/{orgSlug}/notifications/{id}/test (Organizations).
+func (c *Client) PostOrgsNotificationsTest(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/notifications/"+url.PathEscape(id)+"/test", nil, query)
+}
+
 // PostOrgsPolicyFreezeWindowsOverride calls POST /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations).
 func (c *Client) PostOrgsPolicyFreezeWindowsOverride(ctx context.Context, orgSlug string, windowId string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/policy/freeze-windows/"+url.PathEscape(windowId)+"/override", nil, query)
@@ -823,6 +873,16 @@ func (c *Client) PostOrgsSsoSamlTest(ctx context.Context, orgSlug string, query 
 // PostOrgsTransfer calls POST /api/orgs/{orgSlug}/transfer (Organizations).
 func (c *Client) PostOrgsTransfer(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/transfer", nil, query)
+}
+
+// PostOrgsWebhooks calls POST /api/orgs/{orgSlug}/webhooks (Organizations).
+func (c *Client) PostOrgsWebhooks(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/webhooks", nil, query)
+}
+
+// PostOrgsWebhooksDeadLettersRetry calls POST /api/orgs/{orgSlug}/webhooks-dead-letters/{id}/retry (Organizations).
+func (c *Client) PostOrgsWebhooksDeadLettersRetry(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/webhooks-dead-letters/"+url.PathEscape(id)+"/retry", nil, query)
 }
 
 // PostOrgsWorkspaces calls POST /api/orgs/{orgSlug}/workspaces (Organizations).

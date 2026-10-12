@@ -7,6 +7,7 @@ import type { Quota } from '@harmoniq/core/dist/schemas/AdminSchemas';
 import type { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import type { Plans } from './plans';
 import type { WebhookDispatcher } from './webhookDispatcher';
+import type { OrgEvents } from './orgEvents';
 
 const GB = 1024 ** 3;
 /** USG-04: `quota.warning` when a create brings usage to this share of the limit. */
@@ -41,6 +42,8 @@ export class Quotas {
       plans: Plans;
       webhooks: WebhookDispatcher;
       logger: ILogger;
+      /** TAD-09/10: the organization hears of its own and its workspaces' quotas. */
+      orgEvents?: Pick<OrgEvents, 'emit'>;
     }
   ) {}
 
@@ -151,9 +154,20 @@ export class Quotas {
         await db.organizationAuditEvent.create({
           data: { organizationId: target.organizationId, ...data },
         });
+        await this.deps.orgEvents?.emit(target.organizationId, event, details);
       } else {
         await db.auditEvent.create({ data: { workspaceId: target.workspaceId!, ...data } });
         await this.deps.webhooks.dispatch(target.workspaceId!, event, details);
+        const ws = await db.workspace.findUnique({
+          where: { id: target.workspaceId! },
+          select: { slug: true, organizationId: true },
+        });
+        if (ws?.organizationId) {
+          await this.deps.orgEvents?.emit(ws.organizationId, event, {
+            ...details,
+            workspace: ws.slug,
+          });
+        }
       }
     } catch (err) {
       this.deps.logger.warn(`Recording ${event} failed: ${(err as Error).message}`);

@@ -17,7 +17,7 @@ type Change = {
  * webhooks come with TAD-10). Best effort: the change itself is already saved.
  */
 export async function recordPlanChange(
-  container: Pick<AppContainer, 'systemDb' | 'webhooks' | 'logger'>,
+  container: Pick<AppContainer, 'systemDb' | 'webhooks' | 'logger' | 'orgEvents'>,
   tenant: { workspaceId: string } | { organizationId: string },
   change: Change,
   actor: { type: 'user' | 'system'; id: string } = { type: 'system', id: 'plans' }
@@ -42,6 +42,16 @@ export async function recordPlanChange(
     if ('workspaceId' in tenant) {
       await systemDb.auditEvent.create({ data: { workspaceId: tenant.workspaceId, ...event } });
       await webhooks.dispatch(tenant.workspaceId, 'plan.changed', payload);
+      const ws = await systemDb.workspace.findUnique({
+        where: { id: tenant.workspaceId },
+        select: { slug: true, organizationId: true },
+      });
+      if (ws?.organizationId) {
+        await container.orgEvents.emit(ws.organizationId, 'plan.changed', {
+          ...payload,
+          workspace: ws.slug,
+        });
+      }
     } else {
       await systemDb.organizationAuditEvent.create({
         data: { organizationId: tenant.organizationId, ...event },
@@ -53,6 +63,7 @@ export async function recordPlanChange(
       for (const w of workspaces) {
         await webhooks.dispatch(w.id, 'plan.changed', { ...payload, organization: true });
       }
+      await container.orgEvents.emit(tenant.organizationId, 'plan.changed', payload);
     }
   } catch (err) {
     logger.warn(`Recording plan.changed failed: ${(err as Error).message}`);
@@ -64,7 +75,7 @@ export async function recordPlanChange(
  * plan, audited as `plan.changed` and `instance.plan_expired`. Overrides are kept.
  */
 export async function expirePlans(
-  container: Pick<AppContainer, 'systemDb' | 'webhooks' | 'logger' | 'plans'>,
+  container: Pick<AppContainer, 'systemDb' | 'webhooks' | 'logger' | 'plans' | 'orgEvents'>,
   now = new Date()
 ) {
   const { systemDb } = container;

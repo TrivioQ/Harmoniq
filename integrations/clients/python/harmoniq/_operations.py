@@ -67,6 +67,10 @@ class Client(BaseClient):
         """DELETE /api/orgs/{orgSlug}/members/{memberId} (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/members/" + _q(member_id), None, query)
 
+    def delete_orgs_notifications_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/notifications/{id} (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/notifications/" + _q(id), None, query)
+
     def delete_orgs_policy_freeze_windows_override(self, org_slug, window_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/policy/freeze-windows/" + _q(window_id) + "/override", None, query)
@@ -82,6 +86,10 @@ class Client(BaseClient):
     def delete_orgs_sso_saml(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug}/sso/saml (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/sso/saml", None, query)
+
+    def delete_orgs_webhooks_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/webhooks/{id} (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/webhooks/" + _q(id), None, query)
 
     def delete_orgs_workspaces_by_workspace_slug(self, org_slug, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug}/workspaces/{workspaceSlug} (Organizations)."""
@@ -307,6 +315,10 @@ class Client(BaseClient):
         """GET /api/orgs/{orgSlug}/modules/{moduleId}/consumers (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/modules/" + _q(module_id) + "/consumers", None, query)
 
+    def get_orgs_notifications(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/notifications (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/notifications", None, query)
+
     def get_orgs_people(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/people (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/people", None, query)
@@ -346,6 +358,18 @@ class Client(BaseClient):
     def get_orgs_usage(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/usage (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/usage", None, query)
+
+    def get_orgs_webhooks(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/webhooks (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/webhooks", None, query)
+
+    def get_orgs_webhooks_dead_letters(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/webhooks-dead-letters (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/webhooks-dead-letters", None, query)
+
+    def get_orgs_webhooks_deliveries(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/webhooks/{id}/deliveries (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/webhooks/" + _q(id) + "/deliveries", None, query)
 
     def get_schema_harmoniq_json(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/schema/harmoniq.json (Manifests)."""
@@ -503,6 +527,14 @@ class Client(BaseClient):
         """PATCH /api/orgs/{orgSlug}/members/{memberId} (Organizations)."""
         return self.request("PATCH", "/api/orgs/" + _q(org_slug) + "/members/" + _q(member_id), body, query)
 
+    def patch_orgs_notifications_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PATCH /api/orgs/{orgSlug}/notifications/{id} (Organizations)."""
+        return self.request("PATCH", "/api/orgs/" + _q(org_slug) + "/notifications/" + _q(id), None, query)
+
+    def patch_orgs_webhooks_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PATCH /api/orgs/{orgSlug}/webhooks/{id} (Organizations)."""
+        return self.request("PATCH", "/api/orgs/" + _q(org_slug) + "/webhooks/" + _q(id), None, query)
+
     def patch_workspaces_alerts_by_rule_id(self, workspace_slug, rule_id, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PATCH /api/workspaces/{workspaceSlug}/alerts/{ruleId} (Alerts)."""
         return self.request("PATCH", "/api/workspaces/" + _q(workspace_slug) + "/alerts/" + _q(rule_id), body, query)
@@ -643,6 +675,14 @@ class Client(BaseClient):
         """POST /api/orgs/{orgSlug}/members (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/members", body, query)
 
+    def post_orgs_notifications(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/notifications (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/notifications", None, query)
+
+    def post_orgs_notifications_test(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/notifications/{id}/test (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/notifications/" + _q(id) + "/test", None, query)
+
     def post_orgs_policy_freeze_windows_override(self, org_slug, window_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/policy/freeze-windows/" + _q(window_id) + "/override", None, query)
@@ -662,6 +702,14 @@ class Client(BaseClient):
     def post_orgs_transfer(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/transfer (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/transfer", None, query)
+
+    def post_orgs_webhooks(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/webhooks (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/webhooks", None, query)
+
+    def post_orgs_webhooks_dead_letters_retry(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/webhooks-dead-letters/{id}/retry (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/webhooks-dead-letters/" + _q(id) + "/retry", None, query)
 
     def post_orgs_workspaces(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/workspaces (Organizations)."""

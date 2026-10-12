@@ -656,39 +656,42 @@ model DeploymentApproval {
 }
 
 model Organization {
-  id                 String               @id @default(cuid())
-  slug               String               @unique
-  name               String
-  plan               String               @default("hobby")
+  id                   String                @id @default(cuid())
+  slug                 String                @unique
+  name                 String
+  plan                 String                @default("hobby")
   /// PLN-06: as for workspaces.
-  planOverrides      Json?
-  planExpiresAt      DateTime?
-  basePlan           String?
+  planOverrides        Json?
+  planExpiresAt        DateTime?
+  basePlan             String?
   /// ORG-05: inherited by workspaces without their own SSO.
-  oidcConfig         Json?
-  samlConfig         Json?
-  forceSso           Boolean              @default(false)
-  trustedDomains     String[]             @default([])
+  oidcConfig           Json?
+  samlConfig           Json?
+  forceSso             Boolean               @default(false)
+  trustedDomains       String[]              @default([])
   /// ORG-07: `{ rules: [{ group, workspace, role }], adminGroups }`.
-  provisioning       Json?
-  scimEnabled        Boolean              @default(false)
+  provisioning         Json?
+  scimEnabled          Boolean               @default(false)
   /// sha256 of the org SCIM bearer token.
-  scimTokenHash      String?              @unique
-  scimTokenCreatedAt DateTime?
-  createdAt          DateTime             @default(now())
-  deletedAt          DateTime?
+  scimTokenHash        String?               @unique
+  scimTokenCreatedAt   DateTime?
+  createdAt            DateTime              @default(now())
+  deletedAt            DateTime?
   /// TLC-02/03: restorable by an instance admin until then; purged (slug released) after.
-  purgeAfter         DateTime?
+  purgeAfter           DateTime?
   /// TLC-04: every workspace of the organization refuses changes while set.
-  suspendedAt        DateTime?
-  suspendedReason    String?
-  Workspaces         Workspace[]
-  Members            OrganizationMember[]
-  OrgApiKeys         OrgApiKey[]
-  ScimUsers          ScimUser[]
-  ScimGroups         ScimGroup[]
-  VerifiedDomains    VerifiedDomain[]
-  Policy             OrgPolicy?
+  suspendedAt          DateTime?
+  suspendedReason      String?
+  Workspaces           Workspace[]
+  Members              OrganizationMember[]
+  OrgApiKeys           OrgApiKey[]
+  ScimUsers            ScimUser[]
+  ScimGroups           ScimGroup[]
+  VerifiedDomains      VerifiedDomain[]
+  Policy               OrgPolicy?
+  WebhookEndpoints     OrgWebhookEndpoint[]
+  NotificationChannels NotificationChannel[]
+  AuditSinks           AuditSink[]
 
   @@index([purgeAfter])
 }
@@ -987,4 +990,116 @@ model UsageDaily {
 
   @@id([workspaceId, day])
   @@index([day])
+}
+
+/// TAD-10: an organization's webhooks; delivered like workspace webhooks (WHK).
+model OrgWebhookEndpoint {
+  id               String               @id @default(cuid())
+  organizationId   String
+  url              String
+  events           String[]
+  /// Sealed HMAC secret.
+  secret           String
+  active           Boolean              @default(true)
+  maxRetries       Int                  @default(5)
+  backoffCeilingMs Int                  @default(300000)
+  paused           Boolean              @default(false)
+  createdAt        DateTime             @default(now())
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  Deliveries       OrgWebhookDelivery[]
+
+  @@index([organizationId])
+}
+
+model OrgWebhookDelivery {
+  id             String             @id @default(cuid())
+  endpointId     String
+  organizationId String
+  event          String
+  payload        Json
+  statusCode     Int?
+  attempt        Int
+  durationMs     Int?
+  success        Boolean
+  createdAt      DateTime           @default(now())
+  endpoint       OrgWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, createdAt(sort: Desc)])
+  @@index([organizationId])
+}
+
+model OrgWebhookDeadLetter {
+  id                String    @id @default(cuid())
+  organizationId    String
+  endpointId        String
+  event             String
+  payload           Json
+  finalStatusCode   Int?
+  finalResponseBody String?
+  totalAttempts     Int
+  firstAttemptAt    DateTime
+  exhaustedAt       DateTime
+  retriedAt         DateTime?
+
+  @@index([organizationId])
+}
+
+/// TAD-09: where an organization is told about events: email addresses, or a Slack or
+/// Microsoft Teams incoming webhook (sealed).
+model NotificationChannel {
+  id             String       @id @default(cuid())
+  organizationId String
+  kind           String
+  name           String
+  /// Email addresses (comma-separated), or the sealed incoming-webhook URL.
+  target         String
+  events         String[]
+  active         Boolean      @default(true)
+  lastSentAt     DateTime?
+  lastError      String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+/// AUD-06: an organization's audit stream: an HTTPS endpoint (HMAC-signed batches) or an
+/// S3-compatible bucket (JSON Lines objects by hour). `cursorAt`/`cursorId` is the last event
+/// delivered (at least once: a batch is resent until it is accepted).
+model AuditSink {
+  id              String                @id @default(cuid())
+  organizationId  String
+  kind            String
+  name            String
+  /// Sealed JSON: `{ url, secret }` or `{ bucket, region, endpoint?, prefix?, accessKeyId, secretAccessKey }`.
+  config          String
+  enabled         Boolean               @default(true)
+  cursorAt        DateTime?
+  cursorId        String?
+  failures        Int                   @default(0)
+  lastError       String?
+  lastDeliveredAt DateTime?
+  createdAt       DateTime              @default(now())
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  DeadLetters     AuditSinkDeadLetter[]
+
+  @@index([organizationId])
+}
+
+/// AUD-06: a batch given up on after repeated failures; can be sent again.
+model AuditSinkDeadLetter {
+  id             String    @id @default(cuid())
+  sinkId         String
+  organizationId String
+  fromAt         DateTime
+  fromId         String
+  toAt           DateTime
+  toId           String
+  events         Int
+  error          String
+  createdAt      DateTime  @default(now())
+  retriedAt      DateTime?
+  sink           AuditSink @relation(fields: [sinkId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
 }

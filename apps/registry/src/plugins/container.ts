@@ -24,6 +24,8 @@ import { withSpan } from '../services/tracing';
 import { Plans } from '../services/plans';
 import { Quotas } from '../services/quotas';
 import { UsageMeter } from '../services/usage';
+import { OrgEvents } from '../services/orgEvents';
+import { checkPublicUrl, createSafeFetch } from '../services/outbound';
 
 export interface AppContainer {
   cache: ICache;
@@ -70,6 +72,8 @@ export interface AppContainer {
   quotas: Quotas;
   /** USG-01: request counters, flushed to `UsageDaily` every minute. */
   usage: UsageMeter;
+  /** TAD-09/10: organization events to org webhooks and notification channels. */
+  orgEvents: OrgEvents;
 }
 
 declare module 'fastify' {
@@ -186,6 +190,18 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
 
   const plans = new Plans({ systemDb, config: fastify.config });
   const usage = new UsageMeter({ systemDb, logger });
+  const orgEvents = new OrgEvents({
+    systemDb,
+    boss,
+    logger,
+    encryptionKey: fastify.config.encryptionKey,
+    mailer: () => settings.mailer(),
+    instanceName: () => settings.branding().name,
+    webOrigin: fastify.config.webOrigin,
+    fetchImpl: createSafeFetch({ allowHttp: !fastify.config.isProduction }),
+    checkUrl: (url) => checkPublicUrl(url, { allowHttp: !fastify.config.isProduction }),
+  });
+
   usage.start();
 
   fastify.decorate('container', {
@@ -209,8 +225,9 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     orgShared,
     settings,
     plans,
-    quotas: new Quotas({ systemDb, plans, webhooks, logger }),
+    quotas: new Quotas({ systemDb, plans, webhooks, logger, orgEvents }),
     usage,
+    orgEvents,
     domains: new Domains({ systemDb, config: fastify.config }),
     get instanceStorage() {
       return settings.storage();

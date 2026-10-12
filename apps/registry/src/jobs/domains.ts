@@ -5,6 +5,7 @@ import { FastifyInstance } from 'fastify';
 import type { PrismaClient } from '@prisma/client';
 import type { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import { Domains, REVERIFY_FAILURE_DAYS } from '../services/domains';
+import type { OrgEvents } from '../services/orgEvents';
 
 export const DOMAINS_RECHECK_QUEUE = 'domains.recheck';
 const ACTOR = 'system:domains.recheck';
@@ -17,7 +18,8 @@ export async function handleDomainRecheck(
   db: PrismaClient,
   domains: Domains,
   logger: ILogger,
-  now = new Date()
+  now = new Date(),
+  orgEvents?: Pick<OrgEvents, 'emit'>
 ) {
   const { checked, unverified } = await domains.recheck(now);
   for (const row of unverified) {
@@ -60,6 +62,18 @@ export async function handleDomainRecheck(
         },
       });
     }
+    // TAD-09: the organization's (or the workspace's organization's) channels hear of it.
+    const orgId =
+      row.organizationId ??
+      (row.workspaceId
+        ? (
+            await db.workspace.findUnique({
+              where: { id: row.workspaceId },
+              select: { organizationId: true },
+            })
+          )?.organizationId
+        : null);
+    if (orgId) await orgEvents?.emit(orgId, 'domain.verification_lost', metadata);
     logger.warn(`Domain ${row.domain} is no longer verified (${metadata.reason})`);
   }
   return { checked, unverified: unverified.length };
@@ -71,6 +85,6 @@ export async function registerDomainJobs(fastify: FastifyInstance) {
   await boss.createQueue(DOMAINS_RECHECK_QUEUE);
   await boss.schedule(DOMAINS_RECHECK_QUEUE, '30 3 * * *'); // daily
   await boss.work(DOMAINS_RECHECK_QUEUE, async () => {
-    await handleDomainRecheck(systemDb, domains, logger);
+    await handleDomainRecheck(systemDb, domains, logger, new Date(), fastify.container.orgEvents);
   });
 }

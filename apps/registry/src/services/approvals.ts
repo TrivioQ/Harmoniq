@@ -152,6 +152,17 @@ export async function interceptForApproval(
     return created;
   });
 
+  // TAD-09: the organization's channels hear of it too.
+  if (workspace.organizationId) {
+    await app.container.orgEvents.emit(workspace.organizationId, 'deploy.approval_requested', {
+      workspace: workspace.slug,
+      requestId: created.id,
+      type: change.type,
+      environment: change.environment,
+      requiredApprovers: policy.requiredApprovers,
+    });
+  }
+
   // APR-17: eligible approvers are told through webhooks.
   await webhooks.dispatch(workspace.id, 'deploy.approval_requested', {
     requestId: created.id,

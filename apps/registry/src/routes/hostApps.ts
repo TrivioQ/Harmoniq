@@ -206,6 +206,12 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
           { action: 'workspace.restore', resourceType: 'workspace', resourceId: workspace.id }
         )
       );
+      if (workspace.organizationId) {
+        await fastify.container.orgEvents.emit(workspace.organizationId, 'org.workspace.restored', {
+          workspace: workspace.slug,
+          workspaceId: workspace.id,
+        });
+      }
       return { slug: workspace.slug, deletedAt: null };
     }
   );

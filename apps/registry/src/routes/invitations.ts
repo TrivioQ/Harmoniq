@@ -83,6 +83,12 @@ const invitationRoutes: FastifyPluginAsync = async (fastify) => {
         : await withOrg(invitation.organizationId!, (tx) =>
             grantInvitation(tx, invitation, principal.id)
           );
+      if (invitation.organizationId) {
+        await fastify.container.orgEvents.emit(invitation.organizationId, 'org.member.added', {
+          email: invitation.email,
+          role,
+        });
+      }
       return {
         kind: invitation.workspaceId ? 'workspace' : 'organization',
         slug: target.slug,
