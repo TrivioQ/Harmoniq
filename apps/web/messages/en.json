@@ -111,7 +111,20 @@
     "exportDownload": "Download export",
     "transferHint": "Hand the workspace to a member. They become an owner when they accept; you become an admin.",
     "transfer": "Transfer ownership",
-    "transferTo": "Email of the new owner"
+    "transferTo": "Email of the new owner",
+    "policy": {
+      "title": "Set by your organization",
+      "hint": "These come from the organization policy; the workspace can be stricter but not weaker.",
+      "retention": "History is kept {value} days (at least {minimum})",
+      "approval": "{environment}: {approvers} approvals by {roles}",
+      "freeze": "{environment} is frozen: {reason}",
+      "keyDays": "API keys expire within {days} days",
+      "keyScopes": "API key scopes: {scopes}",
+      "sso": "Sign-in uses the organization's single sign-on",
+      "sessionMax": "Sessions end after {hours} hours",
+      "idle": "Idle sessions end after {minutes} minutes",
+      "ip": "Access only from {count, plural, one {# allowed network} other {# allowed networks}}"
+    }
   },
   "LoginPage": {
     "title": "Sign in to {name}",
@@ -357,7 +370,10 @@
     "orgKeyRotated": "New key issued. The old one keeps working for {hours, plural, =0 {no time} one {# hour} other {# hours}}.",
     "orgRenamed": "Organization renamed.",
     "typeSlugToConfirm": "Type {slug} to confirm.",
-    "orgDeleted": "Organization deleted."
+    "orgDeleted": "Organization deleted.",
+    "policySaved": "Policies saved.",
+    "freezeOverridden": "Changes go through the freeze for {hours, plural, one {# hour} other {# hours}}.",
+    "freezeOverrideEnded": "The freeze applies again."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -522,7 +538,8 @@
     "rotateConfirm": "Create a replacement key? The current key keeps working for 24 hours.",
     "revoke": "Revoke",
     "revokeConfirm": "Revoke {name}? Anything using it stops working immediately.",
-    "empty": "No API keys yet."
+    "empty": "No API keys yet.",
+    "policyViolation": "Breaks the organization's key policy: {problems}"
   },
   "MembersPage": {
     "invite": "Invite a member",
@@ -783,7 +800,8 @@
     "sso": "Single sign-on",
     "provisioning": "Provisioning",
     "people": "People",
-    "settings": "Settings"
+    "settings": "Settings",
+    "policies": "Policies"
   },
   "OrgHome": {
     "description": "Workspaces in this organization, with recent activity and health over the last 24 hours.",
@@ -914,7 +932,8 @@
     "rotate": "Rotate",
     "rotateConfirm": "Issue a new secret for \"{name}\"? The current one keeps working for the grace period.",
     "grace": "Grace period",
-    "graceHours": "{hours, plural, =0 {No grace period} one {# hour} other {# hours}}"
+    "graceHours": "{hours, plural, =0 {No grace period} one {# hour} other {# hours}}",
+    "policyViolation": "Breaks the organization's key policy: {problems}"
   },
   "OrgSso": {
     "title": "Single sign-on",
@@ -1174,5 +1193,60 @@
     "deleteSubmit": "Delete",
     "deleteConfirm": "Delete the organization {name}?",
     "typeSlug": "Type the organization slug to confirm"
+  },
+  "OrgPolicies": {
+    "title": "Policies",
+    "description": "Rules every workspace of the organization follows. A workspace may be stricter, never weaker.",
+    "updated": "Last changed {when}",
+    "save": "Save policies",
+    "approvals": "Approval defaults",
+    "approvalsHint": "Changes to environments whose slug matches the pattern (* matches anything) need these approvals in every workspace. Workspaces can require more approvers or fewer roles, not less.",
+    "pattern": "Environment pattern",
+    "approvers": "Approvers",
+    "role": {
+      "developer": "Developers",
+      "admin": "Admins",
+      "owner": "Owners"
+    },
+    "changeTicket": "Change ticket required",
+    "ticketUrl": "Ticket link pattern",
+    "expiryHours": "Expires after (hours)",
+    "removeHint": "Clear a pattern to remove its rule.",
+    "keysAndRetention": "API keys and retention",
+    "maxApiKeyDays": "Keys expire within (days)",
+    "noLimit": "No limit",
+    "allowedKeyScopes": "Allowed key scopes",
+    "allScopesHint": "None ticked: every scope is allowed.",
+    "minRetentionDays": "Keep history at least (days)",
+    "freezes": "Freeze windows",
+    "freezesHint": "Matching environments of every workspace refuse changes during the window. Workspace owners can't override it; org admins can, below.",
+    "fromUtc": "From (UTC)",
+    "untilUtc": "Until (UTC)",
+    "reasonPlaceholder": "Why, e.g. Year-end freeze",
+    "reason": "Reason",
+    "identity": "Sign-in and sessions",
+    "lockSso": "Workspaces must use the organization's single sign-on",
+    "lockSsoHint": "Workspaces can't set up their own; the organization's <link>single sign-on</link> applies to all, forced SSO included.",
+    "sessionMaxHours": "Sessions end after (hours)",
+    "idleTimeoutMinutes": "Idle sessions end after (minutes)",
+    "network": "Network",
+    "networkHint": "Only these addresses (one CIDR block or address per line) reach the dashboard and the API of the organization's workspaces, for people and API keys. Empty: anywhere. Your own address must be in the list.",
+    "ipAllowlist": "IP allowlist",
+    "ipAllowlistManifests": "Also restrict manifests and health reports (browsers loading your apps must be on these networks)",
+    "activeFreezes": "Freezes in force",
+    "overriddenUntil": "Open for changes until {when}: {reason}",
+    "endOverride": "End the override",
+    "override": "Let changes through",
+    "overrideConfirm": "Let changes through the freeze of {pattern}? Every change made meanwhile records it.",
+    "overrideFor": "For how long",
+    "hours": "{hours, plural, one {# hour} other {# hours}}",
+    "overrideReason": "Why, e.g. incident INC-42",
+    "stricter": "Workspaces that go further",
+    "noneStricter": "No workspace is stricter than the organization.",
+    "stricterRetention": "Keeps history {days} days",
+    "stricterApprovals": "{environment}: {approvers} approvers or fewer roles",
+    "ownApprovals": "{environment}: its own approval policy",
+    "ownSso": "Its own single sign-on",
+    "comparedFirst": "Only the first {count} workspaces are compared."
   }
 }

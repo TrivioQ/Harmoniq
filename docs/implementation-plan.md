@@ -906,8 +906,8 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Dashboard
 
-- [ ] `/orgs/:org/policies`: sections per policy, effective values, workspaces stricter than the org (TAD-03)
-- [ ] Workspace settings show inherited values with their source and lock icons
+- [x] `/orgs/:org/policies`: sections per policy, effective values, workspaces stricter than the org (TAD-03)
+- [x] Workspace settings show inherited values with their source and lock icons
 
 #### Test Suite
 

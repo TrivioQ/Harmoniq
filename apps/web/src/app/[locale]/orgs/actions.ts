@@ -326,3 +326,95 @@ export async function saveOrgProvisioningAction(
     (t) => ({ status: 'success', message: t('provisioningSaved') })
   );
 }
+
+// ─── Policy (POL-01..08) ────────────────────────────────────────────────────
+
+const optionalInt = (form: FormData, name: string) => {
+  const value = field(form, name);
+  return value ? Number(value) : null;
+};
+/** A `datetime-local` value, read as UTC (the form says so). */
+const utc = (value: string) =>
+  new Date(`${value.length === 16 ? `${value}:00` : value}Z`).toISOString();
+const lines = (value: string) =>
+  value
+    .split(/[\n,]+/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+/**
+ * Saves the whole policy from the form. List rows are numbered (`ad_<i>_…`, `fw_<i>_…`);
+ * a row with an empty pattern is dropped, so clearing it removes the rule.
+ */
+export async function saveOrgPolicyAction(
+  orgSlug: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const rows = (prefix: string) => Number(field(form, `${prefix}_count`) || 0);
+  const approvalDefaults = Array.from({ length: rows('ad') }, (_, i) => ({
+    environmentPattern: field(form, `ad_${i}_pattern`),
+    requiredApprovers: Number(field(form, `ad_${i}_approvers`) || 1),
+    eligibleRoles: form.getAll(`ad_${i}_roles`).map(String),
+    requireChangeTicket: form.get(`ad_${i}_ticket`) === 'on',
+    ...(field(form, `ad_${i}_ticketUrl`) && { ticketUrlPattern: field(form, `ad_${i}_ticketUrl`) }),
+    expiryHours: Number(field(form, `ad_${i}_expiry`) || 24),
+  })).filter((r) => r.environmentPattern);
+  const freezeWindows = Array.from({ length: rows('fw') }, (_, i) => ({
+    ...(field(form, `fw_${i}_id`) && { id: field(form, `fw_${i}_id`) }),
+    environmentPattern: field(form, `fw_${i}_pattern`),
+    reason: field(form, `fw_${i}_reason`),
+    ...(field(form, `fw_${i}_from`) && { from: utc(field(form, `fw_${i}_from`)) }),
+    ...(field(form, `fw_${i}_until`) && { until: utc(field(form, `fw_${i}_until`)) }),
+  })).filter((w) => w.environmentPattern);
+  const body = {
+    approvalDefaults,
+    maxApiKeyDays: optionalInt(form, 'maxApiKeyDays'),
+    allowedKeyScopes: form.getAll('allowedKeyScopes').map(String),
+    minRetentionDays: optionalInt(form, 'minRetentionDays'),
+    freezeWindows,
+    lockSso: form.get('lockSso') === 'on',
+    sessionMaxHours: optionalInt(form, 'sessionMaxHours'),
+    idleTimeoutMinutes: optionalInt(form, 'idleTimeoutMinutes'),
+    ipAllowlist: lines(field(form, 'ipAllowlist')),
+    ipAllowlistManifests: form.get('ipAllowlistManifests') === 'on',
+  };
+  return run(
+    () => authedFetch(org(orgSlug, '/policy'), { method: 'PUT', body }),
+    (t) => ({ status: 'success', message: t('policySaved') })
+  );
+}
+
+/** POL-05: lets changes through an org freeze window until a time, for a reason. */
+export async function overrideOrgFreezeAction(
+  orgSlug: string,
+  windowId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const hours = Number(field(form, 'hours') || 1);
+  return run(
+    () =>
+      authedFetch(org(orgSlug, `/policy/freeze-windows/${enc(windowId)}/override`), {
+        body: {
+          until: new Date(Date.now() + hours * 3_600_000).toISOString(),
+          reason: field(form, 'reason'),
+        },
+      }),
+    (t) => ({ status: 'success', message: t('freezeOverridden', { hours }) })
+  );
+}
+
+export async function endOrgFreezeOverrideAction(
+  orgSlug: string,
+  windowId: string,
+  _prev: ActionResult
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(org(orgSlug, `/policy/freeze-windows/${enc(windowId)}/override`), {
+        method: 'DELETE',
+      }),
+    (t) => ({ status: 'success', message: t('freezeOverrideEnded') })
+  );
+}

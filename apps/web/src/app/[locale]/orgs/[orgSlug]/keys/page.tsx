@@ -110,6 +110,11 @@ export default async function OrgKeysPage(props: { params: Promise<{ orgSlug: st
                     </span>
                   )}
                 </div>
+                {!!k.policyViolations?.length && (
+                  <div className="text-xs text-amber-800">
+                    {t('policyViolation', { problems: k.policyViolations.join('; ') })}
+                  </div>
+                )}
                 <div className="text-xs text-muted-foreground">
                   {k.scopes.join(', ')} ·{' '}
                   {k.workspaces.length ? k.workspaces.join(', ') : t('allWorkspaces')}

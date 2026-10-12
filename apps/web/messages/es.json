@@ -111,7 +111,20 @@
     "exportDownload": "Descargar exportación",
     "transferHint": "Entrega el espacio de trabajo a un miembro. Será propietario cuando acepte; tú pasarás a administrador.",
     "transfer": "Transferir propiedad",
-    "transferTo": "Correo del nuevo propietario"
+    "transferTo": "Correo del nuevo propietario",
+    "policy": {
+      "title": "Fijado por tu organización",
+      "hint": "Esto viene de la política de la organización; el espacio puede ser más estricto, pero no menos.",
+      "retention": "El historial se conserva {value} días (al menos {minimum})",
+      "approval": "{environment}: {approvers} aprobaciones de {roles}",
+      "freeze": "{environment} está congelado: {reason}",
+      "keyDays": "Las claves de API caducan en {days} días",
+      "keyScopes": "Permisos de clave de API: {scopes}",
+      "sso": "El inicio de sesión usa el inicio de sesión único de la organización",
+      "sessionMax": "Las sesiones terminan tras {hours} horas",
+      "idle": "Las sesiones inactivas terminan tras {minutes} minutos",
+      "ip": "Acceso solo desde {count, plural, one {# red permitida} other {# redes permitidas}}"
+    }
   },
   "LoginPage": {
     "title": "Iniciar sesión en {name}",
@@ -357,7 +370,10 @@
     "orgKeyRotated": "Nueva clave emitida. La anterior sigue funcionando {hours, plural, =0 {ningún tiempo} one {# hora} other {# horas}}.",
     "orgRenamed": "Organización renombrada.",
     "typeSlugToConfirm": "Escribe {slug} para confirmar.",
-    "orgDeleted": "Organización eliminada."
+    "orgDeleted": "Organización eliminada.",
+    "policySaved": "Políticas guardadas.",
+    "freezeOverridden": "Los cambios pasan la congelación durante {hours, plural, one {# hora} other {# horas}}.",
+    "freezeOverrideEnded": "La congelación vuelve a aplicarse."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -522,7 +538,8 @@
     "rotateConfirm": "¿Crear una clave de reemplazo? La actual funcionará 24 horas más.",
     "revoke": "Revocar",
     "revokeConfirm": "¿Revocar {name}? Todo lo que la use dejará de funcionar de inmediato.",
-    "empty": "Aún no hay claves de API."
+    "empty": "Aún no hay claves de API.",
+    "policyViolation": "Incumple la política de claves de la organización: {problems}"
   },
   "MembersPage": {
     "invite": "Invitar a un miembro",
@@ -783,7 +800,8 @@
     "sso": "Inicio de sesión único",
     "provisioning": "Aprovisionamiento",
     "people": "Personas",
-    "settings": "Configuración"
+    "settings": "Configuración",
+    "policies": "Políticas"
   },
   "OrgHome": {
     "description": "Espacios de trabajo de esta organización, con la actividad reciente y la salud de las últimas 24 horas.",
@@ -914,7 +932,8 @@
     "rotate": "Rotar",
     "rotateConfirm": "¿Emitir un nuevo secreto para \"{name}\"? El actual sigue funcionando durante el periodo de gracia.",
     "grace": "Periodo de gracia",
-    "graceHours": "{hours, plural, =0 {Sin periodo de gracia} one {# hora} other {# horas}}"
+    "graceHours": "{hours, plural, =0 {Sin periodo de gracia} one {# hora} other {# horas}}",
+    "policyViolation": "Incumple la política de claves de la organización: {problems}"
   },
   "OrgSso": {
     "title": "Inicio de sesión único",
@@ -1174,5 +1193,60 @@
     "deleteSubmit": "Eliminar",
     "deleteConfirm": "¿Eliminar la organización {name}?",
     "typeSlug": "Escribe el slug de la organización para confirmar"
+  },
+  "OrgPolicies": {
+    "title": "Políticas",
+    "description": "Reglas que siguen todos los espacios de trabajo de la organización. Un espacio puede ser más estricto, nunca menos.",
+    "updated": "Último cambio {when}",
+    "save": "Guardar políticas",
+    "approvals": "Aprobaciones por defecto",
+    "approvalsHint": "Los cambios en entornos cuyo slug coincide con el patrón (* coincide con todo) necesitan estas aprobaciones en todos los espacios. Los espacios pueden exigir más aprobadores o menos roles, no menos.",
+    "pattern": "Patrón de entorno",
+    "approvers": "Aprobadores",
+    "role": {
+      "developer": "Desarrolladores",
+      "admin": "Administradores",
+      "owner": "Propietarios"
+    },
+    "changeTicket": "Ticket de cambio obligatorio",
+    "ticketUrl": "Patrón del enlace del ticket",
+    "expiryHours": "Caduca tras (horas)",
+    "removeHint": "Vacía un patrón para quitar su regla.",
+    "keysAndRetention": "Claves de API y retención",
+    "maxApiKeyDays": "Las claves caducan en (días)",
+    "noLimit": "Sin límite",
+    "allowedKeyScopes": "Permisos de clave permitidos",
+    "allScopesHint": "Ninguno marcado: se permiten todos.",
+    "minRetentionDays": "Conservar el historial al menos (días)",
+    "freezes": "Ventanas de congelación",
+    "freezesHint": "Los entornos que coinciden en todos los espacios rechazan cambios durante la ventana. Los propietarios de espacios no pueden saltarla; los administradores de la organización sí, abajo.",
+    "fromUtc": "Desde (UTC)",
+    "untilUtc": "Hasta (UTC)",
+    "reasonPlaceholder": "Motivo, p. ej. cierre de año",
+    "reason": "Motivo",
+    "identity": "Inicio de sesión y sesiones",
+    "lockSso": "Los espacios deben usar el inicio de sesión único de la organización",
+    "lockSsoHint": "Los espacios no pueden configurar el suyo; el <link>inicio de sesión único</link> de la organización se aplica a todos, incluido el obligatorio.",
+    "sessionMaxHours": "Las sesiones terminan tras (horas)",
+    "idleTimeoutMinutes": "Las sesiones inactivas terminan tras (minutos)",
+    "network": "Red",
+    "networkHint": "Solo estas direcciones (un bloque CIDR o dirección por línea) acceden al panel y a la API de los espacios de la organización, para personas y claves de API. Vacío: desde cualquier lugar. Tu propia dirección debe estar en la lista.",
+    "ipAllowlist": "Lista de IP permitidas",
+    "ipAllowlistManifests": "Restringir también manifiestos e informes de salud (los navegadores que cargan tus aplicaciones deben estar en estas redes)",
+    "activeFreezes": "Congelaciones vigentes",
+    "overriddenUntil": "Abierto a cambios hasta {when}: {reason}",
+    "endOverride": "Terminar la excepción",
+    "override": "Dejar pasar cambios",
+    "overrideConfirm": "¿Dejar pasar cambios por la congelación de {pattern}? Cada cambio hecho mientras tanto lo registra.",
+    "overrideFor": "Durante cuánto tiempo",
+    "hours": "{hours, plural, one {# hora} other {# horas}}",
+    "overrideReason": "Motivo, p. ej. incidente INC-42",
+    "stricter": "Espacios que van más allá",
+    "noneStricter": "Ningún espacio es más estricto que la organización.",
+    "stricterRetention": "Conserva el historial {days} días",
+    "stricterApprovals": "{environment}: {approvers} aprobadores o menos roles",
+    "ownApprovals": "{environment}: su propia política de aprobación",
+    "ownSso": "Su propio inicio de sesión único",
+    "comparedFirst": "Solo se comparan los primeros {count} espacios."
   }
 }

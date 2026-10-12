@@ -68,6 +68,11 @@ export default async function ApiKeysPage(props: { params: Promise<{ workspaceSl
                     key.gracePeriodEnd &&
                     ` · ${t('expiresAfterRotation', { when: format.relativeTime(new Date(key.gracePeriodEnd)) })}`}
                 </div>
+                {!!key.policyViolations?.length && (
+                  <div className="mt-1 text-xs text-amber-800">
+                    {t('policyViolation', { problems: key.policyViolations.join('; ') })}
+                  </div>
+                )}
               </div>
               {!revoked && (
                 <div className="flex gap-2">

@@ -45,17 +45,20 @@ Keys may be restricted to specific modules (`moduleIds`). Creating keys and mana
 }
 ```
 
-| Status | Code               | When                                                                                                    |
-| ------ | ------------------ | ------------------------------------------------------------------------------------------------------- |
-| 400    | `BAD_REQUEST`      | Invalid body (`details` has field errors)                                                               |
-| 401    | `UNAUTHORIZED`     | Missing, invalid, expired or revoked credentials                                                        |
-| 403    | `FORBIDDEN`        | Valid caller, insufficient role/scope, or key for another workspace                                     |
-| 404    | `NOT_FOUND`        | Unknown resource, or workspace you are not a member of                                                  |
-| 409    | `CONFLICT`         | Duplicate slug, already-active version, ambiguous module slug, last owner                               |
-| 422    | `VALIDATION_ERROR` | Bundle failed validation (`details.validation`)                                                         |
-| 402    | `PLAN_REQUIRED`    | The feature needs a higher plan (`details.feature`, `plan`, `requiredPlan`); only with plan enforcement |
-| 423    | `LOCKED`           | Target environment is frozen                                                                            |
-| 429    | —                  | Rate limited (`Retry-After` header)                                                                     |
+| Status | Code                         | When                                                                                                    |
+| ------ | ---------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 400    | `BAD_REQUEST`                | Invalid body (`details` has field errors)                                                               |
+| 401    | `UNAUTHORIZED`               | Missing, invalid, expired or revoked credentials                                                        |
+| 403    | `FORBIDDEN`                  | Valid caller, insufficient role/scope, or key for another workspace                                     |
+| 404    | `NOT_FOUND`                  | Unknown resource, or workspace you are not a member of                                                  |
+| 409    | `CONFLICT`                   | Duplicate slug, already-active version, ambiguous module slug, last owner                               |
+| 409    | `POLICY_VIOLATION`           | The change is weaker than the organization's policy allows (`details` says how), POL-02..06             |
+| 403    | `IP_NOT_ALLOWED`             | The caller's address is outside the organization's IP allowlist (POL-08)                                |
+| 403    | `SSO_REQUIRED`, `SSO_SCOPED` | Forced single sign-on, or a session from another tenant's single sign-on                                |
+| 422    | `VALIDATION_ERROR`           | Bundle failed validation (`details.validation`)                                                         |
+| 402    | `PLAN_REQUIRED`              | The feature needs a higher plan (`details.feature`, `plan`, `requiredPlan`); only with plan enforcement |
+| 423    | `LOCKED`                     | Target environment is frozen                                                                            |
+| 429    | —                            | Rate limited (`Retry-After` header)                                                                     |
 
 ---
 
@@ -407,6 +410,25 @@ M4.7, ORG-01..04, 08..15. An organization groups workspaces. **Org admins** mana
 **Shared modules** (ORG-11): a shared module appears in the manifests of the organization's other workspaces, for the environment with the same name, at the owner workspace's active (stable) version, with `"shared": true` and `"ownerWorkspace": "<slug>"`. A workspace's own module of the same name wins. Kill switches apply; canaries don't (only the stable version is shared). Deploys, rollbacks and kill switches of a shared module refresh the other workspaces' cached and published manifests.
 
 **Org API keys** (ORG-13) work like workspace keys (and, with the `admin` scope and no workspace list, can also create and delete the org's workspaces: IaC-01) (`Authorization: Bearer hq_org_…`, same scopes) in any workspace of the organization, or only the listed workspaces / modules; elsewhere they get `403`. Audit events record the key id as the actor.
+
+### Organization policy
+
+POL-01..09. One policy per organization. Its workspaces may be stricter, never weaker: a change that would weaken one is refused with `409 POLICY_VIOLATION`.
+
+| Endpoint                                                             | Who                | Notes                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/orgs/:org/policy`                                          | org admin, auditor | `{ approvalDefaults, maxApiKeyDays, allowedKeyScopes, minRetentionDays, freezeWindows, lockSso, sessionMaxHours, idleTimeoutMinutes, ipAllowlist, ipAllowlistManifests, updatedAt, updatedBy }` (defaults when never saved)                                     |
+| `PUT /api/orgs/:org/policy`                                          | org admin          | Replaces the policy (missing fields take their defaults). Recorded as `org.policy_updated` with each changed field before and after. `400` for an address that isn't an IP or CIDR block; `409` when `ipAllowlist` leaves out your own address                  |
+| `POST /api/orgs/:org/policy/freeze-windows/:id/override`, `DELETE …` | org admin          | POL-05: `{ until, reason }` lets changes through that window until `until`; each change made meanwhile records `orgFreezeOverride` (`org.freeze_override`, `org.freeze_override_end`)                                                                           |
+| `GET /api/workspaces/:ws/policy`                                     | workspace read     | POL-09: what the workspace enforces and the `source` of each value (`organization` or `workspace`): retention, approval rule per environment (`locked` when an org default applies), org freezes in force, key limits, locked SSO, session limits, IP allowlist |
+
+- **Approval defaults** (POL-02): `[{ environmentPattern, requiredApprovers, eligibleRoles, requireChangeTicket, ticketUrlPattern?, expiryHours }]`; `*` in a pattern matches anything, and the first matching rule applies. An environment without its own policy uses the default. One with its own policy uses the stricter of each setting. Saving a weaker workspace policy, through the API or `harmoniq.yaml`, is refused; a GitOps plan lists the violations.
+- **Keys** (POL-03): workspace and org keys must expire within `maxApiKeyDays` and use only `allowedKeyScopes` (empty: any). A rotated key keeps its expiry, capped at the maximum. Key lists show `policyViolations` for older keys; those keep working.
+- **Retention** (POL-04): `PATCH /api/workspaces/:ws` refuses `retentionDays` below `minRetentionDays`, and garbage collection keeps history at least that long.
+- **Freezes** (POL-05): `[{ id, environmentPattern, from?, until?, reason, override? }]`. Changes to matching environments of every workspace get `423 LOCKED`; a workspace owner's freeze override doesn't lift them, an org admin's does.
+- **Locked SSO** (POL-06): workspaces can't save their own SSO configuration, and any they have is ignored: sign-in, discovery and forced SSO use the organization's.
+- **Sessions** (POL-07): at refresh, a session ends once it is older than `sessionMaxHours` or was idle longer than `idleTimeoutMinutes`. The strictest policy among the user's organizations applies, counting workspace memberships.
+- **IP allowlist** (POL-08): people and keys reach the organization and its workspaces only from these networks; the client address follows `TRUST_PROXY`. Manifests and health reports only with `ipAllowlistManifests`; copies published to a CDN or bucket are not covered. Other replicas pick up a change within 30 seconds.
 
 ### Organization single sign-on and provisioning
 

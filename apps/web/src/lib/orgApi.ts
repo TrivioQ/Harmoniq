@@ -114,6 +114,8 @@ export interface OrgKey {
   createdBy?: { id: string; email: string | null } | null;
   /** Not used for 90 days. */
   unused?: boolean;
+  /** POL-03: how the key breaks the organization's key policy (it keeps working). */
+  policyViolations?: string[];
   scopes: string[];
   workspaces: string[];
   moduleIds: string[];
@@ -153,6 +155,42 @@ export interface OrgInvitation {
   status: 'pending' | 'accepted' | 'revoked' | 'expired';
   expiresAt: string;
   workspace?: string | null;
+}
+
+/** POL-02: an approval rule, and the environments (slug pattern) it applies to. */
+export interface ApprovalDefault {
+  environmentPattern: string;
+  requiredApprovers: number;
+  eligibleRoles: string[];
+  requireChangeTicket: boolean;
+  ticketUrlPattern: string | null;
+  expiryHours: number;
+}
+
+/** POL-05: an org-wide freeze; `override` while an org admin lets changes through. */
+export interface OrgFreezeWindow {
+  id: string;
+  environmentPattern: string;
+  from: string | null;
+  until: string | null;
+  reason: string;
+  override: { until: string; reason: string; by: string } | null;
+}
+
+/** POL-01..08 */
+export interface OrgPolicy {
+  approvalDefaults: ApprovalDefault[];
+  maxApiKeyDays: number | null;
+  allowedKeyScopes: string[];
+  minRetentionDays: number | null;
+  freezeWindows: OrgFreezeWindow[];
+  lockSso: boolean;
+  sessionMaxHours: number | null;
+  idleTimeoutMinutes: number | null;
+  ipAllowlist: string[];
+  ipAllowlistManifests: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
 }
 
 export interface CatalogQuery {
@@ -209,6 +247,7 @@ export const orgApi = {
       nextCursor: string | null;
       invitations: OrgInvitation[];
     }>(`${org(slug)}/people?${params(query)}`),
+  policy: (slug: string) => authedFetch<OrgPolicy>(`${org(slug)}/policy`),
   keys: (slug: string) => authedFetch<{ keys: OrgKey[] }>(`${org(slug)}/keys`),
   sso: (slug: string) => authedFetch<OrgSsoOverview>(`${org(slug)}/sso`),
   oidc: (slug: string) => authedFetch<{ oidc: OidcSettings | null }>(`${org(slug)}/sso/oidc`),

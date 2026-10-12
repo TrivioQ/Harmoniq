@@ -178,6 +178,8 @@ export interface ApiKeySummary {
   expiresAt: string | null;
   revokedAt: string | null;
   gracePeriodEnd: string | null;
+  /** POL-03: how the key breaks the organization's key policy (it keeps working). */
+  policyViolations?: string[];
 }
 
 export interface Member {
@@ -399,8 +401,50 @@ export interface ScimEvent {
   createdAt: string;
 }
 
+/** POL-09: what the workspace enforces and where each value comes from. */
+export interface EffectivePolicy {
+  organization: { id: string } | null;
+  retentionDays: {
+    value: number;
+    workspace: number;
+    minimum: number | null;
+    source: 'organization' | 'workspace';
+  };
+  approvals: Array<{
+    hostApp: string;
+    environment: string;
+    policy: {
+      requiredApprovers: number;
+      eligibleRoles: string[];
+      requireChangeTicket: boolean;
+      expiryHours: number;
+    } | null;
+    source: 'organization' | 'workspace' | null;
+    locked: boolean;
+  }>;
+  freezes: Array<{
+    hostApp: string;
+    environment: string;
+    windowId: string;
+    reason: string;
+    until: string | null;
+    override: { until: string; reason: string } | null;
+  }>;
+  apiKeys: {
+    maxDays: { value: number | null; source: 'organization' | null };
+    allowedScopes: { value: string[]; source: 'organization' | null };
+  };
+  sso: { locked: boolean; ownConfigured: boolean; source: 'organization' | 'workspace' };
+  session: {
+    maxHours: { value: number | null; source: 'organization' | null };
+    idleTimeoutMinutes: { value: number | null; source: 'organization' | null };
+  };
+  ipAllowlist: { value: string[]; manifests: boolean; source: 'organization' | null };
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
+  policy: (slug: string) => authedFetch<EffectivePolicy>(`${ws(slug)}/policy`),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
   module: (slug: string, ref: string) =>
     authedFetch<ModuleDetail>(`${ws(slug)}/modules/${enc(ref)}`),

@@ -20,8 +20,56 @@ export default async function StorageSettingsPage(props: {
     ),
     workspaceApi.get(workspaceSlug),
   ]);
+  // POL-09: what the organization imposes here, and where each value comes from.
+  const policy = await workspaceApi.policy(workspaceSlug).catch(() => null);
+  const imposed = policy?.organization
+    ? [
+        policy.retentionDays.minimum !== null &&
+          t('policy.retention', {
+            value: policy.retentionDays.value,
+            minimum: policy.retentionDays.minimum,
+          }),
+        ...policy.approvals
+          .filter((a) => a.locked && a.policy)
+          .map((a) =>
+            t('policy.approval', {
+              environment: `${a.hostApp}/${a.environment}`,
+              approvers: a.policy!.requiredApprovers,
+              roles: a.policy!.eligibleRoles.join(', '),
+            })
+          ),
+        ...policy.freezes.map((f) =>
+          t('policy.freeze', { environment: `${f.hostApp}/${f.environment}`, reason: f.reason })
+        ),
+        policy.apiKeys.maxDays.value !== null &&
+          t('policy.keyDays', { days: policy.apiKeys.maxDays.value }),
+        policy.apiKeys.allowedScopes.value.length > 0 &&
+          t('policy.keyScopes', { scopes: policy.apiKeys.allowedScopes.value.join(', ') }),
+        policy.sso.locked && t('policy.sso'),
+        policy.session.maxHours.value !== null &&
+          t('policy.sessionMax', { hours: policy.session.maxHours.value }),
+        policy.session.idleTimeoutMinutes.value !== null &&
+          t('policy.idle', { minutes: policy.session.idleTimeoutMinutes.value }),
+        policy.ipAllowlist.value.length > 0 &&
+          t('policy.ip', { count: policy.ipAllowlist.value.length }),
+      ].filter((line): line is string => !!line)
+    : [];
   return (
     <>
+      {imposed.length > 0 && (
+        <section className="rounded-xl border bg-card p-6 space-y-2 max-w-2xl">
+          <h3 className="font-semibold">
+            <span aria-hidden="true">🔒 </span>
+            {t('policy.title')}
+          </h3>
+          <p className="text-sm text-muted-foreground">{t('policy.hint')}</p>
+          <ul className="text-sm list-disc pl-5 space-y-0.5">
+            {imposed.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="rounded-xl border bg-card p-6 space-y-4 max-w-2xl">
         <h3 className="font-semibold">{t('storage')}</h3>
         <StorageForm
