@@ -1,6 +1,7 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { grantForWorkspace } from '../services/supportGrants';
 import fp from 'fastify-plugin';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import argon2 from 'argon2';
@@ -64,6 +65,8 @@ declare module 'fastify' {
     viaOrgAdmin?: boolean;
     /** Set when the request came from this process (`internalHeaders`), never the network. */
     internal?: boolean;
+    /** INST-20: the support grant this read goes through (no role in the tenant). */
+    supportGrant?: string;
   }
 
   interface FastifyInstance {
@@ -782,7 +785,23 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
           ? 'owner'
           : 'admin';
       const role = higherRole(memberRole, orgAdminRole);
-      if (!role) return deny(reply, 404, 'NOT_FOUND', 'Workspace not found');
+      if (!role) {
+        // INST-20: an instance admin's support grant (on the workspace or its organization)
+        // lets them read what its admins can, and change nothing.
+        const grant =
+          principal.isInstanceAdmin && !scope
+            ? await grantForWorkspace(systemDb, principal.id, workspace)
+            : null;
+        if (!grant) return deny(reply, 404, 'NOT_FOUND', 'Workspace not found');
+        if (request.method !== 'GET' && request.method !== 'HEAD') {
+          return deny(reply, 403, 'SUPPORT_READ_ONLY', 'Support access is read-only');
+        }
+        const refusal = lifecycleRefusal(workspace, 'workspace:read', opts);
+        if (refusal) return deny(reply, ...refusal);
+        request.workspace = workspace;
+        request.supportGrant = grant.id;
+        return;
+      }
       const membership = { role };
       if (!roleAllows(membership.role, permission)) {
         return deny(reply, 403, 'FORBIDDEN', `Your role does not grant ${permission}`);

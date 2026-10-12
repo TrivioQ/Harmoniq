@@ -1048,7 +1048,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 #### Registry
 
 - [ ] `GET /api/admin/orgs?query=&cursor=`, `GET /api/admin/orgs/:slug` (workspaces, members, plan, usage, SSO and domains), with the 9.2 actions (INST-19)
-- [ ] `POST /api/admin/support-grants`, `DELETE …/:id`; `requireWorkspace` / `requireOrg` admit an active grant read-only; events in both audit logs; `GET /api/workspaces/:ws` reports active grants (INST-20)
+- [x] `POST /api/admin/support-grants`, `DELETE …/:id`; `requireWorkspace` / `requireOrg` admit an active grant read-only; events in both audit logs; `GET /api/workspaces/:ws` reports active grants (INST-20) (`GET /api/orgs/:org` too; a new `support` capability for owners, operators and support; `403 SUPPORT_READ_ONLY` for changes)
 - [ ] `/api/admin/users` adds org memberships and suspension; CSV export for users and workspaces (INST-21)
 - [x] `PUT /api/admin/settings/announcement`; `GET /api/instance` returns the active announcement (INST-22) (`level`, `startsAt`, `endsAt`)
 - [ ] `GET /api/admin/overview`: 30-day trends from `UsageDaily` and counts, and the attention list (publish errors, dead letters, failed jobs, `WorkspaceStorageConfig` verification failures, SAML certificates expiring, alert rules with `lastError`, quota breaches, failing domains) (INST-27)
@@ -1075,7 +1075,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 #### Test Suite
 
 - [ ] Org admin pages and API permissions per admin role
-- [ ] Support grant: read-only, expiry, revocation, visible to tenant, audited in both logs
+- [x] Support grant: read-only, expiry, revocation, visible to tenant, audited in both logs
 - [ ] Overview attention items, one fixture per item type
 - [x] Jobs: failed job listed and retried, run-now limited to maintenance queues
 - [x] Replica heartbeats and pending-migration detection

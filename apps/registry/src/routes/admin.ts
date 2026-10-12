@@ -3,6 +3,7 @@
 
 /* eslint-disable no-restricted-syntax -- MT-09: instance administration spans every tenant (INST-05) */
 
+import { SUPPORT_GRANT_MAX_HOURS, auditInTenant } from '../services/supportGrants';
 import {
   MAINTENANCE_QUEUES,
   REPLICA_ID,
@@ -274,6 +275,129 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     ]);
     return { ...health, stats: { workspaces, modules, users }, encryption: keys };
   });
+
+  // ─── Support access (INST-20) ─────────────────────────────────────────────
+
+  /** Grants of the last 30 days, the active ones first. */
+  fastify.get('/api/admin/support-grants', admin, async () => {
+    const now = new Date();
+    const grants = await systemDb.supportGrant.findMany({
+      where: { createdAt: { gt: new Date(now.getTime() - 30 * 86_400_000) } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    const [users, workspaces, orgs] = await Promise.all([
+      systemDb.user.findMany({
+        where: { id: { in: grants.map((g) => g.adminUserId) } },
+        select: { id: true, email: true },
+      }),
+      systemDb.workspace.findMany({
+        where: { id: { in: grants.flatMap((g) => (g.workspaceId ? [g.workspaceId] : [])) } },
+        select: { id: true, slug: true },
+      }),
+      systemDb.organization.findMany({
+        where: { id: { in: grants.flatMap((g) => (g.organizationId ? [g.organizationId] : [])) } },
+        select: { id: true, slug: true },
+      }),
+    ]);
+    const label = new Map([...users.map((u) => [u.id, u.email] as const)]);
+    const wsSlug = new Map(workspaces.map((w) => [w.id, w.slug]));
+    const orgSlug = new Map(orgs.map((o) => [o.id, o.slug]));
+    return {
+      grants: grants
+        .map((g) => ({
+          id: g.id,
+          admin: label.get(g.adminUserId) ?? 'deleted user',
+          adminUserId: g.adminUserId,
+          workspace: g.workspaceId ? (wsSlug.get(g.workspaceId) ?? null) : null,
+          organization: g.organizationId ? (orgSlug.get(g.organizationId) ?? null) : null,
+          reason: g.reason,
+          expiresAt: g.expiresAt.toISOString(),
+          revokedAt: g.revokedAt?.toISOString() ?? null,
+          createdAt: g.createdAt.toISOString(),
+          active: !g.revokedAt && g.expiresAt > now,
+        }))
+        .sort((a, b) => Number(b.active) - Number(a.active)),
+    };
+  });
+
+  /** Opens read-only access to one workspace or organization for at most 4 hours. */
+  fastify.post('/api/admin/support-grants', admin, async (request, reply) => {
+    if (request.principal!.type !== 'user') {
+      throw new ForbiddenError('Support access is for people, not keys');
+    }
+    const body = z
+      .object({
+        workspace: z.string().min(1).optional(),
+        organization: z.string().min(1).optional(),
+        reason: z.string().trim().min(10).max(500),
+        hours: z.number().int().min(1).max(SUPPORT_GRANT_MAX_HOURS).default(1),
+      })
+      .refine((b) => !!b.workspace !== !!b.organization, 'Give a workspace or an organization')
+      .parse(request.body);
+    const target = body.workspace
+      ? await systemDb.workspace.findFirst({ where: { slug: body.workspace, deletedAt: null } })
+      : await systemDb.organization.findFirst({
+          where: { slug: body.organization, deletedAt: null },
+        });
+    if (!target)
+      throw new NotFoundError(body.workspace ? 'Workspace not found' : 'Organization not found');
+    const grant = await systemDb.supportGrant.create({
+      data: {
+        adminUserId: request.principal!.id,
+        ...(body.workspace ? { workspaceId: target.id } : { organizationId: target.id }),
+        reason: body.reason,
+        expiresAt: new Date(Date.now() + body.hours * 3_600_000),
+      },
+    });
+    await instanceAudit(request, {
+      action: 'instance.support_grant',
+      resourceType: body.workspace ? 'workspace' : 'organization',
+      resourceId: target.id,
+      metadata: { grant: grant.id, slug: target.slug, reason: body.reason, hours: body.hours },
+    });
+    await auditInTenant(systemDb, grant, 'support.access_granted', {
+      id: request.principal!.id,
+      ip: request.ip,
+    });
+    return reply.code(201).send({
+      id: grant.id,
+      expiresAt: grant.expiresAt.toISOString(),
+      ...(body.workspace ? { workspace: target.slug } : { organization: target.slug }),
+    });
+  });
+
+  /** Ends a grant early: your own, or anyone's for instance owners. */
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/admin/support-grants/:id',
+    admin,
+    async (request, reply) => {
+      const grant = await systemDb.supportGrant.findUnique({ where: { id: request.params.id } });
+      if (!grant) throw new NotFoundError('Support grant not found');
+      const principal = request.principal!;
+      const owner = principal.type === 'user' && principal.instanceRole === 'instance_owner';
+      if (grant.adminUserId !== principal.id && !owner) {
+        throw new ForbiddenError("Only instance owners end other admins' support access");
+      }
+      if (!grant.revokedAt && grant.expiresAt > new Date()) {
+        const ended = await systemDb.supportGrant.update({
+          where: { id: grant.id },
+          data: { revokedAt: new Date(), revokedBy: principal.id },
+        });
+        await instanceAudit(request, {
+          action: 'instance.support_revoke',
+          resourceType: grant.workspaceId ? 'workspace' : 'organization',
+          resourceId: (grant.workspaceId ?? grant.organizationId)!,
+          metadata: { grant: grant.id },
+        });
+        await auditInTenant(systemDb, ended, 'support.access_revoked', {
+          id: principal.id,
+          ip: request.ip,
+        });
+      }
+      return reply.code(204).send();
+    }
+  );
 
   // ─── Operations (INST-28) ─────────────────────────────────────────────────
 

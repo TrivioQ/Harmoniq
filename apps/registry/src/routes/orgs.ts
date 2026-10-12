@@ -1,6 +1,7 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { activeGrantsOn, grantForOrg } from '../services/supportGrants';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
 import type { Invitation } from '@prisma/client';
@@ -237,6 +238,21 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: { code: 'NOT_FOUND', message: 'Organization not found' } });
       }
       const role = membership?.role as OrgRole | undefined;
+      // INST-20: an instance admin's support grant reads what the org's admins can.
+      if (!role && level !== 'member' && principal.isInstanceAdmin && !scope) {
+        // eslint-disable-next-line no-restricted-syntax -- MT-09: support grants are instance rows
+        const grant = await grantForOrg(systemDb, principal.id, org.id);
+        if (grant) {
+          if (request.method !== 'GET' && request.method !== 'HEAD') {
+            return reply.code(403).send({
+              error: { code: 'SUPPORT_READ_ONLY', message: 'Support access is read-only' },
+            });
+          }
+          request.org = org;
+          request.supportGrant = grant.id;
+          return;
+        }
+      }
       if (level === 'auditor' && role !== 'org_admin' && role !== 'org_auditor') {
         return reply.code(403).send({
           error: { code: 'FORBIDDEN', message: 'Requires an organization admin or auditor' },
@@ -556,6 +572,9 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       plan: org.plan,
       role: request.orgRole ?? null,
       suspended: !!org.suspendedAt,
+      // INST-20: instance admins with support access right now.
+      // eslint-disable-next-line no-restricted-syntax -- MT-09: support grants are instance rows
+      supportAccess: await activeGrantsOn(systemDb, { organizationId: org.id }),
       total: data.total,
       nextCursor: data.more ? data.workspaces[data.workspaces.length - 1].id : null,
       workspaces: data.workspaces.map((w) => {

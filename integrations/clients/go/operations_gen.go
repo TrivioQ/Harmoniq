@@ -35,6 +35,11 @@ func (c *Client) DeleteAdminSettingsByKey(ctx context.Context, key string, query
 	return c.Do(ctx, "DELETE", "/api/admin/settings/"+url.PathEscape(key), nil, query)
 }
 
+// DeleteAdminSupportGrantsById calls DELETE /api/admin/support-grants/{id} (Instance administration).
+func (c *Client) DeleteAdminSupportGrantsById(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/admin/support-grants/"+url.PathEscape(id), nil, query)
+}
+
 // DeleteAdminUsersById calls DELETE /api/admin/users/{id} (Instance administration).
 func (c *Client) DeleteAdminUsersById(ctx context.Context, id string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/admin/users/"+url.PathEscape(id), nil, query)
@@ -298,6 +303,11 @@ func (c *Client) GetAdminSettingsHistory(ctx context.Context, key string, query 
 // GetAdminSetup calls GET /api/admin/setup (Instance administration).
 func (c *Client) GetAdminSetup(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/setup", nil, query)
+}
+
+// GetAdminSupportGrants calls GET /api/admin/support-grants (Instance administration).
+func (c *Client) GetAdminSupportGrants(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/support-grants", nil, query)
 }
 
 // GetAdminSystem calls GET /api/admin/system (Instance administration).
@@ -848,6 +858,11 @@ func (c *Client) PostAdminSetupCheck(ctx context.Context, query url.Values) (*Re
 // PostAdminSetupStorage calls POST /api/admin/setup/storage (Instance administration).
 func (c *Client) PostAdminSetupStorage(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/admin/setup/storage", nil, query)
+}
+
+// PostAdminSupportGrants calls POST /api/admin/support-grants (Instance administration).
+func (c *Client) PostAdminSupportGrants(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/support-grants", nil, query)
 }
 
 // PostAdminUsersRevokeSessions calls POST /api/admin/users/{id}/revoke-sessions (Instance administration).

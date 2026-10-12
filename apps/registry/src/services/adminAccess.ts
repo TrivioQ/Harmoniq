@@ -28,13 +28,15 @@ export type Capability =
   | 'users'
   /** Run maintenance jobs (9.10). */
   | 'jobs'
+  /** INST-20: open and end read-only support access to a tenant. */
+  | 'support'
   /** Everything else: settings, deletion, admins, instance keys. */
   | 'owner';
 
 const ROLE_CAPABILITIES: Record<AdminRole, Capability[]> = {
-  instance_owner: ['read', 'tenants', 'plans', 'sessions', 'users', 'jobs', 'owner'],
-  instance_operator: ['read', 'tenants', 'plans', 'sessions', 'users', 'jobs'],
-  instance_support: ['read', 'sessions'],
+  instance_owner: ['read', 'tenants', 'plans', 'sessions', 'users', 'jobs', 'support', 'owner'],
+  instance_operator: ['read', 'tenants', 'plans', 'sessions', 'users', 'jobs', 'support'],
+  instance_support: ['read', 'sessions', 'support'],
   instance_billing: ['read', 'plans'],
 };
 
@@ -60,6 +62,8 @@ const RULES: Record<string, Rule> = {
   'PUT /api/admin/orgs/:slug/plan': { capability: 'plans' },
   'POST /api/admin/users/:id/revoke-sessions': { capability: 'sessions' },
   'POST /api/admin/jobs/:id/retry': { capability: 'jobs' },
+  'POST /api/admin/support-grants': { capability: 'support' },
+  'DELETE /api/admin/support-grants/:id': { capability: 'support' },
   'POST /api/admin/jobs/:queue/run': { capability: 'jobs' },
   'POST /api/admin/users/:id/suspend': { capability: 'users' },
   'POST /api/admin/users/:id/unsuspend': { capability: 'users' },

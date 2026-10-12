@@ -1,6 +1,7 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { activeGrantsOn } from '../services/supportGrants';
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
 import type { Environment } from '@prisma/client';
@@ -99,6 +100,12 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         role: request.workspaceRole ?? null,
         // TLC-05: org admins may manage owners even when they aren't owners themselves.
         viaOrgAdmin: request.viaOrgAdmin ?? false,
+        // INST-20: instance admins with support access right now (on it or its org).
+        // eslint-disable-next-line no-restricted-syntax -- MT-09: grants are instance rows
+        supportAccess: await activeGrantsOn(fastify.container.systemDb, {
+          workspaceId: workspace.id,
+          organizationId: workspace.organizationId,
+        }),
         hostApps: hostApps.map((h) => ({
           slug: h.slug,
           name: h.name,

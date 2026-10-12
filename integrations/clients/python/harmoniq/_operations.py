@@ -31,6 +31,10 @@ class Client(BaseClient):
         """DELETE /api/admin/settings/{key} (Instance administration)."""
         return self.request("DELETE", "/api/admin/settings/" + _q(key), None, query)
 
+    def delete_admin_support_grants_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/support-grants/{id} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/support-grants/" + _q(id), None, query)
+
     def delete_admin_users_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/users/{id} (Instance administration)."""
         return self.request("DELETE", "/api/admin/users/" + _q(id), None, query)
@@ -242,6 +246,10 @@ class Client(BaseClient):
     def get_admin_setup(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/setup (Instance administration)."""
         return self.request("GET", "/api/admin/setup", None, query)
+
+    def get_admin_support_grants(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/support-grants (Instance administration)."""
+        return self.request("GET", "/api/admin/support-grants", None, query)
 
     def get_admin_system(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/system (Instance administration)."""
@@ -682,6 +690,10 @@ class Client(BaseClient):
     def post_admin_setup_storage(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/setup/storage (Instance administration)."""
         return self.request("POST", "/api/admin/setup/storage", None, query)
+
+    def post_admin_support_grants(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/support-grants (Instance administration)."""
+        return self.request("POST", "/api/admin/support-grants", None, query)
 
     def post_admin_users_revoke_sessions(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/users/{id}/revoke-sessions (Instance administration)."""
