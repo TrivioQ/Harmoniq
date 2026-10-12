@@ -31,7 +31,6 @@
     "modules": "Modules",
     "environments": "Environments",
     "settings": "Settings",
-    "signOut": "Sign out",
     "audit": "Audit log",
     "quickstart": "Integrate",
     "scheduled": "Scheduled",
@@ -162,7 +161,6 @@
     "dashboard": "Dashboard",
     "workspaces": "Workspaces",
     "exitAdmin": "← Exit Admin",
-    "signOut": "Sign out",
     "health": "Health",
     "users": "Users",
     "admins": "Instance admins",
@@ -355,7 +353,11 @@
     "invitationRevoked": "Invitation revoked.",
     "accessApproved": "Access granted.",
     "accessDenied": "Request denied.",
-    "accessRequested": "Request sent to the workspace admins."
+    "accessRequested": "Request sent to the workspace admins.",
+    "orgKeyRotated": "New key issued. The old one keeps working for {hours, plural, =0 {no time} one {# hour} other {# hours}}.",
+    "orgRenamed": "Organization renamed.",
+    "typeSlugToConfirm": "Type {slug} to confirm.",
+    "orgDeleted": "Organization deleted."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -780,7 +782,8 @@
     "keys": "API keys",
     "sso": "Single sign-on",
     "provisioning": "Provisioning",
-    "people": "People"
+    "people": "People",
+    "settings": "Settings"
   },
   "OrgHome": {
     "description": "Workspaces in this organization, with recent activity and health over the last 24 hours.",
@@ -809,7 +812,20 @@
     "deleteConfirm": "Delete {workspace}? Hosts stop loading its modules; it can be restored until it is purged.",
     "typeSlug": "Type the workspace slug to confirm",
     "requestAccess": "Request access",
-    "requested": "Access requested"
+    "requested": "Access requested",
+    "orgSuspended": "This organization is suspended by the instance administrator: you can look, but not change anything.",
+    "pendingApprovals": "Waiting for approval",
+    "requestedAt": "requested {when}",
+    "expires": "expires {when}",
+    "searchPlaceholder": "Name or slug",
+    "search": "Search",
+    "count": "{count, plural, one {# workspace} other {# workspaces}}",
+    "suspended": "Suspended",
+    "frozen": "{count, plural, one {# environment frozen} other {# environments frozen}}",
+    "approvalsWaiting": "{count, plural, one {# approval waiting} other {# approvals waiting}}",
+    "pagination": "Pages",
+    "firstPage": "First page",
+    "nextPage": "Next page"
   },
   "OrgCatalog": {
     "title": "Module catalog",
@@ -818,14 +834,33 @@
     "team": "Team",
     "owners": "Owners",
     "shared": "shared",
-    "empty": "No modules yet."
+    "empty": "No modules yet.",
+    "filters": "Filter the catalog",
+    "searchPlaceholder": "Name, slug or description",
+    "search": "Search",
+    "allTeams": "All teams",
+    "environmentPlaceholder": "environment",
+    "environment": "Live in environment",
+    "sharing": "Sharing",
+    "anySharing": "Shared or not",
+    "sharedOnly": "Shared with the organization",
+    "notShared": "Not shared",
+    "apply": "Apply",
+    "count": "{count, plural, one {# module} other {# modules}}",
+    "consumersOf": "Who loads {module}",
+    "close": "Close",
+    "consumersUnavailable": "This module could not be found.",
+    "notSharedHint": "This module is not shared: only its own workspace loads it.",
+    "noConsumers": "No other workspace has an environment where this module is live.",
+    "showConsumers": "Show which workspaces load it",
+    "pagination": "Pages",
+    "firstPage": "First page",
+    "nextPage": "Next page",
+    "requestAccess": "Request access",
+    "requested": "Access requested"
   },
   "OrgAudit": {
     "title": "Audit log",
-    "workspace": "Workspace",
-    "allWorkspaces": "All workspaces",
-    "action": "Action",
-    "filter": "Filter",
     "organization": "organization",
     "empty": "No events.",
     "older": "Older events",
@@ -843,11 +878,9 @@
     "add": "Add a member",
     "addSubmit": "Add",
     "keepKeys": "Keep their API keys",
-    "transfer": "Hand over your admin seat",
-    "transferHint": "The member becomes an organization admin when they accept; you become a member.",
-    "transferSubmit": "Propose",
     "org_auditor": "Auditor (read-only)",
-    "org_billing": "Billing (read-only)"
+    "org_billing": "Billing (read-only)",
+    "transferMoved": "To hand over your admin seat, see <link>Settings</link>."
   },
   "OrgKeys": {
     "title": "API keys",
@@ -863,7 +896,25 @@
     "revoked": "revoked",
     "revoke": "Revoke",
     "revokeConfirm": "Revoke {name}? CI using it stops working.",
-    "empty": "No keys yet."
+    "empty": "No keys yet.",
+    "modules": "Modules (optional)",
+    "modulesHint": "Limit the key to these modules. None selected: every module in its workspaces.",
+    "expires": "Expires on (optional)",
+    "rotatingUntil": "Replaced; works until {when}",
+    "status": {
+      "active": "Active",
+      "rotating": "Replaced",
+      "expired": "Expired",
+      "revoked": "Revoked"
+    },
+    "unused": "Unused for 90 days",
+    "createdBy": "Created by {who} {when}",
+    "created": "Created {when}",
+    "expiresOn": "expires {when}",
+    "rotate": "Rotate",
+    "rotateConfirm": "Issue a new secret for \"{name}\"? The current one keeps working for the grace period.",
+    "grace": "Grace period",
+    "graceHours": "{hours, plural, =0 {No grace period} one {# hour} other {# hours}}"
   },
   "OrgSso": {
     "title": "Single sign-on",
@@ -872,7 +923,8 @@
     "noWorkspaces": "No workspaces in this organization yet.",
     "inherits": "Uses the organization’s single sign-on",
     "ownSso": "Own single sign-on ({protocol}); overrides the organization’s",
-    "none": "No single sign-on"
+    "none": "No single sign-on",
+    "domainsMoved": "Verified domains are in the organization <link>Settings</link>."
   },
   "OrgProvisioning": {
     "title": "Provisioning",
@@ -1077,5 +1129,50 @@
     "never": "never",
     "empty": "Nobody matches.",
     "next": "More"
+  },
+  "Shell": {
+    "switch": "Switch",
+    "standalone": "Standalone workspaces",
+    "allWorkspaces": "All workspaces",
+    "account": "Account",
+    "home": "Your workspaces",
+    "admin": "Instance admin",
+    "signOut": "Sign out"
+  },
+  "AuditView": {
+    "filters": "Filter the audit log",
+    "workspace": "Workspace",
+    "allWorkspaces": "All workspaces and the organization",
+    "actor": "Actor",
+    "actorPlaceholder": "Email or actor ID",
+    "action": "Action",
+    "from": "From",
+    "to": "To",
+    "apply": "Apply",
+    "details": "Details"
+  },
+  "OrgSettings": {
+    "title": "Settings",
+    "description": "The organization's name, plan, verified domains and irreversible actions.",
+    "general": "General",
+    "rename": "Rename",
+    "name": "Name",
+    "slug": "Slug",
+    "plan": "Plan",
+    "planHint": "Changed by the instance administrator.",
+    "workspaces": "Workspaces",
+    "export": "Export",
+    "exportHint": "Everything in the organization and its workspaces (configuration, members, modules, versions, audit logs) as JSON Lines. Key secrets are never included.",
+    "exportSubmit": "Download the export",
+    "dangerZone": "Danger zone",
+    "transfer": "Hand over your admin seat",
+    "transferHint": "The member becomes an organization admin when they accept; you become a member.",
+    "transferSubmit": "Propose",
+    "email": "Email",
+    "delete": "Delete the organization",
+    "deleteHint": "Detach or delete its workspaces first. Its API keys are revoked. An instance administrator can restore it until it is purged.",
+    "deleteSubmit": "Delete",
+    "deleteConfirm": "Delete the organization {name}?",
+    "typeSlug": "Type the organization slug to confirm"
   }
 }

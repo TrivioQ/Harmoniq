@@ -4,7 +4,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
-import { BrandMark } from '@/components/BrandMark';
+import { Breadcrumbs, ContextSwitcher, UserMenu } from '@/components/AppShell';
 import { getMe } from '@/lib/registry';
 
 /** ORG-15: `/orgs/:orgSlug/…`, next to the workspace routes. */
@@ -27,12 +27,10 @@ export default async function OrgLayout(props: {
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center px-4 md:px-8">
-          <div className="flex flex-1 items-center gap-4">
-            <BrandMark />
-            <span className="text-muted-foreground text-sm">/</span>
-            <span className="font-medium text-sm">{org.name}</span>
+          <div className="flex flex-1 items-center gap-4 min-w-0">
+            <Breadcrumbs context={{ kind: 'org', slug: org.slug, name: org.name }} />
           </div>
-          <nav className="flex items-center gap-6 text-sm font-medium">
+          <nav className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-medium">
             <Link href={base} className="hover:text-primary">
               {t('overview')}
             </Link>
@@ -67,6 +65,13 @@ export default async function OrgLayout(props: {
                 {t('provisioning')}
               </Link>
             )}
+            {admin && (
+              <Link href={`${base}/settings`} className="hover:text-primary">
+                {t('settings')}
+              </Link>
+            )}
+            <ContextSwitcher me={me} context={{ kind: 'org', slug: org.slug, name: org.name }} />
+            <UserMenu me={me} />
           </nav>
         </div>
       </header>

@@ -3,7 +3,6 @@
 
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
-import { DomainSettings } from '@/components/DomainSettings';
 import { SsoSettings } from '@/components/SsoSettings';
 import { orgApi } from '@/lib/orgApi';
 
@@ -56,10 +55,16 @@ export default async function OrgSsoPage(props: {
           </table>
         )}
       </section>
-      <DomainSettings
-        owner={{ kind: 'organization', slug: orgSlug }}
-        trusted={[...(oidc?.trustedDomains ?? []), ...(saml?.trustedDomains ?? [])]}
-      />
+      {/* TAD-01: verified domains moved to the organization's settings. */}
+      <p className="text-sm text-muted-foreground">
+        {t.rich('domainsMoved', {
+          link: (chunks) => (
+            <Link href={`/orgs/${orgSlug}/settings`} className="underline">
+              {chunks}
+            </Link>
+          ),
+        })}
+      </p>
       <SsoSettings
         owner={{ kind: 'organization', slug: orgSlug }}
         oidc={oidc}

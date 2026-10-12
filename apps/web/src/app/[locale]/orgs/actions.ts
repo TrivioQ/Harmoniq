@@ -4,6 +4,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import type { ActionResult } from '@/lib/actionResult';
 import { RegistryError, authedFetch } from '@/lib/registry';
@@ -236,10 +237,62 @@ export async function createOrgKeyAction(
           name: field(form, 'name'),
           scopes: form.getAll('scopes').map(String),
           workspaces,
+          // TAD-05: module scope and expiry, as for workspace keys.
+          moduleIds: form.getAll('moduleIds').map(String).filter(Boolean),
+          ...(field(form, 'expiresAt') && {
+            expiresAt: new Date(`${field(form, 'expiresAt')}T23:59:59.999Z`).toISOString(),
+          }),
         },
       }),
     (t, r) => ({ status: 'success', message: t('keyCreated'), secret: (r as { key: string }).key })
   );
+}
+
+/** TAD-05: a new secret; the old one keeps working for the grace period. */
+export async function rotateOrgKeyAction(
+  orgSlug: string,
+  keyId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const hours = Number(field(form, 'gracePeriodHours') || 24);
+  return run(
+    () =>
+      authedFetch<{ key: string }>(org(orgSlug, `/keys/${enc(keyId)}/rotate`), {
+        body: { gracePeriodHours: hours },
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: t('orgKeyRotated', { hours }),
+      secret: (r as { key: string }).key,
+    })
+  );
+}
+
+/** TAD-01: rename the organization. */
+export async function renameOrgAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  return run(
+    () => authedFetch(org(orgSlug), { method: 'PATCH', body: { name: field(form, 'name') } }),
+    (t) => ({ status: 'success', message: t('orgRenamed') })
+  );
+}
+
+/** TAD-01: delete the organization (its slug typed back). An instance admin can restore it. */
+export async function deleteOrgAction(
+  orgSlug: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const t = await getTranslations('Actions');
+  if (field(form, 'confirm') !== orgSlug) {
+    return { status: 'error', message: t('typeSlugToConfirm', { slug: orgSlug }) };
+  }
+  const result = await run(
+    () => authedFetch(org(orgSlug), { method: 'DELETE' }),
+    (tr) => ({ status: 'success', message: tr('orgDeleted') })
+  );
+  if (result.status === 'success') redirect('/');
+  return result;
 }
 
 export async function revokeOrgKeyAction(orgSlug: string, keyId: string, _prev: ActionResult) {

@@ -6,6 +6,7 @@ import { getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
 import { getBranding } from '@/lib/branding';
 import { AdminNav } from './AdminNav';
+import { ContextSwitcher, UserMenu } from '@/components/AppShell';
 
 // INST-05/06: the panel is only for instance admins. Workspace owners get a 404, not a
 // hint that the page exists. The registry enforces the same rule on every admin API.
@@ -39,14 +40,15 @@ export default async function AdminPanelLayout({ children }: { children: React.R
             exitAdmin: t('exitAdmin'),
           }}
         />
-        <form action="/api/auth/logout" method="post" className="p-4 mt-auto border-t">
-          <p className="text-xs text-gray-500 mb-2 truncate">{me.user.email}</p>
-          <button type="submit" className="text-sm text-gray-600 hover:text-gray-900">
-            {t('signOut')}
-          </button>
-        </form>
       </aside>
-      <main className="flex-1 overflow-auto bg-gray-50 p-8">{children}</main>
+      <main className="flex-1 overflow-auto bg-gray-50 p-8">
+        {/* TAD-08: the same switcher and user menu as the org and workspace pages. */}
+        <div className="mb-6 flex justify-end items-center gap-3">
+          <ContextSwitcher me={me} context={{ kind: 'admin' }} />
+          <UserMenu me={me} />
+        </div>
+        {children}
+      </main>
     </div>
   );
 }

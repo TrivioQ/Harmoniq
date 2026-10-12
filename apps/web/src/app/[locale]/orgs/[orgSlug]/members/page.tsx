@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
 import { orgApi } from '@/lib/orgApi';
 import { getMe } from '@/lib/registry';
@@ -9,7 +10,6 @@ import {
   addOrgMemberAction,
   changeOrgMemberRoleAction,
   removeOrgMemberAction,
-  transferOrgAction,
 } from '../../actions';
 
 const input = 'rounded-md border px-3 py-1.5 text-sm';
@@ -102,27 +102,16 @@ export default async function OrgMembersPage(props: { params: Promise<{ orgSlug:
           </ActionForm>
         </section>
       )}
-      {/* TLC-06: hand your admin seat to a member; you become a member when they accept. */}
       {admin && (
-        <section className="rounded-xl border bg-card p-4 space-y-2">
-          <h2 className="font-semibold text-sm">{t('transfer')}</h2>
-          <p className="text-xs text-muted-foreground">{t('transferHint')}</p>
-          <ActionForm
-            action={transferOrgAction.bind(null, orgSlug)}
-            submitLabel={t('transferSubmit')}
-            variant="outline"
-            className="flex flex-wrap gap-2"
-          >
-            <input
-              name="email"
-              type="email"
-              required
-              placeholder="new-admin@acme.com"
-              aria-label="Email"
-              className={input}
-            />
-          </ActionForm>
-        </section>
+        <p className="text-xs text-muted-foreground">
+          {t.rich('transferMoved', {
+            link: (chunks) => (
+              <Link href={`/orgs/${orgSlug}/settings`} className="underline">
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
       )}
     </>
   );

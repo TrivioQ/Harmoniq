@@ -33,7 +33,7 @@ The audience is org admins (self-service tenant administration), security and co
 | `TLC-06`, `TLC-07`                                      | Ownership transfers the recipient accepts; tenant exports as streamed JSON Lines                                                                                                           | ✅ Done (9.2)                               |
 | `AUD-05`                                                | Audit history survives workspace deletion; retention GC; export of a deleted workspace's log                                                                                               | ✅ Done (9.2 item, delivered with 9.1)      |
 | `PPL-01`–`PPL-03`, `PPL-06`–`PPL-08`                    | Invitations (emailed, expiring, resend, revoke, accept link), People directory, implicit org admins on members, access requests, org auditor and billing roles                             | ✅ Done (9.3)                               |
-| `TAD-01`, `TAD-04`–`TAD-08`, `AUD-07`, `AUD-08`         | Org settings and people pages, org key parity, org home and catalog upgrades, shared navigation, audit UX                                                                                  | 📋 Planned (9.4)                            |
+| `TAD-01`, `TAD-04`–`TAD-08`, `AUD-07`, `AUD-08`         | Org settings page, org key rotation and parity, paginated org home and catalog with status, consumers and filters, shared navigation, readable audit actors and filters                    | ✅ Done (9.4)                               |
 | `POL-01`–`POL-09`, `TAD-03`                             | Organization policy center (approval defaults complete `ORG-08`)                                                                                                                           | 📋 Planned (9.5)                            |
 | `PLN-04`–`PLN-06`, `USG-01`–`USG-04`, `MT-12`, `TAD-02` | Usage metering, numeric quotas, overrides and trials, per-tenant API rate limits, usage pages (complete `INST-09`)                                                                         | 📋 Planned (9.6)                            |
 | `SES-01`–`SES-04`                                       | Session settings, self-service sessions, TOTP MFA, user suspension                                                                                                                         | 📋 Planned (9.7)                            |
@@ -143,6 +143,8 @@ Instance admins no longer get workspace access implicitly. Only the storage rout
 | Removing an org member removes their workspace memberships, created keys and org-SSO sessions; `DELETE /api/orgs/:org/members/:id` answers `200` with the effects instead of `204`                                                                                                                            | `?keepKeys=true` keeps keys; the confirmation lists effects. SCIM behaviour is unchanged. Clients that expected an empty `204` body should accept `200`.                      |
 | SSO discovery no longer picks the first of several workspaces or organizations listing the same unverified domain                                                                                                                                                                                             | Verify the domain; until then such a domain returns `404` from discovery (users can still choose the workspace's SSO directly).                                               |
 | Pending workspace invitations become `Invitation` rows (7-day expiry from the migration); `GET /api/workspaces/:ws/members` lists only memberships (plus implicit org admins with `id: null`) and returns invitations in `invitations`; `POST …/members` answers with the invitation (`acceptUrl`, `emailed`) | Data migration; resend from the dashboard for a link. Clients reading `status: "invited"` from the members list read `invitations` instead.                                   |
+| `GET /api/orgs/:org` and `GET /api/orgs/:org/modules` return at most `limit` (default 50, up to 200) rows with `nextCursor`; the catalog leaves out modules of deleted workspaces, and recent deploys leave out deleted workspaces                                                                            | Follow `nextCursor`, or pass `limit=200`.                                                                                                                                     |
+| An org key issued by another org key has `createdBy: null` (it held the issuing key's id)                                                                                                                                                                                                                     | Issued keys are recorded in the `org.key_create` audit event with the acting key.                                                                                             |
 | The RLS migration no longer creates `harmoniq_app`                                                                                                                                                                                                                                                            | Only affects new databases: run `scripts/bootstrap-db.ts` or `docker/init.sql` first (already documented in `self-hosting.md`).                                               |
 | `AuditEvent` / `ScimAuditEvent` lose their cascading FK to `Workspace`: a deleted workspace's events stay until retention                                                                                                                                                                                     | Schema-only; `HARMONIQ_AUDIT_RETENTION_DAYS` (default 400) sets how long. Code that counted on audit rows disappearing with the workspace must filter by existing workspaces. |
 
@@ -151,6 +153,42 @@ All API additions are additive. New org roles don't change the meaning of `org_a
 ---
 
 ## Change History
+
+### 2026-10-11 — Phase 9.4: tenant admin dashboard
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** TAD-01, TAD-04, TAD-05, TAD-06, TAD-07, TAD-08, AUD-07, AUD-08
+
+#### What changed
+
+- **AUD-07:** workspace, org and instance audit APIs add `actor: { type, id, label, deleted }` (`services/auditActors.ts`). Users show their email and keys their name and prefix. An organization's keys acting in a workspace are resolved in the org scope. An erased user is `deleted user #<first 8 hex of sha256(id)>`.
+- **AUD-08:** `actor` accepts an email (any case) as well as an id. The instance log gains `actor`, `action`, `resourceId`, `from` and `to`. Malformed dates are `400`.
+- **TAD-05:** `OrgApiKey.gracePeriodEnd` (migration `20261011180000_org_key_rotation`). `POST /api/orgs/:org/keys/:id/rotate` issues a key with the same name, scopes, workspaces, modules and expiry, and the old one works for `gracePeriodHours` (default 24). The list adds `status`, `gracePeriodEnd`, `createdBy` with email, and `unused` (active and idle for 90 days).
+- **TAD-06:** the org home is searchable and paginated. Each workspace has `suspended`, `frozenEnvironments` and `pendingApprovals`; the organization has `suspended` and its 10 latest pending approvals.
+- **TAD-07:** catalog search and filters (workspace, environment, shared), pagination, and `GET /api/orgs/:org/modules/:id/consumers`.
+- **Dashboard:**
+  - Org settings page (TAD-01).
+  - Keys page with rotation, expiry, module scope, creator and unused warning.
+  - Org home search, badges and approvals panel.
+  - Catalog filters, consumers and request access (PPL-07).
+  - Audit filters, readable actors and event details on all three audit pages.
+  - Shared header with breadcrumbs, switcher and user menu (TAD-08). The user menu's sessions entry comes with SES-02 (9.7).
+  - Org pages a role can't use are 404.
+
+#### Testing
+
+`orgDashboard.test.ts` covers:
+
+- actor labels for users, workspace keys, org keys, erased users and system actors, in workspace and org logs;
+- email and date filters, and the instance log;
+- org key rotation: the old key works during the grace period and gets `401` after it;
+- a second rotation is refused with `409`;
+- the unused flag;
+- the org home: pagination, search, suspended, frozen and pending approvals;
+- catalog search, filters, pagination and consumers.
+
+Registry: 60 files, 409 tests. Dashboard: typecheck, lint, unit tests and `next build`. Every org page was fetched for each org role against a local registry.
 
 ### 2026-10-11 — Phase 9.3: invitations, people, access requests, org roles
 

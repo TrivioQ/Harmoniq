@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 import type { Invitation } from '@prisma/client';
 import { z } from 'zod';
 import type { TenantTx } from '@harmoniq/db';
-import type { Organization } from '@prisma/client';
+import type { OrgApiKey, Organization } from '@prisma/client';
 import {
   BadRequestError,
   ConflictError,
@@ -25,12 +25,14 @@ import {
 import { formatOrgApiKey, generateApiKeySecret } from '../auth/apiKeys';
 import { ssoScope } from '../plugins/authenticate';
 import { audit } from '../services/audit';
+import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
 import { invalidateManifest } from '../services/cacheKeys';
 import { createWorkspace } from '../services/workspaces';
 import { assertMayCreateTenant } from '../services/tenancyPolicy';
 import { softDeleteWorkspace } from '../services/tenantLifecycle';
 import { offboardOrgMember } from '../services/orgProvisioning';
 import { ssoProviderIds } from '../services/ssoIds';
+import { isFrozen } from '../services/manifestMutation';
 import {
   ExportRow,
   NEWEST_FIRST,
@@ -67,6 +69,45 @@ type OrgWsParams = OrgParams & { workspaceSlug: string };
 
 // ORG-01..15: organizations group workspaces. Org admins manage the org, its members,
 // keys and workspaces, and administer every workspace in it; org members see the org.
+const RotateOrgKeySchema = z.object({
+  gracePeriodHours: z
+    .number()
+    .int()
+    .min(0)
+    .max(24 * 30)
+    .default(24),
+});
+
+/** TAD-05: keys not used for this long are flagged in the list. */
+const UNUSED_KEY_DAYS = 90;
+
+function orgKeyStatus(k: OrgApiKey, now = Date.now()) {
+  if (k.revokedAt) return 'revoked';
+  if (k.expiresAt && k.expiresAt.getTime() <= now) return 'expired';
+  if (k.gracePeriodEnd) return k.gracePeriodEnd.getTime() <= now ? 'expired' : 'rotating';
+  return 'active';
+}
+
+function orgKeyDto(k: OrgApiKey) {
+  const now = Date.now();
+  const status = orgKeyStatus(k, now);
+  const lastActive = (k.lastUsedAt ?? k.createdAt).getTime();
+  return {
+    id: k.id,
+    name: k.name,
+    prefix: k.prefix,
+    status,
+    scopes: k.scopes,
+    moduleIds: k.moduleScope,
+    expiresAt: k.expiresAt?.toISOString() ?? null,
+    gracePeriodEnd: k.gracePeriodEnd?.toISOString() ?? null,
+    lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+    unused: status === 'active' && now - lastActive > UNUSED_KEY_DAYS * 86_400_000,
+    revokedAt: k.revokedAt?.toISOString() ?? null,
+    createdAt: k.createdAt.toISOString(),
+  };
+}
+
 const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution and creation only (marked below)
   const { systemDb, cache, orgShared, withOrg, withTenant } = fastify.container;
@@ -267,16 +308,36 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     };
   });
 
-  /** ORG-14: the organization home: workspaces with activity and 24 h health. */
-  fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug', member, async (request) => {
+  /**
+   * ORG-14, TAD-06: the organization home: workspaces with activity, 24 h health, status
+   * (suspended, deleted, frozen environments, pending approvals). `query` matches name or
+   * slug; paginated by `cursor` (a workspace id) and `limit`.
+   */
+  fastify.get<{
+    Params: OrgParams;
+    Querystring: { query?: string; cursor?: string; limit?: string };
+  }>('/api/orgs/:orgSlug', member, async (request) => {
     const org = request.org!;
+    const q = request.query;
+    const limit = Math.min(200, Math.max(1, Number(q.limit) || 50));
     const since = new Date(Date.now() - 24 * 3_600_000);
-    const { workspaces, lastDeploys, health, recent, mine, requested } = await inOrg(
-      request,
-      async (tx) => {
-        const workspaces = await tx.workspace.findMany({
-          where: { organizationId: org.id },
-          orderBy: { name: 'asc' },
+    const now = new Date();
+    const data = await inOrg(request, async (tx) => {
+      const where: Prisma.WorkspaceWhereInput = {
+        organizationId: org.id,
+        ...(q.query && {
+          OR: [
+            { name: { contains: q.query, mode: 'insensitive' } },
+            { slug: { contains: q.query, mode: 'insensitive' } },
+          ],
+        }),
+      };
+      const [rows, total] = await Promise.all([
+        tx.workspace.findMany({
+          where,
+          orderBy: [{ name: 'asc' }, { id: 'asc' }],
+          take: limit + 1,
+          ...(q.cursor && { cursor: { id: q.cursor }, skip: 1 }),
           include: {
             _count: {
               // Joined members only: pending invitations aren't members yet.
@@ -286,69 +347,129 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
               },
             },
           },
-        });
-        const ids = workspaces.map((w) => w.id);
-        const lastDeploys = await tx.moduleVersion.groupBy({
-          by: ['workspaceId'],
-          where: { workspaceId: { in: ids } },
-          _max: { deployedAt: true },
-        });
-        const health = await tx.moduleHealthRollup.groupBy({
-          by: ['workspaceId'],
-          where: { workspaceId: { in: ids }, hour: { gte: since } },
-          _sum: { sampleCount: true, errorCount: true },
-        });
-        const recent = await tx.moduleVersion.findMany({
-          where: { workspaceId: { in: ids } },
-          orderBy: { deployedAt: 'desc' },
+        }),
+        tx.workspace.count({ where }),
+      ]);
+      const workspaces = rows.slice(0, limit);
+      const ids = workspaces.map((w) => w.id);
+      const lastDeploys = await tx.moduleVersion.groupBy({
+        by: ['workspaceId'],
+        where: { workspaceId: { in: ids } },
+        _max: { deployedAt: true },
+      });
+      const health = await tx.moduleHealthRollup.groupBy({
+        by: ['workspaceId'],
+        where: { workspaceId: { in: ids }, hour: { gte: since } },
+        _sum: { sampleCount: true, errorCount: true },
+      });
+      const frozen = await tx.environment.findMany({
+        where: { hostApp: { workspaceId: { in: ids } }, frozenAt: { not: null } },
+        select: {
+          slug: true,
+          frozenAt: true,
+          freezeFrom: true,
+          freezeUntil: true,
+          hostApp: { select: { workspaceId: true, slug: true } },
+        },
+      });
+      // Across the organization, not only this page.
+      const orgWorkspaces = { workspace: { organizationId: org.id, deletedAt: null } };
+      const pendingWhere = {
+        ...orgWorkspaces,
+        status: 'pending_approval',
+        expiresAt: { gt: now },
+      };
+      const [pending, pendingCount] = await Promise.all([
+        tx.deploymentRequest.findMany({
+          where: pendingWhere,
+          orderBy: { createdAt: 'desc' },
           take: 10,
-          include: {
-            remoteModule: { select: { slug: true } },
-            environment: { select: { slug: true } },
-            workspace: { select: { slug: true } },
-          },
-        });
-        // PPL-07: what the caller has in each workspace, so the dashboard can offer requests.
-        const principalId = request.principal!.id;
-        const mine = await tx.workspaceMember.findMany({
-          where: { userId: principalId, workspaceId: { in: ids }, joinedAt: { not: null } },
-          select: { workspaceId: true, role: true },
-        });
-        const requested = await tx.accessRequest.findMany({
-          where: { userId: principalId, workspaceId: { in: ids }, status: 'pending' },
-          select: { workspaceId: true },
-        });
-        return { workspaces, lastDeploys, health, recent, mine, requested };
-      }
-    );
-    const lastDeploy = new Map(lastDeploys.map((d) => [d.workspaceId, d._max.deployedAt]));
-    const healthOf = new Map(health.map((h) => [h.workspaceId, h._sum]));
+          include: { workspace: { select: { slug: true } } },
+        }),
+        tx.deploymentRequest.groupBy({ by: ['workspaceId'], where: pendingWhere, _count: true }),
+      ]);
+      const recent = await tx.moduleVersion.findMany({
+        where: orgWorkspaces,
+        orderBy: { deployedAt: 'desc' },
+        take: 10,
+        include: {
+          remoteModule: { select: { slug: true } },
+          environment: { select: { slug: true } },
+          workspace: { select: { slug: true } },
+        },
+      });
+      // PPL-07: what the caller has in each workspace, so the dashboard can offer requests.
+      const principalId = request.principal!.id;
+      const mine = await tx.workspaceMember.findMany({
+        where: { userId: principalId, workspaceId: { in: ids }, joinedAt: { not: null } },
+        select: { workspaceId: true, role: true },
+      });
+      const requested = await tx.accessRequest.findMany({
+        where: { userId: principalId, workspaceId: { in: ids }, status: 'pending' },
+        select: { workspaceId: true },
+      });
+      return {
+        workspaces,
+        more: rows.length > limit,
+        total,
+        lastDeploys,
+        health,
+        frozen,
+        pending,
+        pendingCount,
+        recent,
+        mine,
+        requested,
+      };
+    });
+    const lastDeploy = new Map(data.lastDeploys.map((d) => [d.workspaceId, d._max.deployedAt]));
+    const healthOf = new Map(data.health.map((h) => [h.workspaceId, h._sum]));
+    const pendingOf = new Map(data.pendingCount.map((p) => [p.workspaceId, p._count]));
+    const frozenOf = (workspaceId: string) =>
+      data.frozen
+        .filter((e) => e.hostApp.workspaceId === workspaceId && isFrozen(e, now))
+        .map((e) => `${e.hostApp.slug}/${e.slug}`);
     return {
       slug: org.slug,
       name: org.name,
       plan: org.plan,
       role: request.orgRole ?? null,
-      workspaces: workspaces.map((w) => {
+      suspended: !!org.suspendedAt,
+      total: data.total,
+      nextCursor: data.more ? data.workspaces[data.workspaces.length - 1].id : null,
+      workspaces: data.workspaces.map((w) => {
         const h = healthOf.get(w.id);
         return {
+          id: w.id,
           slug: w.slug,
           name: w.name,
           members: w._count.WorkspaceMembers,
           modules: w._count.RemoteModules,
           lastDeployAt: lastDeploy.get(w.id)?.toISOString() ?? null,
           yourRole:
-            mine.find((m) => m.workspaceId === w.id)?.role ??
+            data.mine.find((m) => m.workspaceId === w.id)?.role ??
             (request.orgRole === 'org_admin' ? 'admin' : null),
-          accessRequested: requested.some((r) => r.workspaceId === w.id),
+          accessRequested: data.requested.some((r) => r.workspaceId === w.id),
           // TLC-02: deleted workspaces stay listed (restorable) until the purge.
           deletedAt: w.deletedAt?.toISOString() ?? null,
           purgeAfter: w.purgeAfter?.toISOString() ?? null,
+          suspended: !!w.suspendedAt,
+          frozenEnvironments: frozenOf(w.id),
+          pendingApprovals: pendingOf.get(w.id) ?? 0,
           health: h?.sampleCount
             ? { samples: h.sampleCount, errorRate: (h.errorCount ?? 0) / h.sampleCount }
             : null,
         };
       }),
-      recentDeploys: recent.map((v) => ({
+      pendingApprovals: data.pending.map((r) => ({
+        id: r.id,
+        workspace: r.workspace.slug,
+        type: r.type,
+        requiredApprovers: r.requiredApprovers,
+        expiresAt: r.expiresAt.toISOString(),
+        createdAt: r.createdAt.toISOString(),
+      })),
+      recentDeploys: data.recent.map((v) => ({
         workspace: v.workspace.slug,
         module: v.remoteModule.slug,
         environment: v.environment.slug,
@@ -1022,12 +1143,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     const org = request.org!;
     const q = request.query;
     const limit = Math.min(200, Math.max(1, Number(q.limit) || 50));
-    const date = (v?: string) => {
-      if (!v) return undefined;
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) throw new BadRequestError(`Invalid date: ${v}`);
-      return d;
-    };
+    const date = parseDate;
     // Keyset pagination on (createdAt, id), newest first; the cursor is the last row.
     const [cursorAt, cursorId] = (q.cursor ?? '').split('|');
     const cursor = q.cursor ? { at: date(cursorAt)!, id: cursorId } : null;
@@ -1037,14 +1153,14 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           OR: [{ createdAt: { lt: cursor.at } }, { createdAt: cursor.at, id: { lt: cursor.id } }],
         }
       : {};
-    const filters = {
-      createdAt,
-      ...(q.actor && { actorId: q.actor }),
-      ...(q.action && { action: { startsWith: q.action } }),
-      ...page,
-    };
     const order = [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
-    const { slugOf, events, orgEvents } = await inOrg(request, async (tx) => {
+    const { slugOf, events, orgEvents, actors } = await inOrg(request, async (tx) => {
+      const filters = {
+        createdAt,
+        ...(await actorWhere(tx, q.actor)),
+        ...(q.action && { action: { startsWith: q.action } }),
+        ...page,
+      };
       const workspaces = await tx.workspace.findMany({
         where: { organizationId: org.id, ...(q.workspace && { slug: q.workspace }) },
         select: { id: true, slug: true },
@@ -1063,7 +1179,9 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
             orderBy: order,
             take: limit + 1,
           });
-      return { slugOf, events, orgEvents };
+      // AUD-07: the org scope sees its users, its keys and its workspaces' keys.
+      const actors = await resolveActors(tx, [...events, ...orgEvents]);
+      return { slugOf, events, orgEvents, actors };
     });
     const merged = [
       ...events.map((e) => ({ ...e, workspace: slugOf.get(e.workspaceId) ?? null })),
@@ -1082,6 +1200,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         workspace: e.workspace,
         actorType: e.actorType,
         actorId: e.actorId,
+        actor: actorOf(actors, e),
         action: e.action,
         resourceType: e.resourceType,
         resourceId: e.resourceId,
@@ -1110,7 +1229,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     const format = exportFormat(q.format);
     const filters = {
       ...dateRange(q),
-      ...(q.actor && { actorId: q.actor }),
+      ...(await inOrg(request, (tx) => actorWhere(tx, q.actor))),
       ...(q.action && { action: { startsWith: q.action } }),
     };
     const workspaces = await inOrg(request, (tx) =>
@@ -1184,10 +1303,46 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── Module catalog (ORG-10/12) ───────────────────────────────────────────
 
-  fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug/modules', member, async (request) => {
-    const modules = await inOrg(request, (tx) =>
-      tx.remoteModule.findMany({
-        where: { workspace: { organizationId: request.org!.id } },
+  /**
+   * ORG-12, TAD-07: the catalog of the organization's modules. `query` matches name, slug
+   * or description; filters by `workspace`, `environment` (an active version there) and
+   * `shared`; paginated by `cursor` (a module id) and `limit`.
+   */
+  fastify.get<{
+    Params: OrgParams;
+    Querystring: {
+      query?: string;
+      workspace?: string;
+      environment?: string;
+      shared?: string;
+      cursor?: string;
+      limit?: string;
+    };
+  }>('/api/orgs/:orgSlug/modules', member, async (request) => {
+    const q = request.query;
+    const limit = Math.min(200, Math.max(1, Number(q.limit) || 50));
+    const active = { status: 'active' as const, deletedAt: null };
+    const where: Prisma.RemoteModuleWhereInput = {
+      workspace: {
+        organizationId: request.org!.id,
+        deletedAt: null,
+        ...(q.workspace && { slug: q.workspace }),
+      },
+      ...(q.query && {
+        OR: [
+          { name: { contains: q.query, mode: 'insensitive' } },
+          { slug: { contains: q.query, mode: 'insensitive' } },
+          { description: { contains: q.query, mode: 'insensitive' } },
+        ],
+      }),
+      ...(q.shared !== undefined && q.shared !== '' && { orgShared: q.shared === 'true' }),
+      ...(q.environment && {
+        ModuleVersions: { some: { ...active, environment: { slug: q.environment } } },
+      }),
+    };
+    const { rows, total } = await inOrg(request, async (tx) => ({
+      rows: await tx.remoteModule.findMany({
+        where,
         include: {
           workspace: { select: { slug: true, name: true } },
           hostApp: { select: { slug: true } },
@@ -1195,14 +1350,20 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
             include: { workspaceMember: { include: { user: { select: { email: true } } } } },
           },
           ModuleVersions: {
-            where: { status: 'active', deletedAt: null },
+            where: active,
             include: { environment: { select: { slug: true } } },
           },
         },
-        orderBy: [{ slug: 'asc' }, { workspace: { slug: 'asc' } }],
-      })
-    );
+        orderBy: [{ slug: 'asc' }, { id: 'asc' }],
+        take: limit + 1,
+        ...(q.cursor && { cursor: { id: q.cursor }, skip: 1 }),
+      }),
+      total: await tx.remoteModule.count({ where }),
+    }));
+    const modules = rows.slice(0, limit);
     return {
+      total,
+      nextCursor: rows.length > limit ? modules[modules.length - 1].id : null,
       modules: modules.map((m) => ({
         id: m.id,
         name: m.name,
@@ -1217,6 +1378,64 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       })),
     };
   });
+
+  /**
+   * TAD-07: which workspaces' manifests load a shared module: the organization's other
+   * live workspaces with an environment of the same name as one it is active in (ORG-11).
+   */
+  fastify.get<{ Params: OrgParams & { moduleId: string } }>(
+    '/api/orgs/:orgSlug/modules/:moduleId/consumers',
+    member,
+    async (request) => {
+      const org = request.org!;
+      const { module, environments } = await inOrg(request, async (tx) => {
+        const module = await tx.remoteModule.findFirst({
+          where: { id: request.params.moduleId, workspace: { organizationId: org.id } },
+          include: {
+            ModuleVersions: {
+              where: { status: 'active', deletedAt: null },
+              select: { environment: { select: { slug: true } } },
+            },
+          },
+        });
+        if (!module) throw new NotFoundError('Module not found');
+        const slugs = [...new Set(module.ModuleVersions.map((v) => v.environment.slug))];
+        const environments =
+          module.orgShared && slugs.length
+            ? await tx.environment.findMany({
+                where: {
+                  slug: { in: slugs },
+                  hostApp: {
+                    workspace: {
+                      organizationId: org.id,
+                      deletedAt: null,
+                      id: { not: module.workspaceId },
+                    },
+                  },
+                },
+                select: {
+                  slug: true,
+                  hostApp: { select: { slug: true, workspace: { select: { slug: true } } } },
+                },
+                orderBy: [{ slug: 'asc' }],
+              })
+            : [];
+        return { module, environments };
+      });
+      const byWorkspace = new Map<string, string[]>();
+      for (const e of environments) {
+        const ws = e.hostApp.workspace.slug;
+        byWorkspace.set(ws, [...(byWorkspace.get(ws) ?? []), `${e.hostApp.slug}/${e.slug}`]);
+      }
+      return {
+        id: module.id,
+        shared: module.orgShared,
+        consumers: [...byWorkspace]
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([workspace, envs]) => ({ workspace, environments: envs })),
+      };
+    }
+  );
 
   // ORG-10: a workspace owner shares a module with the organization (or stops).
   fastify.put<{ Params: { workspaceSlug: string; moduleRef: string }; Body: { shared?: unknown } }>(
@@ -1260,7 +1479,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // ─── Org API keys (ORG-13) ────────────────────────────────────────────────
 
   fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug/keys', admin, async (request) => {
-    const { keys, workspaces } = await inOrg(request, async (tx) => {
+    const { keys, workspaces, creators } = await inOrg(request, async (tx) => {
       const keys = await tx.orgApiKey.findMany({
         where: { organizationId: request.org!.id },
         orderBy: { createdAt: 'desc' },
@@ -1269,30 +1488,61 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         where: { id: { in: keys.flatMap((k) => k.workspaceScope) } },
         select: { id: true, slug: true },
       });
-      return { keys, workspaces };
+      const creators = await tx.user.findMany({
+        where: { id: { in: keys.flatMap((k) => (k.createdBy ? [k.createdBy] : [])) } },
+        select: { id: true, email: true },
+      });
+      return { keys, workspaces, creators };
     });
     const slugOf = new Map(workspaces.map((w) => [w.id, w.slug]));
+    const emailOf = new Map(creators.map((u) => [u.id, u.email]));
     return {
       keys: keys.map((k) => ({
-        id: k.id,
-        name: k.name,
-        prefix: k.prefix,
-        scopes: k.scopes,
+        ...orgKeyDto(k),
         workspaces: k.workspaceScope.map((id) => slugOf.get(id) ?? id),
-        moduleIds: k.moduleScope,
-        expiresAt: k.expiresAt?.toISOString() ?? null,
-        lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
-        revokedAt: k.revokedAt?.toISOString() ?? null,
-        createdAt: k.createdAt.toISOString(),
+        createdBy: k.createdBy
+          ? { id: k.createdBy, email: emailOf.get(k.createdBy) ?? null }
+          : null,
       })),
     };
   });
 
+  /** Creates an org key in the org transaction; the secret is returned once. */
+  async function issueOrgKey(
+    request: FastifyRequest,
+    tx: TenantTx,
+    data: {
+      name: string;
+      scopes: string[];
+      workspaceIds: string[];
+      moduleIds: string[];
+      expiresAt: Date | null;
+    }
+  ) {
+    const { secret, keyHash } = await generateApiKeySecret();
+    const created = await tx.orgApiKey.create({
+      data: {
+        organizationId: request.org!.id,
+        name: data.name,
+        keyHash,
+        scopes: data.scopes,
+        workspaceScope: data.workspaceIds,
+        moduleScope: data.moduleIds,
+        expiresAt: data.expiresAt,
+        createdBy: request.principal!.type === 'user' ? request.principal!.id : null,
+      },
+    });
+    const record = await tx.orgApiKey.update({
+      where: { id: created.id },
+      data: { prefix: `hq_org_${created.id.slice(0, 8)}` },
+    });
+    return { record, key: formatOrgApiKey(record.id, secret) };
+  }
+
   fastify.post<{ Params: OrgParams }>('/api/orgs/:orgSlug/keys', admin, async (request, reply) => {
     const body = CreateOrgApiKeySchema.parse(request.body);
     const org = request.org!;
-    const { secret, keyHash } = await generateApiKeySecret();
-    const { record, prefix } = await inOrg(request, async (tx) => {
+    const { record, key } = await inOrg(request, async (tx) => {
       const workspaces = body.workspaces.length
         ? await tx.workspace.findMany({
             where: { organizationId: org.id, slug: { in: body.workspaces } },
@@ -1310,40 +1560,73 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           throw new BadRequestError('Every module must belong to this organization');
         }
       }
-      const record = await tx.orgApiKey.create({
-        data: {
-          organizationId: org.id,
-          name: body.name,
-          keyHash,
-          scopes: body.scopes,
-          workspaceScope: workspaces.map((w) => w.id),
-          moduleScope: body.moduleIds,
-          expiresAt: body.expiresAt,
-          createdBy: request.principal!.id,
-        },
+      const issued = await issueOrgKey(request, tx, {
+        name: body.name,
+        scopes: body.scopes,
+        workspaceIds: workspaces.map((w) => w.id),
+        moduleIds: body.moduleIds,
+        expiresAt: body.expiresAt ?? null,
       });
-      const prefix = `hq_org_${record.id.slice(0, 8)}`;
-      await tx.orgApiKey.update({ where: { id: record.id }, data: { prefix } });
       await orgAudit(
         request,
         {
           action: 'org.key_create',
           resourceType: 'org_api_key',
-          resourceId: record.id,
+          resourceId: issued.record.id,
           metadata: { name: body.name, scopes: body.scopes, workspaces: body.workspaces },
         },
         tx
       );
-      return { record, prefix };
+      return issued;
     });
-    return reply.code(201).send({
-      id: record.id,
-      name: record.name,
-      prefix,
-      // Shown once.
-      key: formatOrgApiKey(record.id, secret),
-    });
+    // The key is shown once.
+    return reply.code(201).send({ ...orgKeyDto(record), key });
   });
+
+  /**
+   * TAD-05 (as KEY-05): a new key with the same name, scopes and expiry; the old one keeps
+   * working for `gracePeriodHours` so deployments can switch over.
+   */
+  fastify.post<{ Params: OrgParams & { keyId: string } }>(
+    '/api/orgs/:orgSlug/keys/:keyId/rotate',
+    admin,
+    async (request, reply) => {
+      const { gracePeriodHours } = RotateOrgKeySchema.parse(request.body ?? {});
+      const { record, key, old } = await inOrg(request, async (tx) => {
+        const old = await tx.orgApiKey.findFirst({
+          where: { id: request.params.keyId, organizationId: request.org!.id, revokedAt: null },
+        });
+        if (!old || (old.gracePeriodEnd && old.gracePeriodEnd.getTime() <= Date.now())) {
+          throw new NotFoundError('Key not found');
+        }
+        if (old.gracePeriodEnd) throw new ConflictError('This key was already rotated');
+        const issued = await issueOrgKey(request, tx, {
+          name: old.name,
+          scopes: old.scopes,
+          workspaceIds: old.workspaceScope,
+          moduleIds: old.moduleScope,
+          expiresAt: old.expiresAt,
+        });
+        await tx.orgApiKey.update({
+          where: { id: old.id },
+          data: { gracePeriodEnd: new Date(Date.now() + gracePeriodHours * 3_600_000) },
+        });
+        await orgAudit(
+          request,
+          {
+            action: 'org.key_rotate',
+            resourceType: 'org_api_key',
+            resourceId: issued.record.id,
+            metadata: { name: old.name, replaces: old.id, gracePeriodHours },
+          },
+          tx
+        );
+        return { ...issued, old };
+      });
+      fastify.forgetApiKey(old.id);
+      return reply.code(201).send({ ...orgKeyDto(record), key, replaces: old.id });
+    }
+  );
 
   fastify.delete<{ Params: OrgParams & { keyId: string } }>(
     '/api/orgs/:orgSlug/keys/:keyId',

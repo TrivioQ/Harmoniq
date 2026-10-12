@@ -31,7 +31,6 @@
     "modules": "Módulos",
     "environments": "Entornos",
     "settings": "Configuración",
-    "signOut": "Cerrar sesión",
     "audit": "Auditoría",
     "quickstart": "Integrar",
     "scheduled": "Programado",
@@ -162,7 +161,6 @@
     "dashboard": "Tablero",
     "workspaces": "Espacios de trabajo",
     "exitAdmin": "← Salir del administrador",
-    "signOut": "Cerrar sesión",
     "health": "Estado",
     "users": "Usuarios",
     "admins": "Administradores",
@@ -355,7 +353,11 @@
     "invitationRevoked": "Invitación retirada.",
     "accessApproved": "Acceso concedido.",
     "accessDenied": "Solicitud rechazada.",
-    "accessRequested": "Solicitud enviada a los administradores del espacio de trabajo."
+    "accessRequested": "Solicitud enviada a los administradores del espacio de trabajo.",
+    "orgKeyRotated": "Nueva clave emitida. La anterior sigue funcionando {hours, plural, =0 {ningún tiempo} one {# hora} other {# horas}}.",
+    "orgRenamed": "Organización renombrada.",
+    "typeSlugToConfirm": "Escribe {slug} para confirmar.",
+    "orgDeleted": "Organización eliminada."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -780,7 +782,8 @@
     "keys": "Claves de API",
     "sso": "Inicio de sesión único",
     "provisioning": "Aprovisionamiento",
-    "people": "Personas"
+    "people": "Personas",
+    "settings": "Configuración"
   },
   "OrgHome": {
     "description": "Espacios de trabajo de esta organización, con la actividad reciente y la salud de las últimas 24 horas.",
@@ -809,7 +812,20 @@
     "deleteConfirm": "¿Eliminar {workspace}? Los hosts dejarán de cargar sus módulos; se puede restaurar hasta que se purgue.",
     "typeSlug": "Escribe el slug del espacio de trabajo para confirmar",
     "requestAccess": "Solicitar acceso",
-    "requested": "Acceso solicitado"
+    "requested": "Acceso solicitado",
+    "orgSuspended": "El administrador de la instancia ha suspendido esta organización: puedes consultarla, pero no cambiar nada.",
+    "pendingApprovals": "Pendiente de aprobación",
+    "requestedAt": "solicitado {when}",
+    "expires": "caduca {when}",
+    "searchPlaceholder": "Nombre o slug",
+    "search": "Buscar",
+    "count": "{count, plural, one {# espacio de trabajo} other {# espacios de trabajo}}",
+    "suspended": "Suspendido",
+    "frozen": "{count, plural, one {# entorno congelado} other {# entornos congelados}}",
+    "approvalsWaiting": "{count, plural, one {# aprobación pendiente} other {# aprobaciones pendientes}}",
+    "pagination": "Páginas",
+    "firstPage": "Primera página",
+    "nextPage": "Página siguiente"
   },
   "OrgCatalog": {
     "title": "Catálogo de módulos",
@@ -818,14 +834,33 @@
     "team": "Equipo",
     "owners": "Responsables",
     "shared": "compartido",
-    "empty": "Aún no hay módulos."
+    "empty": "Aún no hay módulos.",
+    "filters": "Filtrar el catálogo",
+    "searchPlaceholder": "Nombre, slug o descripción",
+    "search": "Buscar",
+    "allTeams": "Todos los equipos",
+    "environmentPlaceholder": "entorno",
+    "environment": "Activo en el entorno",
+    "sharing": "Compartido",
+    "anySharing": "Compartido o no",
+    "sharedOnly": "Compartido con la organización",
+    "notShared": "No compartido",
+    "apply": "Aplicar",
+    "count": "{count, plural, one {# módulo} other {# módulos}}",
+    "consumersOf": "Quién carga {module}",
+    "close": "Cerrar",
+    "consumersUnavailable": "No se encontró este módulo.",
+    "notSharedHint": "Este módulo no está compartido: solo lo carga su propio espacio de trabajo.",
+    "noConsumers": "Ningún otro espacio de trabajo tiene un entorno donde este módulo esté activo.",
+    "showConsumers": "Ver qué espacios de trabajo lo cargan",
+    "pagination": "Páginas",
+    "firstPage": "Primera página",
+    "nextPage": "Página siguiente",
+    "requestAccess": "Solicitar acceso",
+    "requested": "Acceso solicitado"
   },
   "OrgAudit": {
     "title": "Auditoría",
-    "workspace": "Espacio",
-    "allWorkspaces": "Todos los espacios",
-    "action": "Acción",
-    "filter": "Filtrar",
     "organization": "organización",
     "empty": "No hay eventos.",
     "older": "Eventos anteriores",
@@ -843,11 +878,9 @@
     "add": "Añadir un miembro",
     "addSubmit": "Añadir",
     "keepKeys": "Conservar sus claves de API",
-    "transfer": "Entregar tu puesto de administrador",
-    "transferHint": "El miembro pasa a administrador de la organización cuando acepte; tú pasas a miembro.",
-    "transferSubmit": "Proponer",
     "org_auditor": "Auditor (solo lectura)",
-    "org_billing": "Facturación (solo lectura)"
+    "org_billing": "Facturación (solo lectura)",
+    "transferMoved": "Para entregar tu puesto de administrador, ve a <link>Configuración</link>."
   },
   "OrgKeys": {
     "title": "Claves de API",
@@ -863,7 +896,25 @@
     "revoked": "revocada",
     "revoke": "Revocar",
     "revokeConfirm": "¿Revocar {name}? La CI que la usa dejará de funcionar.",
-    "empty": "Aún no hay claves."
+    "empty": "Aún no hay claves.",
+    "modules": "Módulos (opcional)",
+    "modulesHint": "Limita la clave a estos módulos. Sin selección: todos los módulos de sus espacios de trabajo.",
+    "expires": "Caduca el (opcional)",
+    "rotatingUntil": "Reemplazada; funciona hasta {when}",
+    "status": {
+      "active": "Activa",
+      "rotating": "Reemplazada",
+      "expired": "Caducada",
+      "revoked": "Revocada"
+    },
+    "unused": "Sin uso en 90 días",
+    "createdBy": "Creada por {who} {when}",
+    "created": "Creada {when}",
+    "expiresOn": "caduca {when}",
+    "rotate": "Rotar",
+    "rotateConfirm": "¿Emitir un nuevo secreto para \"{name}\"? El actual sigue funcionando durante el periodo de gracia.",
+    "grace": "Periodo de gracia",
+    "graceHours": "{hours, plural, =0 {Sin periodo de gracia} one {# hora} other {# horas}}"
   },
   "OrgSso": {
     "title": "Inicio de sesión único",
@@ -872,7 +923,8 @@
     "noWorkspaces": "Aún no hay espacios de trabajo en esta organización.",
     "inherits": "Usa el inicio de sesión único de la organización",
     "ownSso": "Inicio de sesión único propio ({protocol}); reemplaza al de la organización",
-    "none": "Sin inicio de sesión único"
+    "none": "Sin inicio de sesión único",
+    "domainsMoved": "Los dominios verificados están en la <link>Configuración</link> de la organización."
   },
   "OrgProvisioning": {
     "title": "Aprovisionamiento",
@@ -1077,5 +1129,50 @@
     "never": "nunca",
     "empty": "Nadie coincide.",
     "next": "Más"
+  },
+  "Shell": {
+    "switch": "Cambiar",
+    "standalone": "Espacios de trabajo independientes",
+    "allWorkspaces": "Todos los espacios de trabajo",
+    "account": "Cuenta",
+    "home": "Tus espacios de trabajo",
+    "admin": "Administración de la instancia",
+    "signOut": "Cerrar sesión"
+  },
+  "AuditView": {
+    "filters": "Filtrar la auditoría",
+    "workspace": "Espacio de trabajo",
+    "allWorkspaces": "Todos los espacios de trabajo y la organización",
+    "actor": "Autor",
+    "actorPlaceholder": "Correo o ID del autor",
+    "action": "Acción",
+    "from": "Desde",
+    "to": "Hasta",
+    "apply": "Aplicar",
+    "details": "Detalles"
+  },
+  "OrgSettings": {
+    "title": "Configuración",
+    "description": "El nombre, el plan, los dominios verificados y las acciones irreversibles de la organización.",
+    "general": "General",
+    "rename": "Renombrar",
+    "name": "Nombre",
+    "slug": "Slug",
+    "plan": "Plan",
+    "planHint": "Lo cambia el administrador de la instancia.",
+    "workspaces": "Espacios de trabajo",
+    "export": "Exportar",
+    "exportHint": "Todo lo de la organización y sus espacios de trabajo (configuración, miembros, módulos, versiones, auditorías) en JSON Lines. Nunca incluye secretos de claves.",
+    "exportSubmit": "Descargar la exportación",
+    "dangerZone": "Zona de peligro",
+    "transfer": "Entregar tu puesto de administrador",
+    "transferHint": "El miembro pasa a administrador de la organización cuando acepte; tú pasas a miembro.",
+    "transferSubmit": "Proponer",
+    "email": "Correo electrónico",
+    "delete": "Eliminar la organización",
+    "deleteHint": "Primero desvincula o elimina sus espacios de trabajo. Sus claves de API se revocan. Un administrador de la instancia puede restaurarla hasta que se purgue.",
+    "deleteSubmit": "Eliminar",
+    "deleteConfirm": "¿Eliminar la organización {name}?",
+    "typeSlug": "Escribe el slug de la organización para confirmar"
   }
 }

@@ -325,6 +325,11 @@ func (c *Client) GetOrgsModules(ctx context.Context, orgSlug string, query url.V
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/modules", nil, query)
 }
 
+// GetOrgsModulesConsumers calls GET /api/orgs/{orgSlug}/modules/{moduleId}/consumers (Organizations).
+func (c *Client) GetOrgsModulesConsumers(ctx context.Context, orgSlug string, moduleId string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/modules/"+url.PathEscape(moduleId)+"/consumers", nil, query)
+}
+
 // GetOrgsPeople calls GET /api/orgs/{orgSlug}/people (Organizations).
 func (c *Client) GetOrgsPeople(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/people", nil, query)
@@ -683,6 +688,11 @@ func (c *Client) PostOrgsInvitationsResend(ctx context.Context, orgSlug string, 
 // PostOrgsKeys calls POST /api/orgs/{orgSlug}/keys (Organizations).
 func (c *Client) PostOrgsKeys(ctx context.Context, orgSlug string, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/keys", body, query)
+}
+
+// PostOrgsKeysRotate calls POST /api/orgs/{orgSlug}/keys/{keyId}/rotate (Organizations).
+func (c *Client) PostOrgsKeysRotate(ctx context.Context, orgSlug string, keyId string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/keys/"+url.PathEscape(keyId)+"/rotate", nil, query)
 }
 
 // PostOrgsMembers calls POST /api/orgs/{orgSlug}/members (Organizations).

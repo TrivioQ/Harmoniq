@@ -1,7 +1,8 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import { authedFetch } from './registry';
+import { notFound } from 'next/navigation';
+import { RegistryError, authedFetch as registryAuthedFetch } from './registry';
 import type {
   OidcSettings,
   SamlSettingsResponse,
@@ -18,7 +19,13 @@ export interface OrgHome {
   name: string;
   plan: string;
   role: OrgRole | null;
+  /** TLC-04: suspended by the instance admin (read-only). */
+  suspended?: boolean;
+  /** TAD-06: workspaces matching the search, and the cursor of the next page. */
+  total?: number;
+  nextCursor?: string | null;
   workspaces: Array<{
+    id?: string;
     slug: string;
     name: string;
     members: number;
@@ -30,7 +37,20 @@ export interface OrgHome {
     /** PPL-07: your role there (org admins: admin), and whether you asked to join. */
     yourRole?: string | null;
     accessRequested?: boolean;
+    /** TAD-06: INST-09 suspension, environments frozen now (`host/env`), approvals waiting. */
+    suspended?: boolean;
+    frozenEnvironments?: string[];
+    pendingApprovals?: number;
     health: { samples: number; errorRate: number } | null;
+  }>;
+  /** TAD-06: the latest deployment requests waiting for approval, across the organization. */
+  pendingApprovals?: Array<{
+    id: string;
+    workspace: string;
+    type: string;
+    requiredApprovers: number;
+    expiresAt: string;
+    createdAt: string;
   }>;
   recentDeploys: Array<{
     workspace: string;
@@ -43,11 +63,20 @@ export interface OrgHome {
   }>;
 }
 
+/** AUD-07: a readable actor: an email, a key's name and prefix, or `deleted user #…`. */
+export interface AuditActor {
+  type: 'user' | 'apiKey' | 'system';
+  id: string;
+  label: string;
+  deleted: boolean;
+}
+
 export interface OrgAuditEvent {
   id: string;
   workspace: string | null;
   actorType: string;
   actorId: string;
+  actor?: AuditActor;
   action: string;
   resourceType: string;
   resourceId: string;
@@ -79,6 +108,12 @@ export interface OrgKey {
   id: string;
   name: string;
   prefix: string;
+  /** TAD-05: `rotating` keys work until `gracePeriodEnd`. */
+  status?: 'active' | 'rotating' | 'expired' | 'revoked';
+  gracePeriodEnd?: string | null;
+  createdBy?: { id: string; email: string | null } | null;
+  /** Not used for 90 days. */
+  unused?: boolean;
   scopes: string[];
   workspaces: string[];
   moduleIds: string[];
@@ -120,32 +155,60 @@ export interface OrgInvitation {
   workspace?: string | null;
 }
 
+export interface CatalogQuery {
+  query?: string;
+  workspace?: string;
+  environment?: string;
+  shared?: string;
+  cursor?: string;
+  limit?: string;
+}
+
+/**
+ * Pages a role can't use (e.g. API keys for an org member) are not found, as the registry
+ * refuses them: a 404 page rather than an error. Server components only.
+ */
+async function authedFetch<T>(path: string): Promise<T> {
+  try {
+    return await registryAuthedFetch<T>(path);
+  } catch (err) {
+    if (err instanceof RegistryError && err.status === 403) notFound();
+    throw err;
+  }
+}
+
 const enc = encodeURIComponent;
 const org = (slug: string) => `/api/orgs/${enc(slug)}`;
+/** Query string of the set values only. */
+const params = (query: Record<string, string | undefined>) =>
+  new URLSearchParams(Object.entries(query).filter((e): e is [string, string] => !!e[1]));
 
 /** ORG-14/15: the organization pages read through the registry, like everything else. */
 export const orgApi = {
-  home: (slug: string) => authedFetch<OrgHome>(org(slug)),
-  audit: (slug: string, query: Record<string, string | undefined>) => {
-    const params = new URLSearchParams(
-      Object.entries(query).filter((e): e is [string, string] => !!e[1])
-    );
-    return authedFetch<{ events: OrgAuditEvent[]; nextCursor: string | null }>(
-      `${org(slug)}/audit?${params}`
-    );
-  },
-  catalog: (slug: string) => authedFetch<{ modules: CatalogModule[] }>(`${org(slug)}/modules`),
+  home: (slug: string, query: { query?: string; cursor?: string; limit?: string } = {}) =>
+    authedFetch<OrgHome>(`${org(slug)}?${params(query)}`),
+  audit: (slug: string, query: Record<string, string | undefined>) =>
+    authedFetch<{ events: OrgAuditEvent[]; nextCursor: string | null }>(
+      `${org(slug)}/audit?${params(query)}`
+    ),
+  catalog: (slug: string, query: CatalogQuery = {}) =>
+    authedFetch<{ modules: CatalogModule[]; total?: number; nextCursor?: string | null }>(
+      `${org(slug)}/modules?${params({ ...query })}`
+    ),
+  /** TAD-07: the workspaces whose manifests load a shared module. */
+  consumers: (slug: string, moduleId: string) =>
+    authedFetch<{
+      id: string;
+      shared: boolean;
+      consumers: Array<{ workspace: string; environments: string[] }>;
+    }>(`${org(slug)}/modules/${enc(moduleId)}/consumers`),
   members: (slug: string) => authedFetch<{ members: OrgMember[] }>(`${org(slug)}/members`),
-  people: (slug: string, query: { query?: string; cursor?: string }) => {
-    const params = new URLSearchParams(
-      Object.entries(query).filter((e): e is [string, string] => !!e[1])
-    );
-    return authedFetch<{
+  people: (slug: string, query: { query?: string; cursor?: string }) =>
+    authedFetch<{
       people: OrgPerson[];
       nextCursor: string | null;
       invitations: OrgInvitation[];
-    }>(`${org(slug)}/people?${params}`);
-  },
+    }>(`${org(slug)}/people?${params(query)}`),
   keys: (slug: string) => authedFetch<{ keys: OrgKey[] }>(`${org(slug)}/keys`),
   sso: (slug: string) => authedFetch<OrgSsoOverview>(`${org(slug)}/sso`),
   oidc: (slug: string) => authedFetch<{ oidc: OidcSettings | null }>(`${org(slug)}/sso/oidc`),

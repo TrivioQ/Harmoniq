@@ -140,6 +140,8 @@ export interface AuditEvent {
   action: string;
   actorId: string;
   actorType: 'user' | 'apiKey' | 'system';
+  /** AUD-07: email, key name and prefix, or `deleted user #…`. */
+  actor?: { type: 'user' | 'apiKey' | 'system'; id: string; label: string; deleted: boolean };
   resourceType: string;
   resourceId: string;
   metadata: Record<string, unknown> | null;

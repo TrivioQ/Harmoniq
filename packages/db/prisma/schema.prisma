@@ -684,6 +684,8 @@ model OrgApiKey {
   /// Module ids.
   moduleScope    String[]
   expiresAt      DateTime?
+  /// TAD-05: set on the old key during rotation; valid only until then (as KEY-05).
+  gracePeriodEnd DateTime?
   lastUsedAt     DateTime?
   createdBy      String?
   createdAt      DateTime     @default(now())

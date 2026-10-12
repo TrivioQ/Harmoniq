@@ -263,6 +263,10 @@ class Client(BaseClient):
         """GET /api/orgs/{orgSlug}/modules (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/modules", None, query)
 
+    def get_orgs_modules_consumers(self, org_slug, module_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/modules/{moduleId}/consumers (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/modules/" + _q(module_id) + "/consumers", None, query)
+
     def get_orgs_people(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/people (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/people", None, query)
@@ -550,6 +554,10 @@ class Client(BaseClient):
     def post_orgs_keys(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/keys (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/keys", body, query)
+
+    def post_orgs_keys_rotate(self, org_slug, key_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/keys/{keyId}/rotate (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/keys/" + _q(key_id) + "/rotate", None, query)
 
     def post_orgs_members(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/members (Organizations)."""

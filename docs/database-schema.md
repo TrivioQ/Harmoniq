@@ -607,21 +607,22 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 
 ### `OrgApiKey`
 
-| Column           | Type        | Notes                        |
-| ---------------- | ----------- | ---------------------------- |
-| `id`             | `CUID`      | Primary key                  |
-| `organizationId` | `CUID`      | FK → Organization            |
-| `keyHash`        | `String`    | argon2id hash of the raw key |
-| `name`           | `String`    | Human-readable label         |
-| `prefix`         | `String`    | Display prefix `hq_org_…`    |
-| `scopes`         | `String[]`  | As workspace keys            |
-| `workspaceScope` | `String[]`  | Workspace ids; empty = all   |
-| `moduleScope`    | `String[]`  | Module ids; empty = all      |
-| `expiresAt`      | `DateTime?` |                              |
-| `lastUsedAt`     | `DateTime?` |                              |
-| `createdBy`      | `String?`   | User id                      |
-| `createdAt`      | `DateTime`  |                              |
-| `revokedAt`      | `DateTime?` | Null = active                |
+| Column           | Type        | Notes                                       |
+| ---------------- | ----------- | ------------------------------------------- |
+| `id`             | `CUID`      | Primary key                                 |
+| `organizationId` | `CUID`      | FK → Organization                           |
+| `keyHash`        | `String`    | argon2id hash of the raw key                |
+| `name`           | `String`    | Human-readable label                        |
+| `prefix`         | `String`    | Display prefix `hq_org_…`                   |
+| `scopes`         | `String[]`  | As workspace keys                           |
+| `workspaceScope` | `String[]`  | Workspace ids; empty = all                  |
+| `moduleScope`    | `String[]`  | Module ids; empty = all                     |
+| `expiresAt`      | `DateTime?` |                                             |
+| `gracePeriodEnd` | `DateTime?` | Set on the old key during rotation (TAD-05) |
+| `lastUsedAt`     | `DateTime?` |                                             |
+| `createdBy`      | `String?`   | User id (null when an org key issued it)    |
+| `createdAt`      | `DateTime`  |                                             |
+| `revokedAt`      | `DateTime?` | Null = active                               |
 
 ### `InstanceAuditEvent`
 

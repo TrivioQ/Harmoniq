@@ -70,6 +70,8 @@ export interface InstanceAuditEvent {
   id: string;
   actorType: string;
   actorId: string;
+  /** AUD-07: email, key name and prefix, or `deleted user #…`. */
+  actor?: { type: string; id: string; label: string; deleted: boolean };
   action: string;
   resourceType: string;
   resourceId: string;
@@ -165,7 +167,14 @@ export const adminApi = {
         purgeAfter: string | null;
       }>;
     }>('/api/admin/orgs'),
-  audit: (params: { cursor?: string }) =>
+  audit: (params: {
+    cursor?: string;
+    actor?: string;
+    action?: string;
+    resourceId?: string;
+    from?: string;
+    to?: string;
+  }) =>
     authedFetch<{ events: InstanceAuditEvent[]; nextCursor: string | null }>(
       `/api/admin/audit${query(params)}`
     ),

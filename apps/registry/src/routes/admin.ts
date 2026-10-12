@@ -40,6 +40,7 @@ import {
   keysetRows,
   sendExport,
 } from '../services/auditExport';
+import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
 
 // InstanceConfig key marking the one-time setup token as consumed (INST-04).
 const SETUP_COMPLETED_KEY = 'setup.completed';
@@ -840,13 +841,37 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  fastify.get<{ Querystring: { cursor?: string } }>('/api/admin/audit', admin, async (request) => {
+  /** INST-18, AUD-07/08: the instance log with readable actors; filter by action prefix,
+   * actor (id or email), resource and date range. */
+  fastify.get<{
+    Querystring: {
+      cursor?: string;
+      action?: string;
+      actor?: string;
+      resourceId?: string;
+      from?: string;
+      to?: string;
+    };
+  }>('/api/admin/audit', admin, async (request) => {
+    const q = request.query;
+    const from = parseDate(q.from);
+    const to = parseDate(q.to);
     const events = await systemDb.instanceAuditEvent.findMany({
-      where: cursorWhere(request.query.cursor),
+      where: {
+        ...cursorWhere(q.cursor),
+        ...(await actorWhere(systemDb, q.actor)),
+        ...(q.action && { action: { startsWith: q.action } }),
+        ...(q.resourceId && { resourceId: q.resourceId }),
+        ...((from || to) && { createdAt: { gte: from, lte: to } }),
+      },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: PAGE,
     });
-    return { events, nextCursor: nextCursor(events, PAGE) };
+    const actors = await resolveActors(systemDb, events);
+    return {
+      events: events.map((e) => ({ ...e, actor: actorOf(actors, e) })),
+      nextCursor: nextCursor(events, PAGE),
+    };
   });
 };
 

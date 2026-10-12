@@ -3,7 +3,7 @@
 
 import { notFound, redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
-import { BrandMark } from '@/components/BrandMark';
+import { Breadcrumbs, ContextSwitcher, UserMenu, type ShellContext } from '@/components/AppShell';
 import { getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
 import { workspaceApi } from '@/lib/workspaceApi';
@@ -28,16 +28,24 @@ export default async function WorkspaceLayout(props: {
     ('suspended' in workspace && !!workspace.suspended) ||
     ('suspendedAt' in workspace && !!workspace.suspendedAt);
 
+  // TAD-08: the organization in the breadcrumbs, when you can see it.
+  const orgSlug = me.workspaces.find((w) => w.slug === workspace.slug)?.organization;
+  const org = orgSlug ? me.organizations.find((o) => o.slug === orgSlug) : undefined;
+  const context: ShellContext = {
+    kind: 'workspace',
+    slug: workspace.slug,
+    name: workspace.name,
+    ...(org && { org: { slug: org.slug, name: org.name } }),
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center px-4 md:px-8">
-          <div className="flex flex-1 items-center gap-4">
-            <BrandMark />
-            <span className="text-muted-foreground text-sm">/</span>
-            <span className="font-medium text-sm">{workspace.name}</span>
+          <div className="flex flex-1 items-center gap-4 min-w-0">
+            <Breadcrumbs context={context} />
           </div>
-          <nav className="flex items-center gap-6 text-sm font-medium">
+          <nav className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-medium">
             <Link href={`/w/${workspace.slug}`} className="hover:text-primary">
               {t('overview')}
             </Link>
@@ -65,11 +73,8 @@ export default async function WorkspaceLayout(props: {
             >
               {t('settings')}
             </Link>
-            <form action="/api/auth/logout" method="post">
-              <button type="submit" className="text-muted-foreground hover:text-primary">
-                {t('signOut')}
-              </button>
-            </form>
+            <ContextSwitcher me={me} context={context} />
+            <UserMenu me={me} />
           </nav>
         </div>
       </header>

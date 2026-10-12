@@ -137,7 +137,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       scopes: record.scopes,
       moduleIds: record.moduleScope,
       expiresAt: record.expiresAt,
-      gracePeriodEnd: null,
+      gracePeriodEnd: record.gracePeriodEnd,
       lastUsedWrite: record.lastUsedAt?.getTime() ?? 0,
       cachedUntil: now + KEY_CACHE_TTL_MS,
     } satisfies CachedKey;

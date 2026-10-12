@@ -650,10 +650,10 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 - [x] **Organization home** page (`/orgs/:orgSlug`) — all workspaces with aggregate health, recent deploys, cross-workspace audit log (ORG-14)
 - [x] **Org Module Catalog** (`/orgs/:orgSlug/catalog`) — every module with its team, owners and version per env (ORG-12)
-- [ ] Catalog search, filters and pagination (TAD-07, Phase 9.4)
+- [x] Catalog search, filters and pagination (TAD-07, Phase 9.4)
 - [x] **Org SSO Settings** — configure SAML/OIDC once, applies to all workspaces (ORG-05)
 - [x] **Org Members** — org members and roles (ORG-04)
-- [ ] Directory of all users across the org's workspaces with effective access (PPL-03, Phase 9.3)
+- [x] Directory of all users across the org's workspaces with effective access (PPL-03, Phase 9.3)
 - [x] Workspace pages move to `/w/:workspaceSlug`; old `/:workspaceSlug/…` URLs redirect there (ORG-15)
 
 #### Test Suite
@@ -863,27 +863,27 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Registry
 
-- [ ] Audit responses add `actor` (`{ type, id, label }`: email, or key name and prefix, or `deleted user #<hash>`) for workspace, org and instance logs (AUD-07)
-- [ ] Org audit filter by actor email; workspace audit gains the same filters as the org audit (AUD-08)
-- [ ] Org keys: `POST /api/orgs/:org/keys/:id/rotate` with grace period (`OrgApiKey.gracePeriodEnd`), `createdBy` in the list, `unused` flag (90 days) (TAD-05)
-- [ ] `GET /api/orgs/:org` paginated (`cursor`, `query`) with `suspended`, `frozenEnvironments` and `pendingApprovals` per workspace (TAD-06)
-- [ ] `GET /api/orgs/:org/modules?query=&workspace=&environment=&shared=&cursor=` and `GET …/modules/:id/consumers` (TAD-07)
+- [x] Audit responses add `actor` (`{ type, id, label }`: email, or key name and prefix, or `deleted user #<hash>`) for workspace, org and instance logs (AUD-07)
+- [x] Org audit filter by actor email; workspace audit gains the same filters as the org audit (AUD-08)
+- [x] Org keys: `POST /api/orgs/:org/keys/:id/rotate` with grace period (`OrgApiKey.gracePeriodEnd`), `createdBy` in the list, `unused` flag (90 days) (TAD-05)
+- [x] `GET /api/orgs/:org` paginated (`cursor`, `query`) with `suspended`, `frozenEnvironments` and `pendingApprovals` per workspace (TAD-06)
+- [x] `GET /api/orgs/:org/modules?query=&workspace=&environment=&shared=&cursor=` and `GET …/modules/:id/consumers` (TAD-07)
 
 #### Dashboard
 
-- [ ] `/orgs/:org/settings` — rename, plan and features, verified domains, danger zone (TAD-01)
-- [ ] `/orgs/:org/people` — directory, invitations, access requests (TAD-04)
-- [ ] Org keys page: expiry, module scope picker, rotate, creator, unused warning (TAD-05)
-- [ ] Org home: search, pagination, delete workspace (slug confirmation), suspended and frozen badges, pending approvals panel (TAD-06)
-- [ ] Catalog: search, filters, pagination, consumers drawer (TAD-07)
-- [ ] Audit pages (org, workspace, instance): actor labels, actor and date filters, metadata drawer (AUD-07/08)
-- [ ] Shared app shell: org/workspace switcher, breadcrumbs, user menu (sessions, sign-out) in org, workspace and admin layouts (TAD-08)
-- [ ] `messages/en.json` and `messages/es.json` for every new string
+- [x] `/orgs/:org/settings` — rename, plan and features, verified domains, danger zone (TAD-01)
+- [x] `/orgs/:org/people` — directory, invitations, access requests (TAD-04)
+- [x] Org keys page: expiry, module scope picker, rotate, creator, unused warning (TAD-05)
+- [x] Org home: search, pagination, delete workspace (slug confirmation), suspended and frozen badges, pending approvals panel (TAD-06)
+- [x] Catalog: search, filters, pagination, consumers drawer (TAD-07)
+- [x] Audit pages (org, workspace, instance): actor labels, actor and date filters, metadata drawer (AUD-07/08)
+- [x] Shared app shell: org/workspace switcher, breadcrumbs, user menu (sessions, sign-out) in org, workspace and admin layouts (TAD-08) (sessions entry with SES-02, 9.7)
+- [x] `messages/en.json` and `messages/es.json` for every new string
 
 #### Test Suite
 
-- [ ] Registry: actor labels including erased users and keys; org key rotation grace period; paginated org home and catalog filters
-- [ ] Dashboard: pages render for `org_admin`, `org_member`, `org_auditor`, `org_billing` with the right controls (against a dev registry, as for M4.7)
+- [x] Registry: actor labels including erased users and keys; org key rotation grace period; paginated org home and catalog filters
+- [x] Dashboard: pages render for `org_admin`, `org_member`, `org_auditor`, `org_billing` with the right controls (against a dev registry, as for M4.7): admins get every page, auditors audit, people, SSO and provisioning, other roles 404 on admin pages
 
 ### 9.5 Organization Policy (M5.5)
 
