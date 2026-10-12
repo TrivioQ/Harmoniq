@@ -3,6 +3,7 @@
 
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
+import type { TenantTx } from '@harmoniq/db';
 import type { Organization } from '@prisma/client';
 import {
   BadRequestError,
@@ -14,7 +15,7 @@ import {
   AddOrgMemberSchema,
   CreateOrgApiKeySchema,
   CreateOrganizationSchema,
-  CreateWorkspaceSchema,
+  CreateOrgWorkspaceSchema,
   OrgRole,
   UpdateOrgMemberSchema,
   UpdateOrganizationSchema,
@@ -24,6 +25,8 @@ import { ssoScope } from '../plugins/authenticate';
 import { audit } from '../services/audit';
 import { invalidateManifest } from '../services/cacheKeys';
 import { createWorkspace, deleteWorkspace } from '../services/workspaces';
+import { offboardOrgMember } from '../services/orgProvisioning';
+import { ssoProviderIds } from '../services/ssoIds';
 import {
   ExportRow,
   NEWEST_FIRST,
@@ -35,6 +38,7 @@ import {
   sendExport,
 } from '../services/auditExport';
 import { orgSsoRoutes } from './orgSso';
+import { orgDomainRoutes } from './domains';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -51,7 +55,11 @@ type OrgWsParams = OrgParams & { workspaceSlug: string };
 // ORG-01..15: organizations group workspaces. Org admins manage the org, its members,
 // keys and workspaces, and administer every workspace in it; org members see the org.
 const orgRoutes: FastifyPluginAsync = async (fastify) => {
-  const { systemDb, cache, orgShared } = fastify.container;
+  // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution and creation only (marked below)
+  const { systemDb, cache, orgShared, withOrg, withTenant } = fastify.container;
+  /** MT-07/08: the request's organization, its rows and its workspaces' (RLS). */
+  const inOrg = <T>(request: FastifyRequest, fn: (tx: TenantTx) => Promise<T>) =>
+    withOrg(request.org!.id, fn);
 
   function requireOrg(level: 'member' | 'admin', opts: { allowOrgKey?: boolean } = {}) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
@@ -61,6 +69,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       // IaC-01: Terraform and other automation manage the org's workspaces with an org key
       // that has the `admin` scope and isn't limited to some workspaces.
       if (opts.allowOrgKey && principal.type === 'apiKey' && principal.organizationId) {
+        // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution (org key)
         const org = await systemDb.organization.findFirst({
           where: { slug: (request.params as OrgParams).orgSlug, deletedAt: null },
         });
@@ -97,11 +106,13 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           },
         });
       }
+      // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
       const org = await systemDb.organization.findFirst({
         where: { slug: orgSlug, deletedAt: null },
       });
       const membership = org
-        ? await systemDb.organizationMember.findUnique({
+        ? // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
+          await systemDb.organizationMember.findUnique({
             where: { organizationId_userId: { organizationId: org.id, userId: principal.id } },
           })
         : null;
@@ -125,6 +136,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   const admin = { preHandler: requireOrg('admin') };
   const adminOrOrgKey = { preHandler: requireOrg('admin', { allowOrgKey: true }) };
 
+  /** An org audit event, in the given org transaction or in its own. */
   const orgAudit = (
     request: FastifyRequest,
     event: {
@@ -132,23 +144,27 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       resourceType: string;
       resourceId: string;
       metadata?: Record<string, unknown>;
-    }
-  ) =>
-    systemDb.organizationAuditEvent.create({
-      data: {
-        organizationId: request.org!.id,
-        actorType: request.principal!.type === 'apiKey' ? 'apiKey' : 'user',
-        actorId: request.principal!.id,
-        ip: request.ip,
-        ...event,
-        metadata: event.metadata as Prisma.InputJsonValue | undefined,
-      },
-    });
+    },
+    tx?: TenantTx
+  ) => {
+    const write = (db: TenantTx) =>
+      db.organizationAuditEvent.create({
+        data: {
+          organizationId: request.org!.id,
+          actorType: request.principal!.type === 'apiKey' ? 'apiKey' : 'user',
+          actorId: request.principal!.id,
+          ip: request.ip,
+          ...event,
+          metadata: event.metadata as Prisma.InputJsonValue | undefined,
+        },
+      });
+    return tx ? write(tx) : inOrg(request, write);
+  };
 
-  const workspaceIn = async (org: Organization, slug: string) => {
-    const workspace = await systemDb.workspace.findFirst({
-      where: { slug, organizationId: org.id },
-    });
+  const workspaceIn = async (request: FastifyRequest, slug: string) => {
+    const workspace = await inOrg(request, (tx) =>
+      tx.workspace.findFirst({ where: { slug, organizationId: request.org!.id } })
+    );
     if (!workspace) throw new NotFoundError('Workspace not found in this organization');
     return workspace;
   };
@@ -162,6 +178,8 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     }
     const body = CreateOrganizationSchema.parse(request.body);
     try {
+      // The organization doesn't exist yet, so there is no org scope to create it in.
+      // eslint-disable-next-line no-restricted-syntax -- MT-09: creates a new tenant
       const org = await systemDb.$transaction(async (tx) => {
         const org = await tx.organization.create({ data: body });
         await tx.organizationMember.create({
@@ -193,6 +211,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     const principal = request.principal!;
     const scope = ssoScope(principal);
     if (principal.type !== 'user' || scope?.kind === 'workspace') return { organizations: [] };
+    // eslint-disable-next-line no-restricted-syntax -- MT-09: the user's own memberships across organizations
     const memberships = await systemDb.organizationMember.findMany({
       where: {
         userId: principal.id,
@@ -213,25 +232,33 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   /** ORG-14: the organization home: workspaces with activity and 24 h health. */
   fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug', member, async (request) => {
     const org = request.org!;
-    const workspaces = await systemDb.workspace.findMany({
-      where: { organizationId: org.id },
-      orderBy: { name: 'asc' },
-      include: { _count: { select: { WorkspaceMembers: true, RemoteModules: true } } },
-    });
-    const ids = workspaces.map((w) => w.id);
     const since = new Date(Date.now() - 24 * 3_600_000);
-    const [lastDeploys, health, recent] = await Promise.all([
-      systemDb.moduleVersion.groupBy({
+    const { workspaces, lastDeploys, health, recent } = await inOrg(request, async (tx) => {
+      const workspaces = await tx.workspace.findMany({
+        where: { organizationId: org.id },
+        orderBy: { name: 'asc' },
+        include: {
+          _count: {
+            // Joined members only: pending invitations aren't members yet.
+            select: {
+              WorkspaceMembers: { where: { joinedAt: { not: null } } },
+              RemoteModules: true,
+            },
+          },
+        },
+      });
+      const ids = workspaces.map((w) => w.id);
+      const lastDeploys = await tx.moduleVersion.groupBy({
         by: ['workspaceId'],
         where: { workspaceId: { in: ids } },
         _max: { deployedAt: true },
-      }),
-      systemDb.moduleHealthRollup.groupBy({
+      });
+      const health = await tx.moduleHealthRollup.groupBy({
         by: ['workspaceId'],
         where: { workspaceId: { in: ids }, hour: { gte: since } },
         _sum: { sampleCount: true, errorCount: true },
-      }),
-      systemDb.moduleVersion.findMany({
+      });
+      const recent = await tx.moduleVersion.findMany({
         where: { workspaceId: { in: ids } },
         orderBy: { deployedAt: 'desc' },
         take: 10,
@@ -240,8 +267,9 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           environment: { select: { slug: true } },
           workspace: { select: { slug: true } },
         },
-      }),
-    ]);
+      });
+      return { workspaces, lastDeploys, health, recent };
+    });
     const lastDeploy = new Map(lastDeploys.map((d) => [d.workspaceId, d._max.deployedAt]));
     const healthOf = new Map(health.map((h) => [h.workspaceId, h._sum]));
     return {
@@ -276,12 +304,14 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch<{ Params: OrgParams }>('/api/orgs/:orgSlug', admin, async (request) => {
     const body = UpdateOrganizationSchema.parse(request.body);
-    const org = await systemDb.organization.update({ where: { id: request.org!.id }, data: body });
-    await orgAudit(request, {
-      action: 'org.update',
-      resourceType: 'organization',
-      resourceId: org.id,
-      metadata: body,
+    const org = await inOrg(request, async (tx) => {
+      const org = await tx.organization.update({ where: { id: request.org!.id }, data: body });
+      await orgAudit(
+        request,
+        { action: 'org.update', resourceType: 'organization', resourceId: org.id, metadata: body },
+        tx
+      );
+      return org;
     });
     return { slug: org.slug, name: org.name };
   });
@@ -289,18 +319,20 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // Only an empty organization can be deleted (workspaces are detached or deleted first).
   fastify.delete<{ Params: OrgParams }>('/api/orgs/:orgSlug', admin, async (request, reply) => {
     const org = request.org!;
-    if (await systemDb.workspace.count({ where: { organizationId: org.id } })) {
-      throw new ConflictError('Detach or delete the organization’s workspaces first');
-    }
-    await systemDb.organization.update({ where: { id: org.id }, data: { deletedAt: new Date() } });
-    await systemDb.orgApiKey.updateMany({
-      where: { organizationId: org.id, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    await orgAudit(request, {
-      action: 'org.delete',
-      resourceType: 'organization',
-      resourceId: org.id,
+    await inOrg(request, async (tx) => {
+      if (await tx.workspace.count({ where: { organizationId: org.id } })) {
+        throw new ConflictError('Detach or delete the organization’s workspaces first');
+      }
+      await tx.organization.update({ where: { id: org.id }, data: { deletedAt: new Date() } });
+      await tx.orgApiKey.updateMany({
+        where: { organizationId: org.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await orgAudit(
+        request,
+        { action: 'org.delete', resourceType: 'organization', resourceId: org.id },
+        tx
+      );
     });
     return reply.code(204).send();
   });
@@ -308,11 +340,13 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // ─── Members (ORG-04/08) ──────────────────────────────────────────────────
 
   fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug/members', member, async (request) => {
-    const members = await systemDb.organizationMember.findMany({
-      where: { organizationId: request.org!.id },
-      include: { user: { select: { id: true, email: true, name: true, avatarUrl: true } } },
-      orderBy: { createdAt: 'asc' },
-    });
+    const members = await inOrg(request, (tx) =>
+      tx.organizationMember.findMany({
+        where: { organizationId: request.org!.id },
+        include: { user: { select: { id: true, email: true, name: true, avatarUrl: true } } },
+        orderBy: { createdAt: 'asc' },
+      })
+    );
     return {
       members: members.map((m) => ({
         id: m.id,
@@ -330,20 +364,27 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       const body = AddOrgMemberSchema.parse(request.body);
       const org = request.org!;
       const email = body.email.trim().toLowerCase();
-      // As with workspace invitations: their first sign-in with this email links to it.
-      const user =
-        (await systemDb.user.findFirst({
-          where: { email: { equals: email, mode: 'insensitive' } },
-        })) ?? (await systemDb.user.create({ data: { email } }));
       try {
-        const created = await systemDb.organizationMember.create({
-          data: { organizationId: org.id, userId: user.id, role: body.role },
-        });
-        await orgAudit(request, {
-          action: 'org.member_add',
-          resourceType: 'org_member',
-          resourceId: created.id,
-          metadata: { email, role: body.role },
+        const created = await inOrg(request, async (tx) => {
+          // As with workspace invitations: their first sign-in with this email links to it.
+          const user =
+            (await tx.user.findFirst({
+              where: { email: { equals: email, mode: 'insensitive' } },
+            })) ?? (await tx.user.create({ data: { email } }));
+          const created = await tx.organizationMember.create({
+            data: { organizationId: org.id, userId: user.id, role: body.role },
+          });
+          await orgAudit(
+            request,
+            {
+              action: 'org.member_add',
+              resourceType: 'org_member',
+              resourceId: created.id,
+              metadata: { email, role: body.role },
+            },
+            tx
+          );
+          return created;
         });
         return reply.code(201).send({ id: created.id, email, role: created.role });
       } catch (err) {
@@ -355,11 +396,11 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  const adminCount = (organizationId: string) =>
-    systemDb.organizationMember.count({ where: { organizationId, role: 'org_admin' } });
+  const adminCount = (tx: TenantTx, organizationId: string) =>
+    tx.organizationMember.count({ where: { organizationId, role: 'org_admin' } });
 
-  const findMember = async (request: FastifyRequest, id: string) => {
-    const found = await systemDb.organizationMember.findFirst({
+  const findMember = async (tx: TenantTx, request: FastifyRequest, id: string) => {
+    const found = await tx.organizationMember.findFirst({
       where: { id, organizationId: request.org!.id },
     });
     if (!found) throw new NotFoundError('Member not found');
@@ -371,42 +412,78 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     admin,
     async (request) => {
       const { role } = UpdateOrgMemberSchema.parse(request.body);
-      const current = await findMember(request, request.params.memberId);
-      if (current.role === 'org_admin' && role !== 'org_admin') {
-        if ((await adminCount(request.org!.id)) <= 1) {
-          throw new ConflictError('An organization must keep at least one admin');
+      const updated = await inOrg(request, async (tx) => {
+        const current = await findMember(tx, request, request.params.memberId);
+        if (current.role === 'org_admin' && role !== 'org_admin') {
+          if ((await adminCount(tx, request.org!.id)) <= 1) {
+            throw new ConflictError('An organization must keep at least one admin');
+          }
         }
-      }
-      const updated = await systemDb.organizationMember.update({
-        where: { id: current.id },
-        data: { role },
-      });
-      await orgAudit(request, {
-        action: 'org.member_role_change',
-        resourceType: 'org_member',
-        resourceId: current.id,
-        metadata: { from: current.role, to: role },
+        const updated = await tx.organizationMember.update({
+          where: { id: current.id },
+          data: { role },
+        });
+        await orgAudit(
+          request,
+          {
+            action: 'org.member_role_change',
+            resourceType: 'org_member',
+            resourceId: current.id,
+            metadata: { from: current.role, to: role },
+          },
+          tx
+        );
+        return updated;
       });
       return { id: updated.id, role: updated.role };
     }
   );
 
-  fastify.delete<{ Params: OrgParams & { memberId: string } }>(
+  /**
+   * PPL-04: leaving the organization means leaving its workspaces too, with the API keys
+   * the member created there (`?keepKeys=true` keeps the keys) and their org-SSO sessions.
+   * Each workspace's last owner is kept. The response says what was removed.
+   */
+  fastify.delete<{ Params: OrgParams & { memberId: string }; Querystring: { keepKeys?: string } }>(
     '/api/orgs/:orgSlug/members/:memberId',
     admin,
-    async (request, reply) => {
-      const current = await findMember(request, request.params.memberId);
-      if (current.role === 'org_admin' && (await adminCount(request.org!.id)) <= 1) {
-        throw new ConflictError('An organization must keep at least one admin');
-      }
-      await systemDb.organizationMember.delete({ where: { id: current.id } });
+    async (request) => {
+      const org = request.org!;
+      const revokeKeys = request.query.keepKeys !== 'true';
+      const { current, result } = await inOrg(request, async (tx) => {
+        const current = await findMember(tx, request, request.params.memberId);
+        if (current.role === 'org_admin' && (await adminCount(tx, org.id)) <= 1) {
+          throw new ConflictError('An organization must keep at least one admin');
+        }
+        const result = await offboardOrgMember(tx, org, current, {
+          revokeKeys,
+          actor: { principal: request.principal!, ip: request.ip },
+        });
+        return { current, result };
+      });
+      // Sessions are system rows (the tenant role has no access): ended after the commit,
+      // like SCIM deprovisioning.
+      // eslint-disable-next-line no-restricted-syntax -- MT-09: sessions are system tables
+      const sessions = await systemDb.refreshToken.updateMany({
+        where: {
+          userId: current.userId,
+          provider: { in: ssoProviderIds({ kind: 'organization', slug: org.slug }) },
+          revokedAt: null,
+        },
+        data: { revokedAt: new Date() },
+      });
       await orgAudit(request, {
         action: 'org.member_remove',
         resourceType: 'org_member',
         resourceId: current.id,
-        metadata: { userId: current.userId, role: current.role },
+        metadata: {
+          userId: current.userId,
+          role: current.role,
+          ...result,
+          ssoSessionsEnded: sessions.count,
+        },
       });
-      return reply.code(204).send();
+      return { ...result, ssoSessionsEnded: sessions.count };
     }
   );
 
@@ -416,11 +493,12 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/orgs/:orgSlug/workspaces',
     adminOrOrgKey,
     async (request, reply) => {
-      const body = CreateWorkspaceSchema.parse(request.body);
+      const body = CreateOrgWorkspaceSchema.parse(request.body);
       const principal = request.principal!;
       const workspace = await createWorkspace(
+        // eslint-disable-next-line no-restricted-syntax -- MT-09: creates a new tenant
         systemDb,
-        { ...body, organizationId: request.org!.id },
+        { name: body.name, slug: body.slug, owners: body.owners, organizationId: request.org!.id },
         principal.type === 'apiKey'
           ? { apiKeyId: principal.id, ip: request.ip }
           : { userId: principal.id, ip: request.ip },
@@ -430,9 +508,11 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         action: 'org.workspace_create',
         resourceType: 'workspace',
         resourceId: workspace.id,
-        metadata: { slug: workspace.slug },
+        metadata: { slug: workspace.slug, ...(body.owners.length && { owners: body.owners }) },
       });
-      return reply.code(201).send({ slug: workspace.slug, name: workspace.name });
+      return reply
+        .code(201)
+        .send({ slug: workspace.slug, name: workspace.name, owners: body.owners });
     }
   );
 
@@ -442,11 +522,14 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     admin,
     async (request) => {
       const org = request.org!;
+      // The workspace is outside the organization until attached: resolved by slug.
+      // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
       const workspace = await systemDb.workspace.findUnique({
         where: { slug: request.params.workspaceSlug },
       });
       const owner = workspace
-        ? await systemDb.workspaceMember.findFirst({
+        ? // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
+          await systemDb.workspaceMember.findFirst({
             where: {
               workspaceId: workspace.id,
               userId: request.principal!.id,
@@ -465,10 +548,10 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       if (workspace.organizationId) {
         throw new ConflictError('The workspace belongs to another organization; detach it first');
       }
-      await systemDb.workspace.update({
-        where: { id: workspace.id },
-        data: { organizationId: org.id },
-      });
+      // Not part of the organization yet: changed in its own workspace scope.
+      await withTenant(workspace.id, (tx) =>
+        tx.workspace.update({ where: { id: workspace.id }, data: { organizationId: org.id } })
+      );
       await orgAudit(request, {
         action: 'org.workspace_attach',
         resourceType: 'workspace',
@@ -488,53 +571,57 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     adminOrOrgKey,
     async (request, reply) => {
       const org = request.org!;
-      const workspace = await workspaceIn(org, request.params.workspaceSlug);
+      const workspace = await workspaceIn(request, request.params.workspaceSlug);
       // ORG-08: deleting needs the slug typed back.
       if (request.query.delete === 'true') {
         if (request.query.confirm !== workspace.slug) {
           throw new BadRequestError('Confirm the deletion with ?confirm=<workspace slug>');
         }
-        await deleteWorkspace(fastify.container, workspace);
+        const purged = await deleteWorkspace(fastify.container, workspace);
         await orgAudit(request, {
           action: 'org.workspace_delete',
           resourceType: 'workspace',
           resourceId: workspace.id,
-          metadata: { slug: workspace.slug },
+          metadata: { slug: workspace.slug, ...purged },
         });
         return reply.code(204).send();
       }
-      await systemDb.workspace.update({
-        where: { id: workspace.id },
-        data: { organizationId: null },
-      });
-      await systemDb.remoteModule.updateMany({
-        where: { workspaceId: workspace.id, orgShared: true },
-        data: { orgShared: false },
-      });
-      await orgAudit(request, {
-        action: 'org.workspace_detach',
-        resourceType: 'workspace',
-        resourceId: workspace.id,
-        metadata: { slug: workspace.slug },
+      const siblings = await inOrg(request, async (tx) => {
+        await tx.remoteModule.updateMany({
+          where: { workspaceId: workspace.id, orgShared: true },
+          data: { orgShared: false },
+        });
+        await tx.workspace.update({ where: { id: workspace.id }, data: { organizationId: null } });
+        await orgAudit(
+          request,
+          {
+            action: 'org.workspace_detach',
+            resourceType: 'workspace',
+            resourceId: workspace.id,
+            metadata: { slug: workspace.slug },
+          },
+          tx
+        );
+        return tx.workspace.findMany({
+          where: { organizationId: org.id, id: { not: workspace.id } },
+          select: { id: true },
+        });
       });
       await refreshWorkspace(workspace.id);
       // Its former siblings drop its shared modules.
-      for (const sibling of await systemDb.workspace.findMany({
-        where: { organizationId: org.id },
-        select: { id: true },
-      })) {
-        await refreshWorkspace(sibling.id);
-      }
+      for (const sibling of siblings) await refreshWorkspace(sibling.id);
       return reply.code(204).send();
     }
   );
 
   /** Rebuilds every manifest of a workspace (its org-shared modules changed). */
   async function refreshWorkspace(workspaceId: string) {
-    const envs = await systemDb.environment.findMany({
-      where: { hostApp: { workspaceId } },
-      include: { hostApp: { include: { workspace: { select: { slug: true } } } } },
-    });
+    const envs = await withTenant(workspaceId, (tx) =>
+      tx.environment.findMany({
+        where: { hostApp: { workspaceId } },
+        include: { hostApp: { include: { workspace: { select: { slug: true } } } } },
+      })
+    );
     for (const env of envs) {
       await invalidateManifest(cache, env.hostApp.workspace.slug, env.hostApp.slug, env.slug);
       await fastify.container.publisher.publish(env.id).catch(() => undefined);
@@ -579,27 +666,28 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       ...(q.action && { action: { startsWith: q.action } }),
       ...page,
     };
-    const workspaces = await systemDb.workspace.findMany({
-      where: { organizationId: org.id, ...(q.workspace && { slug: q.workspace }) },
-      select: { id: true, slug: true },
-    });
-    const slugOf = new Map(workspaces.map((w) => [w.id, w.slug]));
     const order = [{ createdAt: 'desc' as const }, { id: 'desc' as const }];
-    const [events, orgEvents] = await Promise.all([
-      systemDb.auditEvent.findMany({
+    const { slugOf, events, orgEvents } = await inOrg(request, async (tx) => {
+      const workspaces = await tx.workspace.findMany({
+        where: { organizationId: org.id, ...(q.workspace && { slug: q.workspace }) },
+        select: { id: true, slug: true },
+      });
+      const slugOf = new Map(workspaces.map((w) => [w.id, w.slug]));
+      const events = await tx.auditEvent.findMany({
         where: { workspaceId: { in: [...slugOf.keys()] }, ...filters },
         orderBy: order,
         take: limit + 1,
-      }),
+      });
       // Org-level events have no workspace.
-      q.workspace
-        ? Promise.resolve([])
-        : systemDb.organizationAuditEvent.findMany({
+      const orgEvents = q.workspace
+        ? []
+        : await tx.organizationAuditEvent.findMany({
             where: { organizationId: org.id, ...filters },
             orderBy: order,
             take: limit + 1,
-          }),
-    ]);
+          });
+      return { slugOf, events, orgEvents };
+    });
     const merged = [
       ...events.map((e) => ({ ...e, workspace: slugOf.get(e.workspaceId) ?? null })),
       ...orgEvents.map((e) => ({ ...e, workspace: null })),
@@ -648,10 +736,12 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       ...(q.actor && { actorId: q.actor }),
       ...(q.action && { action: { startsWith: q.action } }),
     };
-    const workspaces = await systemDb.workspace.findMany({
-      where: { organizationId: org.id, ...(q.workspace && { slug: q.workspace }) },
-      select: { id: true, slug: true },
-    });
+    const workspaces = await inOrg(request, (tx) =>
+      tx.workspace.findMany({
+        where: { organizationId: org.id, ...(q.workspace && { slug: q.workspace }) },
+        select: { id: true, slug: true },
+      })
+    );
     const slugOf = new Map(workspaces.map((w) => [w.id, w.slug]));
     await orgAudit(request, {
       action: 'org.audit_export',
@@ -668,24 +758,29 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
     });
+    // Each batch in its own org transaction: the download may take longer than one.
     const workspaceRows = keysetRows(async (after, take) =>
       (
-        await systemDb.auditEvent.findMany({
-          where: { workspaceId: { in: [...slugOf.keys()] }, ...filters, ...afterWhere(after) },
-          orderBy: NEWEST_FIRST,
-          take,
-        })
+        await inOrg(request, (tx) =>
+          tx.auditEvent.findMany({
+            where: { workspaceId: { in: [...slugOf.keys()] }, ...filters, ...afterWhere(after) },
+            orderBy: NEWEST_FIRST,
+            take,
+          })
+        )
       ).map((e) => ({ ...e, workspace: slugOf.get(e.workspaceId) ?? null }))
     );
     const orgRows = q.workspace
       ? (async function* () {})()
       : keysetRows(async (after, take) =>
           (
-            await systemDb.organizationAuditEvent.findMany({
-              where: { organizationId: org.id, ...filters, ...afterWhere(after) },
-              orderBy: NEWEST_FIRST,
-              take,
-            })
+            await inOrg(request, (tx) =>
+              tx.organizationAuditEvent.findMany({
+                where: { organizationId: org.id, ...filters, ...afterWhere(after) },
+                orderBy: NEWEST_FIRST,
+                take,
+              })
+            )
           ).map((e) => ({ ...e, workspace: null }))
         );
     return sendExport(reply, mergeNewestFirst<ExportRow>(workspaceRows, orgRows), {
@@ -698,21 +793,23 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // ─── Module catalog (ORG-10/12) ───────────────────────────────────────────
 
   fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug/modules', member, async (request) => {
-    const modules = await systemDb.remoteModule.findMany({
-      where: { workspace: { organizationId: request.org!.id } },
-      include: {
-        workspace: { select: { slug: true, name: true } },
-        hostApp: { select: { slug: true } },
-        ModuleOwnerships: {
-          include: { workspaceMember: { include: { user: { select: { email: true } } } } },
+    const modules = await inOrg(request, (tx) =>
+      tx.remoteModule.findMany({
+        where: { workspace: { organizationId: request.org!.id } },
+        include: {
+          workspace: { select: { slug: true, name: true } },
+          hostApp: { select: { slug: true } },
+          ModuleOwnerships: {
+            include: { workspaceMember: { include: { user: { select: { email: true } } } } },
+          },
+          ModuleVersions: {
+            where: { status: 'active', deletedAt: null },
+            include: { environment: { select: { slug: true } } },
+          },
         },
-        ModuleVersions: {
-          where: { status: 'active', deletedAt: null },
-          include: { environment: { select: { slug: true } } },
-        },
-      },
-      orderBy: [{ slug: 'asc' }, { workspace: { slug: 'asc' } }],
-    });
+        orderBy: [{ slug: 'asc' }, { workspace: { slug: 'asc' } }],
+      })
+    );
     return {
       modules: modules.map((m) => ({
         id: m.id,
@@ -771,13 +868,16 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // ─── Org API keys (ORG-13) ────────────────────────────────────────────────
 
   fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug/keys', admin, async (request) => {
-    const keys = await systemDb.orgApiKey.findMany({
-      where: { organizationId: request.org!.id },
-      orderBy: { createdAt: 'desc' },
-    });
-    const workspaces = await systemDb.workspace.findMany({
-      where: { id: { in: keys.flatMap((k) => k.workspaceScope) } },
-      select: { id: true, slug: true },
+    const { keys, workspaces } = await inOrg(request, async (tx) => {
+      const keys = await tx.orgApiKey.findMany({
+        where: { organizationId: request.org!.id },
+        orderBy: { createdAt: 'desc' },
+      });
+      const workspaces = await tx.workspace.findMany({
+        where: { id: { in: keys.flatMap((k) => k.workspaceScope) } },
+        select: { id: true, slug: true },
+      });
+      return { keys, workspaces };
     });
     const slugOf = new Map(workspaces.map((w) => [w.id, w.slug]));
     return {
@@ -799,43 +899,50 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Params: OrgParams }>('/api/orgs/:orgSlug/keys', admin, async (request, reply) => {
     const body = CreateOrgApiKeySchema.parse(request.body);
     const org = request.org!;
-    const workspaces = body.workspaces.length
-      ? await systemDb.workspace.findMany({
-          where: { organizationId: org.id, slug: { in: body.workspaces } },
-          select: { id: true },
-        })
-      : [];
-    if (workspaces.length !== body.workspaces.length) {
-      throw new BadRequestError('Every workspace must belong to this organization');
-    }
-    if (body.moduleIds.length) {
-      const found = await systemDb.remoteModule.count({
-        where: { id: { in: body.moduleIds }, workspace: { organizationId: org.id } },
-      });
-      if (found !== body.moduleIds.length) {
-        throw new BadRequestError('Every module must belong to this organization');
-      }
-    }
     const { secret, keyHash } = await generateApiKeySecret();
-    const record = await systemDb.orgApiKey.create({
-      data: {
-        organizationId: org.id,
-        name: body.name,
-        keyHash,
-        scopes: body.scopes,
-        workspaceScope: workspaces.map((w) => w.id),
-        moduleScope: body.moduleIds,
-        expiresAt: body.expiresAt,
-        createdBy: request.principal!.id,
-      },
-    });
-    const prefix = `hq_org_${record.id.slice(0, 8)}`;
-    await systemDb.orgApiKey.update({ where: { id: record.id }, data: { prefix } });
-    await orgAudit(request, {
-      action: 'org.key_create',
-      resourceType: 'org_api_key',
-      resourceId: record.id,
-      metadata: { name: body.name, scopes: body.scopes, workspaces: body.workspaces },
+    const { record, prefix } = await inOrg(request, async (tx) => {
+      const workspaces = body.workspaces.length
+        ? await tx.workspace.findMany({
+            where: { organizationId: org.id, slug: { in: body.workspaces } },
+            select: { id: true },
+          })
+        : [];
+      if (workspaces.length !== body.workspaces.length) {
+        throw new BadRequestError('Every workspace must belong to this organization');
+      }
+      if (body.moduleIds.length) {
+        const found = await tx.remoteModule.count({
+          where: { id: { in: body.moduleIds }, workspace: { organizationId: org.id } },
+        });
+        if (found !== body.moduleIds.length) {
+          throw new BadRequestError('Every module must belong to this organization');
+        }
+      }
+      const record = await tx.orgApiKey.create({
+        data: {
+          organizationId: org.id,
+          name: body.name,
+          keyHash,
+          scopes: body.scopes,
+          workspaceScope: workspaces.map((w) => w.id),
+          moduleScope: body.moduleIds,
+          expiresAt: body.expiresAt,
+          createdBy: request.principal!.id,
+        },
+      });
+      const prefix = `hq_org_${record.id.slice(0, 8)}`;
+      await tx.orgApiKey.update({ where: { id: record.id }, data: { prefix } });
+      await orgAudit(
+        request,
+        {
+          action: 'org.key_create',
+          resourceType: 'org_api_key',
+          resourceId: record.id,
+          metadata: { name: body.name, scopes: body.scopes, workspaces: body.workspaces },
+        },
+        tx
+      );
+      return { record, prefix };
     });
     return reply.code(201).send({
       id: record.id,
@@ -850,22 +957,29 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/orgs/:orgSlug/keys/:keyId',
     admin,
     async (request, reply) => {
-      const { count } = await systemDb.orgApiKey.updateMany({
-        where: { id: request.params.keyId, organizationId: request.org!.id, revokedAt: null },
-        data: { revokedAt: new Date() },
+      await inOrg(request, async (tx) => {
+        const { count } = await tx.orgApiKey.updateMany({
+          where: { id: request.params.keyId, organizationId: request.org!.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        if (!count) throw new NotFoundError('Key not found');
+        await orgAudit(
+          request,
+          {
+            action: 'org.key_revoke',
+            resourceType: 'org_api_key',
+            resourceId: request.params.keyId,
+          },
+          tx
+        );
       });
-      if (!count) throw new NotFoundError('Key not found');
       fastify.forgetApiKey(request.params.keyId);
-      await orgAudit(request, {
-        action: 'org.key_revoke',
-        resourceType: 'org_api_key',
-        resourceId: request.params.keyId,
-      });
       return reply.code(204).send();
     }
   );
 
   orgSsoRoutes(fastify, { admin, orgAudit });
+  orgDomainRoutes(fastify, { admin, orgAudit });
 };
 
 export default orgRoutes;

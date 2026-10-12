@@ -111,11 +111,35 @@ export async function changeOrgMemberRoleAction(
 export async function removeOrgMemberAction(
   orgSlug: string,
   memberId: string,
-  _prev: ActionResult
+  _prev: ActionResult,
+  form?: FormData
 ) {
+  // PPL-04: the registry removes them from the org's workspaces too; report what it did.
+  const keepKeys = form?.get('keepKeys') === 'on' ? '?keepKeys=true' : '';
   return run(
-    () => authedFetch(org(orgSlug, `/members/${enc(memberId)}`), { method: 'DELETE' }),
-    (t) => ({ status: 'success', message: t('memberRemoved') })
+    () =>
+      authedFetch<{
+        workspacesLeft: string[];
+        keptAsLastOwner: string[];
+        apiKeysRevoked: number;
+        orgKeysRevoked: number;
+      }>(org(orgSlug, `/members/${enc(memberId)}${keepKeys}`), { method: 'DELETE' }),
+    (t, r) => {
+      const result = r as {
+        workspacesLeft: string[];
+        keptAsLastOwner: string[];
+        apiKeysRevoked: number;
+        orgKeysRevoked: number;
+      };
+      return {
+        status: 'success',
+        message: t('orgMemberRemoved', {
+          workspaces: result.workspacesLeft.length,
+          keys: result.apiKeysRevoked + result.orgKeysRevoked,
+          lastOwner: result.keptAsLastOwner.join(', ') || '—',
+        }),
+      };
+    }
   );
 }
 

@@ -18,7 +18,10 @@ import {
 type IngestParams = { workspaceSlug: string; hostAppSlug: string; env: string };
 
 const healthRoutes: FastifyPluginAsync = async (fastify) => {
+  // Public health ingest resolves the workspace by slug before any tenant scope exists.
+  // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
   const { systemDb, withTenant } = fastify.container;
+  // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
   const live = new LiveVersionsCache(systemDb, withTenant);
 
   // HLT-01: public, like the manifest. Browsers send it with navigator.sendBeacon as

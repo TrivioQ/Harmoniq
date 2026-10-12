@@ -37,6 +37,7 @@ type EnvParams = WsParams & { hostAppSlug: string; envSlug: string };
 const titleCase = (slug: string) => slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ');
 
 const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
+  // eslint-disable-next-line no-restricted-syntax -- MT-09: creates new tenants (POST /api/workspaces)
   const { systemDb, withTenant, webhooks, publisher } = fastify.container;
   const actor = (request: FastifyRequest) => ({ principal: request.principal!, ip: request.ip });
 
@@ -53,6 +54,7 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     }
     const body = CreateWorkspaceSchema.parse(request.body);
     const workspace = await createWorkspace(
+      // eslint-disable-next-line no-restricted-syntax -- MT-09: creates a new tenant
       systemDb,
       body,
       { userId: principal.id, ip: request.ip },
@@ -89,6 +91,8 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         plan,
         features: fastify.container.plans.features(plan),
         role: request.workspaceRole ?? null,
+        // TLC-05: org admins may manage owners even when they aren't owners themselves.
+        viaOrgAdmin: request.viaOrgAdmin ?? false,
         hostApps: hostApps.map((h) => ({
           slug: h.slug,
           name: h.name,

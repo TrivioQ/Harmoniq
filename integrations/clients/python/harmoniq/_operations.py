@@ -15,6 +15,10 @@ class Client(BaseClient):
         """DELETE /api/admin/admins/{userId} (Instance administration)."""
         return self.request("DELETE", "/api/admin/admins/" + _q(user_id), None, query)
 
+    def delete_admin_domains_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/domains/{id} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/domains/" + _q(id), None, query)
+
     def delete_admin_settings_by_key(self, key, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/settings/{key} (Instance administration)."""
         return self.request("DELETE", "/api/admin/settings/" + _q(key), None, query)
@@ -30,6 +34,10 @@ class Client(BaseClient):
     def delete_orgs_by_org_slug(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug} (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug), None, query)
+
+    def delete_orgs_domains_by_domain(self, org_slug, domain, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/domains/{domain} (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/domains/" + _q(domain), None, query)
 
     def delete_orgs_keys_by_key_id(self, org_slug, key_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug}/keys/{keyId} (Organizations)."""
@@ -62,6 +70,10 @@ class Client(BaseClient):
     def delete_workspaces_api_keys_by_key_id(self, workspace_slug, key_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/workspaces/{workspaceSlug}/api-keys/{keyId} (API keys and members)."""
         return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug) + "/api-keys/" + _q(key_id), None, query)
+
+    def delete_workspaces_domains_by_domain(self, workspace_slug, domain, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/workspaces/{workspaceSlug}/domains/{domain} (Workspaces)."""
+        return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug) + "/domains/" + _q(domain), None, query)
 
     def delete_workspaces_host_apps_by_host_app_slug(self, workspace_slug, host_app_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/workspaces/{workspaceSlug}/host-apps/{hostAppSlug} (Host apps and environments)."""
@@ -127,6 +139,10 @@ class Client(BaseClient):
         """GET /api/admin/audit/export (Instance administration)."""
         return self.request("GET", "/api/admin/audit/export", None, query)
 
+    def get_admin_domains(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/domains (Instance administration)."""
+        return self.request("GET", "/api/admin/domains", None, query)
+
     def get_admin_health(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/health (Instance administration)."""
         return self.request("GET", "/api/admin/health", None, query)
@@ -146,6 +162,10 @@ class Client(BaseClient):
     def get_admin_users(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/users (Instance administration)."""
         return self.request("GET", "/api/admin/users", None, query)
+
+    def get_admin_workspace_audit_export(self, workspace_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/workspace-audit/{workspaceId}/export (Instance administration)."""
+        return self.request("GET", "/api/admin/workspace-audit/" + _q(workspace_id) + "/export", None, query)
 
     def get_admin_workspaces(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/workspaces (Instance administration)."""
@@ -202,6 +222,10 @@ class Client(BaseClient):
     def get_orgs_by_org_slug(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug} (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug), None, query)
+
+    def get_orgs_domains(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/domains (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/domains", None, query)
 
     def get_orgs_keys(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/keys (Organizations)."""
@@ -286,6 +310,10 @@ class Client(BaseClient):
     def get_workspaces_config(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/config (Workspace as code)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/config", None, query)
+
+    def get_workspaces_domains(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/domains (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/domains", None, query)
 
     def get_workspaces_health(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/health (Workspaces)."""
@@ -439,6 +467,14 @@ class Client(BaseClient):
         """POST /api/orgs (Organizations)."""
         return self.request("POST", "/api/orgs", body, query)
 
+    def post_orgs_domains(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/domains (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/domains", None, query)
+
+    def post_orgs_domains_verify(self, org_slug, domain, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/domains/{domain}/verify (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/domains/" + _q(domain) + "/verify", None, query)
+
     def post_orgs_keys(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/keys (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/keys", body, query)
@@ -498,6 +534,14 @@ class Client(BaseClient):
     def post_workspaces_approvals_reject(self, workspace_slug, request_id, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/approvals/{requestId}/reject (Approvals)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/approvals/" + _q(request_id) + "/reject", body, query)
+
+    def post_workspaces_domains(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/domains (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/domains", None, query)
+
+    def post_workspaces_domains_verify(self, workspace_slug, domain, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/domains/{domain}/verify (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/domains/" + _q(domain) + "/verify", None, query)
 
     def post_workspaces_host_apps(self, workspace_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/host-apps (Host apps and environments)."""

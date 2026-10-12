@@ -309,11 +309,16 @@
     "adminGranted": "Instance admin granted.",
     "adminRevoked": "Instance admin revoked.",
     "settingSaved": "Saved. Other replicas pick it up within a minute.",
+    "settingSavedAdminsLockedOut": "Saved. These instance admins have no sign-in method left and can't sign in until one is turned back on: {admins}",
     "settingReset": "Back to the environment’s value.",
     "storageOk": "Storage works ({ms} ms).",
     "storageFailed": "Storage test failed: {error}",
     "testEmailSent": "Test email sent to {to}.",
-    "planSet": "Plan updated."
+    "planSet": "Plan updated.",
+    "orgMemberRemoved": "Removed from the organization and {workspaces, plural, =0 {no workspaces} one {# workspace} other {# workspaces}}; {keys, plural, =0 {no API keys} one {# API key} other {# API keys}} revoked. Kept as the last owner of: {lastOwner}.",
+    "domainClaimed": "Domain added. Publish its TXT record, then verify it.",
+    "domainVerified": "{domain} is verified.",
+    "domainRemoved": "{domain} removed."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -495,7 +500,8 @@
     "pending": "invitation pending",
     "save": "Save",
     "remove": "Remove",
-    "removeConfirm": "Remove {email} from this workspace?"
+    "removeConfirm": "Remove {email} from this workspace?",
+    "keepKeys": "Keep their API keys"
   },
   "WebhooksPage": {
     "add": "Add a webhook",
@@ -774,9 +780,10 @@
     "org_member": "Member",
     "save": "Save",
     "remove": "Remove",
-    "removeConfirm": "Remove {email} from the organization?",
+    "removeConfirm": "Remove {email} from the organization and all of its workspaces? Their API keys and organization sign-in sessions end too.",
     "add": "Add a member",
-    "addSubmit": "Add"
+    "addSubmit": "Add",
+    "keepKeys": "Keep their API keys"
   },
   "OrgKeys": {
     "title": "API keys",
@@ -932,5 +939,22 @@
     "size": "Size",
     "plan": "Plan",
     "sizeLine": "{workspaces} workspaces · {members} members"
+  },
+  "DomainSettings": {
+    "title": "Verified domains",
+    "description": "Prove you control a domain by publishing a DNS record. Single sign-on trusts emails, adds users automatically and offers \"Sign in with SSO\" only for verified domains.",
+    "unverifiedTrusted": "Trusted in your single sign-on settings but not verified here: {domains}. Verify them, or they stop working once the transition period ends.",
+    "verified": "Verified",
+    "pending": "Not verified",
+    "verify": "Verify",
+    "remove": "Remove",
+    "removeConfirm": "Remove {domain}? Single sign-on stops relying on it.",
+    "failing": "The DNS record has been missing since {since}. Restore it within 14 days to keep the domain verified.",
+    "instructions": "Add this TXT record at your DNS provider, then select Verify:",
+    "copy": "Copy",
+    "copied": "Copied",
+    "empty": "No domains yet.",
+    "add": "Add domain",
+    "domain": "Domain"
   }
 }

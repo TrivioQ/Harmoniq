@@ -293,10 +293,17 @@ export async function changeRoleAction(
   );
 }
 
-export async function removeMemberAction(workspace: string, memberId: string, _prev: ActionResult) {
+export async function removeMemberAction(
+  workspace: string,
+  memberId: string,
+  _prev: ActionResult,
+  form?: FormData
+) {
+  // PPL-05: keys the member created are revoked unless "keep their API keys" is checked.
+  const keepKeys = form?.get('keepKeys') === 'on' ? '?keepKeys=true' : '';
   return run(
     () =>
-      authedFetch(`/api/workspaces/${enc(workspace)}/members/${enc(memberId)}`, {
+      authedFetch(`/api/workspaces/${enc(workspace)}/members/${enc(memberId)}${keepKeys}`, {
         method: 'DELETE',
       }),
     (t) => ({ status: 'success', message: t('memberRemoved') })

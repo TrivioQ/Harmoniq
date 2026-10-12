@@ -44,6 +44,8 @@ export interface WorkspaceDetail {
   suspendedAt?: string | null;
   suspendedReason?: string | null;
   role: Role | null;
+  /** TLC-05: the caller administers this workspace as an org admin. */
+  viaOrgAdmin?: boolean;
   hostApps: Array<{
     slug: string;
     name: string;

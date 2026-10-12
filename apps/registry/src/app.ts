@@ -27,6 +27,7 @@ import accessRoutes from './routes/access';
 import staticRoutes from './routes/static';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
+import domainRoutes from './routes/domains';
 import workspaceRoutes from './routes/workspaces';
 import gitopsRoutes from './routes/gitops';
 import authRoutes from './routes/auth';
@@ -257,6 +258,7 @@ export async function buildApp() {
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
   await app.register(workspaceRoutes);
+  await app.register(domainRoutes);
   await app.register(gitopsRoutes);
   await app.register(authRoutes);
 

@@ -15,6 +15,11 @@ func (c *Client) DeleteAdminAdminsByUserId(ctx context.Context, userId string, q
 	return c.Do(ctx, "DELETE", "/api/admin/admins/"+url.PathEscape(userId), nil, query)
 }
 
+// DeleteAdminDomainsById calls DELETE /api/admin/domains/{id} (Instance administration).
+func (c *Client) DeleteAdminDomainsById(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/admin/domains/"+url.PathEscape(id), nil, query)
+}
+
 // DeleteAdminSettingsByKey calls DELETE /api/admin/settings/{key} (Instance administration).
 func (c *Client) DeleteAdminSettingsByKey(ctx context.Context, key string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/admin/settings/"+url.PathEscape(key), nil, query)
@@ -33,6 +38,11 @@ func (c *Client) DeleteAdminWorkspacesBySlug(ctx context.Context, slug string, q
 // DeleteOrgsByOrgSlug calls DELETE /api/orgs/{orgSlug} (Organizations).
 func (c *Client) DeleteOrgsByOrgSlug(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug), nil, query)
+}
+
+// DeleteOrgsDomainsByDomain calls DELETE /api/orgs/{orgSlug}/domains/{domain} (Organizations).
+func (c *Client) DeleteOrgsDomainsByDomain(ctx context.Context, orgSlug string, domain string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/domains/"+url.PathEscape(domain), nil, query)
 }
 
 // DeleteOrgsKeysByKeyId calls DELETE /api/orgs/{orgSlug}/keys/{keyId} (Organizations).
@@ -73,6 +83,11 @@ func (c *Client) DeleteWorkspacesAlertsByRuleId(ctx context.Context, workspaceSl
 // DeleteWorkspacesApiKeysByKeyId calls DELETE /api/workspaces/{workspaceSlug}/api-keys/{keyId} (API keys and members).
 func (c *Client) DeleteWorkspacesApiKeysByKeyId(ctx context.Context, workspaceSlug string, keyId string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/api-keys/"+url.PathEscape(keyId), nil, query)
+}
+
+// DeleteWorkspacesDomainsByDomain calls DELETE /api/workspaces/{workspaceSlug}/domains/{domain} (Workspaces).
+func (c *Client) DeleteWorkspacesDomainsByDomain(ctx context.Context, workspaceSlug string, domain string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/domains/"+url.PathEscape(domain), nil, query)
 }
 
 // DeleteWorkspacesHostAppsByHostAppSlug calls DELETE /api/workspaces/{workspaceSlug}/host-apps/{hostAppSlug} (Host apps and environments).
@@ -155,6 +170,11 @@ func (c *Client) GetAdminAuditExport(ctx context.Context, query url.Values) (*Re
 	return c.Do(ctx, "GET", "/api/admin/audit/export", nil, query)
 }
 
+// GetAdminDomains calls GET /api/admin/domains (Instance administration).
+func (c *Client) GetAdminDomains(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/domains", nil, query)
+}
+
 // GetAdminHealth calls GET /api/admin/health (Instance administration).
 func (c *Client) GetAdminHealth(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/health", nil, query)
@@ -178,6 +198,11 @@ func (c *Client) GetAdminSetup(ctx context.Context, query url.Values) (*Response
 // GetAdminUsers calls GET /api/admin/users (Instance administration).
 func (c *Client) GetAdminUsers(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/users", nil, query)
+}
+
+// GetAdminWorkspaceAuditExport calls GET /api/admin/workspace-audit/{workspaceId}/export (Instance administration).
+func (c *Client) GetAdminWorkspaceAuditExport(ctx context.Context, workspaceId string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/workspace-audit/"+url.PathEscape(workspaceId)+"/export", nil, query)
 }
 
 // GetAdminWorkspaces calls GET /api/admin/workspaces (Instance administration).
@@ -248,6 +273,11 @@ func (c *Client) GetOrgsAuditExport(ctx context.Context, orgSlug string, query u
 // GetOrgsByOrgSlug calls GET /api/orgs/{orgSlug} (Organizations).
 func (c *Client) GetOrgsByOrgSlug(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug), nil, query)
+}
+
+// GetOrgsDomains calls GET /api/orgs/{orgSlug}/domains (Organizations).
+func (c *Client) GetOrgsDomains(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/domains", nil, query)
 }
 
 // GetOrgsKeys calls GET /api/orgs/{orgSlug}/keys (Organizations).
@@ -353,6 +383,11 @@ func (c *Client) GetWorkspacesByWorkspaceSlug(ctx context.Context, workspaceSlug
 // GetWorkspacesConfig calls GET /api/workspaces/{workspaceSlug}/config (Workspace as code).
 func (c *Client) GetWorkspacesConfig(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/config", nil, query)
+}
+
+// GetWorkspacesDomains calls GET /api/workspaces/{workspaceSlug}/domains (Workspaces).
+func (c *Client) GetWorkspacesDomains(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/domains", nil, query)
 }
 
 // GetWorkspacesHealth calls GET /api/workspaces/{workspaceSlug}/health (Workspaces).
@@ -545,6 +580,16 @@ func (c *Client) PostOrgs(ctx context.Context, body any, query url.Values) (*Res
 	return c.Do(ctx, "POST", "/api/orgs", body, query)
 }
 
+// PostOrgsDomains calls POST /api/orgs/{orgSlug}/domains (Organizations).
+func (c *Client) PostOrgsDomains(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/domains", nil, query)
+}
+
+// PostOrgsDomainsVerify calls POST /api/orgs/{orgSlug}/domains/{domain}/verify (Organizations).
+func (c *Client) PostOrgsDomainsVerify(ctx context.Context, orgSlug string, domain string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/domains/"+url.PathEscape(domain)+"/verify", nil, query)
+}
+
 // PostOrgsKeys calls POST /api/orgs/{orgSlug}/keys (Organizations).
 func (c *Client) PostOrgsKeys(ctx context.Context, orgSlug string, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/keys", body, query)
@@ -618,6 +663,16 @@ func (c *Client) PostWorkspacesApprovalsBypass(ctx context.Context, workspaceSlu
 // PostWorkspacesApprovalsReject calls POST /api/workspaces/{workspaceSlug}/approvals/{requestId}/reject (Approvals).
 func (c *Client) PostWorkspacesApprovalsReject(ctx context.Context, workspaceSlug string, requestId string, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/approvals/"+url.PathEscape(requestId)+"/reject", body, query)
+}
+
+// PostWorkspacesDomains calls POST /api/workspaces/{workspaceSlug}/domains (Workspaces).
+func (c *Client) PostWorkspacesDomains(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/domains", nil, query)
+}
+
+// PostWorkspacesDomainsVerify calls POST /api/workspaces/{workspaceSlug}/domains/{domain}/verify (Workspaces).
+func (c *Client) PostWorkspacesDomainsVerify(ctx context.Context, workspaceSlug string, domain string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/domains/"+url.PathEscape(domain)+"/verify", nil, query)
 }
 
 // PostWorkspacesHostApps calls POST /api/workspaces/{workspaceSlug}/host-apps (Host apps and environments).

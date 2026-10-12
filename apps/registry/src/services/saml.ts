@@ -168,6 +168,11 @@ export class SamlService {
       config: {
         ...stored,
         spPrivateKey: openSecret(stored.spPrivateKey, this.app.config.encryptionKey),
+        // DOM-01..04: only domains this workspace or organization may rely on.
+        trustedDomains: await this.app.container.domains.usableTrustedDomains(
+          subject,
+          stored.trustedDomains ?? []
+        ),
       },
     };
   }

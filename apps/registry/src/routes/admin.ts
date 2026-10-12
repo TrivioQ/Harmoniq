@@ -1,6 +1,8 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+/* eslint-disable no-restricted-syntax -- MT-09: instance administration spans every tenant (INST-05) */
+
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { createHash, timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
@@ -232,7 +234,12 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           organization: { select: { slug: true, plan: true } },
           WorkspaceConfig: { select: { plan: true } },
           _count: {
-            select: { RemoteModules: true, WorkspaceMembers: true, ModuleVersions: true },
+            // Joined members only: pending invitations aren't members yet.
+            select: {
+              RemoteModules: true,
+              WorkspaceMembers: { where: { joinedAt: { not: null } } },
+              ModuleVersions: true,
+            },
           },
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -316,12 +323,12 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (request.query.confirm !== workspace.slug) {
         throw new BadRequestError('Confirm the deletion with ?confirm=<workspace slug>');
       }
-      await deleteWorkspace(fastify.container, workspace);
+      const purged = await deleteWorkspace(fastify.container, workspace);
       await instanceAudit(request, {
         action: 'instance.workspace_delete',
         resourceType: 'workspace',
         resourceId: workspace.id,
-        metadata: { slug: workspace.slug },
+        metadata: { slug: workspace.slug, ...purged },
       });
       return reply.code(204).send();
     }
@@ -586,6 +593,20 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put<{ Params: { key: string } }>('/api/admin/settings/:key', admin, async (request) => {
     const key = settingKey(request.params.key);
     const { plain, stored, fields } = settings.prepare(key, request.body);
+    // INST-23: never lock the instance (or the admin saving) out of the admin panel.
+    let lockedOut: string[] = [];
+    if (key === 'auth') {
+      const { admins } = await settings.adminSignInAfter(plain);
+      if (!admins.some((a) => a.canSignIn)) {
+        throw new ConflictError('No instance admin could sign in with these sign-in methods');
+      }
+      if (admins.some((a) => a.id === request.principal!.id && !a.canSignIn)) {
+        throw new ConflictError(
+          'You could no longer sign in with these sign-in methods; keep one you have used'
+        );
+      }
+      lockedOut = admins.filter((a) => !a.canSignIn).map((a) => a.email);
+    }
     // INST-11: a storage that can't write, read back and delete is never saved.
     if (key === 'storage') {
       const target = storageTargetFromSettings(plain as StorageSettings, fastify.config);
@@ -600,9 +621,12 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       action: 'instance.config_updated',
       resourceType: 'instance_config',
       resourceId: key,
-      metadata: { key, fields },
+      metadata: { key, fields, ...(lockedOut.length && { adminsLockedOut: lockedOut.length }) },
     });
-    return settings.view()[key];
+    // Other admins who can no longer sign in, so the panel can warn about them.
+    return lockedOut.length
+      ? { ...settings.view()[key], adminsLockedOut: lockedOut }
+      : settings.view()[key];
   });
 
   /** Back to the environment's defaults. */
@@ -677,6 +701,42 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       return sendExport(reply, rows, { format, name: 'instance', workspaceColumn: false });
     }
   );
+
+  /**
+   * AUD-05: the audit log of a workspace, also after it was deleted (by id: the slug may be
+   * reused). The id is in the `instance.workspace_delete` / `org.workspace_delete` event.
+   */
+  fastify.get<{
+    Params: { workspaceId: string };
+    Querystring: { format?: string; action?: string; from?: string; to?: string };
+  }>('/api/admin/workspace-audit/:workspaceId/export', admin, async (request, reply) => {
+    const { workspaceId } = request.params;
+    const q = request.query;
+    const format = exportFormat(q.format);
+    const where = {
+      workspaceId,
+      ...(q.action && { action: { startsWith: q.action } }),
+      ...dateRange(q),
+    };
+    await instanceAudit(request, {
+      action: 'instance.audit_export',
+      resourceType: 'workspace',
+      resourceId: workspaceId,
+      metadata: { format, filters: { action: q.action, from: q.from, to: q.to } },
+    });
+    const rows = keysetRows((after, take) =>
+      systemDb.auditEvent.findMany({
+        where: { ...where, ...afterWhere(after) },
+        orderBy: NEWEST_FIRST,
+        take,
+      })
+    );
+    return sendExport(reply, rows, {
+      format,
+      name: `workspace-${workspaceId}`,
+      workspaceColumn: false,
+    });
+  });
 
   fastify.get<{ Querystring: { cursor?: string } }>('/api/admin/audit', admin, async (request) => {
     const events = await systemDb.instanceAuditEvent.findMany({

@@ -237,10 +237,17 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  /** Only owners can create, change or remove owners. */
+  /**
+   * Only owners can create, change or remove owners, and admins of the workspace's
+   * organization (TLC-05): otherwise a workspace without a joined owner could never get one.
+   */
   function assertCanAssign(request: FastifyRequest, role: Role) {
-    const isOwner = request.principal?.type === 'user' && request.workspaceRole === 'owner';
-    if (role === 'owner' && !isOwner) throw new ForbiddenError('Only owners can manage owners');
+    const canManageOwners =
+      request.principal?.type === 'user' &&
+      (request.workspaceRole === 'owner' || !!request.viaOrgAdmin);
+    if (role === 'owner' && !canManageOwners) {
+      throw new ForbiddenError('Only owners and organization admins can manage owners');
+    }
   }
 
   fastify.post<{ Params: WsParams }>(
@@ -314,12 +321,14 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  fastify.delete<{ Params: WsParams & { memberId: string } }>(
+  /** PPL-05: the API keys the member created here are revoked too, unless `?keepKeys=true`. */
+  fastify.delete<{ Params: WsParams & { memberId: string }; Querystring: { keepKeys?: string } }>(
     '/api/workspaces/:workspaceSlug/members/:memberId',
     admin,
     async (request, reply) => {
       requireUser(request);
       const workspace = request.workspace!;
+      const revokeKeys = request.query.keepKeys !== 'true';
       await withTenant(workspace.id, async (tx) => {
         const member = await tx.workspaceMember.findUnique({
           where: { id: request.params.memberId },
@@ -330,11 +339,17 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
           throw new ConflictError('A workspace must keep at least one owner');
         }
         await tx.workspaceMember.delete({ where: { id: member.id } });
+        const keys = revokeKeys
+          ? await tx.apiKey.updateMany({
+              where: { createdBy: member.userId, revokedAt: null },
+              data: { revokedAt: new Date() },
+            })
+          : { count: 0 };
         await audit(tx, workspace.id, actor(request), {
           action: 'member.remove',
           resourceType: 'member',
           resourceId: member.id,
-          metadata: { userId: member.userId, role: member.role },
+          metadata: { userId: member.userId, role: member.role, apiKeysRevoked: keys.count },
         });
       });
       return reply.code(204).send();

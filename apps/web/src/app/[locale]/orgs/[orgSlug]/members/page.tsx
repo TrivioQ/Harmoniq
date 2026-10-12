@@ -60,7 +60,14 @@ export default async function OrgMembersPage(props: { params: Promise<{ orgSlug:
                   submitLabel={t('remove')}
                   confirm={t('removeConfirm', { email: m.user.email })}
                   variant="danger"
-                />
+                  className="flex items-center gap-2"
+                >
+                  {/* PPL-04: their API keys in the org are revoked unless kept. */}
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <input type="checkbox" name="keepKeys" />
+                    {t('keepKeys')}
+                  </label>
+                </ActionForm>
               </div>
             ) : (
               <span className="text-sm text-muted-foreground">{t(m.role)}</span>

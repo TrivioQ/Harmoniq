@@ -209,7 +209,11 @@ export class InstanceSettings {
 
   /** INST-13: which sign-in methods the instance allows. */
   auth(): EffectiveAuth {
-    const stored = this.plain('auth');
+    return this.resolveAuth(this.plain('auth'));
+  }
+
+  /** The effective sign-in methods for an `auth` value (stored, or about to be). */
+  private resolveAuth(stored: Json | null): EffectiveAuth {
     const value = AuthSettingsSchema.parse(stored ?? {});
     const { config } = this.deps;
     const allowed = (m: AuthMethod) => config.authMethods.allowed.includes(m);
@@ -252,6 +256,34 @@ export class InstanceSettings {
       case 'dev':
         return auth.dev;
     }
+  }
+
+  /**
+   * INST-23: which instance admins could still sign in to the admin panel if `candidate`
+   * (a plain `auth` value) were saved. Admin sessions can't come from a workspace's or
+   * organization's SSO (`requireInstanceAdmin`), so only instance-wide methods count:
+   * email and dev sign-in work for any account, GitHub and the instance OIDC only for
+   * admins who have signed in with them before.
+   */
+  async adminSignInAfter(
+    candidate: Json
+  ): Promise<{ admins: Array<{ id: string; email: string; canSignIn: boolean }> }> {
+    const next = this.resolveAuth(candidate);
+    const anyAccount = (next.email && !!this.mailer()) || next.dev;
+    const grants = await this.deps.systemDb.instanceAdmin.findMany({
+      where: { revokedAt: null },
+      include: { user: { include: { Identities: { select: { provider: true } } } } },
+    });
+    return {
+      admins: grants.map(({ user }) => {
+        const providers = new Set(user.Identities.map((i) => i.provider));
+        const canSignIn =
+          anyAccount ||
+          (!!next.github && providers.has('github')) ||
+          (next.instanceOidc && providers.has('oidc'));
+        return { id: user.id, email: user.email, canSignIn };
+      }),
+    };
   }
 
   /**

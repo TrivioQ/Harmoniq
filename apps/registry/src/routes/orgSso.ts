@@ -4,6 +4,7 @@
 import { createHash, randomBytes } from 'crypto';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
+import type { TenantTx } from '@harmoniq/db';
 import { BadRequestError, NotFoundError } from '@harmoniq/core/dist/errors/AppError';
 import { IdentityError } from '@harmoniq/core/dist/ports/IdentityProvider';
 import {
@@ -41,7 +42,9 @@ export function orgSsoRoutes(
     ) => Promise<unknown>;
   }
 ) {
-  const { systemDb } = fastify.container;
+  // MT-07/08: everything here is the request's organization (RLS-scoped).
+  const inOrg = <T>(request: FastifyRequest, fn: (tx: TenantTx) => Promise<T>) =>
+    fastify.container.withOrg(request.org!.id, fn);
   const { encryptionKey, publicUrl } = fastify.config;
   const { admin, orgAudit } = deps;
   const samlService = fastify.ssoProviders.samlService;
@@ -61,11 +64,13 @@ export function orgSsoRoutes(
   /** Which workspaces use the organization's SSO, and which override it with their own. */
   fastify.get<{ Params: OrgParams }>(`${base}/sso`, admin, async (request) => {
     const org = request.org!;
-    const workspaces = await systemDb.workspace.findMany({
-      where: { organizationId: org.id },
-      include: { WorkspaceConfig: { select: { oidcConfig: true, samlConfig: true } } },
-      orderBy: { name: 'asc' },
-    });
+    const workspaces = await inOrg(request, (tx) =>
+      tx.workspace.findMany({
+        where: { organizationId: org.id },
+        include: { WorkspaceConfig: { select: { oidcConfig: true, samlConfig: true } } },
+        orderBy: { name: 'asc' },
+      })
+    );
     return {
       forceSso: org.forceSso,
       trustedDomains: org.trustedDomains,
@@ -116,14 +121,16 @@ export function orgSsoRoutes(
       if (err instanceof IdentityError) throw new BadRequestError(err.message);
       throw err;
     }
-    await systemDb.organization.update({
-      where: { id: org.id },
-      data: {
-        oidcConfig: stored as unknown as Prisma.InputJsonValue,
-        forceSso,
-        trustedDomains: body.trustedDomains,
-      },
-    });
+    await inOrg(request, (tx) =>
+      tx.organization.update({
+        where: { id: org.id },
+        data: {
+          oidcConfig: stored as unknown as Prisma.InputJsonValue,
+          forceSso,
+          trustedDomains: body.trustedDomains,
+        },
+      })
+    );
     await configAudit(request, 'sso.config_update', {
       protocol: 'oidc',
       issuer: body.issuer,
@@ -139,10 +146,12 @@ export function orgSsoRoutes(
   fastify.delete<{ Params: OrgParams }>(`${base}/sso/oidc`, admin, async (request, reply) => {
     const org = request.org!;
     if (!org.oidcConfig) throw new NotFoundError('No single sign-on configured');
-    await systemDb.organization.update({
-      where: { id: org.id },
-      data: { oidcConfig: Prisma.DbNull, ...(!org.samlConfig && { forceSso: false }) },
-    });
+    await inOrg(request, (tx) =>
+      tx.organization.update({
+        where: { id: org.id },
+        data: { oidcConfig: Prisma.DbNull, ...(!org.samlConfig && { forceSso: false }) },
+      })
+    );
     await configAudit(request, 'sso.config_delete', { protocol: 'oidc' });
     fastify.ssoProviders.invalidate(subjectOf(request));
     return reply.code(204).send();
@@ -183,14 +192,16 @@ export function orgSsoRoutes(
         })();
     const { forceSso, ...rest } = body;
     const stored: StoredSamlConfig = { ...rest, ...keys };
-    await systemDb.organization.update({
-      where: { id: org.id },
-      data: {
-        samlConfig: stored as unknown as Prisma.InputJsonValue,
-        forceSso,
-        trustedDomains: body.trustedDomains,
-      },
-    });
+    await inOrg(request, (tx) =>
+      tx.organization.update({
+        where: { id: org.id },
+        data: {
+          samlConfig: stored as unknown as Prisma.InputJsonValue,
+          forceSso,
+          trustedDomains: body.trustedDomains,
+        },
+      })
+    );
     await configAudit(request, 'sso.config_update', {
       protocol: 'saml',
       idpEntityId: body.idpEntityId,
@@ -204,10 +215,12 @@ export function orgSsoRoutes(
   fastify.delete<{ Params: OrgParams }>(`${base}/sso/saml`, admin, async (request, reply) => {
     const org = request.org!;
     if (!org.samlConfig) throw new NotFoundError('SAML is not set up');
-    await systemDb.organization.update({
-      where: { id: org.id },
-      data: { samlConfig: Prisma.DbNull, ...(!org.oidcConfig && { forceSso: false }) },
-    });
+    await inOrg(request, (tx) =>
+      tx.organization.update({
+        where: { id: org.id },
+        data: { samlConfig: Prisma.DbNull, ...(!org.oidcConfig && { forceSso: false }) },
+      })
+    );
     await configAudit(request, 'sso.config_delete', { protocol: 'saml' });
     return reply.code(204).send();
   });
@@ -251,18 +264,22 @@ export function orgSsoRoutes(
     const body = OrgProvisioningSchema.parse(request.body);
     const org = request.org!;
     const slugs = [...new Set(body.rules.map((r) => r.workspace))];
-    const found = await systemDb.workspace.findMany({
-      where: { organizationId: org.id, slug: { in: slugs } },
-      select: { slug: true },
-    });
+    const found = await inOrg(request, (tx) =>
+      tx.workspace.findMany({
+        where: { organizationId: org.id, slug: { in: slugs } },
+        select: { slug: true },
+      })
+    );
     const missing = slugs.filter((s) => !found.some((w) => w.slug === s));
     if (missing.length) {
       throw new BadRequestError(`Not workspaces of this organization: ${missing.join(', ')}`);
     }
-    await systemDb.organization.update({
-      where: { id: org.id },
-      data: { provisioning: body as unknown as Prisma.InputJsonValue },
-    });
+    await inOrg(request, (tx) =>
+      tx.organization.update({
+        where: { id: org.id },
+        data: { provisioning: body as unknown as Prisma.InputJsonValue },
+      })
+    );
     await configAudit(request, 'org.provisioning_update', {
       rules: body.rules.length,
       adminGroups: body.adminGroups,
@@ -278,8 +295,10 @@ export function orgSsoRoutes(
   fastify.get<{ Params: OrgParams }>(`${base}/scim`, admin, async (request) => {
     const org = request.org!;
     const [users, groups] = await Promise.all([
-      systemDb.scimUser.count({ where: { organizationId: org.id, deletedAt: null, active: true } }),
-      systemDb.scimGroup.count({ where: { organizationId: org.id } }),
+      inOrg(request, (tx) =>
+        tx.scimUser.count({ where: { organizationId: org.id, deletedAt: null, active: true } })
+      ),
+      inOrg(request, (tx) => tx.scimGroup.count({ where: { organizationId: org.id } })),
     ]);
     return {
       enabled: org.scimEnabled,
@@ -294,19 +313,27 @@ export function orgSsoRoutes(
   fastify.post<{ Params: OrgParams }>(`${base}/scim/token`, admin, async (request) => {
     await fastify.container.plans.requireForOrg(request.org!.id, 'scim');
     const token = `hq_scim_${randomBytes(32).toString('base64url')}`;
-    await systemDb.organization.update({
-      where: { id: request.org!.id },
-      data: { scimEnabled: true, scimTokenHash: hashToken(token), scimTokenCreatedAt: new Date() },
-    });
+    await inOrg(request, (tx) =>
+      tx.organization.update({
+        where: { id: request.org!.id },
+        data: {
+          scimEnabled: true,
+          scimTokenHash: hashToken(token),
+          scimTokenCreatedAt: new Date(),
+        },
+      })
+    );
     await configAudit(request, 'scim.token_rotated');
     return { token, baseUrl: scimBaseUrl(request) };
   });
 
   fastify.delete<{ Params: OrgParams }>(`${base}/scim`, admin, async (request, reply) => {
-    const { count } = await systemDb.organization.updateMany({
-      where: { id: request.org!.id, scimEnabled: true },
-      data: { scimEnabled: false, scimTokenHash: null, scimTokenCreatedAt: null },
-    });
+    const { count } = await inOrg(request, (tx) =>
+      tx.organization.updateMany({
+        where: { id: request.org!.id, scimEnabled: true },
+        data: { scimEnabled: false, scimTokenHash: null, scimTokenCreatedAt: null },
+      })
+    );
     if (!count) throw new NotFoundError('SCIM is not enabled');
     await configAudit(request, 'scim.disabled');
     return reply.code(204).send();
@@ -317,11 +344,13 @@ export function orgSsoRoutes(
     admin,
     async (request) => {
       const take = Math.min(200, Math.max(1, Number(request.query.limit) || 50));
-      const events = await systemDb.scimAuditEvent.findMany({
-        where: { organizationId: request.org!.id },
-        orderBy: { createdAt: 'desc' },
-        take,
-      });
+      const events = await inOrg(request, (tx) =>
+        tx.scimAuditEvent.findMany({
+          where: { organizationId: request.org!.id },
+          orderBy: { createdAt: 'desc' },
+          take,
+        })
+      );
       return { events };
     }
   );

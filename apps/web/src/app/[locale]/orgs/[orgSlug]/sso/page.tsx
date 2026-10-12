@@ -3,6 +3,7 @@
 
 import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
+import { DomainSettings } from '@/components/DomainSettings';
 import { SsoSettings } from '@/components/SsoSettings';
 import { orgApi } from '@/lib/orgApi';
 
@@ -55,6 +56,10 @@ export default async function OrgSsoPage(props: {
           </table>
         )}
       </section>
+      <DomainSettings
+        owner={{ kind: 'organization', slug: orgSlug }}
+        trusted={[...(oidc?.trustedDomains ?? []), ...(saml?.trustedDomains ?? [])]}
+      />
       <SsoSettings
         owner={{ kind: 'organization', slug: orgSlug }}
         oidc={oidc}

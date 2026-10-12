@@ -43,6 +43,8 @@ function etagMatches(header: string | undefined, etag: string): boolean {
 }
 
 const manifestRoutes: FastifyPluginAsync = async (fastify) => {
+  // Public manifests resolve the workspace by slug; everything after runs in withTenant.
+  // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
   const { cache, systemDb, withTenant, logger, orgShared } = fastify.container;
   const { isProduction } = fastify.config;
 
@@ -129,6 +131,7 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     envSlug: string,
     canaryModuleIds?: string[]
   ) {
+    // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
     const workspace = await systemDb.workspace.findUnique({
       where: { slug: workspaceSlug },
       include: {
@@ -176,6 +179,7 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     }
     let host: string;
     try {
+      // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
       const workspace = await systemDb.workspace.findUnique({
         where: { slug: workspaceSlug },
         select: {

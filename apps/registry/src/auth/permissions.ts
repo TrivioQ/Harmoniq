@@ -36,6 +36,12 @@ export function roleAllows(role: Role, permission: Permission): boolean {
   return ROLE_RANK[role] >= ROLE_RANK[MIN_ROLE[permission]];
 }
 
+/** The more powerful of two roles (either may be missing). */
+export function higherRole(a: Role | null, b: Role | null): Role | null {
+  if (!a || !b) return a ?? b;
+  return ROLE_RANK[a] >= ROLE_RANK[b] ? a : b;
+}
+
 export function scopesAllow(scopes: readonly string[], permission: Permission): boolean {
   return scopes.some((scope) => SCOPE_GRANTS[scope as ApiKeyScope]?.includes(permission));
 }

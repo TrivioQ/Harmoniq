@@ -309,11 +309,16 @@
     "adminGranted": "Rol de administrador concedido.",
     "adminRevoked": "Rol de administrador revocado.",
     "settingSaved": "Guardado. Las demás réplicas lo aplican en un minuto.",
+    "settingSavedAdminsLockedOut": "Guardado. Estos administradores de la instancia ya no tienen un método de inicio de sesión y no podrán entrar hasta que se vuelva a activar uno: {admins}",
     "settingReset": "De vuelta al valor del entorno.",
     "storageOk": "El almacenamiento funciona ({ms} ms).",
     "storageFailed": "La prueba de almacenamiento falló: {error}",
     "testEmailSent": "Email de prueba enviado a {to}.",
-    "planSet": "Plan actualizado."
+    "planSet": "Plan actualizado.",
+    "orgMemberRemoved": "Eliminado de la organización y de {workspaces, plural, =0 {ningún espacio de trabajo} one {# espacio de trabajo} other {# espacios de trabajo}}; {keys, plural, =0 {ninguna clave de API revocada} one {# clave de API revocada} other {# claves de API revocadas}}. Se mantiene como último propietario de: {lastOwner}.",
+    "domainClaimed": "Dominio añadido. Publica su registro TXT y verifícalo.",
+    "domainVerified": "{domain} está verificado.",
+    "domainRemoved": "{domain} eliminado."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -495,7 +500,8 @@
     "pending": "invitación pendiente",
     "save": "Guardar",
     "remove": "Eliminar",
-    "removeConfirm": "¿Eliminar a {email} de este espacio de trabajo?"
+    "removeConfirm": "¿Eliminar a {email} de este espacio de trabajo?",
+    "keepKeys": "Conservar sus claves de API"
   },
   "WebhooksPage": {
     "add": "Añadir un webhook",
@@ -774,9 +780,10 @@
     "org_member": "Miembro",
     "save": "Guardar",
     "remove": "Quitar",
-    "removeConfirm": "¿Quitar a {email} de la organización?",
+    "removeConfirm": "¿Eliminar a {email} de la organización y de todos sus espacios de trabajo? También se revocan sus claves de API y sus sesiones de la organización.",
     "add": "Añadir un miembro",
-    "addSubmit": "Añadir"
+    "addSubmit": "Añadir",
+    "keepKeys": "Conservar sus claves de API"
   },
   "OrgKeys": {
     "title": "Claves de API",
@@ -932,5 +939,22 @@
     "size": "Tamaño",
     "plan": "Plan",
     "sizeLine": "{workspaces} espacios · {members} miembros"
+  },
+  "DomainSettings": {
+    "title": "Dominios verificados",
+    "description": "Demuestra que controlas un dominio publicando un registro DNS. El inicio de sesión único solo confía en correos, añade usuarios automáticamente y ofrece \"Iniciar sesión con SSO\" para dominios verificados.",
+    "unverifiedTrusted": "De confianza en tu configuración de inicio de sesión único pero sin verificar aquí: {domains}. Verifícalos o dejarán de funcionar cuando termine el periodo de transición.",
+    "verified": "Verificado",
+    "pending": "Sin verificar",
+    "verify": "Verificar",
+    "remove": "Eliminar",
+    "removeConfirm": "¿Eliminar {domain}? El inicio de sesión único dejará de depender de él.",
+    "failing": "El registro DNS falta desde {since}. Restáuralo en 14 días para mantener el dominio verificado.",
+    "instructions": "Añade este registro TXT en tu proveedor de DNS y selecciona Verificar:",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "empty": "Aún no hay dominios.",
+    "add": "Añadir dominio",
+    "domain": "Dominio"
   }
 }

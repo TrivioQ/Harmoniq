@@ -1,6 +1,8 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+/* eslint-disable no-restricted-syntax -- MT-09: SAML sign-in resolves the tenant from the URL and ends sessions (system tables) */
+
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { ValidateInResponseTo } from '@node-saml/node-saml';

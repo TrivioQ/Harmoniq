@@ -1,6 +1,7 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { DomainSettings } from '@/components/DomainSettings';
 import { SsoSettings } from '@/components/SsoSettings';
 import { workspaceApi } from '@/lib/workspaceApi';
 
@@ -17,13 +18,19 @@ export default async function SsoSettingsPage(props: {
     samlTest ? workspaceApi.samlTest(workspaceSlug, samlTest).catch(() => null) : null,
   ]);
   return (
-    <SsoSettings
-      owner={{ kind: 'workspace', slug: workspaceSlug }}
-      oidc={oidc}
-      serviceProvider={serviceProvider}
-      saml={saml}
-      samlTest={samlTest}
-      testResult={testResult}
-    />
+    <>
+      <DomainSettings
+        owner={{ kind: 'workspace', slug: workspaceSlug }}
+        trusted={[...(oidc?.trustedDomains ?? []), ...(saml?.trustedDomains ?? [])]}
+      />
+      <SsoSettings
+        owner={{ kind: 'workspace', slug: workspaceSlug }}
+        oidc={oidc}
+        serviceProvider={serviceProvider}
+        saml={saml}
+        samlTest={samlTest}
+        testResult={testResult}
+      />
+    </>
   );
 }

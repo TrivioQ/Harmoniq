@@ -7,6 +7,7 @@ import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import { IdentityError, IdentityUserInfo } from '@harmoniq/core/dist/ports/IdentityProvider';
 import { SessionResponse, SessionUser } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { ACCESS_TOKEN_TTL_SECONDS, signAccessToken } from '../auth/tokens';
+import { parseSsoProviderId } from './ssoIds';
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** SSO-27: how often a session re-checks the IdP session with its refresh token. */
@@ -18,6 +19,32 @@ export type SsoSessionCheck = (provider: string, refreshToken: string) => Promis
 const CONCURRENT_REFRESH_GRACE_MS = 10_000;
 
 const hashToken = (raw: string) => createHash('sha256').update(raw).digest('hex');
+
+/**
+ * PPL-02: the workspaces whose invitations a sign-in may accept. Instance-wide methods
+ * (email, GitHub, instance OIDC) prove the email for every workspace. A workspace's own SSO
+ * reaches that workspace; an organization's SSO, the organization's workspaces that use it
+ * (those without their own SSO, ORG-05).
+ */
+function reachableWorkspaces(provider: string): Prisma.WorkspaceMemberWhereInput {
+  const sso = parseSsoProviderId(provider);
+  if (!sso) return {};
+  if (sso.subject.kind === 'workspace') return { workspace: { slug: sso.subject.slug } };
+  return {
+    workspace: {
+      organization: { slug: sso.subject.slug },
+      OR: [
+        { WorkspaceConfig: { is: null } },
+        {
+          WorkspaceConfig: {
+            oidcConfig: { equals: Prisma.DbNull },
+            samlConfig: { equals: Prisma.DbNull },
+          },
+        },
+      ],
+    },
+  };
+}
 
 /**
  * Turns a proven identity into a Harmoniq session. Runs on the system role: sign-in
@@ -93,9 +120,11 @@ export class AuthService {
           });
         }
 
-        // Pending invitations are addressed to this (now verified) email: accept them.
+        // Pending invitations are addressed to this (now verified) email: accept them, but
+        // only those this session can reach (PPL-02). A workspace's or organization's own
+        // IdP vouches for emails only within that workspace or organization.
         await tx.workspaceMember.updateMany({
-          where: { userId: user.id, joinedAt: null },
+          where: { userId: user.id, joinedAt: null, ...reachableWorkspaces(provider) },
           data: { joinedAt: now },
         });
 

@@ -80,14 +80,22 @@ describe('Sign-in methods from the environment', () => {
     expect(refused.json().error.message).toContain('github, saml');
     expect(await providerIds()).not.toContain('github');
 
-    // Turning allowed methods off still works.
+    // Turning allowed methods off still works...
     const off = await api(root, 'PUT', '/api/admin/settings/auth', {
-      email: { enabled: false },
+      oidc: { enabled: false },
       github: { enabled: false },
       saml: { enabled: false },
     });
     expect(off.statusCode).toBe(200);
-    expect(await providerIds()).toEqual([]);
+    // ...but not the admins' last way in (INST-23): email is the only one left.
+    const lockout = await api(root, 'PUT', '/api/admin/settings/auth', {
+      email: { enabled: false },
+      oidc: { enabled: false },
+      github: { enabled: false },
+      saml: { enabled: false },
+    });
+    expect(lockout.statusCode).toBe(409);
+    expect(await providerIds()).toContain('email');
     await resetSettings();
   });
 

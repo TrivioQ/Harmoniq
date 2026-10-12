@@ -16,7 +16,7 @@ type Params = { workspaceSlug: string };
 
 // IaC-09..12: `harmoniq plan` / `apply` / `import` (workspace admins and admin keys).
 const gitopsRoutes: FastifyPluginAsync = async (fastify) => {
-  const { withTenant, systemDb, cache, publisher, webhooks } = fastify.container;
+  const { withTenant, cache, publisher, webhooks } = fastify.container;
   const admin = { preHandler: fastify.requireWorkspace('workspace:admin') };
 
   fastify.post<{ Params: Params }>(
@@ -77,9 +77,9 @@ const gitopsRoutes: FastifyPluginAsync = async (fastify) => {
         }
         // Manifests and import maps of changed host apps (e.g. a new specifier).
         for (const slug of outcome.touchedHostApps) {
-          const envs = await systemDb.environment.findMany({
-            where: { hostApp: { workspaceId: workspace.id, slug } },
-          });
+          const envs = await withTenant(workspace.id, (tx) =>
+            tx.environment.findMany({ where: { hostApp: { workspaceId: workspace.id, slug } } })
+          );
           for (const env of envs) {
             await invalidateManifest(cache, workspace.slug, slug, env.slug);
             await publisher.publish(env.id).catch(() => undefined); // recorded on the environment

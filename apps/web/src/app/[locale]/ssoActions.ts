@@ -178,3 +178,30 @@ export async function disableScimAction(owner: SsoOwner, _prev: ActionResult) {
     (t) => ({ status: 'success', message: t('scimDisabled') })
   );
 }
+
+// ─── Verified domains (DOM-01/02) ───────────────────────────────────────────
+
+export async function claimDomainAction(
+  owner: SsoOwner,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () => authedFetch(`${base(owner)}/domains`, { body: { domain: field(form, 'domain') } }),
+    (t) => ({ status: 'success', message: t('domainClaimed') })
+  );
+}
+
+export async function verifyDomainAction(owner: SsoOwner, domain: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`${base(owner)}/domains/${enc(domain)}/verify`, { method: 'POST', body: {} }),
+    (t) => ({ status: 'success', message: t('domainVerified', { domain }) })
+  );
+}
+
+export async function removeDomainAction(owner: SsoOwner, domain: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`${base(owner)}/domains/${enc(domain)}`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('domainRemoved', { domain }) })
+  );
+}

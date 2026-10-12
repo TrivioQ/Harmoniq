@@ -1,6 +1,8 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+/* eslint-disable no-restricted-syntax -- MT-09: sign-in works on users, identities and sessions (system tables) and resolves tenants for SSO */
+
 import { createHash } from 'crypto';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
@@ -114,37 +116,76 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     return { providers: list };
   });
 
-  // "Sign in with SSO": the workspace (else the organization, ORG-05) whose SSO trusts this
-  // email's domain (SSO discovery).
+  // "Sign in with SSO" (DOM-03): the workspace or organization that verified this email's
+  // domain. During the grace period (DOM-04), a domain nobody verified still routes to the
+  // one workspace or organization that lists it as trusted; never when several do, since
+  // anyone can list any domain.
   fastify.get<{ Querystring: { email?: string } }>(
     '/api/auth/sso/discover',
     { config: LOGIN_RATE_LIMIT },
     async (request, reply) => {
       const domain = request.query.email?.trim().toLowerCase().split('@')[1];
       if (!domain) return badRequest(reply, 'email is required');
+      const { domains } = fastify.container;
+      // Only protocols the instance allows (HARMONIQ_AUTH_METHODS, admin panel).
+      const oidcOn = providers.protocolEnabled('oidc');
+      const samlOn = providers.protocolEnabled('saml');
+      const notFound = () =>
+        reply
+          .code(404)
+          .send({ error: { code: 'NOT_FOUND', message: 'No single sign-on for this domain' } });
+      // OIDC when both are set up.
+      const protocolOf = (c: { oidcConfig: unknown; samlConfig: unknown }) =>
+        oidcOn && c.oidcConfig ? 'oidc' : samlOn && c.samlConfig ? 'saml' : null;
+      type Candidate = {
+        subject: SsoSubject;
+        protocol: 'oidc' | 'saml';
+        target: { slug: string; name: string };
+      };
+      const answer = ({ subject, protocol, target }: Candidate) => ({
+        provider: ssoProviderId(protocol, subject),
+        [subject.kind]: target,
+      });
+
+      const verified = await domains.verifiedOwnerOf(domain);
+      if (verified) {
+        if (verified.organizationId) {
+          const org = await systemDb.organization.findFirst({
+            where: { id: verified.organizationId, deletedAt: null },
+            select: { slug: true, name: true, oidcConfig: true, samlConfig: true },
+          });
+          const protocol = org && protocolOf(org);
+          if (!org || !protocol) return notFound();
+          return answer({
+            subject: { kind: 'organization', slug: org.slug },
+            protocol,
+            target: { slug: org.slug, name: org.name },
+          });
+        }
+        const config = await systemDb.workspaceConfig.findUnique({
+          where: { workspaceId: verified.workspaceId! },
+          include: { workspace: { select: { slug: true, name: true } } },
+        });
+        const protocol = config && protocolOf(config);
+        if (!config || !protocol) return notFound();
+        return answer({
+          subject: { kind: 'workspace', slug: config.workspace.slug },
+          protocol,
+          target: { slug: config.workspace.slug, name: config.workspace.name },
+        });
+      }
+      if (!(await domains.inGrace())) return notFound();
+
+      const lists = (config: unknown) =>
+        ((config as { trustedDomains?: string[] } | null)?.trustedDomains ?? []).includes(domain);
+      const trusts = (c: { oidcConfig: unknown; samlConfig: unknown }) =>
+        (oidcOn && lists(c.oidcConfig)) || (samlOn && lists(c.samlConfig));
       const configs = await systemDb.workspaceConfig.findMany({
         where: {
           OR: [{ oidcConfig: { not: Prisma.DbNull } }, { samlConfig: { not: Prisma.DbNull } }],
         },
         include: { workspace: { select: { slug: true, name: true } } },
       });
-      const domainTrusted = (config: unknown) =>
-        ((config as { trustedDomains?: string[] } | null)?.trustedDomains ?? []).includes(domain);
-      // Only protocols the instance allows (HARMONIQ_AUTH_METHODS, admin panel).
-      const oidcOn = providers.protocolEnabled('oidc');
-      const samlOn = providers.protocolEnabled('saml');
-      const trustsOidc = (c: { oidcConfig: unknown }) => oidcOn && domainTrusted(c.oidcConfig);
-      const trustsSaml = (c: { samlConfig: unknown }) => samlOn && domainTrusted(c.samlConfig);
-      // OIDC when both are set up.
-      const providerFor = (c: { oidcConfig: unknown }, subject: SsoSubject) =>
-        ssoProviderId(trustsOidc(c) ? 'oidc' : 'saml', subject);
-      const match = configs.find((c) => trustsOidc(c) || trustsSaml(c));
-      if (match) {
-        return {
-          provider: providerFor(match, { kind: 'workspace', slug: match.workspace.slug }),
-          workspace: { slug: match.workspace.slug, name: match.workspace.name },
-        };
-      }
       const orgs = await systemDb.organization.findMany({
         where: {
           deletedAt: null,
@@ -152,16 +193,20 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         },
         select: { slug: true, name: true, oidcConfig: true, samlConfig: true },
       });
-      const org = orgs.find((o) => trustsOidc(o) || trustsSaml(o));
-      if (!org) {
-        return reply
-          .code(404)
-          .send({ error: { code: 'NOT_FOUND', message: 'No single sign-on for this domain' } });
-      }
-      return {
-        provider: providerFor(org, { kind: 'organization', slug: org.slug }),
-        organization: { slug: org.slug, name: org.name },
-      };
+      const candidates: Candidate[] = [
+        ...configs.filter(trusts).map((c) => ({
+          subject: { kind: 'workspace' as const, slug: c.workspace.slug },
+          protocol: (oidcOn && lists(c.oidcConfig) ? 'oidc' : 'saml') as 'oidc' | 'saml',
+          target: { slug: c.workspace.slug, name: c.workspace.name },
+        })),
+        ...orgs.filter(trusts).map((o) => ({
+          subject: { kind: 'organization' as const, slug: o.slug },
+          protocol: (oidcOn && lists(o.oidcConfig) ? 'oidc' : 'saml') as 'oidc' | 'saml',
+          target: { slug: o.slug, name: o.name },
+        })),
+      ];
+      // Ambiguous: refuse rather than pick one; verifying the domain settles it.
+      return candidates.length === 1 ? answer(candidates[0]) : notFound();
     }
   );
 

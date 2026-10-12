@@ -5,5 +5,8 @@ global:
 scrape_configs:
   - job_name: harmoniq-registry
     metrics_path: /metrics
+    # With HARMONIQ_METRICS_TOKEN set on the registry (INST-25):
+    # authorization:
+    #   credentials: <the same token>
     static_configs:
       - targets: ['registry:4000', 'host.docker.internal:4000']

@@ -151,6 +151,11 @@ export class SsoProviders {
     const config = {
       ...stored,
       clientSecret: openSecret(stored.clientSecret, this.app.config.encryptionKey),
+      // DOM-01..04: only domains this workspace or organization may rely on.
+      trustedDomains: await this.app.container.domains.usableTrustedDomains(
+        subject,
+        stored.trustedDomains ?? []
+      ),
     };
     return { config, provider: this.build(subject, config) };
   }

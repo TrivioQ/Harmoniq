@@ -159,6 +159,30 @@ export async function handleHealthEventPurge(db: PrismaClient, logger: ILogger) 
   }
 }
 
+/**
+ * AUD-05: audit events of deleted workspaces stay for compliance until they are older than
+ * `retentionDays`. Events of existing workspaces are never touched here.
+ */
+export async function handleAuditRetention(
+  db: PrismaClient,
+  logger: ILogger,
+  retentionDays: number
+) {
+  const events = await db.$executeRaw`
+    DELETE FROM "AuditEvent" a
+     WHERE a."createdAt" < now() - make_interval(days => ${retentionDays}::int)
+       AND NOT EXISTS (SELECT 1 FROM "Workspace" w WHERE w."id" = a."workspaceId")`;
+  const scim = await db.$executeRaw`
+    DELETE FROM "ScimAuditEvent" s
+     WHERE s."workspaceId" IS NOT NULL
+       AND s."createdAt" < now() - make_interval(days => ${retentionDays}::int)
+       AND NOT EXISTS (SELECT 1 FROM "Workspace" w WHERE w."id" = s."workspaceId")`;
+  if (events || scim) {
+    logger.info(`Purged ${events} audit and ${scim} SCIM audit events of deleted workspaces`);
+  }
+  return { events, scim };
+}
+
 /** Called for each deleted environment, to drop caches and published copies. */
 export type OnEnvironmentDeleted = (env: {
   id: string;
@@ -250,6 +274,13 @@ export async function registerGcJobs(fastify: FastifyInstance) {
 
   await boss.schedule('gc.expireEnvironments', '0 * * * *');
   boss.work('gc.expireEnvironments', () => handleExpireEnvironments(db, logger, onDeleted));
+
+  // AUD-05: audit events of deleted workspaces past retention - Daily
+  await boss.createQueue('gc.auditRetention');
+  await boss.schedule('gc.auditRetention', '15 1 * * *');
+  boss.work('gc.auditRetention', () =>
+    handleAuditRetention(db, logger, fastify.config.auditRetentionDays)
+  );
 
   // 5. Orphan Scan - Weekly
   await boss.schedule('gc.orphanScan', '0 0 * * 0');

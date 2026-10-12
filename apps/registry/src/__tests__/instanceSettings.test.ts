@@ -66,9 +66,22 @@ describe('Instance settings (M4.8b, INST-11..18)', () => {
 
   it('turns sign-in methods off for everyone (INST-13)', async () => {
     expect(await providers()).toContain('email');
+    // The admin keeps a way in (INST-23): GitHub, which they have signed in with.
+    const rootUser = await app.container.systemDb.user.findUniqueOrThrow({
+      where: { email: rootEmail },
+    });
+    await app.container.systemDb.identity.create({
+      data: {
+        userId: rootUser.id,
+        provider: 'github',
+        providerUserId: rootUser.id,
+        email: rootEmail,
+      },
+    });
     const saved = await put('auth', {
       email: { enabled: false },
       saml: { enabled: false },
+      github: { enabled: true, clientId: 'gh-id', clientSecret: 'gh-secret' },
     });
     expect(saved.statusCode).toBe(200);
     expect(await providers()).not.toContain('email');

@@ -15,8 +15,11 @@ export default async function MembersPage(props: { params: Promise<{ workspaceSl
     workspaceApi.members(workspaceSlug),
     workspaceApi.get(workspaceSlug),
   ]);
-  // Only owners can grant or change ownership (enforced by the registry too).
-  const assignable = workspace.role === 'owner' ? ROLES : ROLES.filter((r) => r !== 'owner');
+  // Only owners and org admins can grant or change ownership (enforced by the registry too).
+  const assignable =
+    workspace.role === 'owner' || workspace.viaOrgAdmin
+      ? ROLES
+      : ROLES.filter((r) => r !== 'owner');
 
   const roleSelect = (name: string, defaultValue?: string) => (
     <select
@@ -82,7 +85,14 @@ export default async function MembersPage(props: { params: Promise<{ workspaceSl
                   submitLabel={t('remove')}
                   variant="danger"
                   confirm={t('removeConfirm', { email: member.user.email })}
-                />
+                  className="flex items-center gap-2"
+                >
+                  {/* PPL-05: their API keys are revoked unless kept. */}
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <input type="checkbox" name="keepKeys" />
+                    {t('keepKeys')}
+                  </label>
+                </ActionForm>
               </div>
             )}
           </li>

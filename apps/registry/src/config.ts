@@ -37,7 +37,15 @@ const EnvSchema = z.object({
   CACHE_ADAPTER: z.string().default('memory'),
   REDIS_URL: z.string().optional(),
   HARMONIQ_SETUP_TOKEN: z.string().optional(),
+  // Empty (as in .env.example) means unset.
+  HARMONIQ_METRICS_TOKEN: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(16, 'HARMONIQ_METRICS_TOKEN must be at least 16 characters').optional()
+  ),
+  HARMONIQ_METRICS_TENANT_LABELS: z.string().optional(),
   HARMONIQ_GC_KEEP_VERSIONS: z.coerce.number().int().min(1).default(10),
+  HARMONIQ_DOMAIN_GRACE_DAYS: z.coerce.number().int().min(0).max(365).default(30),
+  HARMONIQ_AUDIT_RETENTION_DAYS: z.coerce.number().int().min(1).default(400),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   HARMONIQ_DEV_LOGIN: z.string().optional(),
@@ -90,8 +98,20 @@ export interface Config {
   cacheAdapter: 'redis' | 'memory';
   redisUrl?: string;
   setupToken?: string;
+  /**
+   * INST-25: `/metrics` requires `Authorization: Bearer <token>` when set. Workspace slugs
+   * appear as metric labels only with `tenantLabels` (they name the instance's tenants).
+   */
+  metrics: { token?: string; tenantLabels: boolean };
   /** Newest versions kept per module+environment regardless of age, so rollback always works. */
   gcKeepVersions: number;
+  /**
+   * DOM-04: days after the first start with domain verification during which unverified
+   * trusted domains still work for SSO sign-in (never for discovery). 0 enforces at once.
+   */
+  domainGraceDays: number;
+  /** AUD-05: days a deleted workspace's audit events are kept (counted from each event). */
+  auditRetentionDays: number;
   github?: { clientId: string; clientSecret: string };
   /** SSO-03: instance-wide OIDC sign-in from env vars (provider id `oidc`). */
   oidc?: { issuer: string; clientId: string; clientSecret: string; displayName: string };
@@ -297,7 +317,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     cacheAdapter,
     redisUrl: e.REDIS_URL,
     setupToken: e.HARMONIQ_SETUP_TOKEN,
+    metrics: {
+      token: e.HARMONIQ_METRICS_TOKEN,
+      tenantLabels:
+        e.HARMONIQ_METRICS_TENANT_LABELS === '1' || e.HARMONIQ_METRICS_TENANT_LABELS === 'true',
+    },
     gcKeepVersions: e.HARMONIQ_GC_KEEP_VERSIONS,
+    domainGraceDays: e.HARMONIQ_DOMAIN_GRACE_DAYS,
+    auditRetentionDays: e.HARMONIQ_AUDIT_RETENTION_DAYS,
     github:
       e.GITHUB_CLIENT_ID && e.GITHUB_CLIENT_SECRET
         ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }

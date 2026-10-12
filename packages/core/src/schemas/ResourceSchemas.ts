@@ -13,6 +13,14 @@ export const CreateWorkspaceSchema = z.object({
   slug: SlugSchema,
 });
 
+/**
+ * TLC-05: a workspace created in an organization may name its owners (invited by email).
+ * Org keys (IaC-01) create workspaces without a user, so this is how they get owners.
+ */
+export const CreateOrgWorkspaceSchema = CreateWorkspaceSchema.extend({
+  owners: z.array(z.string().trim().toLowerCase().email().max(320)).max(20).default([]),
+});
+
 // ─── Organizations (ORG-01..15) ─────────────────────────────────────────────
 
 export const OrgRoleSchema = z.enum(['org_admin', 'org_member']);

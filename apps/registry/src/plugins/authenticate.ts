@@ -7,7 +7,7 @@ import argon2 from 'argon2';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { Role, Workspace } from '@prisma/client';
 import { isApiKeyFormat, parseApiKey, parseOrgApiKey } from '../auth/apiKeys';
-import { Permission, roleAllows, scopesAllow } from '../auth/permissions';
+import { Permission, higherRole, roleAllows, scopesAllow } from '../auth/permissions';
 import { verifyAccessToken } from '../auth/tokens';
 import { SsoSubject, effectiveSso, parseSsoProviderId, sameSubject } from '../services/ssoIds';
 
@@ -41,6 +41,8 @@ declare module 'fastify' {
     workspace?: Workspace;
     /** The user's role in `workspace` (undefined for API keys and instance-admin access). */
     workspaceRole?: Role;
+    /** The user administers `workspace` as an admin of its organization (ORG-08, TLC-05). */
+    viaOrgAdmin?: boolean;
     /** Set when the request came from this process (`internalHeaders`), never the network. */
     internal?: boolean;
   }
@@ -408,7 +410,16 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
           },
         })) > 0;
       const memberRole = joined?.joinedAt ? joined.role : null;
-      const role: Role | null = orgAdmin && memberRole !== 'owner' ? 'admin' : memberRole;
+      // TLC-05: org admins act as owners of a workspace that has no joined owner (e.g. one
+      // an org key created), so owner-only actions stay possible; otherwise as admins.
+      const orgAdminRole: Role | null = !orgAdmin
+        ? null
+        : (await systemDb.workspaceMember.count({
+              where: { workspaceId: workspace.id, role: 'owner', joinedAt: { not: null } },
+            })) === 0
+          ? 'owner'
+          : 'admin';
+      const role = higherRole(memberRole, orgAdminRole);
       if (!role) return deny(reply, 404, 'NOT_FOUND', 'Workspace not found');
       const membership = { role };
       if (!roleAllows(membership.role, permission)) {
@@ -417,7 +428,8 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       // SSO-26: forced SSO. Owners are exempt (break-glass if the IdP breaks); in-process
       // calls (scheduled, approved) were checked when they were created.
       // ORG-05: the organization's SSO (and its forced SSO) when the workspace inherits it.
-      if (membership.role !== 'owner' && !request.internal) {
+      // Only joined owners: an org admin acting as owner (TLC-05) still signs in with SSO.
+      if (memberRole !== 'owner' && !request.internal) {
         const { forceSso, subject } = await ssoOf();
         if (forceSso && !sameSubject(scope, subject)) {
           return deny(
@@ -431,6 +443,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       if (suspended(workspace, permission)) return deny(reply, ...SUSPENDED);
       request.workspace = workspace;
       request.workspaceRole = membership.role;
+      request.viaOrgAdmin = !!orgAdminRole;
     };
   }
 

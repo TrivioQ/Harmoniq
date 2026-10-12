@@ -5,6 +5,7 @@
 import './tracing';
 import { buildApp } from './app';
 import { ConfigError } from './config';
+import { appRoleAcceptsPlaceholder } from './services/dbRoleCheck';
 
 async function start() {
   let app;
@@ -16,6 +17,18 @@ async function start() {
       process.exit(1);
     }
     throw err;
+  }
+
+  // MT-11: a production database whose app role still has the placeholder password.
+  if (
+    app.config.isProduction &&
+    (await appRoleAcceptsPlaceholder(process.env.DATABASE_URL ?? ''))
+  ) {
+    console.error(
+      'Refusing to start: the database role in DATABASE_URL accepts the placeholder password. ' +
+        'Set its password with `npx tsx scripts/bootstrap-db.ts` (see docs/self-hosting.md).'
+    );
+    process.exit(1);
   }
 
   try {

@@ -11,6 +11,7 @@
     "lint": "eslint src",
     "schema:generate": "tsx scripts/generate-manifest-schema.ts",
     "db:bootstrap": "tsx scripts/bootstrap-db.ts",
+    "admin": "tsx scripts/harmoniq-admin.ts",
     "openapi:generate": "tsx scripts/generate-openapi.ts",
     "bench": "tsx scripts/bench-manifest.ts"
   },

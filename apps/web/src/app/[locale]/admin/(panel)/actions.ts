@@ -183,8 +183,20 @@ export async function saveSettingAction(
 ): Promise<ActionResult> {
   return run(
     () =>
-      authedFetch(`/api/admin/settings/${key}`, { method: 'PUT', body: settingBody(key, form) }),
-    (t) => ({ status: 'success', message: t('settingSaved') })
+      authedFetch<{ adminsLockedOut?: string[] }>(`/api/admin/settings/${key}`, {
+        method: 'PUT',
+        body: settingBody(key, form),
+      }),
+    (t, r) => {
+      // INST-23: saved, but these admins have no sign-in method left.
+      const lockedOut = (r as { adminsLockedOut?: string[] }).adminsLockedOut;
+      return {
+        status: 'success',
+        message: lockedOut?.length
+          ? t('settingSavedAdminsLockedOut', { admins: lockedOut.join(', ') })
+          : t('settingSaved'),
+      };
+    }
   );
 }
 
