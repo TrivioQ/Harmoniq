@@ -789,8 +789,8 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] `Workspace`: `deletedAt`, `purgeAfter`, `deletedBy`; `Organization`: `purgeAfter`, `suspendedAt`, `suspendedReason`; `OrganizationAuditEvent` and `ScimAuditEvent` lose their org FK (migration `20261011150000_tenant_lifecycle`)
 - [x] `AuditEvent`, `ScimAuditEvent`: cascading foreign keys to `Workspace` dropped (migration `20261011140000_audit_outlives_workspace`; organizations are soft-deleted, so `OrganizationAuditEvent` keeps its key) (AUD-05, ADR-011)
 - [x] ~~`ModuleVersion.storageBackend`~~ not needed: the purge deletes bundle keys from the workspace's bucket and the instance storage
-- [ ] `TenantExport` model: `scope`, `scopeId`, `status`, `requestedBy`, `storagePath?`, `expiresAt`, `error?`
-- [ ] `OwnershipTransfer` model: `scope`, `scopeId`, `fromUserId`, `toUserId`, `expiresAt`, `acceptedAt?`, `cancelledAt?`
+- [x] ~~`TenantExport` model~~ not needed: exports stream as JSON Lines (no job, no stored file)
+- [x] `OwnershipTransfer` model (workspace or organization, CHECK one scope, RLS like SCIM rows; migration `20261011160000_ownership_transfers`)
 
 #### Registry
 
@@ -800,8 +800,8 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] pg-boss `tenant.purge` (hourly, `purgeDueTenants`): workspaces past `purgeAfter` through `deleteWorkspace` (bundles, published copies, rows; audit kept), audited as `instance.workspace_purged` (TLC-03)
 - [x] Organization soft delete (`purgeAfter`) and purge once it has no workspaces; slug released (`instance.org_purged`) (TLC-03)
 - [x] `POST /api/admin/orgs/:slug/suspend` / `unsuspend`; `requireWorkspace` refuses changes in a suspended organization's workspaces (users and org keys, `403 ORGANIZATION_SUSPENDED`) and `requireOrg` refuses non-GET org routes (TLC-04)
-- [ ] Ownership transfer: `POST /api/workspaces/:ws/transfer`, `POST /api/orgs/:org/transfer`, `POST /api/transfers/:id/accept|cancel` (TLC-06)
-- [ ] Exports: `POST /api/workspaces/:ws/exports`, `POST /api/orgs/:org/exports`, `GET …/exports/:id` (signed download, 24 h); pg-boss `tenant.export` (TLC-07)
+- [x] Ownership transfer: `POST /api/workspaces/:ws/transfer`, `POST /api/orgs/:org/transfer`, `GET /api/transfers`, `POST /api/transfers/:id/accept|cancel`; the sender steps down to admin / org_member; 7-day expiry (TLC-06)
+- [x] Exports: `GET /api/workspaces/:ws/export` (admins), `GET /api/orgs/:org/export` (org admins): streamed JSON Lines (header, workspace, config, members, modules, versions, audit; organization, org members, key metadata, org audit, then each live workspace), each export audited (TLC-07)
 - [x] Instance setting `tenancy` (`creation: anyone | verified_domains | instance_admins`, `allowedDomains`) enforced in `POST /api/orgs` and `POST /api/workspaces`; org admins still create workspaces in their organization (TLC-08)
 - [x] GC `gc.auditRetention` (daily): events of deleted workspaces older than `HARMONIQ_AUDIT_RETENTION_DAYS` are removed (AUD-05)
 - [x] `GET /api/admin/workspace-audit/:workspaceId/export`: a deleted workspace's audit log for instance admins (AUD-05)
@@ -811,9 +811,9 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 #### Dashboard
 
 - [x] Workspace settings danger zone: delete (type the slug) for owners
-- [ ] Transfer ownership (with TLC-06)
+- [x] Transfer ownership (workspace danger zone, org members page); incoming transfers with accept and decline on the home page; export downloads (workspace settings, org audit page)
 - [x] Deleted workspaces you own on the home page (`/api/me` `deletedWorkspaces`), with restore and the purge date; org home shows deleted workspaces with restore, and delete (type the slug)
-- [ ] Org settings danger zone (with 9.4): delete, restore, transfer; exports list with download links
+- [ ] Org settings danger zone (with 9.4): delete, restore, transfer, exports in one place
 - [x] Admin panel: org suspend/unsuspend and restore, workspace restore and deletion status; `/admin/auth` creation policy
 
 #### Test Suite
@@ -821,8 +821,8 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Soft delete, restore, 410s for users, keys and (cached) manifests, `/api/me` (`tenantLifecycle.test.ts`)
 - [x] Purge and immediate purge (`tenantLifecycle.test.ts`, `workspaceDeletion.test.ts`)
 - [x] Org suspension (`tenantLifecycle.test.ts`)
-- [ ] Transfer: accept, cancel, expiry, last-owner rules
-- [ ] Export: contents, permissions, expiry
+- [x] Transfer: accept, cancel, decline, expiry, replacement, recipient only (`transfersExports.test.ts`)
+- [x] Export: contents, permissions, no key secrets, deleted workspaces left out (`transfersExports.test.ts`)
 - [x] Creation policy, every mode (`tenancyPolicy.test.ts`)
 
 ### 9.3 People & Invitations (M5.3)

@@ -161,6 +161,15 @@ export async function removeOrgMemberAction(
   );
 }
 
+/** TLC-06: an org admin hands the admin seat to a member, who must accept. */
+export async function transferOrgAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  const email = field(form, 'email');
+  return run(
+    () => authedFetch(org(orgSlug, '/transfer'), { body: { email } }),
+    (t) => ({ status: 'success', message: t('orgTransferProposed', { email }) })
+  );
+}
+
 export async function createOrgKeyAction(
   orgSlug: string,
   _prev: ActionResult,

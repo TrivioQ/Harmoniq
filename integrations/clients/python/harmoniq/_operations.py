@@ -231,6 +231,10 @@ class Client(BaseClient):
         """GET /api/orgs/{orgSlug}/domains (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/domains", None, query)
 
+    def get_orgs_export(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/export (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/export", None, query)
+
     def get_orgs_keys(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/keys (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/keys", None, query)
@@ -279,6 +283,10 @@ class Client(BaseClient):
         """GET /api/schema/manifest.json (Manifests)."""
         return self.request("GET", "/api/schema/manifest.json", None, query)
 
+    def get_transfers(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/transfers (Service)."""
+        return self.request("GET", "/api/transfers", None, query)
+
     def get_workspaces_alerts(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/alerts (Alerts)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/alerts", None, query)
@@ -318,6 +326,10 @@ class Client(BaseClient):
     def get_workspaces_domains(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/domains (Workspaces)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/domains", None, query)
+
+    def get_workspaces_export(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/export (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/export", None, query)
 
     def get_workspaces_health(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/health (Workspaces)."""
@@ -515,6 +527,10 @@ class Client(BaseClient):
         """POST /api/orgs/{orgSlug}/sso/saml/test (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/sso/saml/test", None, query)
 
+    def post_orgs_transfer(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/transfer (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/transfer", None, query)
+
     def post_orgs_workspaces(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/workspaces (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/workspaces", body, query)
@@ -522,6 +538,14 @@ class Client(BaseClient):
     def post_orgs_workspaces_attach(self, org_slug, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/workspaces/{workspaceSlug}/attach (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/workspaces/" + _q(workspace_slug) + "/attach", None, query)
+
+    def post_transfers_accept(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/transfers/{id}/accept (Service)."""
+        return self.request("POST", "/api/transfers/" + _q(id) + "/accept", None, query)
+
+    def post_transfers_cancel(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/transfers/{id}/cancel (Service)."""
+        return self.request("POST", "/api/transfers/" + _q(id) + "/cancel", None, query)
 
     def post_workspaces(self, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces (Workspaces)."""
@@ -642,6 +666,10 @@ class Client(BaseClient):
     def post_workspaces_storage_test(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/storage/test (Storage)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/storage/test", None, query)
+
+    def post_workspaces_transfer(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/transfer (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/transfer", None, query)
 
     def post_workspaces_webhooks(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/webhooks (Webhooks)."""

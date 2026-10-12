@@ -36,6 +36,14 @@ export default async function OrgAuditPage(props: {
         action={query.action}
         workspace={query.workspace}
       />
+      {/* TLC-07: the organization and its live workspaces, everything, as JSON Lines. */}
+      <a
+        href={`/api/tenant-export?${new URLSearchParams({ scope: 'org', slug: orgSlug })}`}
+        className="text-sm underline hover:text-primary"
+        download
+      >
+        {t('fullExport')}
+      </a>
       <form className="flex flex-wrap gap-2" method="get">
         <select
           name="workspace"

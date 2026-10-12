@@ -271,7 +271,7 @@ CREATE POLICY workspace_isolation_version ON "ModuleVersion"
 | Scope                                   | Tables                                                                                                                                                                                                                                                                                                                                                                      |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | By `workspaceId` (workspace or its org) | `WorkspaceMember`, `HostApp`, `RemoteModule`, `ModuleVersion`, `ApiKey`, `WebhookEndpoint`, `WebhookDelivery`, `WebhookDeadLetter`, `AuditEvent`, `ModuleOwnership`, `AlertRule`, `ManifestSnapshot`, `ModuleHealthEvent`, `ModuleHealthRollup`, `ModuleEnvState`, `ScheduledOperation`, `ApprovalPolicy`, `DeploymentRequest`, `WorkspaceConfig`, `WorkspaceStorageConfig` |
-| By `workspaceId` or `organizationId`    | `ScimUser`, `ScimGroup`, `ScimAuditEvent`, `VerifiedDomain` (rows of a workspace or of an organization)                                                                                                                                                                                                                                                                     |
+| By `workspaceId` or `organizationId`    | `ScimUser`, `ScimGroup`, `ScimAuditEvent`, `VerifiedDomain`, `OwnershipTransfer` (rows of a workspace or of an organization)                                                                                                                                                                                                                                                |
 | `Workspace`                             | Its `id` is the current workspace or one of the organization's, or its `organizationId` is the current organization                                                                                                                                                                                                                                                         |
 | By `organizationId`                     | `OrganizationMember`, `OrgApiKey`, `OrganizationAuditEvent`; `Organization` by `id`                                                                                                                                                                                                                                                                                         |
 | Through the parent row                  | `Environment` (via `HostApp`), `DeploymentApproval` (via `DeploymentRequest`)                                                                                                                                                                                                                                                                                               |
@@ -795,6 +795,22 @@ Per-workspace BYOB storage adapter override (§18). When present, the registry r
 
 `OrganizationAuditEvent` and `ScimAuditEvent` no longer have foreign keys to `Organization` (AUD-05): a purged organization's trail stays.
 
+### `OwnershipTransfer`
+
+TLC-06 (migration `20261011160000_ownership_transfers`). A pending handover of a workspace's ownership or an organization's admin seat.
+
+| Column           | Type        | Notes                                                            |
+| ---------------- | ----------- | ---------------------------------------------------------------- |
+| `id`             | `CUID`      | Primary key                                                      |
+| `workspaceId`    | `CUID?`     | Exactly one of the two is set (CHECK); RLS like SCIM rows; no FK |
+| `organizationId` | `CUID?`     |                                                                  |
+| `fromUserId`     | `CUID`      | Steps down when the transfer is accepted                         |
+| `toUserId`       | `CUID`      | The recipient; indexed                                           |
+| `expiresAt`      | `DateTime`  | 7 days after proposal                                            |
+| `acceptedAt`     | `DateTime?` |                                                                  |
+| `cancelledAt`    | `DateTime?` | Withdrawn, declined, or replaced by a newer proposal             |
+| `createdAt`      | `DateTime`  |                                                                  |
+
 ### `VerifiedDomain`
 
 DOM-01..05 (migration `20261011120000_verified_domains`). A domain claimed by an organization or a workspace, proven with the DNS TXT record `_harmoniq-challenge.<domain>` = `harmoniq-verification=<token>`. Many tenants may claim a domain; only one can verify it.
@@ -823,7 +839,6 @@ DOM-01..05 (migration `20261011120000_verified_domains`). A domain claimed by an
 
 | Change                                                                                               | Sub-phase | Requirements              |
 | ---------------------------------------------------------------------------------------------------- | --------- | ------------------------- |
-| `ModuleVersion.storageBackend`, `TenantExport`, `OwnershipTransfer`                                  | 9.2       | TLC-03, TLC-06/07         |
 | `Invitation` (org or workspace, token hash, expiry); pending `WorkspaceMember` rows migrated into it | 9.3       | PPL-01, PPL-02            |
 | `AccessRequest`; `OrgRole` adds `org_billing`, `org_auditor`                                         | 9.3       | PPL-07, PPL-08            |
 | `OrgApiKey.gracePeriodEnd`                                                                           | 9.4       | TAD-05                    |

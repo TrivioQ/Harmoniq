@@ -3,6 +3,7 @@
 
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import type { TenantTx } from '@harmoniq/db';
 import type { Organization } from '@prisma/client';
 import {
@@ -41,6 +42,8 @@ import {
 } from '../services/auditExport';
 import { orgSsoRoutes } from './orgSso';
 import { orgDomainRoutes } from './domains';
+import { proposeTransfer, transferDto } from './transfers';
+import { organizationRecords, sendTenantExport } from '../services/tenantExport';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -516,6 +519,46 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  /**
+   * TLC-06: an org admin hands the admin seat to an org member, who accepts it at
+   * `POST /api/transfers/:id/accept`; the sender then becomes an org_member.
+   */
+  fastify.post<{ Params: OrgParams }>(
+    '/api/orgs/:orgSlug/transfer',
+    admin,
+    async (request, reply) => {
+      const { email } = z
+        .object({ email: z.string().trim().toLowerCase().email() })
+        .parse(request.body);
+      const principal = request.principal!;
+      const transfer = await inOrg(request, async (tx) => {
+        const member = await tx.organizationMember.findFirst({
+          where: { organizationId: request.org!.id, user: { email } },
+        });
+        if (!member) throw new BadRequestError(`${email} is not a member of this organization`);
+        if (member.userId === principal.id) throw new BadRequestError('You are already an admin');
+        const transfer = await proposeTransfer(
+          tx,
+          { organizationId: request.org!.id },
+          principal.id,
+          member.userId
+        );
+        await orgAudit(
+          request,
+          {
+            action: 'org.transfer_request',
+            resourceType: 'transfer',
+            resourceId: transfer.id,
+            metadata: { to: email },
+          },
+          tx
+        );
+        return transfer;
+      });
+      return reply.code(201).send({ ...transferDto(transfer), to: email });
+    }
+  );
+
   // ─── Workspaces (ORG-03/08) ───────────────────────────────────────────────
 
   fastify.post<{ Params: OrgParams }>(
@@ -824,6 +867,21 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       name: org.slug,
       workspaceColumn: true,
     });
+  });
+
+  /** TLC-07: the organization's data and its live workspaces' as JSON Lines. */
+  fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug/export', admin, async (request, reply) => {
+    const org = request.org!;
+    await orgAudit(request, {
+      action: 'org.export',
+      resourceType: 'organization',
+      resourceId: org.id,
+    });
+    return sendTenantExport(
+      reply,
+      { kind: 'organization', slug: org.slug },
+      organizationRecords((fn) => inOrg(request, fn), org)
+    );
   });
 
   // ─── Module catalog (ORG-10/12) ───────────────────────────────────────────

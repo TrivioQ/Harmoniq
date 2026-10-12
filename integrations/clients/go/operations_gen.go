@@ -285,6 +285,11 @@ func (c *Client) GetOrgsDomains(ctx context.Context, orgSlug string, query url.V
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/domains", nil, query)
 }
 
+// GetOrgsExport calls GET /api/orgs/{orgSlug}/export (Organizations).
+func (c *Client) GetOrgsExport(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/export", nil, query)
+}
+
 // GetOrgsKeys calls GET /api/orgs/{orgSlug}/keys (Organizations).
 func (c *Client) GetOrgsKeys(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/keys", nil, query)
@@ -345,6 +350,11 @@ func (c *Client) GetSchemaManifestJson(ctx context.Context, query url.Values) (*
 	return c.Do(ctx, "GET", "/api/schema/manifest.json", nil, query)
 }
 
+// GetTransfers calls GET /api/transfers (Service).
+func (c *Client) GetTransfers(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/transfers", nil, query)
+}
+
 // GetWorkspacesAlerts calls GET /api/workspaces/{workspaceSlug}/alerts (Alerts).
 func (c *Client) GetWorkspacesAlerts(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/alerts", nil, query)
@@ -393,6 +403,11 @@ func (c *Client) GetWorkspacesConfig(ctx context.Context, workspaceSlug string, 
 // GetWorkspacesDomains calls GET /api/workspaces/{workspaceSlug}/domains (Workspaces).
 func (c *Client) GetWorkspacesDomains(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/domains", nil, query)
+}
+
+// GetWorkspacesExport calls GET /api/workspaces/{workspaceSlug}/export (Workspaces).
+func (c *Client) GetWorkspacesExport(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/export", nil, query)
 }
 
 // GetWorkspacesHealth calls GET /api/workspaces/{workspaceSlug}/health (Workspaces).
@@ -640,6 +655,11 @@ func (c *Client) PostOrgsSsoSamlTest(ctx context.Context, orgSlug string, query 
 	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/sso/saml/test", nil, query)
 }
 
+// PostOrgsTransfer calls POST /api/orgs/{orgSlug}/transfer (Organizations).
+func (c *Client) PostOrgsTransfer(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/transfer", nil, query)
+}
+
 // PostOrgsWorkspaces calls POST /api/orgs/{orgSlug}/workspaces (Organizations).
 func (c *Client) PostOrgsWorkspaces(ctx context.Context, orgSlug string, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/workspaces", body, query)
@@ -648,6 +668,16 @@ func (c *Client) PostOrgsWorkspaces(ctx context.Context, orgSlug string, body an
 // PostOrgsWorkspacesAttach calls POST /api/orgs/{orgSlug}/workspaces/{workspaceSlug}/attach (Organizations).
 func (c *Client) PostOrgsWorkspacesAttach(ctx context.Context, orgSlug string, workspaceSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/workspaces/"+url.PathEscape(workspaceSlug)+"/attach", nil, query)
+}
+
+// PostTransfersAccept calls POST /api/transfers/{id}/accept (Service).
+func (c *Client) PostTransfersAccept(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/transfers/"+url.PathEscape(id)+"/accept", nil, query)
+}
+
+// PostTransfersCancel calls POST /api/transfers/{id}/cancel (Service).
+func (c *Client) PostTransfersCancel(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/transfers/"+url.PathEscape(id)+"/cancel", nil, query)
 }
 
 // PostWorkspaces calls POST /api/workspaces (Workspaces).
@@ -798,6 +828,11 @@ func (c *Client) PostWorkspacesStorage(ctx context.Context, workspaceSlug string
 // PostWorkspacesStorageTest calls POST /api/workspaces/{workspaceSlug}/storage/test (Storage).
 func (c *Client) PostWorkspacesStorageTest(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/storage/test", nil, query)
+}
+
+// PostWorkspacesTransfer calls POST /api/workspaces/{workspaceSlug}/transfer (Workspaces).
+func (c *Client) PostWorkspacesTransfer(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/transfer", nil, query)
 }
 
 // PostWorkspacesWebhooks calls POST /api/workspaces/{workspaceSlug}/webhooks (Webhooks).

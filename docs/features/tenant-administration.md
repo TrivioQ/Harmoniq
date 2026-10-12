@@ -30,7 +30,7 @@ The audience is org admins (self-service tenant administration), security and co
 | `PPL-04`, `PPL-05`                                      | Offboarding: org member removal cascades to workspaces, keys and org-SSO sessions; workspace member removal revokes their keys                                                             | ✅ Done (9.1)                               |
 | `TLC-03`                                                | Purge after the restore window: bundles and published copies (bucket and instance storage), rows; slug released                                                                            | ✅ Done (9.2)                               |
 | `TLC-01`, `TLC-02`, `TLC-04`, `TLC-08`                  | Owner self-delete, soft delete and restore, org suspension, creation policy                                                                                                                | ✅ Done (9.2)                               |
-| `TLC-06`, `TLC-07`                                      | Ownership transfers, tenant exports                                                                                                                                                        | 📋 Planned (9.2)                            |
+| `TLC-06`, `TLC-07`                                      | Ownership transfers the recipient accepts; tenant exports as streamed JSON Lines                                                                                                           | ✅ Done (9.2)                               |
 | `AUD-05`                                                | Audit history survives workspace deletion; retention GC; export of a deleted workspace's log                                                                                               | ✅ Done (9.2 item, delivered with 9.1)      |
 | `PPL-02` (scope)                                        | A sign-in accepts only invitations its session can reach                                                                                                                                   | ✅ Done                                     |
 | `PPL-01`–`PPL-03`, `PPL-06`–`PPL-08`                    | Invitations (emailed, expiring), People directory, effective access, access requests, billing/auditor roles                                                                                | 📋 Planned (9.3)                            |
@@ -152,6 +152,31 @@ All API additions are additive. New org roles don't change the meaning of `org_a
 ---
 
 ## Change History
+
+### 2026-10-11 — Ownership transfers and tenant exports
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** TLC-06, TLC-07
+
+#### What changed
+
+- **TLC-06:** `OwnershipTransfer` (migration `20261011160000_ownership_transfers`, RLS like SCIM rows). Workspace owners and org admins propose a handover to a member, who accepts within 7 days; the sender steps down to admin or `org_member`. The recipient can decline and the sender can withdraw. `GET /api/transfers` lists pending ones.
+- **TLC-07:** `GET /api/workspaces/:ws/export` and `GET /api/orgs/:org/export` stream JSON Lines. There is no export job or stored file, so nothing sensitive lingers in a bucket. Batches run in their own tenant transactions. Each export is audited.
+- **Dashboard:**
+  - Workspace settings: transfer form and export download.
+  - Org members page: admin-seat transfer.
+  - Org audit page: full export link.
+  - Home page: incoming transfers with accept and decline.
+  - New download route `/api/tenant-export`, which forwards the session.
+
+#### Why
+
+Requirement change: TLC-07 originally asked for a background job and a 24-hour link. Streaming gives the same data with less to secure.
+
+#### Testing
+
+`transfersExports.test.ts`: workspace and org transfers, recipient-only accept, expiry, replacement, decline, audit, export contents and permissions, no key secrets, deleted workspaces left out. Registry 58 files / 393 tests.
 
 ### 2026-10-11 — Phase 9.2: soft delete, restore, purge, org suspension, creation policy
 

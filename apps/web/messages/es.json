@@ -18,7 +18,13 @@
     "createOrgHint": "Agrupa los espacios de trabajo de tus equipos: un registro de auditoría, un catálogo de módulos, módulos compartidos y claves de CI entre espacios.",
     "recentlyDeleted": "Eliminados recientemente",
     "purgedOn": "Se purgará el {date} si no se restaura",
-    "restore": "Restaurar"
+    "restore": "Restaurar",
+    "transfers": "Pendiente para ti",
+    "transferWorkspace": "{from} quiere entregarte el espacio de trabajo {name}",
+    "transferOrg": "{from} quiere entregarte la administración de {name}",
+    "transferExpires": "Hasta el {date}",
+    "accept": "Aceptar",
+    "decline": "Rechazar"
   },
   "WorkspaceLayout": {
     "overview": "Resumen",
@@ -100,7 +106,13 @@
     "deleteHint": "Al eliminarlo, sus manifiestos y claves de API dejan de funcionar al instante. Los propietarios pueden restaurarlo hasta que se purgue; después desaparecen él y sus bundles almacenados, pero se conserva su registro de auditoría.",
     "deleteWorkspace": "Eliminar espacio de trabajo",
     "deleteConfirm": "¿Eliminar {workspace}? Los hosts dejarán de cargar sus módulos.",
-    "typeSlug": "Escribe el slug del espacio de trabajo para confirmar"
+    "typeSlug": "Escribe el slug del espacio de trabajo para confirmar",
+    "exportTitle": "Exportar",
+    "exportHint": "Descarga todo lo de este espacio de trabajo en JSON Lines: configuración, miembros, módulos, versiones y registro de auditoría. Las descargas se registran en la auditoría.",
+    "exportDownload": "Descargar exportación",
+    "transferHint": "Entrega el espacio de trabajo a un miembro. Será propietario cuando acepte; tú pasarás a administrador.",
+    "transfer": "Transferir propiedad",
+    "transferTo": "Correo del nuevo propietario"
   },
   "LoginPage": {
     "title": "Iniciar sesión en {name}",
@@ -333,7 +345,11 @@
     "workspaceRestored": "{workspace} se ha restaurado.",
     "orgSuspended": "Organización suspendida: sus espacios de trabajo son de solo lectura.",
     "orgUnsuspended": "Organización reactivada.",
-    "orgRestored": "Organización restaurada."
+    "orgRestored": "Organización restaurada.",
+    "transferProposed": "{email} ya puede aceptar la propiedad. Cuando lo haga, seguirás como administrador.",
+    "transferAccepted": "Transferencia aceptada.",
+    "transferCancelled": "Transferencia cancelada.",
+    "orgTransferProposed": "{email} ya puede aceptar el puesto de administrador."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -791,7 +807,8 @@
     "filter": "Filtrar",
     "organization": "organización",
     "empty": "No hay eventos.",
-    "older": "Eventos anteriores"
+    "older": "Eventos anteriores",
+    "fullExport": "Descargar una exportación completa (organización y espacios de trabajo, JSON Lines)"
   },
   "OrgMembers": {
     "title": "Miembros",
@@ -804,7 +821,10 @@
     "removeConfirm": "¿Eliminar a {email} de la organización y de todos sus espacios de trabajo? También se revocan sus claves de API y sus sesiones de la organización.",
     "add": "Añadir un miembro",
     "addSubmit": "Añadir",
-    "keepKeys": "Conservar sus claves de API"
+    "keepKeys": "Conservar sus claves de API",
+    "transfer": "Entregar tu puesto de administrador",
+    "transferHint": "El miembro pasa a administrador de la organización cuando acepte; tú pasas a miembro.",
+    "transferSubmit": "Proponer"
   },
   "OrgKeys": {
     "title": "Claves de API",

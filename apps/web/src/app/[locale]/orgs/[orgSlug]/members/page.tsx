@@ -9,6 +9,7 @@ import {
   addOrgMemberAction,
   changeOrgMemberRoleAction,
   removeOrgMemberAction,
+  transferOrgAction,
 } from '../../actions';
 
 const input = 'rounded-md border px-3 py-1.5 text-sm';
@@ -98,6 +99,28 @@ export default async function OrgMembersPage(props: { params: Promise<{ orgSlug:
                 </option>
               ))}
             </select>
+          </ActionForm>
+        </section>
+      )}
+      {/* TLC-06: hand your admin seat to a member; you become a member when they accept. */}
+      {admin && (
+        <section className="rounded-xl border bg-card p-4 space-y-2">
+          <h2 className="font-semibold text-sm">{t('transfer')}</h2>
+          <p className="text-xs text-muted-foreground">{t('transferHint')}</p>
+          <ActionForm
+            action={transferOrgAction.bind(null, orgSlug)}
+            submitLabel={t('transferSubmit')}
+            variant="outline"
+            className="flex flex-wrap gap-2"
+          >
+            <input
+              name="email"
+              type="email"
+              required
+              placeholder="new-admin@acme.com"
+              aria-label="Email"
+              className={input}
+            />
           </ActionForm>
         </section>
       )}

@@ -6,7 +6,12 @@ import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
 import { createWorkspaceAction } from './w/[workspaceSlug]/actions';
 import { createOrgAction } from './orgs/actions';
-import { restoreWorkspaceAction } from './lifecycleActions';
+import {
+  acceptTransferAction,
+  cancelTransferAction,
+  restoreWorkspaceAction,
+} from './lifecycleActions';
+import { authedFetch } from '@/lib/registry';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
 
@@ -17,6 +22,16 @@ export default async function WorkspaceSelector() {
   if (!me) redirect('/auth/login');
   const { workspaces, organizations } = me;
   const deleted = me.deletedWorkspaces ?? [];
+  // TLC-06: handovers waiting for you.
+  const transfers = await authedFetch<{
+    incoming: Array<{
+      id: string;
+      from: string | null;
+      expiresAt: string;
+      workspace?: { slug: string; name: string } | null;
+      organization?: { slug: string; name: string } | null;
+    }>;
+  }>('/api/transfers').catch(() => ({ incoming: [] }));
 
   return (
     <div className="flex flex-col min-h-screen items-center p-6 md:p-24 bg-muted/30">
@@ -63,6 +78,40 @@ export default async function WorkspaceSelector() {
             </div>
           )}
         </div>
+
+        {transfers.incoming.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-sm font-medium text-muted-foreground">{t('transfers')}</h2>
+            <ul className="rounded-xl border bg-card divide-y">
+              {transfers.incoming.map((tr) => (
+                <li key={tr.id} className="p-4 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm">
+                    {t(tr.organization ? 'transferOrg' : 'transferWorkspace', {
+                      from: tr.from ?? '?',
+                      name: tr.workspace?.name ?? tr.organization?.name ?? '?',
+                    })}
+                    <div className="text-xs text-muted-foreground">
+                      {t('transferExpires', {
+                        date: format.dateTime(new Date(tr.expiresAt), 'short'),
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <ActionForm
+                      action={acceptTransferAction.bind(null, tr.id)}
+                      submitLabel={t('accept')}
+                    />
+                    <ActionForm
+                      action={cancelTransferAction.bind(null, tr.id)}
+                      submitLabel={t('decline')}
+                      variant="outline"
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {deleted.length > 0 && (
           <div className="space-y-2">

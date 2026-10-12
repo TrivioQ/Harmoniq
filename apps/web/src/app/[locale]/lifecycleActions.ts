@@ -53,3 +53,44 @@ export async function restoreWorkspaceAction(
   revalidatePath('/', 'layout');
   return { status: 'success', message: t('workspaceRestored', { workspace }) };
 }
+
+// ─── Ownership transfers (TLC-06) ───────────────────────────────────────────
+
+/** An owner proposes handing the workspace to a member, who must accept. */
+export async function transferWorkspaceAction(
+  workspace: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const t = await getTranslations('Actions');
+  const email = String(form.get('email') ?? '').trim();
+  try {
+    await authedFetch(`/api/workspaces/${enc(workspace)}/transfer`, { body: { email } });
+  } catch (err) {
+    return failure(err);
+  }
+  revalidatePath('/', 'layout');
+  return { status: 'success', message: t('transferProposed', { email }) };
+}
+
+export async function acceptTransferAction(id: string, _prev: ActionResult): Promise<ActionResult> {
+  const t = await getTranslations('Actions');
+  try {
+    await authedFetch(`/api/transfers/${enc(id)}/accept`, { method: 'POST', body: {} });
+  } catch (err) {
+    return failure(err);
+  }
+  revalidatePath('/', 'layout');
+  return { status: 'success', message: t('transferAccepted') };
+}
+
+export async function cancelTransferAction(id: string, _prev: ActionResult): Promise<ActionResult> {
+  const t = await getTranslations('Actions');
+  try {
+    await authedFetch(`/api/transfers/${enc(id)}/cancel`, { method: 'POST', body: {} });
+  } catch (err) {
+    return failure(err);
+  }
+  revalidatePath('/', 'layout');
+  return { status: 'success', message: t('transferCancelled') };
+}

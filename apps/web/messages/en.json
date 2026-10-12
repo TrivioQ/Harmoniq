@@ -18,7 +18,13 @@
     "createOrgHint": "Group your teams’ workspaces: one audit log, a module catalog, shared modules and CI keys across workspaces.",
     "recentlyDeleted": "Recently deleted",
     "purgedOn": "Purged on {date} unless restored",
-    "restore": "Restore"
+    "restore": "Restore",
+    "transfers": "Waiting for you",
+    "transferWorkspace": "{from} wants to hand you the workspace {name}",
+    "transferOrg": "{from} wants to hand you the administration of {name}",
+    "transferExpires": "Until {date}",
+    "accept": "Accept",
+    "decline": "Decline"
   },
   "WorkspaceLayout": {
     "overview": "Overview",
@@ -100,7 +106,13 @@
     "deleteHint": "Deleting stops its manifests and API keys at once. Owners can restore it until it is purged, then it and its stored bundles are gone; its audit log is kept.",
     "deleteWorkspace": "Delete workspace",
     "deleteConfirm": "Delete {workspace}? Hosts stop loading its modules.",
-    "typeSlug": "Type the workspace slug to confirm"
+    "typeSlug": "Type the workspace slug to confirm",
+    "exportTitle": "Export",
+    "exportHint": "Download everything in this workspace as JSON Lines: configuration, members, modules, versions and the audit log. Downloads are recorded in the audit log.",
+    "exportDownload": "Download export",
+    "transferHint": "Hand the workspace to a member. They become an owner when they accept; you become an admin.",
+    "transfer": "Transfer ownership",
+    "transferTo": "Email of the new owner"
   },
   "LoginPage": {
     "title": "Sign in to {name}",
@@ -333,7 +345,11 @@
     "workspaceRestored": "{workspace} is restored.",
     "orgSuspended": "Organization suspended: its workspaces are read-only.",
     "orgUnsuspended": "Organization unsuspended.",
-    "orgRestored": "Organization restored."
+    "orgRestored": "Organization restored.",
+    "transferProposed": "{email} can now accept ownership. You stay an admin once they do.",
+    "transferAccepted": "Transfer accepted.",
+    "transferCancelled": "Transfer cancelled.",
+    "orgTransferProposed": "{email} can now accept the admin seat."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -791,7 +807,8 @@
     "filter": "Filter",
     "organization": "organization",
     "empty": "No events.",
-    "older": "Older events"
+    "older": "Older events",
+    "fullExport": "Download a full export (organization and workspaces, JSON Lines)"
   },
   "OrgMembers": {
     "title": "Members",
@@ -804,7 +821,10 @@
     "removeConfirm": "Remove {email} from the organization and all of its workspaces? Their API keys and organization sign-in sessions end too.",
     "add": "Add a member",
     "addSubmit": "Add",
-    "keepKeys": "Keep their API keys"
+    "keepKeys": "Keep their API keys",
+    "transfer": "Hand over your admin seat",
+    "transferHint": "The member becomes an organization admin when they accept; you become a member.",
+    "transferSubmit": "Propose"
   },
   "OrgKeys": {
     "title": "API keys",

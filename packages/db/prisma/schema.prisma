@@ -833,3 +833,22 @@ model VerifiedDomain {
   @@unique([domain, workspaceId])
   @@index([domain])
 }
+
+/// TLC-06: a pending handover of a workspace's ownership or an organization's admin seat.
+/// The recipient accepts; the sender then steps down (owner → admin, org_admin → org_member).
+/// Exactly one of `workspaceId` / `organizationId` is set.
+model OwnershipTransfer {
+  id             String    @id @default(cuid())
+  workspaceId    String?
+  organizationId String?
+  fromUserId     String
+  toUserId       String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([toUserId])
+  @@index([workspaceId])
+  @@index([organizationId])
+}
