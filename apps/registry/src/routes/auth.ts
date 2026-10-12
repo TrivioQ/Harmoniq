@@ -428,7 +428,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       organizations: orgs.map((m) => ({
         slug: m.organization.slug,
         name: m.organization.name,
-        role: m.role as 'org_admin' | 'org_member',
+        role: m.role as 'org_admin' | 'org_member' | 'org_billing' | 'org_auditor',
       })),
       // TLC-02: their pages answer 410, so owners find them (and restore them) here.
       deletedWorkspaces: scope

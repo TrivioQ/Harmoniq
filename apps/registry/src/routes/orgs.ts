@@ -3,6 +3,7 @@
 
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
+import type { Invitation } from '@prisma/client';
 import { z } from 'zod';
 import type { TenantTx } from '@harmoniq/db';
 import type { Organization } from '@prisma/client';
@@ -43,6 +44,13 @@ import {
 import { orgSsoRoutes } from './orgSso';
 import { orgDomainRoutes } from './domains';
 import { proposeTransfer, transferDto } from './transfers';
+import {
+  acceptUrl,
+  createInvitation,
+  invitationDto,
+  renewInvitation,
+  sendInvitationEmail,
+} from '../services/invitations';
 import { organizationRecords, sendTenantExport } from '../services/tenantExport';
 
 declare module 'fastify' {
@@ -78,7 +86,11 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
 
-  function requireOrg(level: 'member' | 'admin', opts: { allowOrgKey?: boolean } = {}) {
+  /**
+   * `member`: any org role; `admin`: org_admin; `auditor`: org_admin or org_auditor (PPL-08:
+   * read-only access to the audit log, settings and people).
+   */
+  function requireOrg(level: 'member' | 'admin' | 'auditor', opts: { allowOrgKey?: boolean } = {}) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
       await fastify.authenticate(request, reply);
       if (reply.sent) return;
@@ -141,6 +153,11 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: { code: 'NOT_FOUND', message: 'Organization not found' } });
       }
       const role = membership?.role as OrgRole | undefined;
+      if (level === 'auditor' && role !== 'org_admin' && role !== 'org_auditor') {
+        return reply.code(403).send({
+          error: { code: 'FORBIDDEN', message: 'Requires an organization admin or auditor' },
+        });
+      }
       if (level === 'admin' && role !== 'org_admin') {
         return reply
           .code(403)
@@ -154,6 +171,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   const member = { preHandler: requireOrg('member') };
   const admin = { preHandler: requireOrg('admin') };
   const adminOrOrgKey = { preHandler: requireOrg('admin', { allowOrgKey: true }) };
+  const auditor = { preHandler: requireOrg('auditor') };
 
   /** An org audit event, in the given org transaction or in its own. */
   const orgAudit = (
@@ -253,43 +271,56 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug', member, async (request) => {
     const org = request.org!;
     const since = new Date(Date.now() - 24 * 3_600_000);
-    const { workspaces, lastDeploys, health, recent } = await inOrg(request, async (tx) => {
-      const workspaces = await tx.workspace.findMany({
-        where: { organizationId: org.id },
-        orderBy: { name: 'asc' },
-        include: {
-          _count: {
-            // Joined members only: pending invitations aren't members yet.
-            select: {
-              WorkspaceMembers: { where: { joinedAt: { not: null } } },
-              RemoteModules: true,
+    const { workspaces, lastDeploys, health, recent, mine, requested } = await inOrg(
+      request,
+      async (tx) => {
+        const workspaces = await tx.workspace.findMany({
+          where: { organizationId: org.id },
+          orderBy: { name: 'asc' },
+          include: {
+            _count: {
+              // Joined members only: pending invitations aren't members yet.
+              select: {
+                WorkspaceMembers: { where: { joinedAt: { not: null } } },
+                RemoteModules: true,
+              },
             },
           },
-        },
-      });
-      const ids = workspaces.map((w) => w.id);
-      const lastDeploys = await tx.moduleVersion.groupBy({
-        by: ['workspaceId'],
-        where: { workspaceId: { in: ids } },
-        _max: { deployedAt: true },
-      });
-      const health = await tx.moduleHealthRollup.groupBy({
-        by: ['workspaceId'],
-        where: { workspaceId: { in: ids }, hour: { gte: since } },
-        _sum: { sampleCount: true, errorCount: true },
-      });
-      const recent = await tx.moduleVersion.findMany({
-        where: { workspaceId: { in: ids } },
-        orderBy: { deployedAt: 'desc' },
-        take: 10,
-        include: {
-          remoteModule: { select: { slug: true } },
-          environment: { select: { slug: true } },
-          workspace: { select: { slug: true } },
-        },
-      });
-      return { workspaces, lastDeploys, health, recent };
-    });
+        });
+        const ids = workspaces.map((w) => w.id);
+        const lastDeploys = await tx.moduleVersion.groupBy({
+          by: ['workspaceId'],
+          where: { workspaceId: { in: ids } },
+          _max: { deployedAt: true },
+        });
+        const health = await tx.moduleHealthRollup.groupBy({
+          by: ['workspaceId'],
+          where: { workspaceId: { in: ids }, hour: { gte: since } },
+          _sum: { sampleCount: true, errorCount: true },
+        });
+        const recent = await tx.moduleVersion.findMany({
+          where: { workspaceId: { in: ids } },
+          orderBy: { deployedAt: 'desc' },
+          take: 10,
+          include: {
+            remoteModule: { select: { slug: true } },
+            environment: { select: { slug: true } },
+            workspace: { select: { slug: true } },
+          },
+        });
+        // PPL-07: what the caller has in each workspace, so the dashboard can offer requests.
+        const principalId = request.principal!.id;
+        const mine = await tx.workspaceMember.findMany({
+          where: { userId: principalId, workspaceId: { in: ids }, joinedAt: { not: null } },
+          select: { workspaceId: true, role: true },
+        });
+        const requested = await tx.accessRequest.findMany({
+          where: { userId: principalId, workspaceId: { in: ids }, status: 'pending' },
+          select: { workspaceId: true },
+        });
+        return { workspaces, lastDeploys, health, recent, mine, requested };
+      }
+    );
     const lastDeploy = new Map(lastDeploys.map((d) => [d.workspaceId, d._max.deployedAt]));
     const healthOf = new Map(health.map((h) => [h.workspaceId, h._sum]));
     return {
@@ -305,6 +336,10 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           members: w._count.WorkspaceMembers,
           modules: w._count.RemoteModules,
           lastDeployAt: lastDeploy.get(w.id)?.toISOString() ?? null,
+          yourRole:
+            mine.find((m) => m.workspaceId === w.id)?.role ??
+            (request.orgRole === 'org_admin' ? 'admin' : null),
+          accessRequested: requested.some((r) => r.workspaceId === w.id),
           // TLC-02: deleted workspaces stay listed (restorable) until the purge.
           deletedAt: w.deletedAt?.toISOString() ?? null,
           purgeAfter: w.purgeAfter?.toISOString() ?? null,
@@ -559,6 +594,253 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // ─── Invitations (PPL-01/02) ──────────────────────────────────────────────
+
+  const mailDeps = () => ({
+    mailer: fastify.container.mailer,
+    instanceName: fastify.container.settings.branding().name,
+    logger: fastify.container.logger,
+  });
+
+  /** Emails an org invitation; the link always goes back to the inviter. */
+  async function deliverOrgInvitation(
+    request: FastifyRequest,
+    invitation: Invitation,
+    token: string
+  ) {
+    const url = acceptUrl(fastify.config.webOrigin, token);
+    const emailed = await sendInvitationEmail(mailDeps(), {
+      email: invitation.email,
+      url,
+      kind: 'organization',
+      name: request.org!.name,
+      role: invitation.role,
+      inviter: request.principal?.type === 'user' ? request.principal.email : null,
+    });
+    if (emailed) {
+      await inOrg(request, (tx) =>
+        tx.invitation.update({ where: { id: invitation.id }, data: { lastSentAt: new Date() } })
+      );
+    }
+    return { acceptUrl: url, emailed };
+  }
+
+  fastify.get<{ Params: OrgParams }>('/api/orgs/:orgSlug/invitations', admin, async (request) => {
+    const invitations = await inOrg(request, (tx) =>
+      tx.invitation.findMany({
+        where: { organizationId: request.org!.id },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      })
+    );
+    return { invitations: invitations.map(invitationDto) };
+  });
+
+  /** PPL-01: invites someone to the organization by email; they join when they accept. */
+  fastify.post<{ Params: OrgParams }>(
+    '/api/orgs/:orgSlug/invitations',
+    admin,
+    async (request, reply) => {
+      const body = AddOrgMemberSchema.parse(request.body);
+      const email = body.email.trim().toLowerCase();
+      const principal = request.principal!;
+      const { invitation, token } = await inOrg(request, async (tx) => {
+        const existing = await tx.organizationMember.findFirst({
+          where: {
+            organizationId: request.org!.id,
+            user: { email: { equals: email, mode: 'insensitive' } },
+          },
+        });
+        if (existing) throw new ConflictError(`${email} is already a member`);
+        const created = await createInvitation(
+          tx,
+          { organizationId: request.org!.id },
+          { email, role: body.role, invitedBy: `user:${principal.id}` }
+        );
+        await orgAudit(
+          request,
+          {
+            action: 'org.member_invite',
+            resourceType: 'invitation',
+            resourceId: created.invitation.id,
+            metadata: { email, role: body.role },
+          },
+          tx
+        );
+        return created;
+      });
+      const delivery = await deliverOrgInvitation(request, invitation, token);
+      return reply.code(201).send({ ...invitationDto(invitation), ...delivery });
+    }
+  );
+
+  const findOrgInvitation = async (tx: TenantTx, request: FastifyRequest, id: string) => {
+    const invitation = await tx.invitation.findFirst({
+      where: { id, organizationId: request.org!.id },
+    });
+    if (!invitation) throw new NotFoundError('Invitation not found');
+    return invitation;
+  };
+
+  fastify.post<{ Params: OrgParams & { invitationId: string } }>(
+    '/api/orgs/:orgSlug/invitations/:invitationId/resend',
+    admin,
+    async (request) => {
+      const { invitation, token } = await inOrg(request, async (tx) => {
+        const current = await findOrgInvitation(tx, request, request.params.invitationId);
+        const renewed = await renewInvitation(tx, current);
+        await orgAudit(
+          request,
+          {
+            action: 'org.member_invite_resend',
+            resourceType: 'invitation',
+            resourceId: current.id,
+            metadata: { email: current.email },
+          },
+          tx
+        );
+        return renewed;
+      });
+      return {
+        ...invitationDto(invitation),
+        ...(await deliverOrgInvitation(request, invitation, token)),
+      };
+    }
+  );
+
+  fastify.delete<{ Params: OrgParams & { invitationId: string } }>(
+    '/api/orgs/:orgSlug/invitations/:invitationId',
+    admin,
+    async (request, reply) => {
+      await inOrg(request, async (tx) => {
+        const current = await findOrgInvitation(tx, request, request.params.invitationId);
+        if (current.acceptedAt) throw new ConflictError('This invitation was already accepted');
+        await tx.invitation.update({ where: { id: current.id }, data: { revokedAt: new Date() } });
+        await orgAudit(
+          request,
+          {
+            action: 'org.member_invite_revoke',
+            resourceType: 'invitation',
+            resourceId: current.id,
+            metadata: { email: current.email },
+          },
+          tx
+        );
+      });
+      return reply.code(204).send();
+    }
+  );
+
+  // ─── People (PPL-03) ──────────────────────────────────────────────────────
+
+  /**
+   * Everyone with access to the organization or its workspaces: org role, workspace roles
+   * and how they got them (invitation or org rules), implicit org-admin access, SCIM, last
+   * sign-in and API keys created; plus pending invitations. `query` filters by email or
+   * name, `workspace` by workspace; sorted by email with `cursor` (the last email) paging.
+   */
+  fastify.get<{
+    Params: OrgParams;
+    Querystring: { query?: string; workspace?: string; cursor?: string; limit?: string };
+  }>('/api/orgs/:orgSlug/people', auditor, async (request) => {
+    const org = request.org!;
+    const q = request.query;
+    const limit = Math.min(200, Math.max(1, Number(q.limit) || 50));
+    const data = await inOrg(request, async (tx) => {
+      const workspaces = await tx.workspace.findMany({
+        where: { organizationId: org.id, deletedAt: null },
+        select: { id: true, slug: true },
+      });
+      const wsIds = workspaces.map((w) => w.id);
+      return {
+        workspaces,
+        orgMembers: await tx.organizationMember.findMany({ where: { organizationId: org.id } }),
+        wsMembers: await tx.workspaceMember.findMany({
+          where: { workspaceId: { in: wsIds }, joinedAt: { not: null } },
+        }),
+        scim: await tx.scimUser.findMany({
+          where: { organizationId: org.id, deletedAt: null },
+          select: { userId: true, active: true },
+        }),
+        keys: await tx.apiKey.groupBy({
+          by: ['createdBy'],
+          where: { workspaceId: { in: wsIds }, revokedAt: null, createdBy: { not: null } },
+          _count: { _all: true },
+        }),
+        orgKeys: await tx.orgApiKey.groupBy({
+          by: ['createdBy'],
+          where: { organizationId: org.id, revokedAt: null, createdBy: { not: null } },
+          _count: { _all: true },
+        }),
+        invitations: await tx.invitation.findMany({
+          where: {
+            OR: [{ organizationId: org.id }, { workspaceId: { in: wsIds } }],
+            acceptedAt: null,
+            revokedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        users: await tx.user.findMany({
+          where: {
+            OR: [
+              { OrganizationMembers: { some: { organizationId: org.id } } },
+              {
+                WorkspaceMembers: { some: { workspaceId: { in: wsIds }, joinedAt: { not: null } } },
+              },
+            ],
+          },
+          select: { id: true, email: true, name: true, lastLoginAt: true },
+        }),
+      };
+    });
+    const slugOf = new Map(data.workspaces.map((w) => [w.id, w.slug]));
+    const orgRole = new Map(data.orgMembers.map((m) => [m.userId, m.role]));
+    const scim = new Map(data.scim.map((u) => [u.userId, u.active]));
+    const keyCount = new Map<string, number>();
+    for (const k of [...data.keys, ...data.orgKeys]) {
+      keyCount.set(k.createdBy!, (keyCount.get(k.createdBy!) ?? 0) + k._count._all);
+    }
+    const term = q.query?.trim().toLowerCase();
+    const people = data.users
+      .map((u) => ({
+        user: u,
+        orgRole: orgRole.get(u.id) ?? null,
+        workspaces: data.wsMembers
+          .filter((m) => m.userId === u.id)
+          .map((m) => ({
+            slug: slugOf.get(m.workspaceId) ?? m.workspaceId,
+            role: m.role,
+            source: m.orgProvisioned ? 'org_rules' : 'member',
+          })),
+        // Org admins administer every workspace without a membership (ORG-08).
+        implicitAdmin: orgRole.get(u.id) === 'org_admin',
+        scim: scim.has(u.id) ? { active: scim.get(u.id)! } : null,
+        apiKeys: keyCount.get(u.id) ?? 0,
+      }))
+      .filter(
+        (p) =>
+          (!term ||
+            p.user.email.toLowerCase().includes(term) ||
+            (p.user.name ?? '').toLowerCase().includes(term)) &&
+          (!q.workspace || p.workspaces.some((w) => w.slug === q.workspace))
+      )
+      .sort((a, b) => a.user.email.localeCompare(b.user.email))
+      .filter((p) => !q.cursor || p.user.email.localeCompare(q.cursor) > 0);
+    const page = people.slice(0, limit);
+    return {
+      people: page.map((p) => ({
+        ...p,
+        user: { ...p.user, lastLoginAt: p.user.lastLoginAt?.toISOString() ?? null },
+      })),
+      nextCursor: people.length > limit ? page[page.length - 1].user.email : null,
+      invitations: data.invitations.map((i) => ({
+        ...invitationDto(i),
+        workspace: i.workspaceId ? (slugOf.get(i.workspaceId) ?? null) : null,
+      })),
+    };
+  });
+
   // ─── Workspaces (ORG-03/08) ───────────────────────────────────────────────
 
   fastify.post<{ Params: OrgParams }>(
@@ -576,6 +858,22 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           : { userId: principal.id, ip: request.ip },
         fastify.container.cache
       );
+      // PPL-02: email the invited owners (best effort).
+      for (const { invitation, token } of workspace.invited) {
+        const emailed = await sendInvitationEmail(mailDeps(), {
+          email: invitation.email,
+          url: acceptUrl(fastify.config.webOrigin, token),
+          kind: 'workspace',
+          name: workspace.name,
+          role: invitation.role,
+          inviter: principal.type === 'user' ? principal.email : null,
+        });
+        if (emailed) {
+          await withTenant(workspace.id, (tx) =>
+            tx.invitation.update({ where: { id: invitation.id }, data: { lastSentAt: new Date() } })
+          );
+        }
+      }
       await orgAudit(request, {
         action: 'org.workspace_create',
         resourceType: 'workspace',
@@ -720,7 +1018,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       cursor?: string;
       limit?: string;
     };
-  }>('/api/orgs/:orgSlug/audit', admin, async (request) => {
+  }>('/api/orgs/:orgSlug/audit', auditor, async (request) => {
     const org = request.org!;
     const q = request.query;
     const limit = Math.min(200, Math.max(1, Number(q.limit) || 50));
@@ -806,7 +1104,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       from?: string;
       to?: string;
     };
-  }>('/api/orgs/:orgSlug/audit/export', admin, async (request, reply) => {
+  }>('/api/orgs/:orgSlug/audit/export', auditor, async (request, reply) => {
     const org = request.org!;
     const q = request.query;
     const format = exportFormat(q.format);
@@ -1072,7 +1370,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  orgSsoRoutes(fastify, { admin, orgAudit });
+  orgSsoRoutes(fastify, { admin, reader: auditor, orgAudit });
   orgDomainRoutes(fastify, { admin, orgAudit });
 };
 

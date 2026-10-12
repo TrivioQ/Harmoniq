@@ -271,7 +271,7 @@ CREATE POLICY workspace_isolation_version ON "ModuleVersion"
 | Scope                                   | Tables                                                                                                                                                                                                                                                                                                                                                                      |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | By `workspaceId` (workspace or its org) | `WorkspaceMember`, `HostApp`, `RemoteModule`, `ModuleVersion`, `ApiKey`, `WebhookEndpoint`, `WebhookDelivery`, `WebhookDeadLetter`, `AuditEvent`, `ModuleOwnership`, `AlertRule`, `ManifestSnapshot`, `ModuleHealthEvent`, `ModuleHealthRollup`, `ModuleEnvState`, `ScheduledOperation`, `ApprovalPolicy`, `DeploymentRequest`, `WorkspaceConfig`, `WorkspaceStorageConfig` |
-| By `workspaceId` or `organizationId`    | `ScimUser`, `ScimGroup`, `ScimAuditEvent`, `VerifiedDomain`, `OwnershipTransfer` (rows of a workspace or of an organization)                                                                                                                                                                                                                                                |
+| By `workspaceId` or `organizationId`    | `ScimUser`, `ScimGroup`, `ScimAuditEvent`, `VerifiedDomain`, `OwnershipTransfer`, `Invitation` (rows of a workspace or of an organization)                                                                                                                                                                                                                                  |
 | `Workspace`                             | Its `id` is the current workspace or one of the organization's, or its `organizationId` is the current organization                                                                                                                                                                                                                                                         |
 | By `organizationId`                     | `OrganizationMember`, `OrgApiKey`, `OrganizationAuditEvent`; `Organization` by `id`                                                                                                                                                                                                                                                                                         |
 | Through the parent row                  | `Environment` (via `HostApp`), `DeploymentApproval` (via `DeploymentRequest`)                                                                                                                                                                                                                                                                                               |
@@ -795,6 +795,27 @@ Per-workspace BYOB storage adapter override (§18). When present, the registry r
 
 `OrganizationAuditEvent` and `ScimAuditEvent` no longer have foreign keys to `Organization` (AUD-05): a purged organization's trail stays.
 
+### `Invitation`
+
+PPL-01/02 (migration `20261011170000_invitations_access_requests`). Pending invitations grant nothing; accepting creates the membership. Replaces `WorkspaceMember` rows with `joinedAt = null` (migrated).
+
+| Column                                                   | Type                    | Notes                                                     |
+| -------------------------------------------------------- | ----------------------- | --------------------------------------------------------- |
+| `id`                                                     | `CUID`                  | Primary key                                               |
+| `workspaceId`                                            | `CUID?`                 | Exactly one of the two (CHECK); RLS like SCIM rows; no FK |
+| `organizationId`                                         | `CUID?`                 |                                                           |
+| `email`                                                  | `String`                | Lowercase; indexed                                        |
+| `role`                                                   | `String`                | Workspace role or org role                                |
+| `tokenHash`                                              | `String`                | Unique; sha256 of the emailed token                       |
+| `invitedBy`                                              | `String`                | `user:<id>`, `apiKey:<id>` or `system:<what>`             |
+| `expiresAt`                                              | `DateTime`              | 7 days; renewed by resend                                 |
+| `acceptedAt` / `acceptedBy` / `revokedAt` / `lastSentAt` | `DateTime?` / `String?` |                                                           |
+| `createdAt`                                              | `DateTime`              |                                                           |
+
+### `AccessRequest`
+
+PPL-07. An org member asks to join a workspace: `workspaceId`, `userId`, `role` (default `viewer`), `message?`, `status` (`pending`, `approved`, `denied`), `decidedBy?`, `decidedAt?`, `createdAt`. RLS by `workspaceId` (also the organization's workspaces).
+
 ### `OwnershipTransfer`
 
 TLC-06 (migration `20261011160000_ownership_transfers`). A pending handover of a workspace's ownership or an organization's admin seat.
@@ -837,16 +858,14 @@ DOM-01..05 (migration `20261011120000_verified_domains`). A domain claimed by an
 
 > Not yet in `schema.prisma`. Designed in [features/tenant-administration.md](./features/tenant-administration.md) and tracked in [implementation-plan.md Phase 9](./implementation-plan.md). Move each entry into the sections above when its migration lands.
 
-| Change                                                                                               | Sub-phase | Requirements              |
-| ---------------------------------------------------------------------------------------------------- | --------- | ------------------------- |
-| `Invitation` (org or workspace, token hash, expiry); pending `WorkspaceMember` rows migrated into it | 9.3       | PPL-01, PPL-02            |
-| `AccessRequest`; `OrgRole` adds `org_billing`, `org_auditor`                                         | 9.3       | PPL-07, PPL-08            |
-| `OrgApiKey.gracePeriodEnd`                                                                           | 9.4       | TAD-05                    |
-| `OrgPolicy`                                                                                          | 9.5       | POL-01–POL-08             |
-| `UsageDaily`, `ModuleVersion.sizeBytes`, plan `overrides` / `planExpiresAt` / `basePlan`             | 9.6       | USG-01, PLN-04–06         |
-| `User.suspendedAt/suspendedReason/mfa*`; `RefreshToken.lastUsedAt/userAgent/ip`                      | 9.7       | SES-01–SES-04             |
-| `AuditSink`, audit `prevHash`/`hash`, org webhooks, `NotificationChannel`                            | 9.8       | AUD-06, AUD-09, TAD-09/10 |
-| `SupportGrant`                                                                                       | 9.10      | INST-20                   |
-| Sealed JSON envelopes gain `kid` (key id); no schema change                                          | 9.9       | INST-26                   |
-| `InstanceAdmin.role`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceConfigVersion`           | 9.9       | INST-31, INST-33, INST-35 |
-| `ReplicaHeartbeat`, `SignInEvent`, `EmailDelivery`                                                   | 9.10      | INST-28, INST-38, INST-39 |
+| Change                                                                                     | Sub-phase | Requirements              |
+| ------------------------------------------------------------------------------------------ | --------- | ------------------------- |
+| `OrgApiKey.gracePeriodEnd`                                                                 | 9.4       | TAD-05                    |
+| `OrgPolicy`                                                                                | 9.5       | POL-01–POL-08             |
+| `UsageDaily`, `ModuleVersion.sizeBytes`, plan `overrides` / `planExpiresAt` / `basePlan`   | 9.6       | USG-01, PLN-04–06         |
+| `User.suspendedAt/suspendedReason/mfa*`; `RefreshToken.lastUsedAt/userAgent/ip`            | 9.7       | SES-01–SES-04             |
+| `AuditSink`, audit `prevHash`/`hash`, org webhooks, `NotificationChannel`                  | 9.8       | AUD-06, AUD-09, TAD-09/10 |
+| `SupportGrant`                                                                             | 9.10      | INST-20                   |
+| Sealed JSON envelopes gain `kid` (key id); no schema change                                | 9.9       | INST-26                   |
+| `InstanceAdmin.role`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceConfigVersion` | 9.9       | INST-31, INST-33, INST-35 |
+| `ReplicaHeartbeat`, `SignInEvent`, `EmailDelivery`                                         | 9.10      | INST-28, INST-38, INST-39 |

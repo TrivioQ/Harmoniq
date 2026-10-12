@@ -13,7 +13,7 @@ import {
 } from '../../actions';
 
 const input = 'rounded-md border px-3 py-1.5 text-sm';
-const ROLES = ['org_member', 'org_admin'] as const;
+const ROLES = ['org_member', 'org_admin', 'org_auditor', 'org_billing'] as const;
 
 /** ORG-04/08: organization members. Org admins administer every workspace in the org. */
 export default async function OrgMembersPage(props: { params: Promise<{ orgSlug: string }> }) {

@@ -852,3 +852,45 @@ model OwnershipTransfer {
   @@index([workspaceId])
   @@index([organizationId])
 }
+
+/// PPL-01/02: an invitation to a workspace or an organization (exactly one). Pending ones
+/// grant nothing; accepting (the link, or signing in with the invited email) creates the
+/// membership. The token is sent by email and stored hashed.
+model Invitation {
+  id             String    @id @default(cuid())
+  workspaceId    String?
+  organizationId String?
+  email          String
+  /// A workspace role (owner, admin, developer, viewer) or an organization role.
+  role           String
+  tokenHash      String    @unique
+  /// `user:<id>`, `apiKey:<id>` or `system:<what>`.
+  invitedBy      String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  acceptedBy     String?
+  revokedAt      DateTime?
+  lastSentAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([email])
+  @@index([workspaceId])
+  @@index([organizationId])
+}
+
+/// PPL-07: an organization member asks to join one of its workspaces.
+model AccessRequest {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String    @default("viewer")
+  message     String?
+  /// `pending`, `approved` or `denied`.
+  status      String    @default("pending")
+  decidedBy   String?
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, status])
+  @@index([userId])
+}

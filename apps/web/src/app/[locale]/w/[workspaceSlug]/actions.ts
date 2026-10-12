@@ -267,13 +267,80 @@ export async function rotateApiKeyAction(workspace: string, keyId: string, _prev
 
 // ─── Members ────────────────────────────────────────────────────────────────
 
+/** PPL-01/02: the invitation is emailed when possible; the link is shown either way. */
 export async function inviteMemberAction(workspace: string, _prev: ActionResult, form: FormData) {
   return run(
     () =>
-      authedFetch(`/api/workspaces/${enc(workspace)}/members`, {
-        body: { email: field(form, 'email'), role: field(form, 'role') },
+      authedFetch<{ acceptUrl: string; emailed: boolean }>(
+        `/api/workspaces/${enc(workspace)}/members`,
+        { body: { email: field(form, 'email'), role: field(form, 'role') } }
+      ),
+    (t, r) => {
+      const { acceptUrl, emailed } = r as { acceptUrl: string; emailed: boolean };
+      return {
+        status: 'success',
+        message: t(emailed ? 'invitationEmailed' : 'invitationLinkOnly'),
+        secret: acceptUrl,
+      };
+    }
+  );
+}
+
+export async function resendInvitationAction(
+  workspace: string,
+  invitationId: string,
+  _prev: ActionResult
+) {
+  return run(
+    () =>
+      authedFetch<{ acceptUrl: string; emailed: boolean }>(
+        `/api/workspaces/${enc(workspace)}/invitations/${enc(invitationId)}/resend`,
+        { method: 'POST', body: {} }
+      ),
+    (t, r) => {
+      const { acceptUrl, emailed } = r as { acceptUrl: string; emailed: boolean };
+      return {
+        status: 'success',
+        message: t(emailed ? 'invitationEmailed' : 'invitationLinkOnly'),
+        secret: acceptUrl,
+      };
+    }
+  );
+}
+
+export async function revokeInvitationAction(
+  workspace: string,
+  invitationId: string,
+  _prev: ActionResult
+) {
+  return run(
+    () =>
+      authedFetch(`/api/workspaces/${enc(workspace)}/invitations/${enc(invitationId)}`, {
+        method: 'DELETE',
       }),
-    (t) => ({ status: 'success', message: t('memberInvited') })
+    (t) => ({ status: 'success', message: t('invitationRevoked') })
+  );
+}
+
+/** PPL-07: approve (with a role) or deny someone's request to join. */
+export async function decideAccessAction(
+  workspace: string,
+  requestId: string,
+  decision: 'approve' | 'deny',
+  _prev: ActionResult,
+  form?: FormData
+) {
+  const role = form ? field(form, 'role') : '';
+  return run(
+    () =>
+      authedFetch(
+        `/api/workspaces/${enc(workspace)}/access-requests/${enc(requestId)}/${decision}`,
+        { body: role ? { role } : {} }
+      ),
+    (t) => ({
+      status: 'success',
+      message: t(decision === 'approve' ? 'accessApproved' : 'accessDenied'),
+    })
   );
 }
 

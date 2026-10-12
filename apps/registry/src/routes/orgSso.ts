@@ -31,6 +31,8 @@ export function orgSsoRoutes(
   fastify: FastifyInstance,
   deps: {
     admin: { preHandler: Handler };
+    /** PPL-08: reads are also open to org auditors. */
+    reader: { preHandler: Handler };
     orgAudit: (
       request: FastifyRequest,
       event: {
@@ -46,7 +48,7 @@ export function orgSsoRoutes(
   const inOrg = <T>(request: FastifyRequest, fn: (tx: TenantTx) => Promise<T>) =>
     fastify.container.withOrg(request.org!.id, fn);
   const { encryptionKey, publicUrl } = fastify.config;
-  const { admin, orgAudit } = deps;
+  const { admin, reader, orgAudit } = deps;
   const samlService = fastify.ssoProviders.samlService;
   const base = '/api/orgs/:orgSlug';
   const subjectOf = (request: FastifyRequest): SsoSubject => ({
@@ -62,7 +64,7 @@ export function orgSsoRoutes(
     });
 
   /** Which workspaces use the organization's SSO, and which override it with their own. */
-  fastify.get<{ Params: OrgParams }>(`${base}/sso`, admin, async (request) => {
+  fastify.get<{ Params: OrgParams }>(`${base}/sso`, reader, async (request) => {
     const org = request.org!;
     const workspaces = await inOrg(request, (tx) =>
       tx.workspace.findMany({
@@ -96,7 +98,7 @@ export function orgSsoRoutes(
     providerId: ssoProviderId('oidc', subjectOf(request)),
   });
 
-  fastify.get<{ Params: OrgParams }>(`${base}/sso/oidc`, admin, async (request) => {
+  fastify.get<{ Params: OrgParams }>(`${base}/sso/oidc`, reader, async (request) => {
     const org = request.org!;
     const stored = org.oidcConfig as StoredOidcConfig | null;
     return { oidc: stored ? oidcDto(request, stored, org.forceSso) : null };
@@ -173,7 +175,7 @@ export function orgSsoRoutes(
     },
   });
 
-  fastify.get<{ Params: OrgParams }>(`${base}/sso/saml`, admin, async (request) =>
+  fastify.get<{ Params: OrgParams }>(`${base}/sso/saml`, reader, async (request) =>
     samlDto(request, request.org!.samlConfig as StoredSamlConfig | null, request.org!.forceSso)
   );
 
@@ -245,7 +247,7 @@ export function orgSsoRoutes(
 
   fastify.get<{ Params: OrgParams & { testId: string } }>(
     `${base}/sso/saml/test/:testId`,
-    admin,
+    reader,
     async (request) => {
       const result = await samlService.testResult(request.params.testId);
       if (!result) throw new NotFoundError('No result for this test (it expires after 10 minutes)');
@@ -255,7 +257,7 @@ export function orgSsoRoutes(
 
   // ─── Group rules (ORG-07) ─────────────────────────────────────────────────
 
-  fastify.get<{ Params: OrgParams }>(`${base}/provisioning`, admin, async (request) =>
+  fastify.get<{ Params: OrgParams }>(`${base}/provisioning`, reader, async (request) =>
     orgProvisioning(request.org!.provisioning)
   );
 
@@ -292,7 +294,7 @@ export function orgSsoRoutes(
   const scimBaseUrl = (request: FastifyRequest) =>
     `${publicUrl}/scim/v2/orgs/${encodeURIComponent(request.org!.slug)}`;
 
-  fastify.get<{ Params: OrgParams }>(`${base}/scim`, admin, async (request) => {
+  fastify.get<{ Params: OrgParams }>(`${base}/scim`, reader, async (request) => {
     const org = request.org!;
     const [users, groups] = await Promise.all([
       inOrg(request, (tx) =>
@@ -341,7 +343,7 @@ export function orgSsoRoutes(
 
   fastify.get<{ Params: OrgParams; Querystring: { limit?: string } }>(
     `${base}/scim/events`,
-    admin,
+    reader,
     async (request) => {
       const take = Math.min(200, Math.max(1, Number(request.query.limit) || 50));
       const events = await inOrg(request, (tx) =>

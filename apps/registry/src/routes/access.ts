@@ -1,9 +1,10 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { ApiKey, Role } from '@prisma/client';
+import type { ApiKey, Invitation, Role } from '@prisma/client';
+import type { TenantTx } from '@harmoniq/db';
 import {
   BadRequestError,
   ConflictError,
@@ -13,6 +14,13 @@ import {
 import { ApiKeyCreateSchema } from '@harmoniq/core/dist/schemas/ApiKeyCreateSchema';
 import { displayPrefix, formatApiKey, generateApiKeySecret } from '../auth/apiKeys';
 import { audit } from '../services/audit';
+import {
+  acceptUrl,
+  createInvitation,
+  invitationDto,
+  renewInvitation,
+  sendInvitationEmail,
+} from '../services/invitations';
 
 type WsParams = { workspaceSlug: string };
 
@@ -55,7 +63,7 @@ function keyDto(k: ApiKey) {
 }
 
 const accessRoutes: FastifyPluginAsync = async (fastify) => {
-  const { withTenant } = fastify.container;
+  const { withTenant, withOrg } = fastify.container;
   const actor = (request: FastifyRequest) => ({ principal: request.principal!, ip: request.ip });
   const admin = { preHandler: fastify.requireWorkspace('workspace:admin') };
 
@@ -218,21 +226,55 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/workspaces/:workspaceSlug/members',
     admin,
     async (request) => {
-      const members = await withTenant(request.workspace!.id, (tx) =>
-        tx.workspaceMember.findMany({
+      const workspace = request.workspace!;
+      const { members, invitations } = await withTenant(workspace.id, async (tx) => ({
+        members: await tx.workspaceMember.findMany({
+          where: { joinedAt: { not: null } },
           include: { user: { select: { id: true, email: true, name: true, avatarUrl: true } } },
           orderBy: { invitedAt: 'asc' },
-        })
-      );
+        }),
+        invitations: await tx.invitation.findMany({
+          where: { workspaceId: workspace.id, acceptedAt: null, revokedAt: null },
+          orderBy: { createdAt: 'asc' },
+        }),
+      }));
+      // PPL-06: org admins administer the workspace without a membership; show them too.
+      const memberIds = new Set(members.map((m) => m.userId));
+      const orgAdmins = workspace.organizationId
+        ? (
+            await withOrg(workspace.organizationId, (tx) =>
+              tx.organizationMember.findMany({
+                where: { organizationId: workspace.organizationId!, role: 'org_admin' },
+                include: {
+                  user: { select: { id: true, email: true, name: true, avatarUrl: true } },
+                },
+              })
+            )
+          ).filter((m) => !memberIds.has(m.userId))
+        : [];
+      const ownerless = !members.some((m) => m.role === 'owner');
       return {
-        members: members.map((m) => ({
-          id: m.id,
-          role: m.role,
-          status: m.joinedAt ? 'active' : 'invited',
-          invitedAt: m.invitedAt.toISOString(),
-          joinedAt: m.joinedAt?.toISOString() ?? null,
-          user: m.user,
-        })),
+        members: [
+          ...members.map((m) => ({
+            id: m.id,
+            role: m.role,
+            status: 'active' as const,
+            source: m.orgProvisioned ? ('org_rules' as const) : ('member' as const),
+            invitedAt: m.invitedAt.toISOString(),
+            joinedAt: m.joinedAt?.toISOString() ?? null,
+            user: m.user,
+          })),
+          ...orgAdmins.map((m) => ({
+            id: null,
+            role: ownerless ? ('owner' as const) : ('admin' as const),
+            status: 'active' as const,
+            source: 'org_admin' as const,
+            invitedAt: null,
+            joinedAt: null,
+            user: m.user,
+          })),
+        ],
+        invitations: invitations.map(invitationDto),
       };
     }
   );
@@ -250,38 +292,132 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
     }
   }
 
-  fastify.post<{ Params: WsParams }>(
-    '/api/workspaces/:workspaceSlug/members',
+  /** PPL-02: emails the invitation when possible; the link goes back to the inviter too. */
+  async function deliver(request: FastifyRequest, invitation: Invitation, token: string) {
+    const workspace = request.workspace!;
+    const url = acceptUrl(fastify.config.webOrigin, token);
+    const emailed = await sendInvitationEmail(
+      {
+        mailer: fastify.container.mailer,
+        instanceName: fastify.container.settings.branding().name,
+        logger: fastify.container.logger,
+      },
+      {
+        email: invitation.email,
+        url,
+        kind: 'workspace',
+        name: workspace.name,
+        role: invitation.role,
+        inviter: request.principal?.type === 'user' ? request.principal.email : null,
+      }
+    );
+    if (emailed) {
+      await withTenant(workspace.id, (tx) =>
+        tx.invitation.update({ where: { id: invitation.id }, data: { lastSentAt: new Date() } })
+      );
+    }
+    return { acceptUrl: url, emailed };
+  }
+
+  /**
+   * PPL-01: invites someone by email. Nothing is granted until they accept (the emailed
+   * link, or signing in with that email). `POST …/members` is the original path.
+   */
+  const invite = async (request: FastifyRequest<{ Params: WsParams }>, reply: FastifyReply) => {
+    const principal = requireUser(request);
+    const body = InviteSchema.parse(request.body);
+    assertCanAssign(request, body.role);
+    const workspace = request.workspace!;
+    const email = body.email.trim().toLowerCase();
+    const { invitation, token } = await withTenant(workspace.id, async (tx) => {
+      const existing = await tx.workspaceMember.findFirst({
+        where: { joinedAt: { not: null }, user: { email: { equals: email, mode: 'insensitive' } } },
+      });
+      if (existing) throw new ConflictError(`${email} is already a member`);
+      const created = await createInvitation(
+        tx,
+        { workspaceId: workspace.id },
+        { email, role: body.role, invitedBy: `user:${principal.id}` }
+      );
+      await audit(tx, workspace.id, actor(request), {
+        action: 'member.invite',
+        resourceType: 'invitation',
+        resourceId: created.invitation.id,
+        metadata: { email, role: body.role },
+      });
+      return created;
+    });
+    const delivery = await deliver(request, invitation, token);
+    return reply.code(201).send({ ...invitationDto(invitation), status: 'invited', ...delivery });
+  };
+  fastify.post<{ Params: WsParams }>('/api/workspaces/:workspaceSlug/members', admin, invite);
+  fastify.post<{ Params: WsParams }>('/api/workspaces/:workspaceSlug/invitations', admin, invite);
+
+  fastify.get<{ Params: WsParams }>(
+    '/api/workspaces/:workspaceSlug/invitations',
+    admin,
+    async (request) => {
+      const invitations = await withTenant(request.workspace!.id, (tx) =>
+        tx.invitation.findMany({
+          where: { workspaceId: request.workspace!.id },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
+        })
+      );
+      return { invitations: invitations.map(invitationDto) };
+    }
+  );
+
+  const findInvitation = async (tx: TenantTx, request: FastifyRequest, id: string) => {
+    const invitation = await tx.invitation.findFirst({
+      where: { id, workspaceId: request.workspace!.id },
+    });
+    if (!invitation) throw new NotFoundError('Invitation not found');
+    return invitation;
+  };
+
+  /** PPL-01: a new link and expiry, emailed again. */
+  fastify.post<{ Params: WsParams & { invitationId: string } }>(
+    '/api/workspaces/:workspaceSlug/invitations/:invitationId/resend',
+    admin,
+    async (request) => {
+      requireUser(request);
+      const workspace = request.workspace!;
+      const { invitation, token } = await withTenant(workspace.id, async (tx) => {
+        const current = await findInvitation(tx, request, request.params.invitationId);
+        assertCanAssign(request, current.role as Role);
+        const renewed = await renewInvitation(tx, current);
+        await audit(tx, workspace.id, actor(request), {
+          action: 'member.invite_resend',
+          resourceType: 'invitation',
+          resourceId: current.id,
+          metadata: { email: current.email },
+        });
+        return renewed;
+      });
+      return { ...invitationDto(invitation), ...(await deliver(request, invitation, token)) };
+    }
+  );
+
+  fastify.delete<{ Params: WsParams & { invitationId: string } }>(
+    '/api/workspaces/:workspaceSlug/invitations/:invitationId',
     admin,
     async (request, reply) => {
       requireUser(request);
-      const body = InviteSchema.parse(request.body);
-      assertCanAssign(request, body.role);
       const workspace = request.workspace!;
-      const email = body.email.trim().toLowerCase();
-
-      const member = await withTenant(workspace.id, async (tx) => {
-        // The invitee may not have signed in yet: create the user now; their first sign-in
-        // with this verified email links to it and accepts the invitation.
-        const user =
-          (await tx.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } })) ??
-          (await tx.user.create({ data: { email } }));
-        const existing = await tx.workspaceMember.findUnique({
-          where: { workspaceId_userId: { workspaceId: workspace.id, userId: user.id } },
-        });
-        if (existing) throw new ConflictError(`${email} is already a member`);
-        const created = await tx.workspaceMember.create({
-          data: { workspaceId: workspace.id, userId: user.id, role: body.role },
-        });
+      await withTenant(workspace.id, async (tx) => {
+        const current = await findInvitation(tx, request, request.params.invitationId);
+        assertCanAssign(request, current.role as Role);
+        if (current.acceptedAt) throw new ConflictError('This invitation was already accepted');
+        await tx.invitation.update({ where: { id: current.id }, data: { revokedAt: new Date() } });
         await audit(tx, workspace.id, actor(request), {
-          action: 'member.invite',
-          resourceType: 'member',
-          resourceId: created.id,
-          metadata: { email, role: body.role },
+          action: 'member.invite_revoke',
+          resourceType: 'invitation',
+          resourceId: current.id,
+          metadata: { email: current.email },
         });
-        return created;
       });
-      return reply.code(201).send({ id: member.id, email, role: member.role, status: 'invited' });
+      return reply.code(204).send();
     }
   );
 

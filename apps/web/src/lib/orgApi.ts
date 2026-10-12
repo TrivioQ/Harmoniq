@@ -10,7 +10,8 @@ import type {
   ScimSettings,
 } from './workspaceApi';
 
-export type OrgRole = 'org_admin' | 'org_member';
+/** PPL-08: org_billing and org_auditor are read-only roles. */
+export type OrgRole = 'org_admin' | 'org_member' | 'org_billing' | 'org_auditor';
 
 export interface OrgHome {
   slug: string;
@@ -26,6 +27,9 @@ export interface OrgHome {
     /** TLC-02: deleted, restorable until `purgeAfter`. */
     deletedAt?: string | null;
     purgeAfter?: string | null;
+    /** PPL-07: your role there (org admins: admin), and whether you asked to join. */
+    yourRole?: string | null;
+    accessRequested?: boolean;
     health: { samples: number; errorRate: number } | null;
   }>;
   recentDeploys: Array<{
@@ -97,6 +101,25 @@ export interface OrgProvisioning {
   adminGroups: string[];
 }
 
+/** PPL-03: someone with access to the organization or its workspaces. */
+export interface OrgPerson {
+  user: { id: string; email: string; name: string | null; lastLoginAt: string | null };
+  orgRole: OrgRole | null;
+  workspaces: Array<{ slug: string; role: string; source: 'member' | 'org_rules' }>;
+  implicitAdmin: boolean;
+  scim: { active: boolean } | null;
+  apiKeys: number;
+}
+
+export interface OrgInvitation {
+  id: string;
+  email: string;
+  role: string;
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  expiresAt: string;
+  workspace?: string | null;
+}
+
 const enc = encodeURIComponent;
 const org = (slug: string) => `/api/orgs/${enc(slug)}`;
 
@@ -113,6 +136,16 @@ export const orgApi = {
   },
   catalog: (slug: string) => authedFetch<{ modules: CatalogModule[] }>(`${org(slug)}/modules`),
   members: (slug: string) => authedFetch<{ members: OrgMember[] }>(`${org(slug)}/members`),
+  people: (slug: string, query: { query?: string; cursor?: string }) => {
+    const params = new URLSearchParams(
+      Object.entries(query).filter((e): e is [string, string] => !!e[1])
+    );
+    return authedFetch<{
+      people: OrgPerson[];
+      nextCursor: string | null;
+      invitations: OrgInvitation[];
+    }>(`${org(slug)}/people?${params}`);
+  },
   keys: (slug: string) => authedFetch<{ keys: OrgKey[] }>(`${org(slug)}/keys`),
   sso: (slug: string) => authedFetch<OrgSsoOverview>(`${org(slug)}/sso`),
   oidc: (slug: string) => authedFetch<{ oidc: OidcSettings | null }>(`${org(slug)}/sso/oidc`),

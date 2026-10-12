@@ -32,8 +32,7 @@ The audience is org admins (self-service tenant administration), security and co
 | `TLC-01`, `TLC-02`, `TLC-04`, `TLC-08`                  | Owner self-delete, soft delete and restore, org suspension, creation policy                                                                                                                | ✅ Done (9.2)                               |
 | `TLC-06`, `TLC-07`                                      | Ownership transfers the recipient accepts; tenant exports as streamed JSON Lines                                                                                                           | ✅ Done (9.2)                               |
 | `AUD-05`                                                | Audit history survives workspace deletion; retention GC; export of a deleted workspace's log                                                                                               | ✅ Done (9.2 item, delivered with 9.1)      |
-| `PPL-02` (scope)                                        | A sign-in accepts only invitations its session can reach                                                                                                                                   | ✅ Done                                     |
-| `PPL-01`–`PPL-03`, `PPL-06`–`PPL-08`                    | Invitations (emailed, expiring), People directory, effective access, access requests, billing/auditor roles                                                                                | 📋 Planned (9.3)                            |
+| `PPL-01`–`PPL-03`, `PPL-06`–`PPL-08`                    | Invitations (emailed, expiring, resend, revoke, accept link), People directory, implicit org admins on members, access requests, org auditor and billing roles                             | ✅ Done (9.3)                               |
 | `TAD-01`, `TAD-04`–`TAD-08`, `AUD-07`, `AUD-08`         | Org settings and people pages, org key parity, org home and catalog upgrades, shared navigation, audit UX                                                                                  | 📋 Planned (9.4)                            |
 | `POL-01`–`POL-09`, `TAD-03`                             | Organization policy center (approval defaults complete `ORG-08`)                                                                                                                           | 📋 Planned (9.5)                            |
 | `PLN-04`–`PLN-06`, `USG-01`–`USG-04`, `MT-12`, `TAD-02` | Usage metering, numeric quotas, overrides and trials, per-tenant API rate limits, usage pages (complete `INST-09`)                                                                         | 📋 Planned (9.6)                            |
@@ -137,21 +136,49 @@ Instance admins no longer get workspace access implicitly. Only the storage rout
 
 **YES** (behavioural, staged across Phase 9), each with a migration path:
 
-| Change                                                                                                                                                                             | Migration path                                                                                                                                                                |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Deleting a workspace or org is a soft delete; manifests of a deleted workspace answer `410` instead of `404`                                                                       | Set `HARMONIQ_TENANT_RESTORE_DAYS=0` for immediate purge. `@harmoniq/client` is updated in 9.2 to treat `410` like `404` (fallback manifest).                                 |
-| SSO discovery uses verified domains only                                                                                                                                           | Unverified domains keep JIT/domain join for `HARMONIQ_DOMAIN_GRACE_DAYS`; the dashboard prompts for verification.                                                             |
-| Removing an org member removes their workspace memberships, created keys and org-SSO sessions; `DELETE /api/orgs/:org/members/:id` answers `200` with the effects instead of `204` | `?keepKeys=true` keeps keys; the confirmation lists effects. SCIM behaviour is unchanged. Clients that expected an empty `204` body should accept `200`.                      |
-| SSO discovery no longer picks the first of several workspaces or organizations listing the same unverified domain                                                                  | Verify the domain; until then such a domain returns `404` from discovery (users can still choose the workspace's SSO directly).                                               |
-| Pending workspace invitations become `Invitation` rows (7-day expiry from the migration)                                                                                           | Data migration; resend from the dashboard.                                                                                                                                    |
-| The RLS migration no longer creates `harmoniq_app`                                                                                                                                 | Only affects new databases: run `scripts/bootstrap-db.ts` or `docker/init.sql` first (already documented in `self-hosting.md`).                                               |
-| `AuditEvent` / `ScimAuditEvent` lose their cascading FK to `Workspace`: a deleted workspace's events stay until retention                                                          | Schema-only; `HARMONIQ_AUDIT_RETENTION_DAYS` (default 400) sets how long. Code that counted on audit rows disappearing with the workspace must filter by existing workspaces. |
+| Change                                                                                                                                                                                                                                                                                                        | Migration path                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deleting a workspace or org is a soft delete; manifests of a deleted workspace answer `410` instead of `404`                                                                                                                                                                                                  | Set `HARMONIQ_TENANT_RESTORE_DAYS=0` for immediate purge. `@harmoniq/client` is updated in 9.2 to treat `410` like `404` (fallback manifest).                                 |
+| SSO discovery uses verified domains only                                                                                                                                                                                                                                                                      | Unverified domains keep JIT/domain join for `HARMONIQ_DOMAIN_GRACE_DAYS`; the dashboard prompts for verification.                                                             |
+| Removing an org member removes their workspace memberships, created keys and org-SSO sessions; `DELETE /api/orgs/:org/members/:id` answers `200` with the effects instead of `204`                                                                                                                            | `?keepKeys=true` keeps keys; the confirmation lists effects. SCIM behaviour is unchanged. Clients that expected an empty `204` body should accept `200`.                      |
+| SSO discovery no longer picks the first of several workspaces or organizations listing the same unverified domain                                                                                                                                                                                             | Verify the domain; until then such a domain returns `404` from discovery (users can still choose the workspace's SSO directly).                                               |
+| Pending workspace invitations become `Invitation` rows (7-day expiry from the migration); `GET /api/workspaces/:ws/members` lists only memberships (plus implicit org admins with `id: null`) and returns invitations in `invitations`; `POST …/members` answers with the invitation (`acceptUrl`, `emailed`) | Data migration; resend from the dashboard for a link. Clients reading `status: "invited"` from the members list read `invitations` instead.                                   |
+| The RLS migration no longer creates `harmoniq_app`                                                                                                                                                                                                                                                            | Only affects new databases: run `scripts/bootstrap-db.ts` or `docker/init.sql` first (already documented in `self-hosting.md`).                                               |
+| `AuditEvent` / `ScimAuditEvent` lose their cascading FK to `Workspace`: a deleted workspace's events stay until retention                                                                                                                                                                                     | Schema-only; `HARMONIQ_AUDIT_RETENTION_DAYS` (default 400) sets how long. Code that counted on audit rows disappearing with the workspace must filter by existing workspaces. |
 
 All API additions are additive. New org roles don't change the meaning of `org_admin` / `org_member`.
 
 ---
 
 ## Change History
+
+### 2026-10-11 — Phase 9.3: invitations, people, access requests, org roles
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** PPL-01, PPL-02, PPL-03, PPL-06, PPL-07, PPL-08
+
+#### What changed
+
+- **PPL-01/02:**
+  - New `Invitation` table (migration `20261011170000_invitations_access_requests`). Pending workspace memberships become invitations: a data migration converts existing ones.
+  - Workspace and org invitations: create, list, resend (new link) and revoke. They are emailed with an accept link when email is configured, and the link is always returned to the inviter.
+  - `GET /api/invitations/:token` and `POST /api/invitations/:token/accept` require the invited, verified email and a session that can reach the tenant. Signing in still accepts matching invitations, within the session's reach.
+  - Owners invited at org workspace creation (TLC-05) are invitations too, and are emailed.
+- **PPL-03:** `GET /api/orgs/:org/people`.
+- **PPL-06:** workspace members include org admins who administer the workspace without a membership. Invitations are listed separately.
+- **PPL-07:** `AccessRequest` lets org members ask to join a workspace, and its admins approve or deny. The org home reports `yourRole` and `accessRequested`.
+- **PPL-08:** org roles `org_auditor` (reads the audit log, exports, People, and the SSO, provisioning and SCIM settings) and `org_billing`.
+- **Dashboard:**
+  - `/invite/:token` page (public).
+  - Workspace members page: invitations, access requests, and implicit admins.
+  - Org People page.
+  - Request access on the org home.
+  - New roles in the role pickers, and Audit and People in the nav for auditors.
+
+#### Testing
+
+`people.test.ts` covers the invitation lifecycle and email, link acceptance by the right account only, resend, expiry and revoke, owner-invite limits, org invitations with the auditor role, People, implicit admins and access requests. The auth, scope and ownerless tests now use invitations. The data migration SQL was run on seeded rows in a rolled-back transaction. The dashboard pages were fetched as signed-in users against a local registry and dashboard. Registry 59 files / 402 tests.
 
 ### 2026-10-11 — Ownership transfers and tenant exports
 

@@ -829,34 +829,35 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Database
 
-- [ ] `Invitation` model: `scope` (`organization` | `workspace`), `organizationId?`, `workspaceId?` (RLS on `workspaceId` / org RLS), `email`, `role`, `tokenHash` (unique), `invitedBy`, `expiresAt`, `acceptedAt?`, `revokedAt?`, `lastSentAt?`
-- [ ] Data migration: `WorkspaceMember` rows with `joinedAt = null` become `Invitation` rows (7-day expiry from migration time) and are deleted
-- [ ] `AccessRequest` model: `workspaceId`, `userId`, `role`, `message?`, `status`, `decidedBy?`, `decidedAt?`
-- [ ] `OrgRole` adds `org_billing`, `org_auditor` (PPL-08)
+- [x] `Invitation` model: `workspaceId?` / `organizationId?` (CHECK one), `email`, `role`, `tokenHash` (unique), `invitedBy`, `expiresAt`, `acceptedAt?`, `acceptedBy?`, `revokedAt?`, `lastSentAt?`; RLS like SCIM rows (migration `20261011170000_invitations_access_requests`)
+- [x] Data migration: pending `WorkspaceMember` rows become invitations (lowercased email, same role, 7-day expiry, accepted by signing in) and are deleted; verified in a rolled-back transaction
+- [x] `AccessRequest` model (workspace RLS, also the org's workspaces)
+- [x] `OrgRole` adds `org_billing`, `org_auditor` (PPL-08)
 
 #### Registry
 
-- [ ] `POST /api/workspaces/:ws/invitations`, `POST /api/orgs/:org/invitations` (replaces member creation for unknown users; `POST …/members` keeps working and creates an invitation), `GET`, `POST …/:id/resend`, `DELETE …/:id` (PPL-01)
-- [ ] Invitation email through `IMailer` with the instance branding; `GET /api/invitations/:token` and `POST /api/invitations/:token/accept` (signed-in user with the same verified email); first sign-in fallback when no mailer (PPL-02)
+- [x] `POST /api/workspaces/:ws/invitations` (and `POST …/members`, same behaviour), `GET`, `POST …/:id/resend`, `DELETE …/:id`; `POST /api/orgs/:org/invitations` likewise (`POST /api/orgs/:org/members` still adds existing users at once); owners invited at org workspace creation become invitations (PPL-01)
+- [x] Invitation email through `IMailer` with the instance name and the accept link (`acceptUrl` also returned to the inviter); `GET /api/invitations/:token` (public, rate-limited), `POST /api/invitations/:token/accept` (same verified email, session must reach the tenant); signing in with the invited email also accepts (PPL-02)
 - [x] `authService.login` accepts only invitations the new session can reach (`invitationScope.test.ts`): an SSO-scoped sign-in accepts invitations to its own workspace (or its organization's workspaces), not every pending one (PPL-02, gap analysis P1-9)
-- [ ] `GET /api/orgs/:org/people?query=&workspace=&role=&cursor=`: org members, workspace members of the org's workspaces, implicit org admins, SSO/SCIM source, last sign-in, keys created, pending invitations (PPL-03)
-- [ ] Workspace members response adds implicit org admins (`source: "org_admin"`, not removable there) (PPL-06)
-- [ ] `POST /api/workspaces/:ws/access-requests` (org members only), `GET`, `POST …/:id/approve|deny`; `access_request.created` webhook event (PPL-07)
-- [ ] `requireOrg` levels for `org_billing` and `org_auditor`; org audit and export open to `org_auditor`; SSO, provisioning and policy GETs open to `org_auditor` (PPL-08)
+- [x] `GET /api/orgs/:org/people?query=&workspace=&cursor=&limit=`: org role, workspace roles with source, implicit org-admin access, SCIM state, last sign-in, keys created; pending invitations (PPL-03)
+- [x] Workspace members response adds implicit org admins (`id: null`, `source: "org_admin"`) and lists invitations separately (`invitations`) (PPL-06)
+- [x] `POST /api/workspaces/:ws/access-requests` (org members only, one pending), `GET`, `POST …/:id/approve|deny` (never owner); org home reports `yourRole` and `accessRequested` per workspace (PPL-07; webhook event and admin notification come with TAD-09/10)
+- [x] `requireOrg('auditor')`: org audit and export, People, SSO, provisioning and SCIM reads open to `org_auditor`; `org_billing` reads like a member until usage lands (9.6) (PPL-08)
 
 #### Dashboard
 
-- [ ] Invitations section on workspace members and org People pages: pending list, resend, revoke, expiry
-- [ ] `/invite/:token` accept page
-- [ ] "Request access" on org home and catalog rows for workspaces the user isn't in; access requests queue for workspace admins
+- [x] Invitations on the workspace members page and the org People page: pending list, resend (shows the new link), revoke, expiry; invite forms show the link
+- [x] `/invite/:token` page (public): what the invitation is for, accept when signed in with that email, otherwise how to
+- [x] "Request access" on the org home for workspaces you're not in; access-request queue with approve (role) / deny on the workspace members page; org People page; new roles in the org members page; Audit and People in the nav for auditors
+- [ ] "Request access" from the org catalog (with the catalog work in TAD-07)
 
 #### Test Suite
 
-- [ ] Invitation lifecycle: create, email sent (ConsoleMailer), accept with matching email only, expired and revoked refused, resend rotates the token
-- [ ] Data migration of pending memberships
-- [ ] People directory: sources, filters, pagination, `org_member` can't read it
-- [ ] Access requests: only org members, approve creates the membership, deny audited
-- [ ] New org roles: allowed and refused endpoints for each
+- [x] Invitation lifecycle (`people.test.ts`): email sent, link accepted by the invited email only, once; resend replaces the link; expiry; revoke; owner invitations limited
+- [x] Data migration of pending memberships (SQL run against seeded rows in a rolled-back transaction)
+- [x] People directory: roles and sources, implicit admins, invitations, search, paging, `org_member` refused
+- [x] Access requests: org members only, duplicates refused, approve with another role, deny audited
+- [x] Org auditor: audit, SSO, provisioning, People readable; keys and changes refused
 
 ### 9.4 Tenant Admin Dashboard (M5.4)
 

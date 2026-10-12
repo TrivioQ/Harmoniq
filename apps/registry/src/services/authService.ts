@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createHash, randomBytes, randomUUID } from 'crypto';
-import { Prisma, PrismaClient, User } from '@prisma/client';
+import { Invitation, Prisma, PrismaClient, User } from '@prisma/client';
 import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import { IdentityError, IdentityUserInfo } from '@harmoniq/core/dist/ports/IdentityProvider';
 import { SessionResponse, SessionUser } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { ACCESS_TOKEN_TTL_SECONDS, signAccessToken } from '../auth/tokens';
 import { parseSsoProviderId } from './ssoIds';
+import { grantInvitation } from './invitations';
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** SSO-27: how often a session re-checks the IdP session with its refresh token. */
@@ -26,24 +27,44 @@ const hashToken = (raw: string) => createHash('sha256').update(raw).digest('hex'
  * reaches that workspace; an organization's SSO, the organization's workspaces that use it
  * (those without their own SSO, ORG-05).
  */
-function reachableWorkspaces(provider: string): Prisma.WorkspaceMemberWhereInput {
+function reachableWorkspaces(provider: string): Prisma.WorkspaceWhereInput {
   const sso = parseSsoProviderId(provider);
   if (!sso) return {};
-  if (sso.subject.kind === 'workspace') return { workspace: { slug: sso.subject.slug } };
+  if (sso.subject.kind === 'workspace') return { slug: sso.subject.slug };
   return {
-    workspace: {
-      organization: { slug: sso.subject.slug },
-      OR: [
-        { WorkspaceConfig: { is: null } },
-        {
-          WorkspaceConfig: {
-            oidcConfig: { equals: Prisma.DbNull },
-            samlConfig: { equals: Prisma.DbNull },
-          },
+    organization: { slug: sso.subject.slug },
+    OR: [
+      { WorkspaceConfig: { is: null } },
+      {
+        WorkspaceConfig: {
+          oidcConfig: { equals: Prisma.DbNull },
+          samlConfig: { equals: Prisma.DbNull },
         },
-      ],
-    },
+      },
+    ],
   };
+}
+
+/** PPL-02: whether a sign-in through `provider` may accept this invitation. */
+export async function invitationReachable(
+  tx: Prisma.TransactionClient,
+  provider: string,
+  invitation: Invitation
+) {
+  const sso = parseSsoProviderId(provider);
+  if (!sso) return true; // instance-wide methods prove the email everywhere
+  if (invitation.workspaceId) {
+    const count = await tx.workspace.count({
+      where: { id: invitation.workspaceId, ...reachableWorkspaces(provider) },
+    });
+    return count > 0;
+  }
+  if (sso.subject.kind !== 'organization') return false;
+  const org = await tx.organization.findUnique({
+    where: { id: invitation.organizationId! },
+    select: { slug: true },
+  });
+  return org?.slug === sso.subject.slug;
 }
 
 /**
@@ -123,10 +144,14 @@ export class AuthService {
         // Pending invitations are addressed to this (now verified) email: accept them, but
         // only those this session can reach (PPL-02). A workspace's or organization's own
         // IdP vouches for emails only within that workspace or organization.
-        await tx.workspaceMember.updateMany({
-          where: { userId: user.id, joinedAt: null, ...reachableWorkspaces(provider) },
-          data: { joinedAt: now },
+        const invitations = await tx.invitation.findMany({
+          where: { email, acceptedAt: null, revokedAt: null, expiresAt: { gt: now } },
         });
+        for (const invitation of invitations) {
+          if (await invitationReachable(tx, provider, invitation)) {
+            await grantInvitation(tx, invitation, user.id);
+          }
+        }
 
         return tx.user.update({
           where: { id: user.id },

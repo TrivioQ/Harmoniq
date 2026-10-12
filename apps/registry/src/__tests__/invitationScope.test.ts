@@ -59,7 +59,7 @@ describe('Invitation acceptance by sign-in method (PPL-02)', () => {
     userId = user.id;
     for (const slug of Object.values(ws)) {
       const w = await db().workspace.findUniqueOrThrow({ where: { slug } });
-      await fx.member(w.id, user.id, 'developer', { joined: false });
+      await fx.invite({ workspaceId: w.id }, email, 'developer');
     }
   });
 

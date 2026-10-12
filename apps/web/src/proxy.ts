@@ -18,7 +18,8 @@ const intlMiddleware = createMiddleware(routing);
 
 const localePrefix = `(?:/(?:${routing.locales.join('|')}))?`;
 // Reachable without a session. /admin/setup is the first-boot wizard (no users exist yet).
-const PUBLIC_PATH = new RegExp(`^${localePrefix}/(?:auth|admin/setup)(?:/|$)`);
+// `invite`: PPL-02, the invitation link explains how to accept before anyone signs in.
+const PUBLIC_PATH = new RegExp(`^${localePrefix}/(?:auth|admin/setup|invite)(?:/|$)`);
 const LOGIN_PATH = new RegExp(`^${localePrefix}/auth/login/?$`);
 
 async function refreshSession(

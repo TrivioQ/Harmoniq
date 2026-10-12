@@ -161,6 +161,57 @@ export async function removeOrgMemberAction(
   );
 }
 
+/** PPL-01: invites someone to the organization; the link is shown either way. */
+export async function inviteOrgMemberAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  return run(
+    () =>
+      authedFetch<{ acceptUrl: string; emailed: boolean }>(org(orgSlug, '/invitations'), {
+        body: { email: field(form, 'email'), role: field(form, 'role') || 'org_member' },
+      }),
+    (t, r) => {
+      const { acceptUrl, emailed } = r as { acceptUrl: string; emailed: boolean };
+      return {
+        status: 'success',
+        message: t(emailed ? 'invitationEmailed' : 'invitationLinkOnly'),
+        secret: acceptUrl,
+      };
+    }
+  );
+}
+
+export async function resendOrgInvitationAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () =>
+      authedFetch<{ acceptUrl: string; emailed: boolean }>(
+        org(orgSlug, `/invitations/${enc(id)}/resend`),
+        { method: 'POST', body: {} }
+      ),
+    (t, r) => {
+      const { acceptUrl, emailed } = r as { acceptUrl: string; emailed: boolean };
+      return {
+        status: 'success',
+        message: t(emailed ? 'invitationEmailed' : 'invitationLinkOnly'),
+        secret: acceptUrl,
+      };
+    }
+  );
+}
+
+export async function revokeOrgInvitationAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(org(orgSlug, `/invitations/${enc(id)}`), { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('invitationRevoked') })
+  );
+}
+
+/** PPL-07: an org member asks to join one of the organization's workspaces. */
+export async function requestAccessAction(workspace: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/workspaces/${enc(workspace)}/access-requests`, { body: {} }),
+    (t) => ({ status: 'success', message: t('accessRequested') })
+  );
+}
+
 /** TLC-06: an org admin hands the admin seat to a member, who must accept. */
 export async function transferOrgAction(orgSlug: string, _prev: ActionResult, form: FormData) {
   const email = field(form, 'email');

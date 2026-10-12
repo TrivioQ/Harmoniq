@@ -94,3 +94,23 @@ export async function cancelTransferAction(id: string, _prev: ActionResult): Pro
   revalidatePath('/', 'layout');
   return { status: 'success', message: t('transferCancelled') };
 }
+
+// ─── Invitations (PPL-01/02) ────────────────────────────────────────────────
+
+/** Accepts an invitation by its link, then opens what it was for. */
+export async function acceptInvitationAction(
+  token: string,
+  _prev: ActionResult
+): Promise<ActionResult> {
+  let target: { kind: string; slug: string };
+  try {
+    target = await authedFetch<{ kind: string; slug: string }>(
+      `/api/invitations/${enc(token)}/accept`,
+      { method: 'POST', body: {} }
+    );
+  } catch (err) {
+    return failure(err);
+  }
+  revalidatePath('/', 'layout');
+  redirect(target.kind === 'workspace' ? `/w/${target.slug}` : `/orgs/${target.slug}`);
+}

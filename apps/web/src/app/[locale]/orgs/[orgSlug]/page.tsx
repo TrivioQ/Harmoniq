@@ -10,6 +10,7 @@ import {
   createOrgWorkspaceAction,
   deleteOrgWorkspaceAction,
   detachWorkspaceAction,
+  requestAccessAction,
 } from '../actions';
 import { restoreWorkspaceAction } from '../../lifecycleActions';
 
@@ -48,10 +49,26 @@ export default async function OrgHomePage(props: { params: Promise<{ orgSlug: st
                 <td className="p-3">
                   {w.deletedAt ? (
                     <span className="font-medium text-muted-foreground line-through">{w.name}</span>
+                  ) : w.yourRole === null ? (
+                    // PPL-07: not a member: ask to join instead of a link that would 404.
+                    <span className="font-medium">{w.name}</span>
                   ) : (
                     <Link href={`/w/${w.slug}`} className="font-medium hover:text-primary">
                       {w.name}
                     </Link>
+                  )}
+                  {!w.deletedAt && w.yourRole === null && (
+                    <div className="mt-1">
+                      {w.accessRequested ? (
+                        <span className="text-xs text-muted-foreground">{t('requested')}</span>
+                      ) : (
+                        <ActionForm
+                          action={requestAccessAction.bind(null, w.slug)}
+                          submitLabel={t('requestAccess')}
+                          variant="outline"
+                        />
+                      )}
+                    </div>
                   )}
                   <div className="text-xs text-muted-foreground font-mono">{w.slug}</div>
                   {w.deletedAt && (

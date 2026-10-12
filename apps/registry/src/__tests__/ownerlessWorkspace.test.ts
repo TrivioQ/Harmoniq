@@ -5,6 +5,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../app';
+import { AuthService } from '../services/authService';
 import { Fixtures, bearer } from './helpers/fixtures';
 
 // TLC-05: every workspace can get an owner, including those an org key created.
@@ -61,16 +62,13 @@ describe('Workspace owners in organizations (TLC-05)', () => {
     expect(res.statusCode).toBe(201);
     expect(res.json().owners).toEqual([invitee]);
     const { id } = await workspace();
-    const members = await db().workspaceMember.findMany({
-      where: { workspaceId: id },
-      include: { user: true },
-    });
-    expect(members).toHaveLength(1);
-    expect(members[0]).toMatchObject({ role: 'owner', joinedAt: null });
-    expect(members[0].user.email).toBe(invitee);
+    // PPL-01: an invitation, not a membership, until they accept.
+    expect(await db().workspaceMember.count({ where: { workspaceId: id } })).toBe(0);
+    const invitation = await db().invitation.findFirstOrThrow({ where: { workspaceId: id } });
+    expect(invitation).toMatchObject({ email: invitee, role: 'owner', acceptedAt: null });
     expect(
       await db().auditEvent.findFirst({ where: { workspaceId: id, action: 'member.invite' } })
-    ).toMatchObject({ actorType: 'apiKey', resourceId: members[0].id });
+    ).toMatchObject({ actorType: 'apiKey', resourceId: invitation.id });
 
     const hostApp = await db().hostApp.findFirstOrThrow({ where: { workspaceId: id } });
     await fx.module(id, hostApp.id, 'checkout');
@@ -99,10 +97,16 @@ describe('Workspace owners in organizations (TLC-05)', () => {
 
   it('makes org admins admins again once an owner has joined', async () => {
     const { id } = await workspace();
-    await db().workspaceMember.updateMany({
-      where: { workspaceId: id, user: { email: invitee } },
-      data: { joinedAt: new Date() },
-    });
+    // The invited owner signs in with that email: the invitation is accepted.
+    await new AuthService(db(), app.config.jwtSecret, app.container.logger).completeLogin(
+      { providerUserId: `gh-${randomUUID()}`, email: invitee, emailVerified: true },
+      'github'
+    );
+    expect(
+      await db().workspaceMember.findFirst({
+        where: { workspaceId: id, user: { email: invitee }, role: 'owner' },
+      })
+    ).not.toBeNull();
     expect((await share(alice, true)).statusCode).toBe(403);
     // Still able to manage owners (e.g. to replace one who left).
     const third = `owner3-${randomUUID()}@test.local`;

@@ -23,7 +23,8 @@ export const CreateOrgWorkspaceSchema = CreateWorkspaceSchema.extend({
 
 // ─── Organizations (ORG-01..15) ─────────────────────────────────────────────
 
-export const OrgRoleSchema = z.enum(['org_admin', 'org_member']);
+/** PPL-08: org_billing (plan and usage, read-only) and org_auditor (audit, settings, people; read-only). */
+export const OrgRoleSchema = z.enum(['org_admin', 'org_member', 'org_billing', 'org_auditor']);
 export type OrgRole = z.infer<typeof OrgRoleSchema>;
 
 export const CreateOrganizationSchema = z.object({

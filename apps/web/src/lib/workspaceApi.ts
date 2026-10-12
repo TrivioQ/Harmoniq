@@ -179,10 +179,32 @@ export interface ApiKeySummary {
 }
 
 export interface Member {
-  id: string;
+  /** Null for org admins, who administer the workspace without a membership (PPL-06). */
+  id: string | null;
   role: Role;
   status: 'active' | 'invited';
+  source?: 'member' | 'org_rules' | 'org_admin';
   user: { id: string; email: string; name: string | null };
+}
+
+/** PPL-01: a pending (or past) invitation. */
+export interface InvitationSummary {
+  id: string;
+  email: string;
+  role: string;
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  expiresAt: string;
+  lastSentAt: string | null;
+  createdAt: string;
+}
+
+/** PPL-07: someone from the organization asking to join. */
+export interface AccessRequestSummary {
+  id: string;
+  role: Role;
+  message: string | null;
+  createdAt: string;
+  user: { id: string; email: string; name: string | null } | null;
 }
 
 export interface WebhookEndpointSummary {
@@ -401,7 +423,10 @@ export const workspaceApi = {
       `/api/manifest/${enc(slug)}/${enc(host)}/${enc(env)}/diff?from=${enc(from)}&to=${enc(to)}`
     ),
   apiKeys: (slug: string) => authedFetch<{ keys: ApiKeySummary[] }>(`${ws(slug)}/api-keys`),
-  members: (slug: string) => authedFetch<{ members: Member[] }>(`${ws(slug)}/members`),
+  members: (slug: string) =>
+    authedFetch<{ members: Member[]; invitations?: InvitationSummary[] }>(`${ws(slug)}/members`),
+  accessRequests: (slug: string) =>
+    authedFetch<{ requests: AccessRequestSummary[] }>(`${ws(slug)}/access-requests`),
   webhooks: (slug: string) =>
     authedFetch<{ endpoints: WebhookEndpointSummary[] }>(`${ws(slug)}/webhooks`),
   deadLetters: (slug: string) =>

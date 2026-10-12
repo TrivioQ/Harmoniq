@@ -349,7 +349,13 @@
     "transferProposed": "{email} can now accept ownership. You stay an admin once they do.",
     "transferAccepted": "Transfer accepted.",
     "transferCancelled": "Transfer cancelled.",
-    "orgTransferProposed": "{email} can now accept the admin seat."
+    "orgTransferProposed": "{email} can now accept the admin seat.",
+    "invitationEmailed": "Invitation sent.",
+    "invitationLinkOnly": "Invitation created. No email is configured: share the link below.",
+    "invitationRevoked": "Invitation revoked.",
+    "accessApproved": "Access granted.",
+    "accessDenied": "Request denied.",
+    "accessRequested": "Request sent to the workspace admins."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -532,7 +538,19 @@
     "save": "Save",
     "remove": "Remove",
     "removeConfirm": "Remove {email} from this workspace?",
-    "keepKeys": "Keep their API keys"
+    "keepKeys": "Keep their API keys",
+    "inviteLink": "Invitation link (share it if the email does not arrive):",
+    "accessRequests": "Access requests",
+    "approve": "Approve",
+    "deny": "Deny",
+    "invitations": "Pending invitations",
+    "invitationExpired": "expired",
+    "invitationExpires": "valid until {date}",
+    "resend": "Resend",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke the invitation for {email}?",
+    "viaOrgRules": "from the organization’s group rules",
+    "viaOrgAdmin": "{role} as an organization admin"
   },
   "WebhooksPage": {
     "add": "Add a webhook",
@@ -761,7 +779,8 @@
     "members": "Members",
     "keys": "API keys",
     "sso": "Single sign-on",
-    "provisioning": "Provisioning"
+    "provisioning": "Provisioning",
+    "people": "People"
   },
   "OrgHome": {
     "description": "Workspaces in this organization, with recent activity and health over the last 24 hours.",
@@ -788,7 +807,9 @@
     "restore": "Restore",
     "delete": "Delete",
     "deleteConfirm": "Delete {workspace}? Hosts stop loading its modules; it can be restored until it is purged.",
-    "typeSlug": "Type the workspace slug to confirm"
+    "typeSlug": "Type the workspace slug to confirm",
+    "requestAccess": "Request access",
+    "requested": "Access requested"
   },
   "OrgCatalog": {
     "title": "Module catalog",
@@ -824,7 +845,9 @@
     "keepKeys": "Keep their API keys",
     "transfer": "Hand over your admin seat",
     "transferHint": "The member becomes an organization admin when they accept; you become a member.",
-    "transferSubmit": "Propose"
+    "transferSubmit": "Propose",
+    "org_auditor": "Auditor (read-only)",
+    "org_billing": "Billing (read-only)"
   },
   "OrgKeys": {
     "title": "API keys",
@@ -1012,5 +1035,47 @@
     "empty": "No domains yet.",
     "add": "Add domain",
     "domain": "Domain"
+  },
+  "InvitePage": {
+    "title": "Invitation",
+    "notFound": "This invitation link is not valid. It may have been resent with a new link.",
+    "status_accepted": "This invitation was already accepted.",
+    "status_revoked": "This invitation was withdrawn.",
+    "status_expired": "This invitation expired. Ask for a new one.",
+    "status_pending": "The workspace or organization no longer exists.",
+    "toWorkspace": "You are invited to the workspace {name} as {role}.",
+    "toOrganization": "You are invited to the organization {name} as {role}.",
+    "expires": "Valid until {date}.",
+    "signInAs": "Sign in with {email}: the invitation is accepted when you do.",
+    "signIn": "Sign in",
+    "wrongAccount": "This invitation is for {email}, but you are signed in as {current}. Sign out and sign in with {email}.",
+    "accept": "Accept invitation"
+  },
+  "OrgPeople": {
+    "title": "People",
+    "description": "Everyone with access to the organization or its workspaces, and how they got it.",
+    "invite": "Invite to the organization",
+    "inviteSubmit": "Invite",
+    "inviteLink": "Invitation link (share it if the email does not arrive):",
+    "invitations": "Pending invitations",
+    "organization": "organization",
+    "expires": "valid until {date}",
+    "resend": "Resend",
+    "revoke": "Revoke",
+    "revokeConfirm": "Revoke the invitation for {email}?",
+    "search": "Search by email or name",
+    "searchButton": "Search",
+    "person": "Person",
+    "orgRole": "Organization role",
+    "workspaces": "Workspaces",
+    "lastSignIn": "Last sign-in",
+    "apiKeys": "API keys",
+    "scim": "provisioned by SCIM",
+    "scimInactive": "deprovisioned by SCIM",
+    "allWorkspaces": "admin of every workspace",
+    "viaRules": "group rules",
+    "never": "never",
+    "empty": "Nobody matches.",
+    "next": "More"
   }
 }

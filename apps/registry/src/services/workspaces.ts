@@ -1,13 +1,14 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Invitation, Prisma, PrismaClient } from '@prisma/client';
 import { ConflictError } from '@harmoniq/core/dist/errors/AppError';
 import type { ICache } from '@harmoniq/core/dist/ports/ICache';
 import { invalidateDefaultHost, invalidateManifest } from './cacheKeys';
 import type { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import type { StorageTarget } from '../adapters/storage/createStorage';
 import type { OrgSharedModules } from './orgShared';
+import { createInvitation } from './invitations';
 import { type ManifestPublisher, publishedPaths } from './manifestPublisher';
 
 /**
@@ -24,6 +25,7 @@ export async function createWorkspace(
   cache?: ICache
 ) {
   let created;
+  const invited: Array<{ invitation: Invitation; token: string }> = [];
   try {
     created = await systemDb.$transaction(async (tx) => {
       const ws = await tx.workspace.create({
@@ -34,15 +36,23 @@ export async function createWorkspace(
           data: { workspaceId: ws.id, userId: creator.userId, role: 'owner', joinedAt: new Date() },
         });
       }
-      // TLC-05: invited owners; their first sign-in with this email accepts the invitation.
+      // TLC-05/PPL-01: invited owners; accepting (the link or signing in) makes them owners.
       for (const email of new Set(input.owners ?? [])) {
-        const user =
-          (await tx.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } })) ??
-          (await tx.user.create({ data: { email } }));
-        if ('userId' in creator && user.id === creator.userId) continue;
-        const member = await tx.workspaceMember.create({
-          data: { workspaceId: ws.id, userId: user.id, role: 'owner' },
-        });
+        if ('userId' in creator) {
+          const self = await tx.user.findUnique({ where: { id: creator.userId } });
+          if (self?.email.toLowerCase() === email) continue;
+        }
+        const { invitation, token } = await createInvitation(
+          tx,
+          { workspaceId: ws.id },
+          {
+            email,
+            role: 'owner',
+            invitedBy:
+              'userId' in creator ? `user:${creator.userId}` : `apiKey:${creator.apiKeyId}`,
+          }
+        );
+        invited.push({ invitation, token });
         await tx.auditEvent.create({
           data: {
             workspaceId: ws.id,
@@ -50,8 +60,8 @@ export async function createWorkspace(
               ? { actorId: creator.userId, actorType: 'user' as const }
               : { actorId: creator.apiKeyId, actorType: 'apiKey' as const }),
             action: 'member.invite',
-            resourceType: 'member',
-            resourceId: member.id,
+            resourceType: 'invitation',
+            resourceId: invitation.id,
             ip: creator.ip,
             metadata: { email, role: 'owner' },
           },
@@ -98,7 +108,7 @@ export async function createWorkspace(
       await invalidateManifest(cache, created.slug, 'default', env);
     }
   }
-  return created;
+  return Object.assign(created, { invited });
 }
 
 /**

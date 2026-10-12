@@ -30,6 +30,8 @@ import adminRoutes from './routes/admin';
 import domainRoutes from './routes/domains';
 import transferRoutes from './routes/transfers';
 import exportRoutes from './routes/exports';
+import invitationRoutes from './routes/invitations';
+import accessRequestRoutes from './routes/accessRequests';
 import workspaceRoutes from './routes/workspaces';
 import gitopsRoutes from './routes/gitops';
 import authRoutes from './routes/auth';
@@ -263,6 +265,8 @@ export async function buildApp() {
   await app.register(domainRoutes);
   await app.register(transferRoutes);
   await app.register(exportRoutes);
+  await app.register(invitationRoutes);
+  await app.register(accessRequestRoutes);
   await app.register(gitopsRoutes);
   await app.register(authRoutes);
 

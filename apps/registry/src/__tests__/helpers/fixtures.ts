@@ -77,6 +77,24 @@ export class Fixtures {
     });
   }
 
+  /** PPL-01: a pending invitation (its token is unknown: accepted by signing in). */
+  async invite(
+    scope: { workspaceId: string } | { organizationId: string },
+    email: string,
+    role: string
+  ) {
+    return this.db.invitation.create({
+      data: {
+        ...scope,
+        email: email.toLowerCase(),
+        role,
+        tokenHash: `test-${randomUUID()}`,
+        invitedBy: 'test',
+        expiresAt: new Date(Date.now() + 7 * 86_400_000),
+      },
+    });
+  }
+
   /** Returns the raw key, as a CI system would hold it. */
   async apiKey(
     workspaceId: string,

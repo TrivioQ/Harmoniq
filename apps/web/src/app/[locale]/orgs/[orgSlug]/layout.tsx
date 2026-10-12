@@ -20,6 +20,8 @@ export default async function OrgLayout(props: {
   if (!org) notFound();
   const base = `/orgs/${org.slug}`;
   const admin = org.role === 'org_admin';
+  // PPL-08: auditors read the audit log and the people directory.
+  const reader = admin || org.role === 'org_auditor';
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -37,9 +39,14 @@ export default async function OrgLayout(props: {
             <Link href={`${base}/catalog`} className="hover:text-primary">
               {t('catalog')}
             </Link>
-            {admin && (
+            {reader && (
               <Link href={`${base}/audit`} className="hover:text-primary">
                 {t('audit')}
+              </Link>
+            )}
+            {reader && (
+              <Link href={`${base}/people`} className="hover:text-primary">
+                {t('people')}
               </Link>
             )}
             <Link href={`${base}/members`} className="hover:text-primary">

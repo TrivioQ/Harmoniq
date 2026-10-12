@@ -180,7 +180,7 @@ describe('Authentication', () => {
     it('links to an existing user with the same verified email and accepts invites', async () => {
       const invited = await fx.user();
       const { workspace } = await fx.workspace();
-      await fx.member(workspace.id, invited.id, 'developer', { joined: false });
+      await fx.invite({ workspaceId: workspace.id }, invited.email, 'developer');
 
       const res = await githubLogin({
         id: 3000 + Math.floor(Math.random() * 1e6),

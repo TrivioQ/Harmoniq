@@ -69,7 +69,11 @@ export const MeResponseSchema = z.object({
   ),
   organizations: z
     .array(
-      z.object({ slug: z.string(), name: z.string(), role: z.enum(['org_admin', 'org_member']) })
+      z.object({
+        slug: z.string(),
+        name: z.string(),
+        role: z.enum(['org_admin', 'org_member', 'org_billing', 'org_auditor']),
+      })
     )
     .default([]),
   /** TLC-02: deleted workspaces you own, restorable until `purgeAfter`. */

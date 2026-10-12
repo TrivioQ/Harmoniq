@@ -349,7 +349,13 @@
     "transferProposed": "{email} ya puede aceptar la propiedad. Cuando lo haga, seguirás como administrador.",
     "transferAccepted": "Transferencia aceptada.",
     "transferCancelled": "Transferencia cancelada.",
-    "orgTransferProposed": "{email} ya puede aceptar el puesto de administrador."
+    "orgTransferProposed": "{email} ya puede aceptar el puesto de administrador.",
+    "invitationEmailed": "Invitación enviada.",
+    "invitationLinkOnly": "Invitación creada. No hay correo configurado: comparte el enlace de abajo.",
+    "invitationRevoked": "Invitación retirada.",
+    "accessApproved": "Acceso concedido.",
+    "accessDenied": "Solicitud rechazada.",
+    "accessRequested": "Solicitud enviada a los administradores del espacio de trabajo."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -532,7 +538,19 @@
     "save": "Guardar",
     "remove": "Eliminar",
     "removeConfirm": "¿Eliminar a {email} de este espacio de trabajo?",
-    "keepKeys": "Conservar sus claves de API"
+    "keepKeys": "Conservar sus claves de API",
+    "inviteLink": "Enlace de invitación (compártelo si el correo no llega):",
+    "accessRequests": "Solicitudes de acceso",
+    "approve": "Aprobar",
+    "deny": "Rechazar",
+    "invitations": "Invitaciones pendientes",
+    "invitationExpired": "caducada",
+    "invitationExpires": "válida hasta el {date}",
+    "resend": "Reenviar",
+    "revoke": "Retirar",
+    "revokeConfirm": "¿Retirar la invitación para {email}?",
+    "viaOrgRules": "por las reglas de grupo de la organización",
+    "viaOrgAdmin": "{role} como administrador de la organización"
   },
   "WebhooksPage": {
     "add": "Añadir un webhook",
@@ -761,7 +779,8 @@
     "members": "Miembros",
     "keys": "Claves de API",
     "sso": "Inicio de sesión único",
-    "provisioning": "Aprovisionamiento"
+    "provisioning": "Aprovisionamiento",
+    "people": "Personas"
   },
   "OrgHome": {
     "description": "Espacios de trabajo de esta organización, con la actividad reciente y la salud de las últimas 24 horas.",
@@ -788,7 +807,9 @@
     "restore": "Restaurar",
     "delete": "Eliminar",
     "deleteConfirm": "¿Eliminar {workspace}? Los hosts dejarán de cargar sus módulos; se puede restaurar hasta que se purgue.",
-    "typeSlug": "Escribe el slug del espacio de trabajo para confirmar"
+    "typeSlug": "Escribe el slug del espacio de trabajo para confirmar",
+    "requestAccess": "Solicitar acceso",
+    "requested": "Acceso solicitado"
   },
   "OrgCatalog": {
     "title": "Catálogo de módulos",
@@ -824,7 +845,9 @@
     "keepKeys": "Conservar sus claves de API",
     "transfer": "Entregar tu puesto de administrador",
     "transferHint": "El miembro pasa a administrador de la organización cuando acepte; tú pasas a miembro.",
-    "transferSubmit": "Proponer"
+    "transferSubmit": "Proponer",
+    "org_auditor": "Auditor (solo lectura)",
+    "org_billing": "Facturación (solo lectura)"
   },
   "OrgKeys": {
     "title": "Claves de API",
@@ -1012,5 +1035,47 @@
     "empty": "Aún no hay dominios.",
     "add": "Añadir dominio",
     "domain": "Dominio"
+  },
+  "InvitePage": {
+    "title": "Invitación",
+    "notFound": "Este enlace de invitación no es válido. Puede que se haya reenviado con un enlace nuevo.",
+    "status_accepted": "Esta invitación ya se aceptó.",
+    "status_revoked": "Esta invitación se retiró.",
+    "status_expired": "Esta invitación caducó. Pide una nueva.",
+    "status_pending": "El espacio de trabajo o la organización ya no existe.",
+    "toWorkspace": "Te han invitado al espacio de trabajo {name} como {role}.",
+    "toOrganization": "Te han invitado a la organización {name} como {role}.",
+    "expires": "Válida hasta el {date}.",
+    "signInAs": "Inicia sesión con {email}: la invitación se acepta al hacerlo.",
+    "signIn": "Iniciar sesión",
+    "wrongAccount": "Esta invitación es para {email}, pero has iniciado sesión como {current}. Cierra sesión e inicia con {email}.",
+    "accept": "Aceptar invitación"
+  },
+  "OrgPeople": {
+    "title": "Personas",
+    "description": "Todas las personas con acceso a la organización o a sus espacios de trabajo, y cómo lo obtuvieron.",
+    "invite": "Invitar a la organización",
+    "inviteSubmit": "Invitar",
+    "inviteLink": "Enlace de invitación (compártelo si el correo no llega):",
+    "invitations": "Invitaciones pendientes",
+    "organization": "organización",
+    "expires": "válida hasta el {date}",
+    "resend": "Reenviar",
+    "revoke": "Retirar",
+    "revokeConfirm": "¿Retirar la invitación para {email}?",
+    "search": "Buscar por correo o nombre",
+    "searchButton": "Buscar",
+    "person": "Persona",
+    "orgRole": "Rol en la organización",
+    "workspaces": "Espacios de trabajo",
+    "lastSignIn": "Último inicio de sesión",
+    "apiKeys": "Claves de API",
+    "scim": "aprovisionado por SCIM",
+    "scimInactive": "desaprovisionado por SCIM",
+    "allWorkspaces": "administrador de todos los espacios",
+    "viaRules": "reglas de grupo",
+    "never": "nunca",
+    "empty": "Nadie coincide.",
+    "next": "Más"
   }
 }
