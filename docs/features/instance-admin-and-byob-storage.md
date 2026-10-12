@@ -25,7 +25,7 @@ Self-hosted enterprise deployments have two distinct operator roles — the _ser
 | `BYOB-13`                                                     | Deleting a workspace removes its storage config and the objects in its bucket (bundles, published manifests)                                                           | ✅ Done (Phase 9, best effort; failures counted in the deletion's audit event)   |
 | `BYOB-01`                                                     | Plan gating (startup / enterprise only, with plan enforcement)                                                                                                         | ✅ Done (M4.11)                                                                  |
 | `INST-23`–`INST-25`                                           | Safety: no admin lockout through sign-in settings, recovery CLI, `/metrics` token, separate metrics port, tenant labels opt-in                                         | ✅ Done (Phase 9.1)                                                              |
-| `INST-26`, `INST-31`–`INST-35`                                | Encryption keyring and re-seal, admin roles and invitations, step-up and admin session limits, instance API keys, more runtime settings, settings history and export   | 📋 Planned (Phase 9.9)                                                           |
+| `INST-26`, `INST-31`–`INST-35`                                | Encryption keyring and re-seal, admin roles and invitations, step-up and admin session limits, instance API keys, more runtime settings, settings history and export   | ✅ Done (Phase 9.9)                                                              |
 | `INST-19`–`INST-22`, `INST-27`–`INST-30`, `INST-36`–`INST-39` | Organizations, support access, overview with attention list, system info and jobs, workspace and user detail, audit search, maintenance mode, email log, security page | 📋 Planned (Phase 9.10)                                                          |
 
 See [`docs/requirements.md §17`](../requirements.md), [`§18`](../requirements.md) and [`§19.9`](../requirements.md) for the full specification, and [the gap analysis §8](../multi-tenancy-gap-analysis.md#8-system-instance-administration) for the review behind the planned items.
@@ -58,12 +58,13 @@ See [`docs/requirements.md §17`](../requirements.md), [`§18`](../requirements.
 
 See [`docs/database-schema.md`](../database-schema.md) for full schema.
 
-### Planned: system administration (Phase 9.1, 9.9, 9.10)
+### System administration (Phase 9.1, 9.9; 9.10 planned)
 
 - **No lockout (INST-23/24).** `InstanceSettings.prepare('auth')` checks each active instance admin's `Identity` providers against the methods that would remain enabled. The `harmoniq-admin` CLI runs inside the registry image with `SYSTEM_DATABASE_URL`, which works when no one can sign in. Its commands are the break-glass path, so they write system-actor audit events.
 - **Keyring (INST-26, ADR-013).** Envelopes record `kid`. Values without one belong to the legacy single key, so existing data needs no migration before the first rotation. Re-sealing is a job, not a migration, because it needs the keys, which the migration runner doesn't have.
-- **Capabilities, not role checks (INST-31).** Each admin route declares a capability (`tenants:write`, `settings:write`, `admins:write`, `jobs:run`, `usage:read`…). Roles map to capability sets, and instance API keys map their scopes onto the same capabilities (INST-33).
-- **Step-up (INST-32).** `POST /api/auth/reauth` repeats the sign-in for the session's own method and stamps `reauth_at` in a short access token. Destructive routes check it, so a stolen long-lived refresh token can't delete tenants.
+- **Capabilities, not role checks (INST-31).** `services/adminAccess.ts` maps each admin write (`METHOD route`) to a capability: `tenants`, `plans`, `sessions`, `users`, `jobs`, or `owner`. Reads need none. A write that isn't listed is owner-only, so a new route is safe by default. Roles are capability sets. Instance API keys use their scope instead (`instance:read` for reads, `instance:admin` for writes). They never manage admins or keys, so automation can't escalate (INST-33).
+- **Step-up (INST-32).** A sign-in, or `POST /api/auth/reauth` with a TOTP or recovery code, stamps `RefreshToken.reauthAt`. Access tokens carry it as `rat`. Destructive routes need it within 10 minutes. A stolen long-lived refresh token can't delete tenants, because refreshing keeps the old stamp.
+- **Settings versions (INST-35).** Each save, restore, import and reset writes an `InstanceConfigVersion` with the stored (sealed) value. History, export and import never show secrets. A restore re-seals the stored value. An import that leaves a secret out keeps the current one.
 - **Operations data (INST-27/28).** Replicas write heartbeats (version, commit, start time, config load time). The overview reads existing signals (`Environment.lastPublishError`, `WebhookDeadLetter`, pg-boss failed jobs, `WorkspaceStorageConfig.lastVerifiedAt`, `AlertRule.lastError`, SAML certificate dates) instead of new bookkeeping.
 
 ## Breaking Changes
@@ -73,6 +74,46 @@ None. `STORAGE_ADAPTER` env var continues to work as the bootstrap default. Exis
 ---
 
 ## Change History
+
+### 2026-10-12 — Phase 9.9: keyring, admin roles, step-up, instance keys, settings history
+
+**Type:** security  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-26, INST-31, INST-32, INST-33, INST-34, INST-35
+
+#### What changed
+
+- **INST-26:**
+  - `HARMONIQ_ENCRYPTION_KEYS` keyring; sealed values record `kid`.
+  - Re-sealing: the `secrets.reseal` job, `POST /api/admin/encryption/reseal` and `harmoniq-admin reseal-secrets`.
+  - `GET /api/admin/encryption`, encryption counts in the health report, and the dashboard **Encryption** page.
+- **INST-31:**
+  - `InstanceAdmin.role` with four roles and `InstanceAdminInvitation`. One active owner always remains.
+  - `/api/me` returns the role and capabilities; the dashboard hides owner-only pages from other roles.
+- **INST-32:**
+  - Re-authentication within 10 minutes for destructive actions (`REAUTH_REQUIRED`); the dashboard asks for a code inline.
+  - Admin MFA requirement (`HARMONIQ_ADMIN_REQUIRE_MFA`), admin IP allowlist, and admin sessions capped at `auth.session.adminMaxHours`.
+- **INST-33:**
+  - Instance API keys (`hq_inst_`), managed under **Admin → API keys**.
+  - Terraform resources `harmoniq_instance_setting`, `harmoniq_workspace_plan` and `harmoniq_organization_plan`, using `GET /api/admin/{workspaces,orgs}/:slug/plan`.
+- **INST-34:** `plans`, `rateLimits`, `gc` and `bundles` settings, applied without a restart.
+- **INST-35:** versions, history and restore, YAML export and import (dry run first). In the dashboard: **Admin → All settings** and `/admin/settings/:key`.
+
+#### Testing
+
+- `keyring.test.ts`: legacy and new envelopes, rotation, unknown keys fail closed, idempotent re-seal.
+- `adminAccess.test.ts`:
+  - the role matrix over every admin route, and `/api/me`;
+  - step-up and admin session cap; MFA and IP allowlist;
+  - instance keys: scopes, expiry, revocation, refused on tenant routes, and plans and settings as Terraform uses them.
+- `settingsHistory.test.ts`: new settings on every replica, versions and restore, no secrets in history or exports, import dry run and apply.
+- Terraform acceptance tests against a dev registry.
+- Smoke test of the dashboard pages in English and Spanish, including the billing role's navigation.
+
+#### Notes
+
+- Instance admins are not managed by Terraform, because instance keys can't manage admins or keys.
+- Admins without MFA re-authenticate by signing in again.
 
 ### 2026-10-11 — Admin lockout guard, recovery CLI, protected metrics
 

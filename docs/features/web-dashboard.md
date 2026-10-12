@@ -38,6 +38,26 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 
 ## Change History
 
+### 2026-10-12 — Admin roles, re-authentication, keys, settings and encryption (Phase 9.9)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-26, INST-31–INST-35
+
+#### What changed
+
+- `/admin/admins`: a role picker for grants and invitations, role and "no MFA" badges, role changes, and pending invitations.
+- The admin nav hides owner-only pages from other roles (from `/api/me` → `instanceAdmin`).
+- `ActionForm`: a `REAUTH_REQUIRED` refusal shows `ReauthPrompt` (a TOTP or recovery code, through `reauthAction`, which sets the new session cookies). The action is then submitted again. Without MFA: sign in again.
+- `/admin/api-keys`: create (shown once), list and revoke instance keys.
+- `/admin/settings`: every setting with its source badge, YAML export (`/api/settings-export`) and import (dry run unless "apply" is ticked).
+- `/admin/settings/:key`: a JSON editor for `plans`, `rateLimits`, `gc` and `bundles`, and for every setting its versions with changed fields and restore. Each setting page links to its history.
+- `/admin/encryption`: keys with value counts, legacy and unknown keys, "Re-seal now".
+
+#### Testing
+
+Typecheck, lint and unit tests. Against a local registry: each new page renders for an owner (English and Spanish); the export downloads; an unknown setting is a 404; a billing admin's nav shows only the read pages.
+
 ### 2026-10-12 — Integrations and audit verification (Phase 9.8)
 
 **Type:** feature  

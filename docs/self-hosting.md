@@ -57,6 +57,9 @@ Put these in `docker/.env` for Compose, or in your orchestrator's secret store:
 | `SYSTEM_DATABASE_URL`                                                      | registry  | `postgresql://harmoniq:…@host:5432/harmoniq`                                                                                                                                                                                                                                                                                                                                            |
 | `JWT_SECRET`                                                               | both      | Same value on registry and dashboard; ≥ 32 random chars (`openssl rand -base64 48`)                                                                                                                                                                                                                                                                                                     |
 | `HARMONIQ_ENCRYPTION_KEY`                                                  | registry  | 32 random bytes, base64 (`openssl rand -base64 32`); encrypts stored credentials and webhook secrets. Keep a backup — losing it makes them unreadable.                                                                                                                                                                                                                                  |
+| `HARMONIQ_ENCRYPTION_KEYS`                                                 | registry  | Instead of `HARMONIQ_ENCRYPTION_KEY`, a keyring for rotation (INST-26): `label:base64,label:base64`, the first one active, the others still opening older values. See [Rotating the encryption key](#rotating-the-encryption-key).                                                                                                                                                      |
+| `HARMONIQ_ADMIN_REQUIRE_MFA`                                               | registry  | INST-32: instance admins must sign in with MFA (or the instance's own OIDC) to use the admin API. Default `1` in production, `0` otherwise.                                                                                                                                                                                                                                             |
+| `HARMONIQ_ADMIN_IP_ALLOWLIST`                                              | registry  | INST-32: optional comma-separated IPs or CIDRs allowed to reach `/api/admin` (behind a proxy, set `TRUST_PROXY`).                                                                                                                                                                                                                                                                       |
 | `APP_URL`                                                                  | dashboard | Public dashboard URL; also set the registry's `WEB_ORIGIN` to it                                                                                                                                                                                                                                                                                                                        |
 | `WEB_ORIGIN`                                                               | registry  | Dashboard origin (CORS, allowed sign-in redirects)                                                                                                                                                                                                                                                                                                                                      |
 | `REGISTRY_URL`                                                             | dashboard | URL the dashboard uses to reach the registry (can be internal)                                                                                                                                                                                                                                                                                                                          |
@@ -110,12 +113,29 @@ When nobody can use the admin panel (every sign-in method off, the last admin go
 ```bash
 docker run --rm -e SYSTEM_DATABASE_URL=… harmoniq/registry npx tsx scripts/harmoniq-admin.ts <command>
 #   grant-admin <email>       make an account an instance admin (created if needed)
-#   reset-setting <key>       drop a setting saved in the admin panel (storage, email, auth, branding)
+#   reset-setting <key>       drop a setting saved in the admin panel (storage, email, auth, branding, …)
+#   encryption-status         sealed values per encryption key
+#   reseal-secrets            re-seal stored secrets with the active key
 #   revoke-sessions <email>   end every session of an account
 #   list-admins               instance admins and the sign-in methods they have used
 ```
 
 Running registries pick up a reset setting within a minute.
+
+### Rotating the encryption key
+
+Stored secrets (SSO and SMTP credentials, webhook secrets, storage keys, MFA secrets) are sealed with the active key. Each sealed value records the id of its key (INST-26).
+
+1. Generate a key: `openssl rand -base64 32`.
+2. Set `HARMONIQ_ENCRYPTION_KEYS=2026b:<new>,2026a:<old>`, with the new key first. A `HARMONIQ_ENCRYPTION_KEY` set alongside counts as one more old key. Restart every replica; new values are sealed with the new key, and old values still open.
+3. Re-seal: **Admin → Encryption → Re-seal now**, or `harmoniq-admin reseal-secrets`. It is idempotent and safe while the registry runs.
+4. When **Admin → Encryption** (or `harmoniq-admin encryption-status`) shows no values on the old key, remove it and restart.
+
+A value sealed with a key that is no longer configured can't be opened: the registry fails closed and the health report counts it under `unknownKeys`.
+
+### Instance admin roles and automation
+
+The first admin is an instance owner. Owners can add admins with narrower roles (operator, support, billing) under **Admin → Instance admins**, inviting people who haven't signed in yet. Destructive actions ask for a fresh code from the authenticator app. Admins without MFA sign in again instead. For automation (the Terraform provider's `harmoniq_instance_setting` and plan resources, scripts), create an instance API key under **Admin → API keys**. Every setting saved in the panel is versioned. **Admin → All settings** exports them as YAML and imports them (dry run first) into another instance.
 
 ### 4. Images
 

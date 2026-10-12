@@ -10,7 +10,7 @@
 ## Entity Relationship Overview
 
 ```text
-Instance level (no RLS)      InstanceConfig · InstanceAdmin · InstanceAuditEvent
+Instance level (no RLS)      InstanceConfig · InstanceConfigVersion · InstanceAdmin · InstanceAdminInvitation · InstanceApiKey · InstanceAuditEvent
                              User · Identity · RefreshToken · EmailLoginToken
 
 Organization (optional,      Organization ── OrganizationMember ── User
@@ -168,19 +168,20 @@ Workspace (RLS tenant) ── WorkspaceMember ── User
 
 ### `RefreshToken`
 
-| Column            | Type        | Notes                                                             |
-| ----------------- | ----------- | ----------------------------------------------------------------- |
-| `id`              | `CUID`      | Primary key                                                       |
-| `userId`          | `CUID`      | FK → User                                                         |
-| `tokenHash`       | `String`    | sha256 of the opaque token                                        |
-| `familyId`        | `String`    | The session; reuse of a rotated token revokes the family          |
-| `expiresAt`       | `DateTime`  | SES-01: the earlier of the session's maximum and the idle timeout |
-| `provider`        | `String?`   | How the session signed in                                         |
-| `mfaVerified`     | `Boolean`   | SES-03: the session passed a second factor                        |
-| `ip`, `userAgent` | `String?`   | SES-02: where it was used from                                    |
-| `usedAt`          | `DateTime?` | Set on rotation (invalidates after use)                           |
-| `revokedAt`       | `DateTime?` | Set on logout                                                     |
-| `createdAt`       | `DateTime`  |                                                                   |
+| Column            | Type        | Notes                                                                          |
+| ----------------- | ----------- | ------------------------------------------------------------------------------ |
+| `id`              | `CUID`      | Primary key                                                                    |
+| `userId`          | `CUID`      | FK → User                                                                      |
+| `tokenHash`       | `String`    | sha256 of the opaque token                                                     |
+| `familyId`        | `String`    | The session; reuse of a rotated token revokes the family                       |
+| `expiresAt`       | `DateTime`  | SES-01: the earlier of the session's maximum and the idle timeout              |
+| `provider`        | `String?`   | How the session signed in                                                      |
+| `mfaVerified`     | `Boolean`   | SES-03: the session passed a second factor                                     |
+| `ip`, `userAgent` | `String?`   | SES-02: where it was used from                                                 |
+| `reauthAt`        | `DateTime?` | INST-32: last sign-in or re-authentication; carried into access tokens (`rat`) |
+| `usedAt`          | `DateTime?` | Set on rotation (invalidates after use)                                        |
+| `revokedAt`       | `DateTime?` | Set on logout                                                                  |
+| `createdAt`       | `DateTime`  |                                                                                |
 
 ### `WebhookEndpoint`
 
@@ -290,7 +291,7 @@ CREATE POLICY workspace_isolation_version ON "ModuleVersion"
 | By `organizationId`, read also from its workspaces | `OrgPolicy` (separate `SELECT` and write policies)                                                                                                                                                                                                                                                                                                                                        |
 | Through the parent row                             | `Environment` (via `HostApp`), `DeploymentApproval` (via `DeploymentRequest`)                                                                                                                                                                                                                                                                                                             |
 | No RLS, revoked from `harmoniq_app`                | `Identity`, `EmailLoginToken`, `RefreshToken`                                                                                                                                                                                                                                                                                                                                             |
-| No RLS (global)                                    | `User` (accounts are shared across tenants), `InstanceConfig`, `InstanceAdmin`, `InstanceAuditEvent`                                                                                                                                                                                                                                                                                      |
+| No RLS (global)                                    | `User` (accounts are shared across tenants), `InstanceConfig`, `InstanceConfigVersion`, `InstanceAdmin`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceAuditEvent`                                                                                                                                                                                                                |
 
 Append-only for `harmoniq_app` (`REVOKE UPDATE, DELETE`): `AuditEvent`, `OrganizationAuditEvent`, `InstanceAuditEvent`. `AuditEvent` and `ScimAuditEvent` have no foreign key to `Workspace` (AUD-05): a deleted workspace's audit trail stays, still scoped by `workspaceId`, until GC removes events older than `HARMONIQ_AUDIT_RETENTION_DAYS`.
 
@@ -811,16 +812,73 @@ Key-value store for all runtime instance configuration. Used by the admin panel 
 
 Grants `InstanceAdmin` privileges to a `User`. Entirely separate from workspace roles.
 
-| Column      | Type        | Notes                                                             |
-| ----------- | ----------- | ----------------------------------------------------------------- |
-| `id`        | `CUID`      | Primary key                                                       |
-| `userId`    | `CUID`      | Unique FK → User                                                  |
-| `grantedBy` | `CUID?`     | FK → User (the admin who granted this role; null for first setup) |
-| `createdAt` | `DateTime`  |                                                                   |
-| `revokedAt` | `DateTime?` | Null = active; set to now() on revocation                         |
+| Column      | Type        | Notes                                                                                                                   |
+| ----------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `id`        | `CUID`      | Primary key                                                                                                             |
+| `userId`    | `CUID`      | Unique FK → User                                                                                                        |
+| `grantedBy` | `CUID?`     | FK → User (the admin who granted this role; null for first setup)                                                       |
+| `role`      | `String`    | INST-31: `instance_owner` (default; existing grants) \| `instance_operator` \| `instance_support` \| `instance_billing` |
+| `createdAt` | `DateTime`  |                                                                                                                         |
+| `revokedAt` | `DateTime?` | Null = active; set to now() on revocation                                                                               |
 
 **Unique**: `userId`  
 **Note**: NOT RLS-scoped. Instance-wide table.
+
+---
+
+### `InstanceAdminInvitation`
+
+INST-31: an email invited to administer the instance before it has an account. The next sign-in with that email that isn't through a tenant's SSO, before `expiresAt` (7 days), accepts it.
+
+| Column                    | Type        | Notes                          |
+| ------------------------- | ----------- | ------------------------------ |
+| `id`                      | `CUID`      | Primary key                    |
+| `email`                   | `String`    | Lower-cased                    |
+| `role`                    | `String`    | The role granted on acceptance |
+| `invitedBy`               | `CUID`      | The instance owner             |
+| `expiresAt`               | `DateTime`  |                                |
+| `acceptedAt`, `revokedAt` | `DateTime?` |                                |
+| `createdAt`               | `DateTime`  |                                |
+
+**Note**: NOT RLS-scoped.
+
+---
+
+### `InstanceApiKey`
+
+INST-33: keys for automation on `/api/admin` only (`hq_inst_<id>_<secret>`).
+
+| Column                                 | Type        | Notes                               |
+| -------------------------------------- | ----------- | ----------------------------------- |
+| `id`                                   | `CUID`      | Primary key; part of the key        |
+| `name`                                 | `String`    |                                     |
+| `keyHash`                              | `String`    | bcrypt of the secret                |
+| `prefix`                               | `String`    | Shown in lists                      |
+| `scopes`                               | `String[]`  | `instance:read` \| `instance:admin` |
+| `expiresAt`, `lastUsedAt`, `revokedAt` | `DateTime?` |                                     |
+| `createdBy`                            | `CUID`      | The instance owner                  |
+| `createdAt`                            | `DateTime`  |                                     |
+
+**Note**: NOT RLS-scoped.
+
+---
+
+### `InstanceConfigVersion`
+
+INST-35: every saved version of an instance setting.
+
+| Column      | Type       | Notes                                                            |
+| ----------- | ---------- | ---------------------------------------------------------------- |
+| `id`        | `CUID`     | Primary key                                                      |
+| `key`       | `String`   | The setting                                                      |
+| `version`   | `Int`      | 1, 2, … per key                                                  |
+| `value`     | `Json`     | As stored in `InstanceConfig` (secrets sealed); `{}` for a reset |
+| `source`    | `String`   | `save` \| `restore` \| `import` \| `reset`                       |
+| `createdBy` | `CUID?`    |                                                                  |
+| `createdAt` | `DateTime` |                                                                  |
+
+**Unique**: `(key, version)`  
+**Note**: NOT RLS-scoped.
 
 ---
 
