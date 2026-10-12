@@ -6,6 +6,7 @@ import { Link } from '@/i18n/routing';
 import { workspaceApi } from '@/lib/workspaceApi';
 import { AuditLine } from '../AuditLine';
 import { AuditExportLinks } from '@/components/AuditExportLinks';
+import { ChainCheck } from '@/components/ChainCheck';
 import {
   AuditActorLabel,
   AuditFilters,
@@ -20,7 +21,7 @@ const FILTERS = ['', 'module.', 'env.', 'apiKey.', 'member.', 'webhook.'] as con
 /** AUD-03, AUD-07/08: filterable, paginated audit log with readable actors. */
 export default async function AuditPage(props: {
   params: Promise<{ workspaceSlug: string }>;
-  searchParams: Promise<AuditQuery>;
+  searchParams: Promise<AuditQuery & { verify?: string }>;
 }) {
   const { workspaceSlug } = await props.params;
   const query = await props.searchParams;
@@ -45,7 +46,17 @@ export default async function AuditPage(props: {
         <p className="text-muted-foreground mt-2">{t('description')}</p>
       </div>
       {(role === 'admin' || role === 'owner') && (
-        <AuditExportLinks scope="workspace" slug={workspaceSlug} action={action} />
+        <>
+          <AuditExportLinks scope="workspace" slug={workspaceSlug} action={action} />
+          <ChainCheck
+            href={`/w/${workspaceSlug}/audit?verify=1`}
+            reports={
+              query.verify
+                ? [{ label: workspaceSlug, ...(await workspaceApi.verifyAudit(workspaceSlug)) }]
+                : null
+            }
+          />
+        </>
       )}
 
       <nav className="flex flex-wrap gap-2" aria-label={t('filter')}>

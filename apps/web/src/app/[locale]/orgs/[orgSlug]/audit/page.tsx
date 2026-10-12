@@ -5,6 +5,7 @@ import { getFormatter, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { orgApi } from '@/lib/orgApi';
 import { AuditExportLinks } from '@/components/AuditExportLinks';
+import { ChainCheck } from '@/components/ChainCheck';
 import {
   AuditActorLabel,
   AuditFilters,
@@ -17,16 +18,18 @@ import {
 /** ORG-09, AUD-07/08: one audit log across the organization's workspaces. */
 export default async function OrgAuditPage(props: {
   params: Promise<{ orgSlug: string }>;
-  searchParams: Promise<AuditQuery>;
+  searchParams: Promise<AuditQuery & { verify?: string }>;
 }) {
   const { orgSlug } = await props.params;
   const query = await props.searchParams;
   const t = await getTranslations('OrgAudit');
   const format = await getFormatter();
   const [{ events, nextCursor }, home] = await Promise.all([
-    orgApi.audit(orgSlug, { ...query, ...auditRange(query), limit: '50' }),
+    orgApi.audit(orgSlug, { ...query, verify: undefined, ...auditRange(query), limit: '50' }),
     orgApi.home(orgSlug, { limit: '200' }),
   ]);
+  // AUD-09: checked only when asked (it reads every row).
+  const chain = query.verify ? await orgApi.verifyAudit(orgSlug) : null;
 
   return (
     <>
@@ -45,6 +48,15 @@ export default async function OrgAuditPage(props: {
       >
         {t('fullExport')}
       </a>
+      <ChainCheck
+        href={`/orgs/${orgSlug}/audit?verify=1`}
+        reports={
+          chain && [
+            { label: t('organization'), ...chain.organization },
+            ...chain.workspaces.map((w) => ({ label: w.slug, ...w })),
+          ]
+        }
+      />
       <AuditFilters query={query} workspaces={home.workspaces} />
       <section className="rounded-xl border bg-card">
         <table className="w-full text-sm">

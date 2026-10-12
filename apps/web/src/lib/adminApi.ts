@@ -3,6 +3,7 @@
 
 import { authedFetch } from './registry';
 import type { UsageTotals, WorkspaceUsage } from './usage';
+import type { ChainReport } from './orgApi';
 
 export interface Check {
   ok: boolean;
@@ -183,6 +184,8 @@ export const adminApi = {
         purgeAfter: string | null;
       }>;
     }>('/api/admin/orgs'),
+  /** AUD-09 */
+  verifyAudit: () => authedFetch<ChainReport>('/api/admin/audit/verify'),
   /** USG-03: every live workspace's usage, a page at a time. */
   usage: (params: { days?: string; cursor?: string }) =>
     authedFetch<{

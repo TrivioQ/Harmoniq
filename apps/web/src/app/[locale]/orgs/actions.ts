@@ -419,3 +419,155 @@ export async function endOrgFreezeOverrideAction(
     (t) => ({ status: 'success', message: t('freezeOverrideEnded') })
   );
 }
+
+// ─── Integrations (TAD-09/10, AUD-06) ───────────────────────────────────────
+
+const events = (form: FormData) => {
+  const picked = form.getAll('events').map(String);
+  return picked.includes('*') || !picked.length ? ['*'] : picked;
+};
+
+export async function createOrgWebhookAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  return run(
+    () =>
+      authedFetch<{ secret: string }>(org(orgSlug, '/webhooks'), {
+        body: { url: field(form, 'url'), events: events(form) },
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: t('webhookCreated'),
+      secret: (r as { secret: string }).secret,
+    })
+  );
+}
+
+export async function toggleOrgWebhookAction(
+  orgSlug: string,
+  id: string,
+  paused: boolean,
+  _prev: ActionResult
+) {
+  return run(
+    () => authedFetch(org(orgSlug, `/webhooks/${enc(id)}`), { method: 'PATCH', body: { paused } }),
+    (t) => ({ status: 'success', message: t(paused ? 'webhookPaused' : 'webhookResumed') })
+  );
+}
+
+export async function deleteOrgWebhookAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(org(orgSlug, `/webhooks/${enc(id)}`), { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('webhookDeleted') })
+  );
+}
+
+export async function createNotificationAction(
+  orgSlug: string,
+  _prev: ActionResult,
+  form: FormData
+) {
+  const kind = field(form, 'kind');
+  const body =
+    kind === 'email'
+      ? {
+          kind,
+          name: field(form, 'name'),
+          emails: lines(field(form, 'target')),
+          events: events(form),
+        }
+      : { kind, name: field(form, 'name'), url: field(form, 'target'), events: events(form) };
+  return run(
+    () => authedFetch(org(orgSlug, '/notifications'), { body }),
+    (t) => ({ status: 'success', message: t('channelCreated') })
+  );
+}
+
+export async function testNotificationAction(orgSlug: string, id: string, _prev: ActionResult) {
+  const t = await getTranslations('Actions');
+  try {
+    const r = await authedFetch<{ ok: boolean; error?: string }>(
+      org(orgSlug, `/notifications/${enc(id)}/test`),
+      { body: {} }
+    );
+    revalidatePath('/', 'layout');
+    return r.ok
+      ? { status: 'success' as const, message: t('testSent') }
+      : { status: 'error' as const, message: t('testFailed', { error: r.error ?? '' }) };
+  } catch (err) {
+    return {
+      status: 'error' as const,
+      message: err instanceof RegistryError ? err.message : t('unexpectedError'),
+    };
+  }
+}
+
+export async function deleteNotificationAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(org(orgSlug, `/notifications/${enc(id)}`), { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('channelDeleted') })
+  );
+}
+
+export async function createAuditSinkAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  const kind = field(form, 'kind');
+  const backfill = form.get('backfill') === 'on';
+  const body =
+    kind === 'https'
+      ? { kind, name: field(form, 'name'), url: field(form, 'url'), backfill }
+      : {
+          kind,
+          name: field(form, 'name'),
+          bucket: field(form, 'bucket'),
+          region: field(form, 'region'),
+          ...(field(form, 'endpoint') && { endpoint: field(form, 'endpoint') }),
+          ...(field(form, 'prefix') && { prefix: field(form, 'prefix') }),
+          accessKeyId: field(form, 'accessKeyId'),
+          secretAccessKey: field(form, 'secretAccessKey'),
+          backfill,
+        };
+  return run(
+    () => authedFetch<{ secret?: string }>(org(orgSlug, '/audit-sinks'), { body }),
+    (t, r) => ({
+      status: 'success',
+      message: t('sinkCreated'),
+      ...((r as { secret?: string }).secret && { secret: (r as { secret: string }).secret }),
+    })
+  );
+}
+
+export async function testAuditSinkAction(orgSlug: string, id: string, _prev: ActionResult) {
+  const t = await getTranslations('Actions');
+  try {
+    const r = await authedFetch<{ ok: boolean; error?: string }>(
+      org(orgSlug, `/audit-sinks/${enc(id)}/test`),
+      { body: {} }
+    );
+    return r.ok
+      ? { status: 'success' as const, message: t('testSent') }
+      : { status: 'error' as const, message: t('testFailed', { error: r.error ?? '' }) };
+  } catch (err) {
+    return {
+      status: 'error' as const,
+      message: err instanceof RegistryError ? err.message : t('unexpectedError'),
+    };
+  }
+}
+
+export async function toggleAuditSinkAction(
+  orgSlug: string,
+  id: string,
+  enabled: boolean,
+  _prev: ActionResult
+) {
+  return run(
+    () =>
+      authedFetch(org(orgSlug, `/audit-sinks/${enc(id)}`), { method: 'PATCH', body: { enabled } }),
+    (t) => ({ status: 'success', message: t(enabled ? 'sinkEnabled' : 'sinkDisabled') })
+  );
+}
+
+export async function deleteAuditSinkAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(org(orgSlug, `/audit-sinks/${enc(id)}`), { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('sinkDeleted') })
+  );
+}

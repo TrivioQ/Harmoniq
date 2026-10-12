@@ -37,7 +37,7 @@ The audience is org admins (self-service tenant administration), security and co
 | `POL-01`–`POL-09`, `TAD-03`                             | Organization policy: approval defaults (complete `ORG-08`), key limits, retention floor, org freeze windows with override, locked SSO, session limits, IP allowlist, effective policy per workspace, policies page | ✅ Done (9.5)                               |
 | `PLN-04`–`PLN-06`, `USG-01`–`USG-04`, `MT-12`, `TAD-02` | Usage metering, numeric quotas, overrides and trials, per-tenant API rate limits, usage pages (complete `INST-09`)                                                                                                 | ✅ Done (9.6)                               |
 | `SES-01`–`SES-04`                                       | Session limits as instance settings, session list and revocation, TOTP MFA with recovery codes and org `requireMfa`, user suspension                                                                               | ✅ Done (9.7)                               |
-| `AUD-06`, `AUD-09`, `TAD-09`, `TAD-10`                  | Audit streaming, hash-chained audit, org notifications and webhooks                                                                                                                                                | 📋 Planned (9.8)                            |
+| `AUD-06`, `AUD-09`, `TAD-09`, `TAD-10`                  | Audit streaming to HTTPS and S3 sinks, hash-chained audit with verification, org notifications (email, Slack, Teams) and org webhooks                                                                              | ✅ Done (9.8)                               |
 | `INST-19`–`INST-22`                                     | Operator tooling: org administration, support access, user/workspace CSV, announcements (with the rest of system administration in [instance admin](./instance-admin-and-byob-storage.md))                         | 📋 Planned (9.10)                           |
 
 See [`docs/requirements.md §19`](../requirements.md) for the full specification and [`implementation-plan.md` Phase 9](../implementation-plan.md) for the task checklists.
@@ -152,12 +152,61 @@ Instance admins no longer get workspace access implicitly. Only the storage rout
 | `PUT /api/admin/{workspaces,orgs}/:slug/plan` answers `{ slug, plan, expiresAt, basePlan, overrides }`                                                                                                                                                                                                        | Additive.                                                                                                                                                                     |
 | A sign-in by a user who turned MFA on answers `{ mfaRequired, challenge }` instead of tokens                                                                                                                                                                                                                  | Only for users who enrol. API clients signing users in must call `POST /api/auth/mfa/verify`.                                                                                 |
 | Access tokens of an ended session or a suspended user stop at once (they used to last up to 15 minutes)                                                                                                                                                                                                       | None.                                                                                                                                                                         |
+| Audit CSV and JSON Lines exports gain `id`, `chainSeq`, `prevHash` and `hash` (CSV: at the end of each row)                                                                                                                                                                                                   | Readers that check the exact header should accept the new columns.                                                                                                            |
+| Audit tables get a `BEFORE INSERT` trigger; the migration backfills the chain over existing rows                                                                                                                                                                                                              | Plan for the backfill on large audit tables (it updates every row once).                                                                                                      |
 
 All API additions are additive. New org roles don't change the meaning of `org_admin` / `org_member`.
 
 ---
 
 ## Change History
+
+### 2026-10-12 — Phase 9.8: audit streaming, hash chain, org notifications and webhooks
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** AUD-06, AUD-09, TAD-09, TAD-10
+
+#### What changed
+
+- **AUD-09:**
+  - Migration `20261012180000_audit_hash_chain`: `chainSeq`, `prevHash` and `hash` on the three audit tables. The `harmoniq_audit_chain` trigger sets them, with a per-scope advisory lock, and existing rows are backfilled.
+  - Verify endpoints for workspaces, organizations and the instance.
+  - Chain fields in exports and in the tenant export. `services/auditChain.ts` recomputes the hashes outside the database, including jsonb's canonical text.
+- **TAD-10:**
+  - Migration `20261012200000_org_webhooks_notifications_sinks`.
+  - Org webhooks are delivered by the WHK engine through a table adapter (`org-webhook.deliver`).
+  - The org routes' audit actions become organization events, sent only once the request succeeds. Quotas, plan changes, approval requests, invitations, restores and lost domain verification emit theirs.
+- **TAD-09:** notification channels (email through the mailer; Slack and Teams incoming webhooks through the outbound guard), sent by `notify.send` with retries, plus a test message.
+- **AUD-06:**
+  - Audit sinks (HTTPS with an HMAC secret, or S3-compatible). `audit.stream` runs every minute from each sink's cursor and delivers at least once.
+  - After 10 failures a batch becomes a dead letter that can be resent. S3 objects are written per hour.
+  - New sinks start from now unless `backfill`.
+- **Dashboard:** `/orgs/:org/integrations` for notifications, webhooks and audit streams, and "Verify the audit trail" on the org, workspace and instance audit pages.
+
+#### Testing
+
+- `auditChain.test.ts`:
+  - hashes match the TypeScript version;
+  - concurrent inserts keep one chain;
+  - a changed, removed or relinked row is detected;
+  - exports include the chain;
+  - the instance chain verifies.
+- `orgEvents.test.ts`:
+  - webhook CRUD, the one-time secret and private URLs;
+  - events only after successful requests;
+  - delivery to subscribed endpoints and channels only;
+  - signatures, retries and dead letters;
+  - email, Slack and failure recording;
+  - a sentence for every event;
+  - workspace quota events reaching the organization.
+- `auditStream.test.ts`:
+  - ordering across scopes, HMAC and cursor resume;
+  - at-least-once resending, dead letters and their resend;
+  - the S3 layout;
+  - from now versus backfill.
+
+Registry: 66 files, 452 tests. The integrations page (admin, and 404 for a member) and the three verify checks were fetched against a local registry.
 
 ### 2026-10-12 — Phase 9.7: identity and session security
 
@@ -223,7 +272,7 @@ Registry: 63 files, 436 tests. The browser flow (dev sign-in, the MFA cookie, a 
   - `services/plans.ts` resolves entitlements: plan features and limits, then the organization's overrides, then the workspace's.
   - The hourly `plans.expire` job falls back to the base plan and audits it.
 - **USG-03:** usage APIs for workspaces, organizations (admin, billing and auditor) and the instance, as JSON or CSV.
-- **USG-04:** `plan.changed`, `quota.warning` (at 80%) and `quota.exceeded` are audited and sent to the workspace's webhooks. Organization webhooks come with TAD-10.
+- **USG-04:** `plan.changed`, `quota.warning` (at 80%) and `quota.exceeded` are audited and sent to the workspace's webhooks (and, since 9.8, the organization's).
 - **MT-12:** tenant writes, deploys and health reports are limited per workspace or organization, by plan.
 - **Dashboard:**
   - `/orgs/:org/usage` (TAD-02): bars, trends, 30 or 90 days, CSV.

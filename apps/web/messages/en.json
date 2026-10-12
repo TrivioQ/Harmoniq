@@ -400,7 +400,15 @@
     "mfaDisabled": "Multi-factor authentication is off.",
     "userSuspended": "User suspended.",
     "userUnsuspended": "User unsuspended.",
-    "mfaReset": "MFA reset; their sessions ended."
+    "mfaReset": "MFA reset; their sessions ended.",
+    "channelCreated": "Channel added.",
+    "channelDeleted": "Channel deleted.",
+    "testSent": "Test sent.",
+    "testFailed": "The test failed: {error}",
+    "sinkCreated": "Audit stream added.",
+    "sinkEnabled": "Audit stream on.",
+    "sinkDisabled": "Audit stream off.",
+    "sinkDeleted": "Audit stream deleted."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -829,7 +837,8 @@
     "people": "People",
     "settings": "Settings",
     "policies": "Policies",
-    "usage": "Usage"
+    "usage": "Usage",
+    "integrations": "Integrations"
   },
   "OrgHome": {
     "description": "Workspaces in this organization, with recent activity and health over the last 24 hours.",
@@ -1036,7 +1045,8 @@
   "AdminAuditPage": {
     "title": "Audit log",
     "empty": "No instance changes yet.",
-    "next": "Older →"
+    "next": "Older →",
+    "instance": "Instance"
   },
   "AdminSettings": {
     "fromDatabase": "Set here (overrides the environment).",
@@ -1396,5 +1406,81 @@
     "qr": "QR code for your authenticator app",
     "manualKey": "Key:",
     "confirm": "Turn on"
+  },
+  "OrgIntegrations": {
+    "title": "Integrations",
+    "description": "Where the organization tells people and systems what happens: notifications, webhooks and audit streams.",
+    "events": "Events",
+    "allEvents": "None ticked: every event.",
+    "never": "never",
+    "notifications": "Notifications",
+    "notificationsHint": "Messages to an email list, or to a Slack or Microsoft Teams channel through an incoming webhook.",
+    "kind": {
+      "email": "Email",
+      "slack": "Slack",
+      "teams": "Microsoft Teams"
+    },
+    "kindLabel": "Kind",
+    "webhookHidden": "Incoming webhook (hidden)",
+    "lastError": "Last attempt failed: {error}",
+    "lastSent": "Last sent {when}",
+    "test": "Send a test",
+    "delete": "Delete",
+    "deleteConfirm": "Delete {name}?",
+    "noChannels": "No channels yet.",
+    "addChannel": "Add a channel",
+    "add": "Add",
+    "name": "Name",
+    "namePlaceholder": "Platform team",
+    "target": "Emails or incoming-webhook URL",
+    "targetPlaceholder": "ops@example.com, sre@example.com — or https://hooks.slack.com/…",
+    "webhooks": "Webhooks",
+    "webhooksHint": "Organization events as signed POST requests (X-Harmoniq-Signature: HMAC-SHA256 of the body), retried with backoff.",
+    "paused": "Paused",
+    "lastDelivery": "Last delivery: {status}, {when}",
+    "noDeliveries": "No deliveries yet",
+    "resume": "Resume",
+    "pause": "Pause",
+    "noWebhooks": "No webhooks yet.",
+    "addWebhook": "Add a webhook",
+    "secretOnce": "Copy the signing secret now; it is not shown again.",
+    "url": "URL",
+    "sinks": "Audit streams",
+    "sinksHint": "Every audit event of the organization and its workspaces, delivered at least once to your SIEM or a bucket, with its hash-chain fields.",
+    "sinkKind": {
+      "https": "HTTPS",
+      "s3": "S3 bucket"
+    },
+    "disabled": "Off",
+    "sinkFailing": "{failures} failed attempts: {error}",
+    "lastDelivered": "Last delivered {when}",
+    "deadLetters": "{count, plural, one {# batch set aside} other {# batches set aside}}",
+    "disable": "Turn off",
+    "enable": "Turn on",
+    "noSinks": "No audit streams yet.",
+    "addHttpsSink": "Stream to an HTTPS endpoint",
+    "addS3Sink": "Stream to an S3-compatible bucket",
+    "backfill": "Send the existing history too",
+    "bucket": "Bucket",
+    "region": "Region",
+    "prefix": "Prefix",
+    "endpoint": "Endpoint",
+    "endpointPlaceholder": "Endpoint (other than AWS)",
+    "accessKeyId": "Access key ID",
+    "secretAccessKey": "Secret access key"
+  },
+  "ChainCheck": {
+    "verify": "Verify the audit trail",
+    "intact": "The audit trail is intact.",
+    "broken": "The audit trail was changed.",
+    "problem": "{kind} at #{seq} ({id})",
+    "ok": "{rows} events, unchanged",
+    "head": "Latest: #{seq} {hash}",
+    "kind": {
+      "modified": "an event was changed",
+      "unlinked": "an event was replaced",
+      "gap": "an event is missing",
+      "unchained": "an event has no place in the chain"
+    }
   }
 }

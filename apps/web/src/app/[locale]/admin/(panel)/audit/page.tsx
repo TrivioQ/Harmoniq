@@ -5,6 +5,7 @@ import { getFormatter, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { adminApi } from '@/lib/adminApi';
 import { AuditExportLinks } from '@/components/AuditExportLinks';
+import { ChainCheck } from '@/components/ChainCheck';
 import {
   AuditActorLabel,
   AuditFilters,
@@ -15,7 +16,9 @@ import {
 } from '@/components/AuditView';
 
 /** INST-18, AUD-07/08: instance changes, newest first. Values and secrets are never recorded. */
-export default async function AdminAuditPage(props: { searchParams: Promise<AuditQuery> }) {
+export default async function AdminAuditPage(props: {
+  searchParams: Promise<AuditQuery & { verify?: string }>;
+}) {
   const query = await props.searchParams;
   const t = await getTranslations('AdminAuditPage');
   const format = await getFormatter();
@@ -30,6 +33,12 @@ export default async function AdminAuditPage(props: { searchParams: Promise<Audi
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
       <AuditExportLinks scope="instance" />
+      <ChainCheck
+        href="/admin/audit?verify=1"
+        reports={
+          query.verify ? [{ label: t('instance'), ...(await adminApi.verifyAudit()) }] : null
+        }
+      />
       <AuditFilters query={query} actionPlaceholder="instance." />
       {events.length === 0 ? (
         <p className="text-sm text-gray-500">{t('empty')}</p>

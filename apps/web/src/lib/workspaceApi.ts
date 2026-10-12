@@ -4,6 +4,7 @@
 import type { Manifest } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import { authedFetch } from './registry';
 import type { WorkspaceUsage } from './usage';
+import type { ChainReport } from './orgApi';
 
 // Typed reads for dashboard pages. Shapes mirror the registry responses
 // (docs/api-reference.md); every call runs as the signed-in user.
@@ -446,6 +447,8 @@ export interface EffectivePolicy {
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
   policy: (slug: string) => authedFetch<EffectivePolicy>(`${ws(slug)}/policy`),
+  /** AUD-09 (admins). */
+  verifyAudit: (slug: string) => authedFetch<ChainReport>(`${ws(slug)}/audit/verify`),
   /** USG-03 (workspace admins). */
   usage: (slug: string, days = 30) =>
     authedFetch<{ days: number; workspace: WorkspaceUsage }>(`${ws(slug)}/usage?days=${days}`),

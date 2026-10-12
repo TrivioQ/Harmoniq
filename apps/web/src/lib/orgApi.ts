@@ -196,6 +196,50 @@ export interface OrgPolicy {
   updatedBy: string | null;
 }
 
+/** TAD-10 */
+export interface OrgWebhook {
+  id: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  paused: boolean;
+  lastDelivery: { success: boolean; statusCode: number | null; createdAt: string } | null;
+}
+
+/** TAD-09 */
+export interface NotificationChannelView {
+  id: string;
+  kind: 'email' | 'slack' | 'teams';
+  name: string;
+  target: string | null;
+  events: string[];
+  active: boolean;
+  lastSentAt: string | null;
+  lastError: string | null;
+}
+
+/** AUD-06 */
+export interface AuditSinkView {
+  id: string;
+  kind: 'https' | 's3';
+  name: string;
+  enabled: boolean;
+  target: string;
+  cursorAt: string | null;
+  lastDeliveredAt: string | null;
+  failures: number;
+  lastError: string | null;
+  deadLetters: number;
+}
+
+/** AUD-09: one audit chain's check. */
+export interface ChainReport {
+  ok: boolean;
+  rows: number;
+  head: { chainSeq: string; hash: string } | null;
+  problem: { chainSeq: string; id: string; kind: string } | null;
+}
+
 export interface CatalogQuery {
   query?: string;
   workspace?: string;
@@ -261,6 +305,16 @@ export const orgApi = {
       totals: UsageTotals;
       workspaces: WorkspaceUsage[];
     }>(`${org(slug)}/usage?days=${days}`),
+  webhooks: (slug: string) => authedFetch<{ endpoints: OrgWebhook[] }>(`${org(slug)}/webhooks`),
+  notifications: (slug: string) =>
+    authedFetch<{ channels: NotificationChannelView[] }>(`${org(slug)}/notifications`),
+  auditSinks: (slug: string) => authedFetch<{ sinks: AuditSinkView[] }>(`${org(slug)}/audit-sinks`),
+  verifyAudit: (slug: string) =>
+    authedFetch<{
+      ok: boolean;
+      organization: ChainReport;
+      workspaces: Array<ChainReport & { slug: string }>;
+    }>(`${org(slug)}/audit/verify`),
   keys: (slug: string) => authedFetch<{ keys: OrgKey[] }>(`${org(slug)}/keys`),
   sso: (slug: string) => authedFetch<OrgSsoOverview>(`${org(slug)}/sso`),
   oidc: (slug: string) => authedFetch<{ oidc: OidcSettings | null }>(`${org(slug)}/sso/oidc`),

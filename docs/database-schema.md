@@ -637,6 +637,22 @@ USG-01: one row per workspace and UTC day. Counters are added by every replica (
 
 **Index**: `day`. RLS as other workspace rows (the workspace, or the current organization's workspaces).
 
+### Audit chain columns (AUD-09)
+
+`AuditEvent`, `OrganizationAuditEvent` and `InstanceAuditEvent` have `chainSeq` (`BigInt`), `prevHash` and `hash` (`String`), set by the `harmoniq_audit_chain` `BEFORE INSERT` trigger. It takes a transaction-level advisory lock per scope (workspace, organization or instance), so concurrent inserts can't fork a chain, and it hashes with `harmoniq_audit_hash()`, which the verify endpoints use too. Indexes: `(workspaceId, chainSeq)`, `(organizationId, chainSeq)`, `(chainSeq)`.
+
+### `OrgWebhookEndpoint`, `OrgWebhookDelivery`, `OrgWebhookDeadLetter`
+
+TAD-10: like the workspace webhook tables, keyed by `organizationId` (org RLS); `secret` is sealed.
+
+### `NotificationChannel`
+
+TAD-09: `organizationId`, `kind` (`email` \| `slack` \| `teams`), `name`, `target` (comma-separated emails, or the sealed incoming-webhook URL), `events[]`, `active`, `lastSentAt`, `lastError`. Org RLS.
+
+### `AuditSink`, `AuditSinkDeadLetter`
+
+AUD-06: `AuditSink` has `organizationId`, `kind` (`https` \| `s3`), `name`, `config` (sealed JSON with the URL and secret, or the bucket and credentials), `enabled`, the cursor `cursorAt`/`cursorId` (the last event delivered), `failures`, `lastError`, `lastDeliveredAt`. `AuditSinkDeadLetter` records a batch given up on (`fromAt`/`fromId` to `toAt`/`toId`, `events`, `error`, `retriedAt`). Org RLS.
+
 ### `OrgPolicy`
 
 POL-01..08: one row per organization (`organizationId` is the key; deleted with it). Readable in the organization's scope and in its workspaces' (enforcement runs in workspace transactions), written only in the organization's scope.

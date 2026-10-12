@@ -400,7 +400,15 @@
     "mfaDisabled": "La autenticación multifactor está desactivada.",
     "userSuspended": "Usuario suspendido.",
     "userUnsuspended": "Usuario reactivado.",
-    "mfaReset": "MFA restablecida; sus sesiones se cerraron."
+    "mfaReset": "MFA restablecida; sus sesiones se cerraron.",
+    "channelCreated": "Canal añadido.",
+    "channelDeleted": "Canal eliminado.",
+    "testSent": "Prueba enviada.",
+    "testFailed": "La prueba falló: {error}",
+    "sinkCreated": "Flujo de auditoría añadido.",
+    "sinkEnabled": "Flujo de auditoría encendido.",
+    "sinkDisabled": "Flujo de auditoría apagado.",
+    "sinkDeleted": "Flujo de auditoría eliminado."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -829,7 +837,8 @@
     "people": "Personas",
     "settings": "Configuración",
     "policies": "Políticas",
-    "usage": "Uso"
+    "usage": "Uso",
+    "integrations": "Integraciones"
   },
   "OrgHome": {
     "description": "Espacios de trabajo de esta organización, con la actividad reciente y la salud de las últimas 24 horas.",
@@ -1036,7 +1045,8 @@
   "AdminAuditPage": {
     "title": "Registro de auditoría",
     "empty": "Aún no hay cambios en la instancia.",
-    "next": "Anteriores →"
+    "next": "Anteriores →",
+    "instance": "Instancia"
   },
   "AdminSettings": {
     "fromDatabase": "Definido aquí (reemplaza al entorno).",
@@ -1396,5 +1406,81 @@
     "qr": "Código QR para tu aplicación de autenticación",
     "manualKey": "Clave:",
     "confirm": "Activar"
+  },
+  "OrgIntegrations": {
+    "title": "Integraciones",
+    "description": "Dónde la organización avisa a personas y sistemas de lo que pasa: notificaciones, webhooks y flujos de auditoría.",
+    "events": "Eventos",
+    "allEvents": "Ninguno marcado: todos los eventos.",
+    "never": "nunca",
+    "notifications": "Notificaciones",
+    "notificationsHint": "Mensajes a una lista de correo, o a un canal de Slack o Microsoft Teams con un webhook entrante.",
+    "kind": {
+      "email": "Correo",
+      "slack": "Slack",
+      "teams": "Microsoft Teams"
+    },
+    "kindLabel": "Tipo",
+    "webhookHidden": "Webhook entrante (oculto)",
+    "lastError": "El último intento falló: {error}",
+    "lastSent": "Último envío {when}",
+    "test": "Enviar una prueba",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar {name}?",
+    "noChannels": "Aún no hay canales.",
+    "addChannel": "Añadir un canal",
+    "add": "Añadir",
+    "name": "Nombre",
+    "namePlaceholder": "Equipo de plataforma",
+    "target": "Correos o URL del webhook entrante",
+    "targetPlaceholder": "ops@example.com, sre@example.com — o https://hooks.slack.com/…",
+    "webhooks": "Webhooks",
+    "webhooksHint": "Eventos de la organización como peticiones POST firmadas (X-Harmoniq-Signature: HMAC-SHA256 del cuerpo), con reintentos.",
+    "paused": "En pausa",
+    "lastDelivery": "Última entrega: {status}, {when}",
+    "noDeliveries": "Sin entregas aún",
+    "resume": "Reanudar",
+    "pause": "Pausar",
+    "noWebhooks": "Aún no hay webhooks.",
+    "addWebhook": "Añadir un webhook",
+    "secretOnce": "Copia ahora el secreto de firma; no se vuelve a mostrar.",
+    "url": "URL",
+    "sinks": "Flujos de auditoría",
+    "sinksHint": "Todos los eventos de auditoría de la organización y sus espacios, entregados al menos una vez a tu SIEM o a un bucket, con los campos de la cadena de hashes.",
+    "sinkKind": {
+      "https": "HTTPS",
+      "s3": "Bucket S3"
+    },
+    "disabled": "Apagado",
+    "sinkFailing": "{failures} intentos fallidos: {error}",
+    "lastDelivered": "Última entrega {when}",
+    "deadLetters": "{count, plural, one {# lote apartado} other {# lotes apartados}}",
+    "disable": "Apagar",
+    "enable": "Encender",
+    "noSinks": "Aún no hay flujos de auditoría.",
+    "addHttpsSink": "Enviar a un endpoint HTTPS",
+    "addS3Sink": "Enviar a un bucket compatible con S3",
+    "backfill": "Enviar también el historial existente",
+    "bucket": "Bucket",
+    "region": "Región",
+    "prefix": "Prefijo",
+    "endpoint": "Endpoint",
+    "endpointPlaceholder": "Endpoint (distinto de AWS)",
+    "accessKeyId": "ID de clave de acceso",
+    "secretAccessKey": "Clave de acceso secreta"
+  },
+  "ChainCheck": {
+    "verify": "Verificar el registro de auditoría",
+    "intact": "El registro de auditoría está intacto.",
+    "broken": "El registro de auditoría fue modificado.",
+    "problem": "{kind} en #{seq} ({id})",
+    "ok": "{rows} eventos, sin cambios",
+    "head": "Último: #{seq} {hash}",
+    "kind": {
+      "modified": "se modificó un evento",
+      "unlinked": "se sustituyó un evento",
+      "gap": "falta un evento",
+      "unchained": "un evento no está en la cadena"
+    }
   }
 }

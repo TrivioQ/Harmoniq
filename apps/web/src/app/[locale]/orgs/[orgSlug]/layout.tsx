@@ -78,6 +78,11 @@ export default async function OrgLayout(props: {
               </Link>
             )}
             {admin && (
+              <Link href={`${base}/integrations`} className="hover:text-primary">
+                {t('integrations')}
+              </Link>
+            )}
+            {admin && (
               <Link href={`${base}/settings`} className="hover:text-primary">
                 {t('settings')}
               </Link>
