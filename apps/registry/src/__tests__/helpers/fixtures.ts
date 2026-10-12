@@ -130,7 +130,11 @@ export class Fixtures {
   }
 
   async session(user: { id: string; email: string }) {
-    return signAccessToken({ userId: user.id, email: user.email }, this.app.config.jwtSecret);
+    // As a sign-in does, this counts as a re-authentication now (INST-32).
+    return signAccessToken(
+      { userId: user.id, email: user.email, reauthAt: Date.now() },
+      this.app.config.jwtSecret
+    );
   }
 
   async cleanup() {

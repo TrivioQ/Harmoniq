@@ -19,8 +19,26 @@ export const SuspendWorkspaceSchema = z.object({
 });
 
 /** INST-07: grant instance admin to an existing user. */
+/** INST-31: instance admin roles. */
+export const InstanceAdminRoleSchema = z.enum([
+  'instance_owner',
+  'instance_operator',
+  'instance_support',
+  'instance_billing',
+]);
+
 export const GrantInstanceAdminSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
+  role: InstanceAdminRoleSchema.default('instance_owner'),
+});
+
+export const UpdateInstanceAdminSchema = z.object({ role: InstanceAdminRoleSchema });
+
+/** INST-33: instance keys for monitoring and automation. */
+export const CreateInstanceApiKeySchema = z.object({
+  name: z.string().min(1).max(100),
+  scopes: z.array(z.enum(['instance:read', 'instance:admin'])).min(1),
+  expiresAt: z.coerce.date().optional(),
 });
 
 /** PLN-01: workspace and organization plans. */

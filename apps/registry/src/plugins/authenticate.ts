@@ -6,11 +6,18 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import argon2 from 'argon2';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import type { Role, Workspace } from '@prisma/client';
-import { isApiKeyFormat, parseApiKey, parseOrgApiKey } from '../auth/apiKeys';
+import { isApiKeyFormat, parseApiKey, parseInstanceApiKey, parseOrgApiKey } from '../auth/apiKeys';
 import { Permission, higherRole, roleAllows, scopesAllow } from '../auth/permissions';
 import { verifyAccessToken } from '../auth/tokens';
 import { SsoSubject, effectiveSso, parseSsoProviderId, sameSubject } from '../services/ssoIds';
-import { ipAllowed } from '../services/policy';
+import { ipAllowed, parseAllowlist } from '../services/policy';
+import {
+  type AdminRole,
+  REAUTH_WINDOW_MS,
+  asAdminRole,
+  requirementOf,
+  roleAllows as adminRoleAllows,
+} from '../services/adminAccess';
 import { isTenantSso } from '../services/authService';
 
 export type Principal =
@@ -24,6 +31,8 @@ export type Principal =
       /** ORG-13: set for organization keys, valid in that org's (listed) workspaces. */
       organizationId?: string;
       workspaceIds?: string[];
+      /** INST-33: an instance key: `/api/admin` only, never a workspace or organization. */
+      instance?: boolean;
     }
   | {
       type: 'user';
@@ -36,6 +45,10 @@ export type Principal =
       sessionId?: string;
       /** SES-03: the session passed a second factor. */
       mfa?: boolean;
+      /** INST-32: when the user last proved who they are (epoch ms). */
+      reauthAt?: number;
+      /** INST-31: the instance admin role, for instance admins. */
+      instanceRole?: AdminRole;
     };
 
 type Handler = (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | void>;
@@ -99,6 +112,8 @@ const IP_POLICY_TTL_MS = 30_000;
 
 interface CachedKey {
   keyId: string;
+  /** INST-33 */
+  instance?: boolean;
   workspaceId: string;
   organizationId?: string;
   workspaceIds?: string[];
@@ -273,10 +288,36 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     if (now - entry.lastUsedWrite < LAST_USED_WRITE_INTERVAL_MS) return;
     entry.lastUsedWrite = now;
     const data = { lastUsedAt: new Date(now) };
-    (entry.organizationId
-      ? systemDb.orgApiKey.update({ where: { id: entry.keyId }, data })
-      : systemDb.apiKey.update({ where: { id: entry.keyId }, data })
+    (entry.instance
+      ? systemDb.instanceApiKey.update({ where: { id: entry.keyId }, data })
+      : entry.organizationId
+        ? systemDb.orgApiKey.update({ where: { id: entry.keyId }, data })
+        : systemDb.apiKey.update({ where: { id: entry.keyId }, data })
     ).catch((err: unknown) => logger.error('Failed to update API key lastUsedAt', err as Error));
+  }
+
+  /** INST-33: an instance key as a cache entry (null when unknown, revoked or its creator
+   * is suspended). */
+  async function loadInstanceKey(keyId: string, secret: string | null, now: number) {
+    const record = await systemDb.instanceApiKey.findUnique({ where: { id: keyId } });
+    if (!record || record.revokedAt) return null;
+    if (secret !== null && !(await argon2.verify(record.keyHash, secret))) return null;
+    const creator = await systemDb.user.findUnique({
+      where: { id: record.createdBy },
+      select: { suspendedAt: true },
+    });
+    if (creator?.suspendedAt) return null;
+    return {
+      keyId: record.id,
+      instance: true,
+      workspaceId: '',
+      scopes: record.scopes,
+      moduleIds: [],
+      expiresAt: record.expiresAt,
+      gracePeriodEnd: null,
+      lastUsedWrite: record.lastUsedAt?.getTime() ?? 0,
+      cachedUntil: now + KEY_CACHE_TTL_MS,
+    } satisfies CachedKey;
   }
 
   /** ORG-13: an organization key as a cache entry (null when unknown or revoked). */
@@ -340,6 +381,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       organizationId: entry.organizationId,
       workspaceIds: entry.workspaceIds ?? [],
     }),
+    ...(entry.instance && { instance: true }),
   });
 
   async function resolveApiKey(raw: string): Promise<Principal | null> {
@@ -352,21 +394,26 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       // The cache only saves the argon2 hash. The key row is re-read on every request, so
       // a revocation (dashboard, rotation, SCIM deprovisioning, on any replica), a new
       // expiry or a scope change applies to the very next request.
-      entry = cached.organizationId
-        ? await loadOrgKey(cached.keyId, null, now)
-        : await loadWorkspaceKey(cached.keyId, null, now);
+      entry = cached.instance
+        ? await loadInstanceKey(cached.keyId, null, now)
+        : cached.organizationId
+          ? await loadOrgKey(cached.keyId, null, now)
+          : await loadWorkspaceKey(cached.keyId, null, now);
       if (entry) {
         entry.cachedUntil = cached.cachedUntil;
         entry.lastUsedWrite = Math.max(entry.lastUsedWrite, cached.lastUsedWrite);
       }
     } else {
-      const orgKey = parseOrgApiKey(raw);
-      const parsed = orgKey ?? parseApiKey(raw);
+      const instanceKey = parseInstanceApiKey(raw);
+      const orgKey = instanceKey ? null : parseOrgApiKey(raw);
+      const parsed = instanceKey ?? orgKey ?? parseApiKey(raw);
       entry = !parsed
         ? null
-        : orgKey
-          ? await loadOrgKey(orgKey.keyId, orgKey.secret, now)
-          : await loadWorkspaceKey(parsed.keyId, parsed.secret, now);
+        : instanceKey
+          ? await loadInstanceKey(instanceKey.keyId, instanceKey.secret, now)
+          : orgKey
+            ? await loadOrgKey(orgKey.keyId, orgKey.secret, now)
+            : await loadWorkspaceKey(parsed.keyId, parsed.secret, now);
     }
 
     if (!entry) {
@@ -411,6 +458,9 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       ...(claims.provider && { provider: claims.provider }),
       ...(claims.sessionId && { sessionId: claims.sessionId }),
       ...(claims.mfa && { mfa: true }),
+      ...(claims.reauthAt && { reauthAt: claims.reauthAt }),
+      ...(user.InstanceAdmin &&
+        !user.InstanceAdmin.revokedAt && { instanceRole: asAdminRole(user.InstanceAdmin.role) }),
     };
   }
 
@@ -453,6 +503,10 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
             id: user.id,
             email: user.email,
             isInstanceAdmin: !!user.InstanceAdmin && !user.InstanceAdmin.revokedAt,
+            ...(user.InstanceAdmin &&
+              !user.InstanceAdmin.revokedAt && {
+                instanceRole: asAdminRole(user.InstanceAdmin.role),
+              }),
           }
         : null;
     }
@@ -504,16 +558,81 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
   }
 
   const authenticate: Handler = async (request, reply) => {
-    if (!(await resolvePrincipal(request))) {
+    const principal = await resolvePrincipal(request);
+    if (!principal) {
       return deny(reply, 401, 'UNAUTHORIZED', 'Missing, invalid, expired or revoked credentials');
+    }
+    // INST-33: instance keys are for `/api/admin` only.
+    if (principal.type === 'apiKey' && principal.instance) {
+      return deny(reply, 403, 'FORBIDDEN', 'Instance keys only work on /api/admin');
     }
   };
 
+  // INST-32: the admin network allowlist (validated at startup).
+  const adminAllowlist = fastify.config.adminIpAllowlist;
+  parseAllowlist(adminAllowlist);
+
+  /**
+   * INST-31..33: instance admins and instance keys on `/api/admin`. The route's capability
+   * comes from `requirementOf` (reads for every role, writes as listed, others owners only);
+   * destructive actions need a re-authentication in the last 10 minutes.
+   */
   const requireInstanceAdmin: Handler = async (request, reply) => {
     const principal = await resolvePrincipal(request);
     if (!principal) return deny(reply, 401, 'UNAUTHORIZED', 'Missing or invalid credentials');
-    if (principal.type !== 'user' || !principal.isInstanceAdmin || ssoScope(principal)) {
+    if (adminAllowlist.length && !ipAllowed(adminAllowlist, request.ip)) {
+      return deny(reply, 403, 'IP_NOT_ALLOWED', `Access from ${request.ip} is not allowed here`);
+    }
+    const need = requirementOf(
+      request.method,
+      request.routeOptions.url ?? request.url,
+      request.params as Record<string, string>
+    );
+    if (principal.type === 'apiKey') {
+      if (!principal.instance) {
+        return deny(reply, 403, 'FORBIDDEN', 'Not an active Instance Admin');
+      }
+      const scope = need.capability === 'read' ? 'instance:read' : 'instance:admin';
+      if (need.keyManagement && need.capability !== 'read') {
+        return deny(reply, 403, 'FORBIDDEN', 'Instance keys cannot manage admins or keys');
+      }
+      if (!principal.scopes.includes(scope) && !principal.scopes.includes('instance:admin')) {
+        return deny(reply, 403, 'FORBIDDEN', `This key lacks the ${scope} scope`);
+      }
+      return;
+    }
+    if (!principal.isInstanceAdmin || ssoScope(principal)) {
       return deny(reply, 403, 'FORBIDDEN', 'Not an active Instance Admin');
+    }
+    // INST-32: admins prove a second factor (or use the instance's own SSO).
+    if (
+      fastify.config.adminRequireMfa &&
+      !principal.mfa &&
+      !request.internal &&
+      principal.provider !== 'oidc'
+    ) {
+      return deny(
+        reply,
+        403,
+        'ADMIN_MFA_REQUIRED',
+        'Instance administration needs multi-factor authentication: set it up in your account, then sign in again'
+      );
+    }
+    const role = principal.instanceRole ?? 'instance_owner';
+    if (!adminRoleAllows(role, need.capability)) {
+      return deny(reply, 403, 'FORBIDDEN', `The ${role} role can't do this`);
+    }
+    if (
+      need.destructive &&
+      !request.internal &&
+      (!principal.reauthAt || Date.now() - principal.reauthAt > REAUTH_WINDOW_MS)
+    ) {
+      return deny(
+        reply,
+        403,
+        'REAUTH_REQUIRED',
+        'Confirm it is you (re-authenticate) before this action'
+      );
     }
   };
 
@@ -572,6 +691,9 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
         : null;
 
       if (principal.type === 'apiKey') {
+        if (principal.instance) {
+          return deny(reply, 403, 'FORBIDDEN', 'Instance keys never reach workspaces');
+        }
         if (principal.organizationId) {
           // ORG-13: any workspace of the key's organization, or only the listed ones.
           const allowed =
@@ -621,7 +743,13 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      if (opts.allowInstanceAdmin && principal.isInstanceAdmin) {
+      // INST-31: through `/api/workspaces`, other admin roles only read.
+      if (
+        opts.allowInstanceAdmin &&
+        principal.isInstanceAdmin &&
+        (request.method === 'GET' ||
+          (principal.instanceRole ?? 'instance_owner') === 'instance_owner')
+      ) {
         const refusal = lifecycleRefusal(workspace, permission, opts);
         if (refusal) return deny(reply, ...refusal);
         request.workspace = workspace;

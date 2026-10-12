@@ -18,6 +18,8 @@ import {
   SetupCompleteSchema,
   SetupTokenSchema,
   SuspendWorkspaceSchema,
+  UpdateInstanceAdminSchema,
+  CreateInstanceApiKeySchema,
 } from '@harmoniq/core/dist/schemas/AdminSchemas';
 import {
   INSTANCE_SETTING_KEYS,
@@ -45,6 +47,8 @@ import { verifyChain } from '../services/auditChain';
 import { RESEAL_QUEUE, resealAll, sealedValueReport } from '../services/reseal';
 import { reportDays, sendUsageCsv, usageTotals, workspaceUsage } from '../services/usageReport';
 import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
+import { asAdminRole, capabilitiesOf } from '../services/adminAccess';
+import { formatInstanceApiKey, generateApiKeySecret } from '../auth/apiKeys';
 
 // InstanceConfig key marking the one-time setup token as consumed (INST-04).
 const SETUP_COMPLETED_KEY = 'setup.completed';
@@ -103,7 +107,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   ) =>
     systemDb.instanceAuditEvent.create({
       data: {
-        actorType: 'user',
+        // INST-33: changes made with an instance key are recorded as the key's.
+        actorType: request.principal!.type === 'apiKey' ? 'apiKey' : 'user',
         actorId: request.principal!.id,
         ip: request.ip,
         ...event,
@@ -870,33 +875,130 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── Instance admins (INST-05..07) ────────────────────────────────────────
 
-  fastify.get('/api/admin/admins', admin, async () => {
-    const grants = await systemDb.instanceAdmin.findMany({
-      where: { revokedAt: null },
-      include: { user: { select: { id: true, email: true, name: true, lastLoginAt: true } } },
-      orderBy: { createdAt: 'asc' },
+  /** INST-31: one active, unsuspended instance owner must remain. */
+  const assertOwnerRemains = async (losing: string) => {
+    const owners = await systemDb.instanceAdmin.count({
+      where: {
+        revokedAt: null,
+        role: 'instance_owner',
+        userId: { not: losing },
+        user: { suspendedAt: null },
+      },
     });
+    if (!owners) throw new ConflictError('The instance needs at least one instance owner');
+  };
+
+  fastify.get('/api/admin/admins', admin, async () => {
+    const [grants, invitations] = await Promise.all([
+      systemDb.instanceAdmin.findMany({
+        where: { revokedAt: null },
+        include: {
+          user: {
+            select: { id: true, email: true, name: true, lastLoginAt: true, mfaEnabledAt: true },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      systemDb.instanceAdminInvitation.findMany({
+        where: { acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
     return {
-      admins: grants.map((g) => ({ ...g.user, grantedBy: g.grantedBy, since: g.createdAt })),
+      admins: grants.map((g) => ({
+        id: g.user.id,
+        email: g.user.email,
+        name: g.user.name,
+        lastLoginAt: g.user.lastLoginAt,
+        mfa: !!g.user.mfaEnabledAt,
+        role: asAdminRole(g.role),
+        capabilities: capabilitiesOf(asAdminRole(g.role)),
+        grantedBy: g.grantedBy,
+        since: g.createdAt,
+      })),
+      invitations: invitations.map((i) => ({
+        id: i.id,
+        email: i.email,
+        role: i.role,
+        expiresAt: i.expiresAt,
+        createdAt: i.createdAt,
+      })),
     };
   });
 
+  /**
+   * INST-31: grants a role to an existing account, or invites an email that hasn't signed
+   * in yet (their first sign-in with it, not through a tenant's SSO, accepts within 7 days).
+   */
   fastify.post('/api/admin/admins', admin, async (request, reply) => {
-    const { email } = GrantInstanceAdminSchema.parse(request.body);
+    const { email, role } = GrantInstanceAdminSchema.parse(request.body);
     const user = await systemDb.user.findUnique({ where: { email } });
-    if (!user) throw new NotFoundError('No user with this email (they must sign in once first)');
+    if (!user) {
+      await systemDb.instanceAdminInvitation.updateMany({
+        where: { email, acceptedAt: null, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      const invitation = await systemDb.instanceAdminInvitation.create({
+        data: {
+          email,
+          role,
+          invitedBy: request.principal!.id,
+          expiresAt: new Date(Date.now() + 7 * 86_400_000),
+        },
+      });
+      await instanceAudit(request, {
+        action: 'instance.admin_invite',
+        resourceType: 'admin_invitation',
+        resourceId: invitation.id,
+        metadata: { role },
+      });
+      return reply.code(202).send({ invited: true, id: invitation.id, email, role });
+    }
+    const current = await systemDb.instanceAdmin.findUnique({ where: { userId: user.id } });
+    if (
+      current &&
+      !current.revokedAt &&
+      current.role === 'instance_owner' &&
+      role !== 'instance_owner'
+    ) {
+      await assertOwnerRemains(user.id);
+    }
     await systemDb.instanceAdmin.upsert({
       where: { userId: user.id },
-      create: { userId: user.id, grantedBy: request.principal!.id },
-      update: { revokedAt: null, grantedBy: request.principal!.id },
+      create: { userId: user.id, role, grantedBy: request.principal!.id },
+      update: { revokedAt: null, role, grantedBy: request.principal!.id },
     });
     await instanceAudit(request, {
       action: 'instance.admin_grant',
       resourceType: 'user',
       resourceId: user.id,
+      metadata: { role },
     });
-    return reply.code(201).send({ id: user.id, email: user.email });
+    return reply.code(201).send({ id: user.id, email: user.email, role });
   });
+
+  fastify.patch<{ Params: { userId: string } }>(
+    '/api/admin/admins/:userId',
+    admin,
+    async (request) => {
+      const { role } = UpdateInstanceAdminSchema.parse(request.body);
+      const grant = await systemDb.instanceAdmin.findFirst({
+        where: { userId: request.params.userId, revokedAt: null },
+      });
+      if (!grant) throw new NotFoundError('Not an instance admin');
+      if (grant.role === 'instance_owner' && role !== 'instance_owner') {
+        await assertOwnerRemains(grant.userId);
+      }
+      await systemDb.instanceAdmin.update({ where: { id: grant.id }, data: { role } });
+      await instanceAudit(request, {
+        action: 'instance.admin_role',
+        resourceType: 'user',
+        resourceId: grant.userId,
+        metadata: { from: grant.role, to: role },
+      });
+      return { id: grant.userId, role };
+    }
+  );
 
   fastify.delete<{ Params: { userId: string } }>(
     '/api/admin/admins/:userId',
@@ -909,6 +1011,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if ((await systemDb.instanceAdmin.count({ where: { revokedAt: null } })) <= 1) {
         throw new ConflictError('The instance needs at least one admin');
       }
+      if (grant.role === 'instance_owner') await assertOwnerRemains(grant.userId);
       await systemDb.instanceAdmin.update({
         where: { id: grant.id },
         data: { revokedAt: new Date() },
@@ -917,6 +1020,95 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         action: 'instance.admin_revoke',
         resourceType: 'user',
         resourceId: grant.userId,
+      });
+      return reply.code(204).send();
+    }
+  );
+
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/admin/admin-invitations/:id',
+    admin,
+    async (request, reply) => {
+      const { count } = await systemDb.instanceAdminInvitation.updateMany({
+        where: { id: request.params.id, acceptedAt: null, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (!count) throw new NotFoundError('Invitation not found');
+      await instanceAudit(request, {
+        action: 'instance.admin_invite_revoke',
+        resourceType: 'admin_invitation',
+        resourceId: request.params.id,
+      });
+      return reply.code(204).send();
+    }
+  );
+
+  // ─── Instance API keys (INST-33) ──────────────────────────────────────────
+
+  fastify.get('/api/admin/api-keys', admin, async () => {
+    const keys = await systemDb.instanceApiKey.findMany({ orderBy: { createdAt: 'desc' } });
+    return {
+      keys: keys.map((k) => ({
+        id: k.id,
+        name: k.name,
+        prefix: k.prefix,
+        scopes: k.scopes,
+        expiresAt: k.expiresAt,
+        lastUsedAt: k.lastUsedAt,
+        createdBy: k.createdBy,
+        createdAt: k.createdAt,
+        revokedAt: k.revokedAt,
+      })),
+    };
+  });
+
+  fastify.post('/api/admin/api-keys', admin, async (request, reply) => {
+    const body = CreateInstanceApiKeySchema.parse(request.body);
+    const { secret, keyHash } = await generateApiKeySecret();
+    const created = await systemDb.instanceApiKey.create({
+      data: {
+        name: body.name,
+        keyHash,
+        prefix: 'pending',
+        scopes: body.scopes,
+        expiresAt: body.expiresAt,
+        createdBy: request.principal!.id,
+      },
+    });
+    const record = await systemDb.instanceApiKey.update({
+      where: { id: created.id },
+      data: { prefix: `hq_inst_${created.id.slice(0, 8)}` },
+    });
+    await instanceAudit(request, {
+      action: 'instance.api_key_create',
+      resourceType: 'instance_api_key',
+      resourceId: record.id,
+      metadata: { name: body.name, scopes: body.scopes },
+    });
+    // Shown once.
+    return reply.code(201).send({
+      id: record.id,
+      name: record.name,
+      prefix: record.prefix,
+      scopes: record.scopes,
+      key: formatInstanceApiKey(record.id, secret),
+    });
+  });
+
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/admin/api-keys/:id',
+    admin,
+    async (request, reply) => {
+      const { count } = await systemDb.instanceApiKey.updateMany({
+        where: { id: request.params.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      if (!count) throw new NotFoundError('Key not found');
+      fastify.forgetApiKey(request.params.id);
+      await instanceAudit(request, {
+        action: 'instance.api_key_revoke',
+        resourceType: 'instance_api_key',
+        resourceId: request.params.id,
       });
       return reply.code(204).send();
     }

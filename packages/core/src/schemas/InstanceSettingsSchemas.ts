@@ -88,8 +88,15 @@ export const AuthSettingsSchema = z.object({
         .max(60 * 24 * 90)
         .nullable()
         .default(null),
+      /** INST-32: instance admins' sessions end sooner. */
+      adminMaxHours: z
+        .number()
+        .int()
+        .min(1)
+        .max(24 * 30)
+        .default(12),
     })
-    .default({ maxDays: 30, idleMinutes: null }),
+    .default({ maxDays: 30, idleMinutes: null, adminMaxHours: 12 }),
 });
 export type AuthSettings = z.infer<typeof AuthSettingsSchema>;
 

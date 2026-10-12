@@ -10,6 +10,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from '@harmoniq/core/dist/errors/AppError';
+import { IdentityError } from '@harmoniq/core/dist/ports/IdentityProvider';
 import type { AuthService } from '../services/authService';
 import { openSecret, sealSecret } from '../services/crypto';
 import {
@@ -84,6 +85,36 @@ export function accountRoutes(fastify: FastifyInstance, auth: AuthService) {
       return { ended };
     }
   );
+
+  // ─── Re-authentication (INST-32) ──────────────────────────────────────────
+
+  /**
+   * Proves it is still you with a code (TOTP or recovery): this session's new tokens count
+   * as re-authenticated now, for destructive admin actions. Without MFA, sign in again.
+   */
+  fastify.post('/api/auth/reauth', user, async (request, reply) => {
+    const principal = me(request);
+    const body = z
+      .object({ code: z.string().trim().min(6).max(32), refreshToken: z.string().min(1).max(200) })
+      .parse(request.body);
+    try {
+      const session = await auth.reauthenticate(
+        principal.id,
+        body.refreshToken,
+        body.code,
+        client(request)
+      );
+      if (!session) throw new NotFoundError('This session has ended; sign in again');
+      return session;
+    } catch (err) {
+      if (err instanceof IdentityError) {
+        return reply
+          .code(401)
+          .send({ error: { code: err.code.toUpperCase(), message: err.message } });
+      }
+      throw err;
+    }
+  });
 
   // ─── Multi-factor authentication (SES-03) ─────────────────────────────────
 

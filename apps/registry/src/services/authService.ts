@@ -24,7 +24,11 @@ import { parseSsoProviderId } from './ssoIds';
 import { grantInvitation } from './invitations';
 
 /** SES-01 defaults when no instance setting says otherwise. */
-const DEFAULT_SESSION = { maxDays: 30, idleMinutes: null as number | null };
+const DEFAULT_SESSION = {
+  maxDays: 30,
+  idleMinutes: null as number | null,
+  adminMaxHours: 12,
+};
 
 /** Where a request came from, for the session list (SES-02). */
 export interface ClientInfo {
@@ -111,7 +115,7 @@ export class AuthService {
     private providerEnabled: (provider: string) => boolean = () => true,
     private options: {
       /** SES-01: the instance's session lifetime and idle timeout. */
-      session?: () => { maxDays: number; idleMinutes: number | null };
+      session?: () => { maxDays: number; idleMinutes: number | null; adminMaxHours?: number };
       /** SES-03: opens a user's sealed TOTP secret. */
       openSecret?: (sealed: string) => string;
     } = {}
@@ -212,6 +216,37 @@ export class AuthService {
       }
     }
 
+    // INST-31: an instance admin invitation to this email is accepted by a sign-in that
+    // proves it on its own (not a tenant's SSO, whose admins control what it asserts).
+    if (!isTenantSso(provider)) {
+      const invitation = await this.db.instanceAdminInvitation.findFirst({
+        where: { email, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (invitation) {
+        await this.db.$transaction([
+          this.db.instanceAdmin.upsert({
+            where: { userId: user.id },
+            create: { userId: user.id, role: invitation.role, grantedBy: invitation.invitedBy },
+            update: { revokedAt: null, role: invitation.role, grantedBy: invitation.invitedBy },
+          }),
+          this.db.instanceAdminInvitation.update({
+            where: { id: invitation.id },
+            data: { acceptedAt: new Date() },
+          }),
+          this.db.instanceAuditEvent.create({
+            data: {
+              actorType: 'user',
+              actorId: user.id,
+              action: 'instance.admin_invite_accept',
+              resourceType: 'admin_invitation',
+              resourceId: invitation.id,
+              metadata: { role: invitation.role },
+            },
+          }),
+        ]);
+      }
+    }
     // SES-04: a suspended account proves its identity but gets no session.
     if (user.suspendedAt) {
       this.logger.info(`auth.login_refused user=${user.id} reason=suspended`);
@@ -308,6 +343,25 @@ export class AuthService {
   }
 
   /**
+   * INST-32: the user proves who they are again with a code (TOTP or recovery); the session
+   * of `rawToken` gets new tokens marked as re-authenticated now. Null when the session is
+   * not the user's; throws when the code is wrong or the user has no MFA.
+   */
+  async reauthenticate(userId: string, rawToken: string, code: string, client: ClientInfo = {}) {
+    const user = await this.db.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.mfaEnabledAt) {
+      throw new IdentityError(
+        'mfa_invalid',
+        'Set up multi-factor authentication, or sign in again'
+      );
+    }
+    if (!(await this.checkSecondFactor(user, code))) {
+      throw new IdentityError('mfa_invalid', 'That code is not valid');
+    }
+    return this.upgradeSession(userId, rawToken, client);
+  }
+
+  /**
    * SES-03: marks the session of `rawToken` (the user's own) as having passed a second
    * factor, after enrolment, and returns new tokens for it.
    */
@@ -399,6 +453,8 @@ export class AuthService {
       ssoRefreshToken,
       ssoCheckedAt,
       mfaVerified: record.mfaVerified,
+      // Refreshing proves nothing new: the last proof carries over.
+      reauthAt: record.reauthAt ?? record.createdAt,
       client: {
         ip: client.ip ?? record.ip ?? undefined,
         userAgent: client.userAgent ?? record.userAgent ?? undefined,
@@ -429,8 +485,11 @@ export class AuthService {
       const set = values.filter((v): v is number => v !== null);
       return set.length ? Math.min(...set) : null;
     };
+    // INST-32: an instance admin's sessions are shorter.
+    const admin = await this.db.instanceAdmin.count({ where: { userId, revokedAt: null } });
+    const adminCap = admin ? (instance.adminMaxHours ?? DEFAULT_SESSION.adminMaxHours) : null;
     return {
-      maxHours: min([instance.maxDays * 24, ...policies.map((p) => p.sessionMaxHours)])!,
+      maxHours: min([instance.maxDays * 24, adminCap, ...policies.map((p) => p.sessionMaxHours)])!,
       idleMinutes: min([instance.idleMinutes, ...policies.map((p) => p.idleTimeoutMinutes)]),
     };
   }
@@ -568,6 +627,8 @@ export class AuthService {
       ssoCheckedAt?: Date;
       mfaVerified?: boolean;
       client?: ClientInfo;
+      /** INST-32: when the user last proved who they are; a sign-in is now. */
+      reauthAt?: Date;
     } = {}
   ): Promise<SessionResponse> {
     const now = Date.now();
@@ -591,6 +652,7 @@ export class AuthService {
         ssoRefreshToken: session.ssoRefreshToken,
         ssoCheckedAt: session.ssoCheckedAt,
         mfaVerified: !!session.mfaVerified,
+        reauthAt: session.reauthAt ?? new Date(now),
         ip: session.client?.ip?.slice(0, 64),
         userAgent: session.client?.userAgent?.slice(0, 300),
       },
@@ -605,6 +667,7 @@ export class AuthService {
           provider: session.provider,
           sessionId: familyId,
           mfa: !!session.mfaVerified,
+          reauthAt: (session.reauthAt ?? new Date(now)).getTime(),
         },
         this.jwtSecret
       ),

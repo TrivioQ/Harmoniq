@@ -16,6 +16,8 @@ export interface AccessTokenClaims {
   sessionId?: string;
   /** SES-03: the session passed a second factor (`amr: ["mfa"]`). */
   mfa?: boolean;
+  /** INST-32: when the user last proved who they are (epoch ms; `rat`, in seconds). */
+  reauthAt?: number;
 }
 
 function key(secret: string): Uint8Array {
@@ -28,6 +30,7 @@ export async function signAccessToken(claims: AccessTokenClaims, secret: string)
     ...(claims.provider && { prv: claims.provider }),
     ...(claims.sessionId && { sid: claims.sessionId }),
     ...(claims.mfa && { amr: ['mfa'] }),
+    ...(claims.reauthAt && { rat: Math.floor(claims.reauthAt / 1000) }),
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(claims.userId)
@@ -52,6 +55,7 @@ export async function verifyAccessToken(token: string, secret: string): Promise<
     ...(typeof payload.prv === 'string' && { provider: payload.prv }),
     ...(typeof payload.sid === 'string' && { sessionId: payload.sid }),
     ...(Array.isArray(payload.amr) && payload.amr.includes('mfa') && { mfa: true }),
+    ...(typeof payload.rat === 'number' && { reauthAt: payload.rat * 1000 }),
   };
 }
 

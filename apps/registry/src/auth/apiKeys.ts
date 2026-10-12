@@ -35,6 +35,18 @@ export function parseOrgApiKey(raw: string): { keyId: string; secret: string } |
   return parseApiKey(KEY_PREFIX + raw.slice(ORG_KEY_PREFIX.length));
 }
 
+const INSTANCE_KEY_PREFIX = 'hq_inst_';
+
+/** INST-33: instance keys, `hq_inst_<keyId>_<secret>`. */
+export function formatInstanceApiKey(keyId: string, secret: string): string {
+  return `${INSTANCE_KEY_PREFIX}${keyId}_${secret}`;
+}
+
+export function parseInstanceApiKey(raw: string): { keyId: string; secret: string } | null {
+  if (!raw.startsWith(INSTANCE_KEY_PREFIX)) return null;
+  return parseApiKey(KEY_PREFIX + raw.slice(INSTANCE_KEY_PREFIX.length));
+}
+
 export function isApiKeyFormat(token: string): boolean {
   return token.startsWith(KEY_PREFIX);
 }

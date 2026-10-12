@@ -280,6 +280,8 @@ model RefreshToken {
   ssoCheckedAt    DateTime?
   /// SES-03: the session passed a second factor.
   mfaVerified     Boolean   @default(false)
+  /// INST-32: when the user last proved who they are (sign-in or re-authentication).
+  reauthAt        DateTime?
   /// SES-02: where the session was last used from (shown in the session list).
   userAgent       String?
   ip              String?
@@ -814,6 +816,8 @@ model InstanceAuditEvent {
 model InstanceAdmin {
   id        String    @id @default(cuid())
   userId    String    @unique
+  /// INST-31: `instance_owner` | `instance_operator` | `instance_support` | `instance_billing`.
+  role      String    @default("instance_owner")
   grantedBy String
   createdAt DateTime  @default(now())
   revokedAt DateTime?
@@ -1102,4 +1106,49 @@ model AuditSinkDeadLetter {
   sink           AuditSink @relation(fields: [sinkId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+}
+
+/// INST-31: an instance admin role granted by email before the person's first sign-in;
+/// their next sign-in with that email (not through a tenant's SSO) accepts it.
+model InstanceAdminInvitation {
+  id         String    @id @default(cuid())
+  email      String
+  role       String
+  invitedBy  String
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([email])
+}
+
+/// INST-33: keys for monitoring and automation of the instance (`hq_inst_…`). They never
+/// reach workspaces or organizations.
+model InstanceApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  keyHash    String
+  prefix     String
+  /// `instance:read` | `instance:admin`.
+  scopes     String[]
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+  createdBy  String
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+}
+
+/// INST-35: every saved version of an instance setting (secrets sealed as in InstanceConfig).
+model InstanceConfigVersion {
+  id        String   @id @default(cuid())
+  key       String
+  version   Int
+  value     Json
+  createdAt DateTime @default(now())
+  createdBy String
+  /// `save`, `restore` (from an older version), `import`, `reset` (back to the environment).
+  source    String   @default("save")
+
+  @@unique([key, version])
 }

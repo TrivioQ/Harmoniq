@@ -1004,18 +1004,18 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Database
 
-- [ ] `InstanceAdmin.role` (`instance_owner` | `instance_operator` | `instance_support` | `instance_billing`; existing grants become `instance_owner`); `InstanceAdminInvitation` (email, role, token hash, expiry) (INST-31)
-- [ ] `InstanceApiKey`: `name`, `keyHash`, `prefix`, `scopes[]`, `expiresAt?`, `lastUsedAt?`, `createdBy`, `revokedAt?` (INST-33)
-- [ ] `InstanceConfigVersion`: `key`, `version`, `value` (sealed), `createdAt`, `createdBy` (INST-35)
+- [x] `InstanceAdmin.role` (`instance_owner` | `instance_operator` | `instance_support` | `instance_billing`; existing grants become `instance_owner`); `InstanceAdminInvitation` (email, role, expiry; accepted by the next sign-in with that email that isn't a tenant's SSO) (INST-31)
+- [x] `InstanceApiKey`: `name`, `keyHash`, `prefix`, `scopes[]`, `expiresAt?`, `lastUsedAt?`, `createdBy`, `revokedAt?` (INST-33)
+- [x] `InstanceConfigVersion`: `key`, `version`, `value` (sealed), `createdAt`, `createdBy`, `source` (INST-35)
 - [x] Sealed envelopes gain `kid` (the first 8 hex of the key's sha256); values without one are opened by whichever configured key authenticates them (INST-26)
 
 #### Registry
 
 - [x] Keyring: `HARMONIQ_ENCRYPTION_KEYS=label:base64,…` (first is active; `HARMONIQ_ENCRYPTION_KEY` stays as the single-key form and, next to the list, as an extra old key); `encryptJson` / `sealSecret` write `kid`; decryption picks the key by `kid`, an unknown `kid` fails closed (INST-26)
 - [x] pg-boss `secrets.reseal` (on demand: `POST /api/admin/encryption/reseal`, `harmoniq-admin reseal-secrets`): re-seals `WorkspaceConfig`, `Organization`, `WorkspaceStorageConfig`, `InstanceConfig`, `RefreshToken.ssoRefreshToken`, webhook and org webhook secrets, notification channels, audit sinks and MFA secrets; `GET /api/admin/encryption` and health report values on non-active or unknown keys (INST-26)
-- [ ] `requireInstanceAdmin(capability)` with a role → capability map; every `/api/admin` route declares its capability; `POST /api/admin/admins` accepts `role` and invites unknown emails (INST-31)
-- [ ] Step-up: `POST /api/auth/reauth` issues a short-lived `reauth_at` claim; destructive admin routes require it within 10 minutes (`403 REAUTH_REQUIRED`); admin session cap (`auth.session.adminMaxHours`); optional `HARMONIQ_ADMIN_IP_ALLOWLIST` (INST-32)
-- [ ] Instance API keys: `GET/POST/DELETE /api/admin/api-keys`; `hq_inst_` parsing in `authenticate.ts`; `instance:read` for GET admin routes, `instance:admin` for the rest; never accepted by `requireWorkspace` / `requireOrg` (INST-33)
+- [x] `requireInstanceAdmin` with a role → capability map (`services/adminAccess.ts`): every role reads, listed writes need their capability, any other write is owner-only; `POST /api/admin/admins` accepts `role` and invites unknown emails; `PATCH …/admins/:userId` changes a role; one active instance owner always remains (INST-31)
+- [x] Step-up: `POST /api/auth/reauth` (a TOTP or recovery code) and every sign-in set the `rat` claim; destructive admin routes require it within 10 minutes (`403 REAUTH_REQUIRED`); admin session cap (`auth.session.adminMaxHours`, default 12); admins need MFA or instance OIDC (`HARMONIQ_ADMIN_REQUIRE_MFA`, default on in production); optional `HARMONIQ_ADMIN_IP_ALLOWLIST` (INST-32)
+- [x] Instance API keys: `GET/POST/DELETE /api/admin/api-keys`; `hq_inst_` parsing in `authenticate.ts`; `instance:read` for GET admin routes, `instance:admin` for the rest (but not admins or keys); refused on every route outside `/api/admin`; changes made with them are audited as the key (INST-33)
 - [ ] Settings keys `plans`, `rateLimits`, `gc`, `bundles`, `tenancy`, `session`, `health` in `InstanceSettingsSchemas`, read through `InstanceSettings` by `Plans`, the rate limiter and GC jobs with env fallback (INST-34)
 - [ ] Settings versions on every save; `GET /api/admin/settings/:key/history`, `POST …/history/:version/restore`; `GET /api/admin/settings/export` and `PUT /api/admin/settings/import` (YAML, secrets excluded, dry-run diff) (INST-35)
 - [ ] Terraform provider: `harmoniq_instance_setting`, `harmoniq_instance_admin`, plan resources (with instance keys)
@@ -1030,9 +1030,9 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 #### Test Suite
 
 - [x] Keyring: decrypt legacy and new envelopes, rotate, re-seal job idempotent, unknown `kid` fails closed
-- [ ] Role → capability matrix over every `/api/admin` route
-- [ ] Step-up window, admin session cap, IP allowlist with `trustProxy`
-- [ ] Instance keys: scopes, expiry, revocation, refused on workspace and org routes
+- [x] Role → capability matrix over every `/api/admin` route
+- [x] Step-up window, admin session cap, IP allowlist with `trustProxy`
+- [x] Instance keys: scopes, expiry, revocation, refused on workspace and org routes
 - [ ] New settings take effect without restart and on other replicas (as `instanceSettings.test.ts`); history, restore and import dry-run
 
 ### 9.10 System Admin Dashboard & Operations (M5.10)

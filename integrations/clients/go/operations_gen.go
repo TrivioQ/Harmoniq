@@ -10,9 +10,19 @@ import (
 	"net/url"
 )
 
+// DeleteAdminAdminInvitationsById calls DELETE /api/admin/admin-invitations/{id} (Instance administration).
+func (c *Client) DeleteAdminAdminInvitationsById(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/admin/admin-invitations/"+url.PathEscape(id), nil, query)
+}
+
 // DeleteAdminAdminsByUserId calls DELETE /api/admin/admins/{userId} (Instance administration).
 func (c *Client) DeleteAdminAdminsByUserId(ctx context.Context, userId string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/admin/admins/"+url.PathEscape(userId), nil, query)
+}
+
+// DeleteAdminApiKeysById calls DELETE /api/admin/api-keys/{id} (Instance administration).
+func (c *Client) DeleteAdminApiKeysById(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/admin/api-keys/"+url.PathEscape(id), nil, query)
 }
 
 // DeleteAdminDomainsById calls DELETE /api/admin/domains/{id} (Instance administration).
@@ -213,6 +223,11 @@ func (c *Client) DeleteWorkspacesWebhooksByEndpointId(ctx context.Context, works
 // GetAdminAdmins calls GET /api/admin/admins (Instance administration).
 func (c *Client) GetAdminAdmins(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/admins", nil, query)
+}
+
+// GetAdminApiKeys calls GET /api/admin/api-keys (Instance administration).
+func (c *Client) GetAdminApiKeys(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/api-keys", nil, query)
 }
 
 // GetAdminAudit calls GET /api/admin/audit (Instance administration).
@@ -665,6 +680,11 @@ func (c *Client) GetWorkspacesWebhooksDeliveries(ctx context.Context, workspaceS
 	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/webhooks/"+url.PathEscape(endpointId)+"/deliveries", nil, query)
 }
 
+// PatchAdminAdminsByUserId calls PATCH /api/admin/admins/{userId} (Instance administration).
+func (c *Client) PatchAdminAdminsByUserId(ctx context.Context, userId string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "PATCH", "/api/admin/admins/"+url.PathEscape(userId), nil, query)
+}
+
 // PatchOrgsAuditSinksById calls PATCH /api/orgs/{orgSlug}/audit-sinks/{id} (Organizations).
 func (c *Client) PatchOrgsAuditSinksById(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "PATCH", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit-sinks/"+url.PathEscape(id), nil, query)
@@ -728,6 +748,11 @@ func (c *Client) PatchWorkspacesWebhooksByEndpointId(ctx context.Context, worksp
 // PostAdminAdmins calls POST /api/admin/admins (Instance administration).
 func (c *Client) PostAdminAdmins(ctx context.Context, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/admin/admins", body, query)
+}
+
+// PostAdminApiKeys calls POST /api/admin/api-keys (Instance administration).
+func (c *Client) PostAdminApiKeys(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/api-keys", nil, query)
 }
 
 // PostAdminEncryptionReseal calls POST /api/admin/encryption/reseal (Instance administration).

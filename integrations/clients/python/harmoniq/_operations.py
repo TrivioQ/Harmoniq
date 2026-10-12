@@ -11,9 +11,17 @@ from ._core import BaseClient, Response, quote_segment as _q
 class Client(BaseClient):
     """Harmoniq registry client: one method per REST operation (see BaseClient)."""
 
+    def delete_admin_admin_invitations_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/admin-invitations/{id} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/admin-invitations/" + _q(id), None, query)
+
     def delete_admin_admins_by_user_id(self, user_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/admins/{userId} (Instance administration)."""
         return self.request("DELETE", "/api/admin/admins/" + _q(user_id), None, query)
+
+    def delete_admin_api_keys_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/api-keys/{id} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/api-keys/" + _q(id), None, query)
 
     def delete_admin_domains_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/domains/{id} (Instance administration)."""
@@ -174,6 +182,10 @@ class Client(BaseClient):
     def get_admin_admins(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/admins (Instance administration)."""
         return self.request("GET", "/api/admin/admins", None, query)
+
+    def get_admin_api_keys(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/api-keys (Instance administration)."""
+        return self.request("GET", "/api/admin/api-keys", None, query)
 
     def get_admin_audit(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/audit (Instance administration)."""
@@ -535,6 +547,10 @@ class Client(BaseClient):
         """GET /api/workspaces/{workspaceSlug}/webhooks/{endpointId}/deliveries (Webhooks)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/webhooks/" + _q(endpoint_id) + "/deliveries", None, query)
 
+    def patch_admin_admins_by_user_id(self, user_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PATCH /api/admin/admins/{userId} (Instance administration)."""
+        return self.request("PATCH", "/api/admin/admins/" + _q(user_id), None, query)
+
     def patch_orgs_audit_sinks_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PATCH /api/orgs/{orgSlug}/audit-sinks/{id} (Organizations)."""
         return self.request("PATCH", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id), None, query)
@@ -586,6 +602,10 @@ class Client(BaseClient):
     def post_admin_admins(self, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/admins (Instance administration)."""
         return self.request("POST", "/api/admin/admins", body, query)
+
+    def post_admin_api_keys(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/api-keys (Instance administration)."""
+        return self.request("POST", "/api/admin/api-keys", None, query)
 
     def post_admin_encryption_reseal(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/encryption/reseal (Instance administration)."""

@@ -37,6 +37,10 @@ const EnvSchema = z.object({
   JWT_SECRET: z.string().optional(),
   HARMONIQ_ENCRYPTION_KEY: z.string().optional(),
   HARMONIQ_ENCRYPTION_KEYS: z.string().optional(),
+  /** INST-32: instance admins must sign in with MFA (or the instance's OIDC). */
+  HARMONIQ_ADMIN_REQUIRE_MFA: z.string().optional(),
+  /** INST-32: CIDR blocks allowed to reach `/api/admin` (comma-separated). */
+  HARMONIQ_ADMIN_IP_ALLOWLIST: z.string().optional(),
   WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
   CACHE_ADAPTER: z.string().default('memory'),
   REDIS_URL: z.string().optional(),
@@ -113,6 +117,10 @@ export interface Config {
   trustProxy: boolean | string;
   port: number;
   jwtSecret: string;
+  /** INST-32: admin access needs MFA or instance OIDC (default: on in production). */
+  adminRequireMfa: boolean;
+  /** INST-32: when set, `/api/admin` answers only these networks. */
+  adminIpAllowlist: string[];
   /**
    * The active 32-byte AES-256-GCM key; its keyring (INST-26, `keyringOf`) opens values
    * sealed with older keys.
@@ -426,6 +434,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: e.PORT,
     jwtSecret,
     encryptionKey,
+    adminRequireMfa:
+      e.HARMONIQ_ADMIN_REQUIRE_MFA === undefined
+        ? isProduction
+        : e.HARMONIQ_ADMIN_REQUIRE_MFA === '1' || e.HARMONIQ_ADMIN_REQUIRE_MFA === 'true',
+    adminIpAllowlist: (e.HARMONIQ_ADMIN_IP_ALLOWLIST ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean),
     webOrigin: e.WEB_ORIGIN,
     cacheAdapter,
     redisUrl: e.REDIS_URL,
