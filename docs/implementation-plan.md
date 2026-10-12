@@ -1007,12 +1007,12 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [ ] `InstanceAdmin.role` (`instance_owner` | `instance_operator` | `instance_support` | `instance_billing`; existing grants become `instance_owner`); `InstanceAdminInvitation` (email, role, token hash, expiry) (INST-31)
 - [ ] `InstanceApiKey`: `name`, `keyHash`, `prefix`, `scopes[]`, `expiresAt?`, `lastUsedAt?`, `createdBy`, `revokedAt?` (INST-33)
 - [ ] `InstanceConfigVersion`: `key`, `version`, `value` (sealed), `createdAt`, `createdBy` (INST-35)
-- [ ] Sealed envelopes gain `kid`; existing values read as the legacy key (INST-26)
+- [x] Sealed envelopes gain `kid` (the first 8 hex of the key's sha256); values without one are opened by whichever configured key authenticates them (INST-26)
 
 #### Registry
 
-- [ ] Keyring: `HARMONIQ_ENCRYPTION_KEYS=id:base64,…` (first is active; `HARMONIQ_ENCRYPTION_KEY` stays as the single-key form); `encryptJson` / `sealSecret` write `kid`; decryption picks the key by `kid` (INST-26)
-- [ ] pg-boss `secrets.reseal` (on demand from the CLI and the admin panel): re-seals `WorkspaceConfig`, `Organization`, `WorkspaceStorageConfig`, `InstanceConfig`, `RefreshToken.ssoRefreshToken`; health reports values on non-active keys (INST-26)
+- [x] Keyring: `HARMONIQ_ENCRYPTION_KEYS=label:base64,…` (first is active; `HARMONIQ_ENCRYPTION_KEY` stays as the single-key form and, next to the list, as an extra old key); `encryptJson` / `sealSecret` write `kid`; decryption picks the key by `kid`, an unknown `kid` fails closed (INST-26)
+- [x] pg-boss `secrets.reseal` (on demand: `POST /api/admin/encryption/reseal`, `harmoniq-admin reseal-secrets`): re-seals `WorkspaceConfig`, `Organization`, `WorkspaceStorageConfig`, `InstanceConfig`, `RefreshToken.ssoRefreshToken`, webhook and org webhook secrets, notification channels, audit sinks and MFA secrets; `GET /api/admin/encryption` and health report values on non-active or unknown keys (INST-26)
 - [ ] `requireInstanceAdmin(capability)` with a role → capability map; every `/api/admin` route declares its capability; `POST /api/admin/admins` accepts `role` and invites unknown emails (INST-31)
 - [ ] Step-up: `POST /api/auth/reauth` issues a short-lived `reauth_at` claim; destructive admin routes require it within 10 minutes (`403 REAUTH_REQUIRED`); admin session cap (`auth.session.adminMaxHours`); optional `HARMONIQ_ADMIN_IP_ALLOWLIST` (INST-32)
 - [ ] Instance API keys: `GET/POST/DELETE /api/admin/api-keys`; `hq_inst_` parsing in `authenticate.ts`; `instance:read` for GET admin routes, `instance:admin` for the rest; never accepted by `requireWorkspace` / `requireOrg` (INST-33)
@@ -1029,7 +1029,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Test Suite
 
-- [ ] Keyring: decrypt legacy and new envelopes, rotate, re-seal job idempotent, unknown `kid` fails closed
+- [x] Keyring: decrypt legacy and new envelopes, rotate, re-seal job idempotent, unknown `kid` fails closed
 - [ ] Role → capability matrix over every `/api/admin` route
 - [ ] Step-up window, admin session cap, IP allowlist with `trustProxy`
 - [ ] Instance keys: scopes, expiry, revocation, refused on workspace and org routes

@@ -10,6 +10,7 @@ import { invalidateManifest } from '../services/cacheKeys';
 import { publishedPaths } from '../services/manifestPublisher';
 import { purgeDueTenants } from '../services/tenantLifecycle';
 import { expirePlans } from '../services/planChanges';
+import { RESEAL_QUEUE, resealAll } from '../services/reseal';
 import { streamAll, streamDeps } from '../services/auditStream';
 
 /** Deletes bundle objects for one workspace. Throws if they could not be removed. */
@@ -306,6 +307,13 @@ export async function registerGcJobs(fastify: FastifyInstance) {
   await boss.schedule('audit.stream', '* * * * *');
   boss.work('audit.stream', async () => {
     await streamAll(streamDeps(fastify));
+  });
+
+  // INST-26: re-seal every value with the active key - On demand
+  await boss.createQueue(RESEAL_QUEUE);
+  boss.work(RESEAL_QUEUE, async () => {
+    const result = await resealAll(db, fastify.config.encryptionKey);
+    logger.info(`secrets.reseal: ${result.resealed} value(s) re-sealed`);
   });
 
   // PLN-06: trials past their expiry fall back to the base plan - Hourly

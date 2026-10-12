@@ -235,6 +235,11 @@ func (c *Client) GetAdminDomains(ctx context.Context, query url.Values) (*Respon
 	return c.Do(ctx, "GET", "/api/admin/domains", nil, query)
 }
 
+// GetAdminEncryption calls GET /api/admin/encryption (Instance administration).
+func (c *Client) GetAdminEncryption(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/encryption", nil, query)
+}
+
 // GetAdminHealth calls GET /api/admin/health (Instance administration).
 func (c *Client) GetAdminHealth(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/health", nil, query)
@@ -723,6 +728,11 @@ func (c *Client) PatchWorkspacesWebhooksByEndpointId(ctx context.Context, worksp
 // PostAdminAdmins calls POST /api/admin/admins (Instance administration).
 func (c *Client) PostAdminAdmins(ctx context.Context, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/admin/admins", body, query)
+}
+
+// PostAdminEncryptionReseal calls POST /api/admin/encryption/reseal (Instance administration).
+func (c *Client) PostAdminEncryptionReseal(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/encryption/reseal", nil, query)
 }
 
 // PostAdminOrgsRestore calls POST /api/admin/orgs/{slug}/restore (Instance administration).

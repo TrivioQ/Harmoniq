@@ -191,6 +191,10 @@ class Client(BaseClient):
         """GET /api/admin/domains (Instance administration)."""
         return self.request("GET", "/api/admin/domains", None, query)
 
+    def get_admin_encryption(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/encryption (Instance administration)."""
+        return self.request("GET", "/api/admin/encryption", None, query)
+
     def get_admin_health(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/health (Instance administration)."""
         return self.request("GET", "/api/admin/health", None, query)
@@ -582,6 +586,10 @@ class Client(BaseClient):
     def post_admin_admins(self, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/admins (Instance administration)."""
         return self.request("POST", "/api/admin/admins", body, query)
+
+    def post_admin_encryption_reseal(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/encryption/reseal (Instance administration)."""
+        return self.request("POST", "/api/admin/encryption/reseal", None, query)
 
     def post_admin_orgs_restore(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/orgs/{slug}/restore (Instance administration)."""

@@ -10,6 +10,7 @@ import {
   PlanLimitsByPlanSchema,
   PlanSchema,
 } from '@harmoniq/core/dist/schemas/AdminSchemas';
+import { keyId, registerKeyring } from './services/crypto';
 
 // Secrets that have shipped in examples, charts or code. Never acceptable in production.
 const KNOWN_DEFAULT_SECRETS = new Set([
@@ -35,6 +36,7 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   JWT_SECRET: z.string().optional(),
   HARMONIQ_ENCRYPTION_KEY: z.string().optional(),
+  HARMONIQ_ENCRYPTION_KEYS: z.string().optional(),
   WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
   CACHE_ADAPTER: z.string().default('memory'),
   REDIS_URL: z.string().optional(),
@@ -111,7 +113,10 @@ export interface Config {
   trustProxy: boolean | string;
   port: number;
   jwtSecret: string;
-  /** Raw 32-byte key for AES-256-GCM. */
+  /**
+   * The active 32-byte AES-256-GCM key; its keyring (INST-26, `keyringOf`) opens values
+   * sealed with older keys.
+   */
   encryptionKey: Buffer;
   webOrigin: string;
   cacheAdapter: 'redis' | 'memory';
@@ -351,19 +356,43 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     jwtSecret ||= DEV_JWT_SECRET;
   }
 
-  let encryptionKeyB64 = e.HARMONIQ_ENCRYPTION_KEY;
-  if (!encryptionKeyB64) {
-    if (isProduction) {
-      throw new ConfigError(
-        'HARMONIQ_ENCRYPTION_KEY must be set in production (32 random bytes, base64-encoded)'
-      );
+  // INST-26: `HARMONIQ_ENCRYPTION_KEYS=label:base64,…` (the first seals new values; the
+  // others still open old ones), or the single-key `HARMONIQ_ENCRYPTION_KEY`.
+  const listed = (e.HARMONIQ_ENCRYPTION_KEYS ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry, i) => {
+      const at = entry.indexOf(':');
+      return at > 0
+        ? { label: entry.slice(0, at), b64: entry.slice(at + 1) }
+        : { label: `key${i + 1}`, b64: entry };
+    });
+  if (!listed.length) {
+    let single = e.HARMONIQ_ENCRYPTION_KEY;
+    if (!single) {
+      if (isProduction) {
+        throw new ConfigError(
+          'HARMONIQ_ENCRYPTION_KEY must be set in production (32 random bytes, base64-encoded)'
+        );
+      }
+      single = DEV_ENCRYPTION_KEY;
     }
-    encryptionKeyB64 = DEV_ENCRYPTION_KEY;
+    listed.push({ label: 'default', b64: single });
+  } else if (e.HARMONIQ_ENCRYPTION_KEY) {
+    // Values sealed with the single key keep opening after the switch to a list.
+    listed.push({ label: 'previous', b64: e.HARMONIQ_ENCRYPTION_KEY });
   }
-  const encryptionKey = Buffer.from(encryptionKeyB64, 'base64');
-  if (encryptionKey.length !== 32) {
-    throw new ConfigError('HARMONIQ_ENCRYPTION_KEY must decode to exactly 32 bytes');
+  const ring = new Map<string, { key: Buffer; label: string }>();
+  for (const { label, b64 } of listed) {
+    const key = Buffer.from(b64, 'base64');
+    if (key.length !== 32) {
+      throw new ConfigError(`Encryption key "${label}" must decode to exactly 32 bytes`);
+    }
+    if (!ring.has(keyId(key))) ring.set(keyId(key), { key, label });
   }
+  const encryptionKey = [...ring.values()][0].key;
+  registerKeyring({ active: encryptionKey, keys: ring });
 
   const devLoginFlag = e.HARMONIQ_DEV_LOGIN === '1' || e.HARMONIQ_DEV_LOGIN === 'true';
   const authMethods = parseAuthMethods(e.HARMONIQ_AUTH_METHODS, devLoginFlag);

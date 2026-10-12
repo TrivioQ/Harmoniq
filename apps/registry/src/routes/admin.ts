@@ -42,6 +42,7 @@ import {
 } from '../services/auditExport';
 import { recordPlanChange } from '../services/planChanges';
 import { verifyChain } from '../services/auditChain';
+import { RESEAL_QUEUE, resealAll, sealedValueReport } from '../services/reseal';
 import { reportDays, sendUsageCsv, usageTotals, workspaceUsage } from '../services/usageReport';
 import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
 
@@ -218,14 +219,29 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── System health (INST-08) ──────────────────────────────────────────────
 
+  // INST-26: sealed values per key scan every sealed column: kept for ten minutes.
+  let encryption: { at: number; report: Awaited<ReturnType<typeof sealedValueReport>> } | null =
+    null;
+  const encryptionSummary = async () => {
+    if (!encryption || Date.now() - encryption.at > 10 * 60_000) {
+      encryption = {
+        at: Date.now(),
+        report: await sealedValueReport(systemDb, fastify.config.encryptionKey),
+      };
+    }
+    const { active, stale, unknownKeys, keys } = encryption.report;
+    return { active, keys: keys.length, stale, unknownKeys: unknownKeys.length };
+  };
+
   fastify.get('/api/admin/health', admin, async () => {
-    const [health, workspaces, modules, users] = await Promise.all([
+    const [health, workspaces, modules, users, keys] = await Promise.all([
       instanceHealth(fastify.container, adapters()),
       systemDb.workspace.count(),
       systemDb.remoteModule.count(),
       systemDb.user.count(),
+      encryptionSummary(),
     ]);
-    return { ...health, stats: { workspaces, modules, users } };
+    return { ...health, stats: { workspaces, modules, users }, encryption: keys };
   });
 
   // ─── Workspaces (INST-09) ─────────────────────────────────────────────────
@@ -999,6 +1015,27 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       throw new BadRequestError(`Sending failed: ${(err as Error).message}`);
     }
     return { sentTo: user.email };
+  });
+
+  // ─── Encryption keys (INST-26) ────────────────────────────────────────────
+
+  fastify.get('/api/admin/encryption', admin, async () =>
+    sealedValueReport(systemDb, fastify.config.encryptionKey)
+  );
+
+  /** Re-seals every value with the active key (queued; inline without a job queue). */
+  fastify.post('/api/admin/encryption/reseal', admin, async (request, reply) => {
+    await instanceAudit(request, {
+      action: 'instance.secrets_reseal',
+      resourceType: 'instance',
+      resourceId: 'instance',
+    });
+    const { boss } = fastify.container;
+    if (boss) {
+      await boss.send(RESEAL_QUEUE, {}, { singletonKey: 'reseal' });
+      return reply.code(202).send({ queued: true });
+    }
+    return { queued: false, ...(await resealAll(systemDb, fastify.config.encryptionKey)) };
   });
 
   // ─── Instance audit log (INST-18) ─────────────────────────────────────────
