@@ -246,6 +246,16 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       if (role && !(await fastify.ipAllowedForOrg(org.id, request.ip, 'management'))) {
         return refuseIp(reply, request.ip);
       }
+      // SES-03: members who signed in without SSO need a second factor.
+      if (role && (await fastify.mfaRequiredBy(org.id, principal))) {
+        return reply.code(403).send({
+          error: {
+            code: 'MFA_REQUIRED',
+            message:
+              'The organization requires multi-factor authentication: set it up in your account, then sign in again',
+          },
+        });
+      }
       request.org = org;
       request.orgRole = role;
     };

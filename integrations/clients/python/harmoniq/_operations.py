@@ -27,9 +27,25 @@ class Client(BaseClient):
         """DELETE /api/admin/users/{id} (Instance administration)."""
         return self.request("DELETE", "/api/admin/users/" + _q(id), None, query)
 
+    def delete_admin_users_mfa(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/users/{id}/mfa (Instance administration)."""
+        return self.request("DELETE", "/api/admin/users/" + _q(id) + "/mfa", None, query)
+
     def delete_admin_workspaces_by_slug(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/workspaces/{slug} (Instance administration)."""
         return self.request("DELETE", "/api/admin/workspaces/" + _q(slug), None, query)
+
+    def delete_me_mfa(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/me/mfa (Service)."""
+        return self.request("DELETE", "/api/me/mfa", None, query)
+
+    def delete_me_sessions(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/me/sessions (Service)."""
+        return self.request("DELETE", "/api/me/sessions", None, query)
+
+    def delete_me_sessions_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/me/sessions/{id} (Service)."""
+        return self.request("DELETE", "/api/me/sessions/" + _q(id), None, query)
 
     def delete_orgs_by_org_slug(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug} (Organizations)."""
@@ -230,6 +246,14 @@ class Client(BaseClient):
     def get_me(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/me (Sign-in)."""
         return self.request("GET", "/api/me", None, query)
+
+    def get_me_mfa(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/me/mfa (Service)."""
+        return self.request("GET", "/api/me/mfa", None, query)
+
+    def get_me_sessions(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/me/sessions (Service)."""
+        return self.request("GET", "/api/me/sessions", None, query)
 
     def get_orgs(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs (Organizations)."""
@@ -535,6 +559,14 @@ class Client(BaseClient):
         """POST /api/admin/users/{id}/revoke-sessions (Instance administration)."""
         return self.request("POST", "/api/admin/users/" + _q(id) + "/revoke-sessions", None, query)
 
+    def post_admin_users_suspend(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/users/{id}/suspend (Instance administration)."""
+        return self.request("POST", "/api/admin/users/" + _q(id) + "/suspend", None, query)
+
+    def post_admin_users_unsuspend(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/users/{id}/unsuspend (Instance administration)."""
+        return self.request("POST", "/api/admin/users/" + _q(id) + "/unsuspend", None, query)
+
     def post_admin_workspaces_restore(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/workspaces/{slug}/restore (Instance administration)."""
         return self.request("POST", "/api/admin/workspaces/" + _q(slug) + "/restore", None, query)
@@ -554,6 +586,18 @@ class Client(BaseClient):
     def post_invitations_accept(self, token, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/invitations/{token}/accept (Service)."""
         return self.request("POST", "/api/invitations/" + _q(token) + "/accept", None, query)
+
+    def post_me_mfa_enable(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/me/mfa/enable (Service)."""
+        return self.request("POST", "/api/me/mfa/enable", None, query)
+
+    def post_me_mfa_recovery_codes(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/me/mfa/recovery-codes (Service)."""
+        return self.request("POST", "/api/me/mfa/recovery-codes", None, query)
+
+    def post_me_mfa_setup(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/me/mfa/setup (Service)."""
+        return self.request("POST", "/api/me/mfa/setup", None, query)
 
     def post_orgs(self, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs (Organizations)."""

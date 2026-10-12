@@ -953,15 +953,15 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Database
 
-- [ ] `User`: `suspendedAt?`, `suspendedReason?`, `mfaSecretSealed?`, `mfaEnabledAt?`, `mfaRecoveryCodes String[]` (hashed)
-- [ ] `RefreshToken`: `lastUsedAt`, `userAgent?`, `ip?` (session list)
+- [x] `User`: `suspendedAt?`, `suspendedReason?`, `mfaSecretSealed?`, `mfaEnabledAt?`, `mfaRecoveryCodes String[]` (hashed)
+- [x] `RefreshToken`: `userAgent?`, `ip?`, `mfaVerified` (session list; last use is the newest token of the session); `OrgPolicy.requireMfa`
 
 #### Registry
 
-- [ ] Instance setting `auth.session` (`maxDays`, `idleMinutes`) replacing `REFRESH_TOKEN_TTL_MS` (SES-01)
-- [ ] `GET /api/me/sessions`, `DELETE /api/me/sessions/:id`, `DELETE /api/me/sessions` (SES-02)
-- [ ] TOTP: `POST /api/me/mfa/setup`, `POST /api/me/mfa/enable`, `DELETE /api/me/mfa`, recovery codes; second step after email or GitHub sign-in; `requireMfa` from org policy (SES-03)
-- [ ] `POST /api/admin/users/:id/suspend` / `unsuspend`: refuse sign-in and refresh, reject access tokens (checked in `resolveSession`, which already loads the user), keys created by the user refused (SES-04)
+- [x] Instance setting `auth.session` (`maxDays`, `idleMinutes`) replacing `REFRESH_TOKEN_TTL_MS` (SES-01)
+- [x] `GET /api/me/sessions`, `DELETE /api/me/sessions/:id`, `DELETE /api/me/sessions` (others; `?includeCurrent=true`); access tokens carry the session id and stop within 15 s of the session ending (SES-02)
+- [x] TOTP: `POST /api/me/mfa/setup`, `POST /api/me/mfa/enable` (upgrades the current session), `DELETE /api/me/mfa`, `POST /api/me/mfa/recovery-codes`; a challenge and `POST /api/auth/mfa/verify` after sign-ins without tenant SSO; `requireMfa` from org policy refuses unverified non-SSO sessions in the org's workspaces and org routes (`403 MFA_REQUIRED`); `DELETE /api/admin/users/:id/mfa` resets a lost factor (SES-03)
+- [x] `POST /api/admin/users/:id/suspend` / `unsuspend`: refuse sign-in and refresh, reject access tokens (checked in `resolveSession`, which already loads the user), keys created by the user refused (SES-04)
 
 #### Dashboard
 
@@ -970,10 +970,10 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Test Suite
 
-- [ ] Session lifetime and idle timeout; org policy shortens only
-- [ ] Session list and revocation scoped to the user
-- [ ] TOTP enrolment, verification window, recovery code single use, `requireMfa` enforcement, SSO sign-ins exempt
-- [ ] Suspension: sign-in, refresh, live access token and created keys all refused; unsuspend restores
+- [x] Session lifetime and idle timeout; org policy shortens only
+- [x] Session list and revocation scoped to the user
+- [x] TOTP enrolment, verification window, recovery code single use, `requireMfa` enforcement, SSO sign-ins exempt
+- [x] Suspension: sign-in, refresh, live access token and created keys all refused; unsuspend restores
 
 ### 9.8 Audit Streaming & Notifications (M5.8)
 

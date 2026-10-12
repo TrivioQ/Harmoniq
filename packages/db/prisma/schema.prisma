@@ -16,6 +16,16 @@ model User {
   name                String?
   avatarUrl           String?
   lastLoginAt         DateTime?
+  /// SES-04: set by an instance admin; sign-in, sessions and the user's keys are refused.
+  suspendedAt         DateTime?
+  suspendedReason     String?
+  /// SES-03: the TOTP secret (sealed); MFA is on once `mfaEnabledAt` is set.
+  mfaSecretSealed     String?
+  mfaEnabledAt        DateTime?
+  /// sha256 of each unused recovery code.
+  mfaRecoveryCodes    String[]             @default([])
+  /// The last TOTP time step accepted (a code can't be replayed).
+  mfaLastStep         Int?
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   Identities          Identity[]
@@ -268,10 +278,16 @@ model RefreshToken {
   /// SSO-08/27: the IdP's refresh token (sealed), re-checked while the session lives.
   ssoRefreshToken String?
   ssoCheckedAt    DateTime?
+  /// SES-03: the session passed a second factor.
+  mfaVerified     Boolean   @default(false)
+  /// SES-02: where the session was last used from (shown in the session list).
+  userAgent       String?
+  ip              String?
   createdAt       DateTime  @default(now())
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([familyId])
+  @@index([userId])
 }
 
 /// A login method linked to a user (GitHub account, email, OIDC subject, ...).
@@ -687,6 +703,8 @@ model OrgPolicy {
   freezeWindows        Json         @default("[]")
   /// POL-06
   lockSso              Boolean      @default(false)
+  /// SES-03: members signing in without SSO must use MFA.
+  requireMfa           Boolean      @default(false)
   /// POL-07
   sessionMaxHours      Int?
   idleTimeoutMinutes   Int?

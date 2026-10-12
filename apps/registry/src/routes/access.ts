@@ -145,7 +145,9 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
       }));
       // POL-03: existing keys that break the organization's policy are flagged.
       return {
-        keys: keys.map((k) => ({ ...keyDto(k), policyViolations: k.revokedAt ? [] : keyPolicyViolations(policy, k),
+        keys: keys.map((k) => ({
+          ...keyDto(k),
+          policyViolations: k.revokedAt ? [] : keyPolicyViolations(policy, k),
         })),
       };
     }

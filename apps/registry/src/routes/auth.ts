@@ -15,10 +15,12 @@ import {
   EmailLoginRequestSchema,
   EmailLoginVerifySchema,
   MeResponse,
+  MfaVerifyRequestSchema,
   RefreshRequestSchema,
 } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { EmailIdentityProvider } from '../adapters/identity/EmailIdentityProvider';
-import { AuthService } from '../services/authService';
+import { AuthService, ClientInfo } from '../services/authService';
+import { accountRoutes } from './account';
 import { ssoScope } from '../plugins/authenticate';
 import { provisionSsoMember } from '../services/sso';
 import { provisionOrgSsoMember } from '../services/orgProvisioning';
@@ -63,7 +65,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       open: (sealed) => openSecret(sealed, config.encryptionKey),
       check: (provider, token) => providers.checkSession(provider, token),
     },
-    (provider) => settings.sessionProviderEnabled(provider)
+    (provider) => settings.sessionProviderEnabled(provider),
+    {
+      session: () => settings.session(),
+      openSecret: (sealed) => openSecret(sealed, config.encryptionKey),
+    }
   );
 
   // Email sign-in needs a way to send mail (SMTP, or the console mailer outside production)
@@ -97,9 +103,29 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
   };
 
+  /** SES-02: where a sign-in or refresh comes from (the dashboard forwards both). */
+  const clientOf = (request: FastifyRequest): ClientInfo => ({
+    ip: request.ip,
+    userAgent: request.headers['user-agent'],
+  });
+
+  // SES-03: the second step of a sign-in.
+  fastify.post('/api/auth/mfa/verify', { config: LOGIN_RATE_LIMIT }, async (request, reply) => {
+    const parsed = MfaVerifyRequestSchema.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, parsed.error);
+    try {
+      return await auth.verifyMfa(parsed.data.challenge, parsed.data.code, clientOf(request));
+    } catch (err) {
+      return identityFailure(reply, err);
+    }
+  });
+
+  accountRoutes(fastify, auth);
+
   const identityFailure = (reply: FastifyReply, err: unknown) => {
     if (err instanceof IdentityError) {
-      const status = err.code === 'provider_unavailable' ? 502 : 401;
+      const status =
+        err.code === 'provider_unavailable' ? 502 : err.code === 'account_suspended' ? 403 : 401;
       return reply
         .code(status)
         .send({ error: { code: err.code.toUpperCase(), message: err.message } });
@@ -218,8 +244,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /** Session for a proven identity; workspace and org SSO also provision memberships. */
-  async function finishLogin(info: IdentityUserInfo, providerId: string, ip: string) {
-    const { user, response } = await auth.login(info, providerId);
+  async function finishLogin(
+    info: IdentityUserInfo,
+    providerId: string,
+    ip: string,
+    client: ClientInfo = { ip }
+  ) {
+    const { user, response } = await auth.login(info, providerId, client);
     const sso = await providers.policyFor(providerId);
     if (sso) {
       const { subject, policy } = sso;
@@ -238,7 +269,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           );
         }
       } catch (err) {
-        await auth.logout(response.refreshToken); // e.g. deprovisioned over SCIM
+        // e.g. deprovisioned over SCIM (tenant SSO never answers with an MFA challenge)
+        if ('refreshToken' in response) await auth.logout(response.refreshToken);
         throw err;
       }
     }
@@ -261,7 +293,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const info = await providers.samlService.redeem(code, null, provider);
-        return await finishLogin(info, provider, request.ip);
+        return await finishLogin(info, provider, request.ip, clientOf(request));
       } catch (err) {
         return identityFailure(reply, err);
       }
@@ -304,7 +336,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
       try {
         const info = await provider.handleCallback(parsed.data);
-        return await finishLogin(info, provider.id, request.ip);
+        return await finishLogin(info, provider.id, request.ip, clientOf(request));
       } catch (err) {
         return identityFailure(reply, err);
       }
@@ -323,7 +355,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           emailVerified: true,
           name: parsed.data.name,
         },
-        'dev'
+        'dev',
+        clientOf(request)
       );
     });
   }
@@ -351,7 +384,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (!parsed.success) return badRequest(reply, parsed.error);
       try {
         const info = await email.verifyLogin(parsed.data);
-        return await auth.completeLogin(info, email.id);
+        return await auth.completeLogin(info, email.id, clientOf(request));
       } catch (err) {
         return identityFailure(reply, err);
       }
@@ -361,7 +394,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/api/auth/refresh', { config: REFRESH_RATE_LIMIT }, async (request, reply) => {
     const parsed = RefreshRequestSchema.safeParse(request.body);
     if (!parsed.success) return badRequest(reply, parsed.error);
-    const session = await auth.refresh(parsed.data.refreshToken);
+    const session = await auth.refresh(parsed.data.refreshToken, clientOf(request));
     if (!session) {
       return reply
         .code(401)

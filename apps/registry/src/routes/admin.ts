@@ -662,6 +662,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           createdAt: u.createdAt,
           isInstanceAdmin: !!u.InstanceAdmin && !u.InstanceAdmin.revokedAt,
           activeSessions: u._count.RefreshTokens,
+          // SES-03/04
+          mfaEnabled: !!u.mfaEnabledAt,
+          suspendedAt: u.suspendedAt,
+          suspendedReason: u.suspendedReason,
           workspaces: u.WorkspaceMembers.map((m) => ({ slug: m.workspace.slug, role: m.role })),
         })),
         nextCursor: nextCursor(rows, PAGE),
@@ -692,6 +696,103 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         metadata: { sessions: count },
       });
       return { revoked: count };
+    }
+  );
+
+  /**
+   * SES-04: suspends a user: sign-in and refresh are refused, live access tokens stop at
+   * once and the API keys they created stop working, until unsuspended. Not yourself, nor
+   * the last active instance admin.
+   */
+  fastify.post<{ Params: { id: string }; Body: { reason?: string } }>(
+    '/api/admin/users/:id/suspend',
+    admin,
+    async (request) => {
+      const user = await userById(request.params.id);
+      if (user.id === request.principal!.id) {
+        throw new BadRequestError('Instance admins cannot suspend themselves');
+      }
+      const reason =
+        String(request.body?.reason ?? '')
+          .trim()
+          .slice(0, 500) || null;
+      const grant = await systemDb.instanceAdmin.findUnique({ where: { userId: user.id } });
+      if (grant && !grant.revokedAt) {
+        const others = await systemDb.instanceAdmin.count({
+          where: { revokedAt: null, userId: { not: user.id }, user: { suspendedAt: null } },
+        });
+        if (!others) throw new ConflictError('The last active instance admin cannot be suspended');
+      }
+      await systemDb.user.update({
+        where: { id: user.id },
+        data: { suspendedAt: user.suspendedAt ?? new Date(), suspendedReason: reason },
+      });
+      const { count } = await systemDb.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      fastify.forgetApiKeys();
+      await instanceAudit(request, {
+        action: 'instance.user_suspend',
+        resourceType: 'user',
+        resourceId: user.id,
+        metadata: { reason, sessions: count },
+      });
+      return { id: user.id, suspendedAt: (user.suspendedAt ?? new Date()).toISOString(), reason };
+    }
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    '/api/admin/users/:id/unsuspend',
+    admin,
+    async (request) => {
+      const user = await userById(request.params.id);
+      if (!user.suspendedAt) throw new ConflictError('The user is not suspended');
+      await systemDb.user.update({
+        where: { id: user.id },
+        data: { suspendedAt: null, suspendedReason: null },
+      });
+      fastify.forgetApiKeys();
+      await instanceAudit(request, {
+        action: 'instance.user_unsuspend',
+        resourceType: 'user',
+        resourceId: user.id,
+      });
+      return { id: user.id, suspendedAt: null };
+    }
+  );
+
+  /**
+   * SES-03: turns a user's MFA off (lost device and recovery codes). Their sessions end;
+   * they sign in with one factor and can enrol again.
+   */
+  fastify.delete<{ Params: { id: string } }>(
+    '/api/admin/users/:id/mfa',
+    admin,
+    async (request, reply) => {
+      const user = await userById(request.params.id);
+      if (!user.mfaEnabledAt && !user.mfaSecretSealed) {
+        throw new ConflictError('The user has no MFA');
+      }
+      await systemDb.user.update({
+        where: { id: user.id },
+        data: {
+          mfaEnabledAt: null,
+          mfaSecretSealed: null,
+          mfaRecoveryCodes: [],
+          mfaLastStep: null,
+        },
+      });
+      await systemDb.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await instanceAudit(request, {
+        action: 'instance.user_mfa_reset',
+        resourceType: 'user',
+        resourceId: user.id,
+      });
+      return reply.code(204).send();
     }
   );
 

@@ -77,7 +77,12 @@ export class IdentityError extends Error {
       | 'email_not_verified'
       | 'provider_unavailable'
       | 'invalid_token'
-      | 'access_denied',
+      | 'access_denied'
+      /** SES-04 */
+      | 'account_suspended'
+      /** SES-03: the code didn't match, or the challenge expired. */
+      | 'mfa_invalid'
+      | 'mfa_expired',
     message: string
   ) {
     super(message);

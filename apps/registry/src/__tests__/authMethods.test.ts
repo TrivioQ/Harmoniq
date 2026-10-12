@@ -8,6 +8,7 @@ import { buildApp } from '../app';
 import { AuthService } from '../services/authService';
 import { signAccessToken } from '../auth/tokens';
 import { Fixtures, bearer } from './helpers/fixtures';
+import type { SessionResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
 
 /** HARMONIQ_AUTH_METHODS: the environment decides which sign-in methods exist at all. */
 describe('Sign-in methods from the environment', () => {
@@ -120,10 +121,10 @@ describe('Sign-in methods from the environment', () => {
       app.container.logger
     );
     const email = `gh-${randomUUID().slice(0, 8)}@example.com`;
-    const session = await auth.completeLogin(
+    const session = (await auth.completeLogin(
       { providerUserId: randomUUID(), email, emailVerified: true },
       'github'
-    );
+    )) as SessionResponse;
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/refresh',

@@ -4,6 +4,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
 import { FastifyInstance } from 'fastify';
+import type { SessionResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { buildApp } from '../app';
 import { AuthService } from '../services/authService';
 import { effectiveSso } from '../services/ssoIds';
@@ -403,11 +404,11 @@ describe('Organization policy (POL-01..09)', () => {
 
   it('ends sessions past the idle timeout or maximum lifetime at refresh (POL-07)', async () => {
     const auth = new AuthService(db(), app.config.jwtSecret, app.container.logger);
-    const login = () =>
-      auth.completeLogin(
+    const login = async () =>
+      (await auth.completeLogin(
         { providerUserId: `gh-${randomUUID()}`, email: ownerEmail, emailVerified: true },
         'github'
-      );
+      )) as SessionResponse;
     await setPolicy({ minRetentionDays: 30, idleTimeoutMinutes: 30, sessionMaxHours: 8 });
 
     const fresh = await login();

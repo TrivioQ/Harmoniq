@@ -45,6 +45,8 @@ export const OrgPolicySchema = z.object({
   freezeWindows: z.array(OrgFreezeWindowSchema).max(50).default([]),
   /** POL-06 */
   lockSso: z.boolean().default(false),
+  /** SES-03: members signing in without SSO must use MFA. */
+  requireMfa: z.boolean().default(false),
   /** POL-07 */
   sessionMaxHours: z
     .number()

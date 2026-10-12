@@ -215,6 +215,11 @@ export class InstanceSettings {
     return this.resolveAuth(this.plain('auth'));
   }
 
+  /** SES-01: the instance's session lifetime and idle timeout. */
+  session(): { maxDays: number; idleMinutes: number | null } {
+    return AuthSettingsSchema.parse(this.plain('auth') ?? {}).session;
+  }
+
   /** The effective sign-in methods for an `auth` value (stored, or about to be). */
   private resolveAuth(stored: Json | null): EffectiveAuth {
     const value = AuthSettingsSchema.parse(stored ?? {});

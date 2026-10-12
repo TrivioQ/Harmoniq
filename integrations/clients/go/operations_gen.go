@@ -30,9 +30,29 @@ func (c *Client) DeleteAdminUsersById(ctx context.Context, id string, query url.
 	return c.Do(ctx, "DELETE", "/api/admin/users/"+url.PathEscape(id), nil, query)
 }
 
+// DeleteAdminUsersMfa calls DELETE /api/admin/users/{id}/mfa (Instance administration).
+func (c *Client) DeleteAdminUsersMfa(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/admin/users/"+url.PathEscape(id)+"/mfa", nil, query)
+}
+
 // DeleteAdminWorkspacesBySlug calls DELETE /api/admin/workspaces/{slug} (Instance administration).
 func (c *Client) DeleteAdminWorkspacesBySlug(ctx context.Context, slug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/admin/workspaces/"+url.PathEscape(slug), nil, query)
+}
+
+// DeleteMeMfa calls DELETE /api/me/mfa (Service).
+func (c *Client) DeleteMeMfa(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/me/mfa", nil, query)
+}
+
+// DeleteMeSessions calls DELETE /api/me/sessions (Service).
+func (c *Client) DeleteMeSessions(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/me/sessions", nil, query)
+}
+
+// DeleteMeSessionsById calls DELETE /api/me/sessions/{id} (Service).
+func (c *Client) DeleteMeSessionsById(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/me/sessions/"+url.PathEscape(id), nil, query)
 }
 
 // DeleteOrgsByOrgSlug calls DELETE /api/orgs/{orgSlug} (Organizations).
@@ -283,6 +303,16 @@ func (c *Client) GetManifestSnapshotsBySnapshotId(ctx context.Context, workspace
 // GetMe calls GET /api/me (Sign-in).
 func (c *Client) GetMe(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/me", nil, query)
+}
+
+// GetMeMfa calls GET /api/me/mfa (Service).
+func (c *Client) GetMeMfa(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/me/mfa", nil, query)
+}
+
+// GetMeSessions calls GET /api/me/sessions (Service).
+func (c *Client) GetMeSessions(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/me/sessions", nil, query)
 }
 
 // GetOrgs calls GET /api/orgs (Organizations).
@@ -665,6 +695,16 @@ func (c *Client) PostAdminUsersRevokeSessions(ctx context.Context, id string, qu
 	return c.Do(ctx, "POST", "/api/admin/users/"+url.PathEscape(id)+"/revoke-sessions", nil, query)
 }
 
+// PostAdminUsersSuspend calls POST /api/admin/users/{id}/suspend (Instance administration).
+func (c *Client) PostAdminUsersSuspend(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/users/"+url.PathEscape(id)+"/suspend", nil, query)
+}
+
+// PostAdminUsersUnsuspend calls POST /api/admin/users/{id}/unsuspend (Instance administration).
+func (c *Client) PostAdminUsersUnsuspend(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/users/"+url.PathEscape(id)+"/unsuspend", nil, query)
+}
+
 // PostAdminWorkspacesRestore calls POST /api/admin/workspaces/{slug}/restore (Instance administration).
 func (c *Client) PostAdminWorkspacesRestore(ctx context.Context, slug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/admin/workspaces/"+url.PathEscape(slug)+"/restore", nil, query)
@@ -688,6 +728,21 @@ func (c *Client) PostHealthByWorkspaceSlugAndHostAppSlugAndEnv(ctx context.Conte
 // PostInvitationsAccept calls POST /api/invitations/{token}/accept (Service).
 func (c *Client) PostInvitationsAccept(ctx context.Context, token string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/invitations/"+url.PathEscape(token)+"/accept", nil, query)
+}
+
+// PostMeMfaEnable calls POST /api/me/mfa/enable (Service).
+func (c *Client) PostMeMfaEnable(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/me/mfa/enable", nil, query)
+}
+
+// PostMeMfaRecoveryCodes calls POST /api/me/mfa/recovery-codes (Service).
+func (c *Client) PostMeMfaRecoveryCodes(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/me/mfa/recovery-codes", nil, query)
+}
+
+// PostMeMfaSetup calls POST /api/me/mfa/setup (Service).
+func (c *Client) PostMeMfaSetup(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/me/mfa/setup", nil, query)
 }
 
 // PostOrgs calls POST /api/orgs (Organizations).

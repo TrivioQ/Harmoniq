@@ -11,6 +11,7 @@ import { Permission, higherRole, roleAllows, scopesAllow } from '../auth/permiss
 import { verifyAccessToken } from '../auth/tokens';
 import { SsoSubject, effectiveSso, parseSsoProviderId, sameSubject } from '../services/ssoIds';
 import { ipAllowed } from '../services/policy';
+import { isTenantSso } from '../services/authService';
 
 export type Principal =
   | {
@@ -31,6 +32,10 @@ export type Principal =
       isInstanceAdmin: boolean;
       /** How the session signed in, e.g. 'oidc:acme' (forced SSO, SSO-26). */
       provider?: string;
+      /** SES-02: the session (refresh-token family). */
+      sessionId?: string;
+      /** SES-03: the session passed a second factor. */
+      mfa?: boolean;
     };
 
 type Handler = (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | void>;
@@ -81,6 +86,12 @@ declare module 'fastify' {
     requireDeliveryIp: Handler;
     /** Drop cached org network policies (after the policy changes). */
     forgetOrgPolicy: (organizationId: string) => void;
+    /** SES-04: drop every cached key verification (e.g. after a user is suspended). */
+    forgetApiKeys: () => void;
+    /** SES-02: drop the cached state of a session (after it is ended). */
+    forgetSession: (sessionId: string) => void;
+    /** SES-03: whether the organization refuses this principal for want of MFA. */
+    mfaRequiredBy: (organizationId: string, principal: Principal) => Promise<boolean>;
   }
 }
 
@@ -123,28 +134,49 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
 
   // POL-08: org network policies and workspace → organization, briefly cached (every
   // workspace request and, when opted in, every manifest request checks them).
-  const ipPolicies = new Map<string, { list: string[]; manifests: boolean; expires: number }>();
+  const ipPolicies = new Map<
+    string,
+    { list: string[]; manifests: boolean; requireMfa: boolean; expires: number }
+  >();
+
+  /** The organization's access policy (POL-08, SES-03), cached for 30 s. */
+  async function accessPolicy(organizationId: string) {
+    const now = Date.now();
+    let policy = ipPolicies.get(organizationId);
+    if (!policy || policy.expires <= now) {
+      const row = await systemDb.orgPolicy.findUnique({
+        where: { organizationId },
+        select: { ipAllowlist: true, ipAllowlistManifests: true, requireMfa: true },
+      });
+      policy = {
+        list: row?.ipAllowlist ?? [],
+        manifests: row?.ipAllowlistManifests ?? false,
+        requireMfa: row?.requireMfa ?? false,
+        expires: now + IP_POLICY_TTL_MS,
+      };
+      if (ipPolicies.size > 5_000) ipPolicies.clear();
+      ipPolicies.set(organizationId, policy);
+    }
+    return policy;
+  }
+
+  /**
+   * SES-03: whether the organization refuses this session for want of MFA: members who
+   * signed in without its (or a workspace's) SSO and without a second factor.
+   */
+  async function mfaRequiredBy(organizationId: string, principal: Principal) {
+    if (principal.type !== 'user' || principal.mfa || isTenantSso(principal.provider)) {
+      return false;
+    }
+    return (await accessPolicy(organizationId)).requireMfa;
+  }
 
   async function ipAllowedForOrg(
     organizationId: string,
     ip: string,
     kind: 'management' | 'delivery'
   ) {
-    const now = Date.now();
-    let policy = ipPolicies.get(organizationId);
-    if (!policy || policy.expires <= now) {
-      const row = await systemDb.orgPolicy.findUnique({
-        where: { organizationId },
-        select: { ipAllowlist: true, ipAllowlistManifests: true },
-      });
-      policy = {
-        list: row?.ipAllowlist ?? [],
-        manifests: row?.ipAllowlistManifests ?? false,
-        expires: now + IP_POLICY_TTL_MS,
-      };
-      if (ipPolicies.size > 5_000) ipPolicies.clear();
-      ipPolicies.set(organizationId, policy);
-    }
+    const policy = await accessPolicy(organizationId);
     if (kind === 'delivery' && !policy.manifests) return true;
     try {
       return ipAllowed(policy.list, ip);
@@ -157,16 +189,29 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
   const ipDenied = (reply: FastifyReply, ip: string) =>
     deny(reply, 403, 'IP_NOT_ALLOWED', `Access from ${ip} is not allowed by the organization`);
 
-  /** POL-08 for a workspace request (none for in-process calls, checked at creation). */
+  const mfaDenied = (reply: FastifyReply) =>
+    deny(
+      reply,
+      403,
+      'MFA_REQUIRED',
+      'The organization requires multi-factor authentication: set it up in your account, then sign in again'
+    );
+
+  /**
+   * POL-08 and SES-03 for a workspace request (none for in-process calls, checked when they
+   * were created).
+   */
   async function ipRefusal(
     request: FastifyRequest,
     reply: FastifyReply,
     workspace: { organizationId: string | null }
   ) {
     if (!workspace.organizationId || request.internal) return null;
-    return (await ipAllowedForOrg(workspace.organizationId, request.ip, 'management'))
-      ? null
-      : ipDenied(reply, request.ip);
+    if (!(await ipAllowedForOrg(workspace.organizationId, request.ip, 'management'))) {
+      return ipDenied(reply, request.ip);
+    }
+    if (await mfaRequiredBy(workspace.organizationId, request.principal!)) return mfaDenied(reply);
+    return null;
   }
 
   /**
@@ -241,6 +286,14 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       include: { organization: { select: { deletedAt: true } } },
     });
     if (!record || record.revokedAt || record.organization.deletedAt) return null;
+    if (
+      record.createdBy &&
+      (await systemDb.user.count({
+        where: { id: record.createdBy, suspendedAt: { not: null } },
+      }))
+    ) {
+      return null; // SES-04
+    }
     if (secret !== null && !(await argon2.verify(record.keyHash, secret))) return null;
     return {
       keyId: record.id,
@@ -258,8 +311,12 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
 
   /** A workspace key as a cache entry (null when unknown or revoked). */
   async function loadWorkspaceKey(keyId: string, secret: string | null, now: number) {
-    const record = await systemDb.apiKey.findUnique({ where: { id: keyId } });
-    if (!record || record.revokedAt) return null;
+    const record = await systemDb.apiKey.findUnique({
+      where: { id: keyId },
+      include: { creator: { select: { suspendedAt: true } } },
+    });
+    // SES-04: keys of a suspended creator stop until they are unsuspended.
+    if (!record || record.revokedAt || record.creator?.suspendedAt) return null;
     if (secret !== null && !(await argon2.verify(record.keyHash, secret))) return null;
     return {
       keyId: record.id,
@@ -342,14 +399,34 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       where: { id: claims.userId },
       include: { InstanceAdmin: true },
     });
-    if (!user) return null;
+    // SES-04: a suspended user's tokens stop working at once.
+    if (!user || user.suspendedAt) return null;
+    // SES-02: an ended session's access tokens stop too (checked every few seconds).
+    if (claims.sessionId && !(await sessionAlive(claims.sessionId))) return null;
     return {
       type: 'user',
       id: user.id,
       email: user.email,
       isInstanceAdmin: !!user.InstanceAdmin && !user.InstanceAdmin.revokedAt,
       ...(claims.provider && { provider: claims.provider }),
+      ...(claims.sessionId && { sessionId: claims.sessionId }),
+      ...(claims.mfa && { mfa: true }),
     };
+  }
+
+  const sessions = new Map<string, { alive: boolean; until: number }>();
+  const SESSION_CHECK_MS = 15_000;
+  async function sessionAlive(sessionId: string) {
+    const now = Date.now();
+    const hit = sessions.get(sessionId);
+    if (hit && hit.until > now) return hit.alive;
+    const alive = !!(await systemDb.refreshToken.findFirst({
+      where: { familyId: sessionId, revokedAt: null },
+      select: { id: true },
+    }));
+    if (sessions.size > 20_000) sessions.clear();
+    sessions.set(sessionId, { alive, until: now + SESSION_CHECK_MS });
+    return alive;
   }
 
   // Proves a request came from this process (inject), never from the network.
@@ -370,7 +447,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
         where: { id },
         include: { InstanceAdmin: true },
       });
-      return user
+      return user && !user.suspendedAt
         ? {
             type: 'user',
             id: user.id,
@@ -387,6 +464,13 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
         return orgKey && keyIsUsable(orgKey, Date.now()) ? toPrincipal(orgKey) : null;
       }
       if (key.revokedAt || !keyIsUsable(key, Date.now())) return null;
+      if (key.createdBy) {
+        const creator = await systemDb.user.findUnique({
+          where: { id: key.createdBy },
+          select: { suspendedAt: true },
+        });
+        if (creator?.suspendedAt) return null; // SES-04
+      }
       return {
         type: 'apiKey',
         id: key.id,
@@ -605,6 +689,9 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
   fastify.decorate('forgetApiKey', forgetApiKey);
   fastify.decorate('ipAllowedForOrg', ipAllowedForOrg);
   fastify.decorate('requireDeliveryIp', requireDeliveryIp);
+  fastify.decorate('forgetApiKeys', () => keyCache.clear());
+  fastify.decorate('forgetSession', (sessionId: string) => sessions.delete(sessionId));
+  fastify.decorate('mfaRequiredBy', mfaRequiredBy);
   fastify.decorate('forgetOrgPolicy', (organizationId: string) => {
     ipPolicies.delete(organizationId);
     delivery.expires = 0;

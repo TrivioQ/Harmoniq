@@ -74,6 +74,22 @@ export const AuthSettingsSchema = z.object({
   oidc: z.object({ enabled: z.boolean() }).default({ enabled: true }),
   /** Workspace / organization SAML. */
   saml: z.object({ enabled: z.boolean() }).default({ enabled: true }),
+  /**
+   * SES-01: a session ends `maxDays` after sign-in, or after `idleMinutes` without use
+   * (null: no idle limit). Organization policy (POL-07) may only shorten them.
+   */
+  session: z
+    .object({
+      maxDays: z.number().int().min(1).max(365).default(30),
+      idleMinutes: z
+        .number()
+        .int()
+        .min(5)
+        .max(60 * 24 * 90)
+        .nullable()
+        .default(null),
+    })
+    .default({ maxDays: 30, idleMinutes: null }),
 });
 export type AuthSettings = z.infer<typeof AuthSettingsSchema>;
 
