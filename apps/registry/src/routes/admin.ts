@@ -40,6 +40,8 @@ import {
   keysetRows,
   sendExport,
 } from '../services/auditExport';
+import { recordPlanChange } from '../services/planChanges';
+import { reportDays, sendUsageCsv, usageTotals, workspaceUsage } from '../services/usageReport';
 import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
 
 // InstanceConfig key marking the one-time setup token as consumed (INST-04).
@@ -64,6 +66,17 @@ function cursorWhere(cursor: string | undefined) {
 }
 const nextCursor = <T extends { createdAt: Date; id: string }>(rows: T[], take: number) =>
   rows.length === take ? `${rows[take - 1].createdAt.toISOString()}|${rows[take - 1].id}` : null;
+
+const planDto = (
+  slug: string,
+  p: { plan: string; planExpiresAt: Date | null; basePlan: string | null; planOverrides: unknown }
+) => ({
+  slug,
+  plan: p.plan,
+  expiresAt: p.planExpiresAt?.toISOString() ?? null,
+  basePlan: p.basePlan,
+  overrides: p.planOverrides ?? null,
+});
 
 // INST-01..10, 18: the first-boot wizard and the instance admin API (`/api/admin/*`).
 const adminRoutes: FastifyPluginAsync = async (fastify) => {
@@ -233,7 +246,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         },
         include: {
           organization: { select: { slug: true, plan: true } },
-          WorkspaceConfig: { select: { plan: true } },
+          WorkspaceConfig: { select: { plan: true, planExpiresAt: true, planOverrides: true } },
           _count: {
             // Joined members only: pending invitations aren't members yet.
             select: {
@@ -246,6 +259,13 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: PAGE,
       });
+      // INST-09, USG-02: bundle bytes of the versions each workspace keeps.
+      const storage = await systemDb.moduleVersion.groupBy({
+        by: ['workspaceId'],
+        where: { workspaceId: { in: rows.map((w) => w.id) }, deletedAt: null },
+        _sum: { sizeBytes: true },
+      });
+      const bytesOf = new Map(storage.map((g) => [g.workspaceId, Number(g._sum.sizeBytes ?? 0)]));
       return {
         workspaces: rows.map((w) => ({
           id: w.id,
@@ -258,6 +278,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           modules: w._count.RemoteModules,
           members: w._count.WorkspaceMembers,
           deploys: w._count.ModuleVersions,
+          storageBytes: bytesOf.get(w.id) ?? 0,
+          // PLN-06
+          planExpiresAt: w.WorkspaceConfig?.planExpiresAt ?? null,
+          planOverrides: w.WorkspaceConfig?.planOverrides ?? null,
           suspendedAt: w.suspendedAt,
           // TLC-02: deleted, restorable until `purgeAfter`.
           deletedAt: w.deletedAt,
@@ -365,25 +389,74 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── Plans (PLN-01..03) ───────────────────────────────────────────────────
 
+  /**
+   * PLN-01, PLN-06: `{ plan, overrides?, expiresAt?, basePlan? }`. With `expiresAt` the plan
+   * is a trial that falls back to `basePlan` (default: the plan before). `overrides`
+   * replaces the tenant's (null clears them; omitted keeps them).
+   */
+  function planData(
+    body: ReturnType<typeof SetPlanSchema.parse>,
+    current: { plan: string; planExpiresAt: Date | null; basePlan: string | null } | null
+  ) {
+    const trial = body.expiresAt ?? null;
+    if (trial && trial <= new Date())
+      throw new BadRequestError('`expiresAt` must be in the future');
+    return {
+      plan: body.plan,
+      planExpiresAt: trial,
+      basePlan: trial
+        ? (body.basePlan ?? (current?.planExpiresAt ? current.basePlan : current?.plan) ?? 'hobby')
+        : null,
+      ...(body.overrides !== undefined && {
+        planOverrides:
+          body.overrides === null ? Prisma.DbNull : (body.overrides as Prisma.InputJsonValue),
+      }),
+    };
+  }
+
   fastify.put<{ Params: { slug: string } }>(
     '/api/admin/workspaces/:slug/plan',
     admin,
     async (request) => {
-      const { plan } = SetPlanSchema.parse(request.body);
+      const body = SetPlanSchema.parse(request.body);
       const workspace = await workspaceBySlug(request.params.slug);
-      await systemDb.workspaceConfig.upsert({
+      const current = await systemDb.workspaceConfig.findUnique({
         where: { workspaceId: workspace.id },
-        create: { workspaceId: workspace.id, plan },
-        update: { plan },
+      });
+      const data = planData(body, current);
+      const saved = await systemDb.workspaceConfig.upsert({
+        where: { workspaceId: workspace.id },
+        create: { workspaceId: workspace.id, ...data },
+        update: data,
       });
       fastify.container.plans.forget();
+      const metadata = {
+        slug: workspace.slug,
+        plan: body.plan,
+        expiresAt: data.planExpiresAt,
+        basePlan: data.basePlan,
+        ...(body.overrides !== undefined && { overrides: body.overrides }),
+      };
       await instanceAudit(request, {
         action: 'instance.workspace_plan',
         resourceType: 'workspace',
         resourceId: workspace.id,
-        metadata: { slug: workspace.slug, plan },
+        metadata,
       });
-      return { slug: workspace.slug, plan };
+      // USG-04
+      await recordPlanChange(
+        fastify.container,
+        { workspaceId: workspace.id },
+        {
+          from: current?.plan ?? 'hobby',
+          to: body.plan,
+          reason: 'admin',
+          expiresAt: data.planExpiresAt,
+          overrides: body.overrides,
+        },
+        { type: 'user', id: request.principal!.id }
+      );
+      return planDto(workspace.slug, saved);
     }
   );
 
@@ -398,6 +471,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         slug: o.slug,
         name: o.name,
         plan: o.plan,
+        // PLN-06
+        planExpiresAt: o.planExpiresAt,
+        basePlan: o.basePlan,
+        planOverrides: o.planOverrides,
         workspaces: o._count.Workspaces,
         members: o._count.Members,
         suspendedAt: o.suspendedAt,
@@ -482,20 +559,66 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/admin/orgs/:slug/plan',
     admin,
     async (request) => {
-      const { plan } = SetPlanSchema.parse(request.body);
+      const body = SetPlanSchema.parse(request.body);
       const org = await systemDb.organization.findFirst({
         where: { slug: request.params.slug, deletedAt: null },
       });
       if (!org) throw new NotFoundError('Organization not found');
-      await systemDb.organization.update({ where: { id: org.id }, data: { plan } });
+      const data = planData(body, org);
+      const saved = await systemDb.organization.update({ where: { id: org.id }, data });
       fastify.container.plans.forget();
       await instanceAudit(request, {
         action: 'instance.org_plan',
         resourceType: 'organization',
         resourceId: org.id,
-        metadata: { slug: org.slug, plan },
+        metadata: {
+          slug: org.slug,
+          plan: body.plan,
+          expiresAt: data.planExpiresAt,
+          basePlan: data.basePlan,
+          ...(body.overrides !== undefined && { overrides: body.overrides }),
+        },
       });
-      return { slug: org.slug, plan };
+      await recordPlanChange(
+        fastify.container,
+        { organizationId: org.id },
+        {
+          from: org.plan,
+          to: body.plan,
+          reason: 'admin',
+          expiresAt: data.planExpiresAt,
+          overrides: body.overrides,
+        },
+        { type: 'user', id: request.principal!.id }
+      );
+      return planDto(org.slug, saved);
+    }
+  );
+
+  // ─── Usage (USG-03, INST-09) ──────────────────────────────────────────────
+
+  /** Every live workspace's usage against its quotas, a page at a time (or all as CSV). */
+  fastify.get<{ Querystring: { days?: string; format?: string; cursor?: string } }>(
+    '/api/admin/usage',
+    admin,
+    async (request, reply) => {
+      const days = reportDays(request.query.days);
+      const csv = request.query.format === 'csv';
+      const rows = await systemDb.workspace.findMany({
+        where: { deletedAt: null, ...(!csv && cursorWhere(request.query.cursor)) },
+        select: { id: true, slug: true, name: true, createdAt: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...(!csv && { take: PAGE }),
+      });
+      const { plans, quotas } = fastify.container;
+      const usage = await workspaceUsage({ plans, quotas }, systemDb, rows, days);
+      if (csv) return sendUsageCsv(reply, 'instance', usage);
+      return {
+        days,
+        totals: usageTotals(usage),
+        workspaces: usage,
+        nextCursor: nextCursor(rows, PAGE),
+      };
     }
   );
 

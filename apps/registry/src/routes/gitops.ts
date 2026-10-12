@@ -47,6 +47,20 @@ const gitopsRoutes: FastifyPluginAsync = async (fastify) => {
               encryptionKey: fastify.config.encryptionKey,
               dryRun: body.dryRun,
               prune: body.prune,
+              checkQuotas: async (growth) => {
+                const { quotas } = fastify.container;
+                const target = { workspaceId: workspace.id };
+                if (growth.modules > 0) await quotas.require(target, 'modules', growth.modules);
+                if (growth.webhooks > 0) await quotas.require(target, 'webhooks', growth.webhooks);
+                for (const e of growth.environments) {
+                  if (e.delta <= 0) continue;
+                  await quotas.require(
+                    { ...target, ...(e.hostAppId && { hostAppId: e.hostAppId }) },
+                    'environmentsPerHostApp',
+                    e.delta
+                  );
+                }
+              },
             },
             parsed.data
           );

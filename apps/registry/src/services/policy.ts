@@ -63,7 +63,9 @@ export const freezeWindows = (policy: OrgPolicy | null) =>
 
 /** POL-02: the org default for an environment: the first rule whose pattern matches. */
 export function approvalDefaultFor(policy: OrgPolicy | null, environmentSlug: string) {
-  return approvalDefaults(policy).find((d) => matchesPattern(d.environmentPattern, environmentSlug));
+  return approvalDefaults(policy).find((d) =>
+    matchesPattern(d.environmentPattern, environmentSlug)
+  );
 }
 
 /** Why `rule` is weaker than `floor` (empty when it is at least as strict). */
@@ -182,7 +184,11 @@ export function assertRetention(policy: OrgPolicy | null, retentionDays: number)
  * POL-05: the org freeze window in force for an environment, if any. `overridden` when an
  * org admin let changes through until a time that hasn't passed.
  */
-export function activeOrgFreeze(policy: OrgPolicy | null, environmentSlug: string, now = new Date()) {
+export function activeOrgFreeze(
+  policy: OrgPolicy | null,
+  environmentSlug: string,
+  now = new Date()
+) {
   for (const w of freezeWindows(policy)) {
     if (!matchesPattern(w.environmentPattern, environmentSlug)) continue;
     if (w.from && new Date(w.from) > now) continue;

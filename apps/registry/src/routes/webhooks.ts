@@ -66,6 +66,7 @@ const webhookRoutes: FastifyPluginAsync = async (fastify, _options) => {
       const body = CreateEndpointSchema.parse(request.body);
       await assertDeliverable(body.url);
       const workspace = request.workspace!;
+      await fastify.container.quotas.require({ workspaceId: workspace.id }, 'webhooks'); // PLN-04
       // WHK-05: per-endpoint HMAC secret, shown once, encrypted at rest.
       const secret = `whsec_${randomBytes(32).toString('base64url')}`;
       const endpoint = await fastify.container.withTenant(workspace.id, async (tx) => {

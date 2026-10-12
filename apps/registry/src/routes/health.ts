@@ -33,11 +33,17 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
       // POL-08: the organization's allowlist, when it includes manifests and health.
       preHandler: fastify.requireDeliveryIp,
       config: {
+        // MT-12: per workspace, by plan (browsers of all its users share the budget).
         rateLimit: {
-          max: 120,
           timeWindow: '1 minute',
           keyGenerator: (req: FastifyRequest) =>
-            `health:${(req.params as IngestParams).workspaceSlug}:${req.ip}`,
+            `health:${(req.params as IngestParams).workspaceSlug}`,
+          max: async (req: FastifyRequest) =>
+            fastify.config.healthRateLimits[
+              await fastify.container.plans.planOf({
+                slug: (req.params as IngestParams).workspaceSlug,
+              })
+            ],
         },
       },
     },
@@ -66,6 +72,8 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
           tx.moduleHealthEvent.createMany({ data: rows })
         );
       }
+      // USG-01
+      fastify.container.usage.healthEvents(workspaceSlug, rows.length);
       return reply.code(202).send({ accepted: rows.length, rejected });
     }
   );

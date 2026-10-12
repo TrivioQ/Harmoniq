@@ -9,6 +9,7 @@ import { createWorkspaceStorage } from '../adapters/storage/createStorage';
 import { invalidateManifest } from '../services/cacheKeys';
 import { publishedPaths } from '../services/manifestPublisher';
 import { purgeDueTenants } from '../services/tenantLifecycle';
+import { expirePlans } from '../services/planChanges';
 
 /** Deletes bundle objects for one workspace. Throws if they could not be removed. */
 export type PurgeObjects = (workspaceId: string, storagePaths: string[]) => Promise<void>;
@@ -291,6 +292,20 @@ export async function registerGcJobs(fastify: FastifyInstance) {
   await boss.createQueue('tenant.purge');
   await boss.schedule('tenant.purge', '20 * * * *');
   boss.work('tenant.purge', () => purgeDueTenants(fastify.container));
+
+  // USG-01/02: the day's storage, members and keys; 13 months kept - Nightly
+  await boss.createQueue('usage.snapshot');
+  await boss.schedule('usage.snapshot', '45 23 * * *');
+  boss.work('usage.snapshot', async () => {
+    await fastify.container.usage.snapshot();
+  });
+
+  // PLN-06: trials past their expiry fall back to the base plan - Hourly
+  await boss.createQueue('plans.expire');
+  await boss.schedule('plans.expire', '5 * * * *');
+  boss.work('plans.expire', async () => {
+    await expirePlans(fastify.container);
+  });
 
   // 5. Orphan Scan - Weekly
   await boss.schedule('gc.orphanScan', '0 0 * * 0');

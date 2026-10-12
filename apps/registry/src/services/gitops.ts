@@ -26,6 +26,13 @@ const json = (value: unknown) =>
     : (value as Prisma.InputJsonValue);
 const LIVE = { status: { in: ['active' as const, 'canary' as const] }, deletedAt: null };
 
+/** What a reconcile would add (negative: remove), for the plan's quotas. */
+export interface QuotaGrowth {
+  modules: number;
+  webhooks: number;
+  environments: Array<{ hostAppId: string | null; delta: number }>;
+}
+
 export interface GitOpsOutcome {
   changes: GitOpsChange[];
   /** Webhook signing secrets the registry generated (shown once), by URL. */
@@ -45,6 +52,8 @@ export async function reconcile(
     encryptionKey: Buffer;
     dryRun: boolean;
     prune: boolean;
+    /** PLN-04: checked with what the plan adds, before anything changes (plans too). */
+    checkQuotas?: (growth: QuotaGrowth) => Promise<void>;
   },
   config: GitOpsConfig
 ): Promise<GitOpsOutcome> {
@@ -634,6 +643,30 @@ export async function reconcile(
         });
       }
     }
+  }
+
+  if (ctx.checkQuotas) {
+    const net = (type: string, filter: (key: string) => boolean = () => true) =>
+      [...ops, ...deletes].reduce(
+        (n, op) =>
+          op.change.blocked || op.change.type !== type || !filter(op.change.key)
+            ? n
+            : n + (op.change.action === 'create' ? 1 : op.change.action === 'delete' ? -1 : 0),
+        0
+      );
+    const hosts = new Set(
+      [...ops, ...deletes]
+        .filter((op) => op.change.type === 'environment')
+        .map((op) => op.change.key.split('/')[0])
+    );
+    await ctx.checkQuotas({
+      modules: net('module'),
+      webhooks: net('webhook'),
+      environments: [...hosts].map((host) => ({
+        hostAppId: hostApps.find((h) => h.slug === host)?.id ?? null,
+        delta: net('environment', (key) => key.startsWith(`${host}/`)),
+      })),
+    });
   }
 
   // ─── Apply ───────────────────────────────────────────────────────────────

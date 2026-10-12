@@ -345,6 +345,8 @@ const accessRoutes: FastifyPluginAsync = async (fastify) => {
     assertCanAssign(request, body.role);
     const workspace = request.workspace!;
     const email = body.email.trim().toLowerCase();
+    // PLN-04: seats count members and pending invitations.
+    await fastify.container.quotas.require({ workspaceId: workspace.id }, 'members');
     const { invitation, token } = await withTenant(workspace.id, async (tx) => {
       const existing = await tx.workspaceMember.findFirst({
         where: { joinedAt: { not: null }, user: { email: { equals: email, mode: 'insensitive' } } },

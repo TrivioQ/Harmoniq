@@ -62,7 +62,7 @@ const activeWhere = (remoteModuleId: string, environmentId: string) => ({
 });
 
 const moduleRoutes: FastifyPluginAsync = async (fastify) => {
-  const { withTenant, mutations } = fastify.container;
+  const { withTenant, mutations, quotas, usage } = fastify.container;
   const { config } = fastify;
 
   /**
@@ -381,6 +381,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const body = CreateModuleSchema.parse(request.body);
       const workspace = request.workspace!;
+      await quotas.require({ workspaceId: workspace.id }, 'modules'); // PLN-04
       const created = await withTenant(workspace.id, async (tx) => {
         const hostApp = await tx.hostApp.findUnique({
           where: { workspaceId_slug: { workspaceId: workspace.id, slug: body.hostApp } },
@@ -543,7 +544,20 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post<{ Params: ModuleParams }>(
     '/api/workspaces/:workspaceSlug/modules/:moduleRef/deploy',
     {
-      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      // MT-12: per workspace, by plan.
+      config: {
+        rateLimit: {
+          timeWindow: '1 minute',
+          keyGenerator: (req: FastifyRequest) =>
+            `deploy:${(req.params as ModuleParams).workspaceSlug}`,
+          max: async (req: FastifyRequest) =>
+            config.deployRateLimits[
+              await fastify.container.plans.planOf({
+                slug: (req.params as ModuleParams).workspaceSlug,
+              })
+            ],
+        },
+      },
       preHandler: fastify.requireWorkspace('module:deploy'),
     },
     async (request, reply) => {
@@ -626,6 +640,12 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
         throw new ValidationError('Bundle failed validation', { validation });
       }
 
+      // USG-02: measured by validation when it ran, else as the uploader reported it.
+      const sizeBytes = validation?.sizeBytes ?? body.sizeBytes ?? null;
+      // PLN-04/05: before an approval request is made, and again when it executes.
+      await quotas.require({ workspaceId: workspace.id }, 'deploysPerMonth');
+      if (sizeBytes) await quotas.require({ workspaceId: workspace.id }, 'storageGb', sizeBytes);
+
       // APR-04: environments with an approval policy get a request instead.
       const pending = await interceptForApproval(fastify, request, {
         type: 'deploy',
@@ -683,6 +703,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
               dependencies: json(body.dependencies),
               exposes: json(body.exposes),
               storagePath: body.storagePath,
+              sizeBytes: sizeBytes === null ? null : BigInt(sizeBytes),
             },
           });
           return {
@@ -743,6 +764,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       fastify.metricMeters.deployCount.add(1);
+      usage.deployed(workspace.id);
       const previewUrl = module.hostApp.previewUrlTemplate?.replace(
         '{environment}',
         encodeURIComponent(env.slug)
@@ -880,6 +902,8 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
       });
       if (pending) return reply.code(202).send(pending);
       const workspace = request.workspace!;
+      // A promote is a new version: it counts as a deploy (PLN-04, USG-01).
+      await quotas.require({ workspaceId: workspace.id }, 'deploysPerMonth');
 
       // The freeze check in the pipeline applies to the target environment (PRO-03).
       const { result, manifest, snapshotId } = await mutations.run(
@@ -964,6 +988,7 @@ const moduleRoutes: FastifyPluginAsync = async (fastify) => {
           };
         }
       );
+      usage.deployed(workspace.id);
       return reply.code(201).send({
         ...versionDto(result, to.slug),
         manifestEtag: manifest.etag,

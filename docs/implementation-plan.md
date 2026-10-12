@@ -921,20 +921,20 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Database
 
-- [ ] `UsageDaily` model: `workspaceId`, `day`, `manifestRequests` (BigInt), `deploys`, `healthEvents`, `storageBytes` (BigInt), `members`, `apiKeys`; `@@id([workspaceId, day])`; RLS (USG-01)
-- [ ] `ModuleVersion.sizeBytes BigInt?` (USG-02)
-- [ ] `WorkspaceConfig` / `Organization`: `planOverrides Json?`, `planExpiresAt DateTime?`, `basePlan String?` (PLN-06)
+- [x] `UsageDaily` model: `workspaceId`, `day`, `manifestRequests` (BigInt), `deploys`, `healthEvents`, `storageBytes` (BigInt), `members`, `apiKeys`; `@@id([workspaceId, day])`; RLS (USG-01)
+- [x] `ModuleVersion.sizeBytes BigInt?` (USG-02)
+- [x] `WorkspaceConfig` / `Organization`: `planOverrides Json?`, `planExpiresAt DateTime?`, `basePlan String?` (PLN-06)
 
 #### Registry
 
-- [ ] `services/usage.ts`: per-replica counters flushed every 60 s with `INSERT … ON CONFLICT DO UPDATE SET x = x + excluded.x` (ADR-012); manifest route counts every request including 304s and cache hits (USG-01)
-- [ ] Deploy records `sizeBytes` from the upload (or a `HEAD` of the URL, best effort); nightly `usage.snapshot` job sums storage, members and keys (USG-02)
-- [ ] `Quotas` service next to `Plans`: `HARMONIQ_PLAN_LIMITS`, overrides, `require(workspace, quota, delta)`; called by workspace, member/invitation, module, environment, webhook creation and deploy (monthly) routes; `402 QUOTA_EXCEEDED` (PLN-04/05)
-- [ ] `GET /api/orgs/:org/usage`, `GET /api/workspaces/:ws/usage`, `GET /api/admin/usage` (JSON and CSV) (USG-03)
-- [ ] Instance admin: `PUT /api/admin/{workspaces,orgs}/:slug/plan` accepts `overrides` and `expiresAt`; pg-boss `plans.expire` (hourly) (PLN-06)
-- [ ] `plan.changed`, `quota.warning` (80%), `quota.exceeded` events (USG-04)
-- [ ] Management, deploy and health-ingest rate limits keyed by workspace or org key with plan tiers (`HARMONIQ_API_RATE_LIMIT*`) (MT-12)
-- [ ] `/api/admin/workspaces` returns `storageBytes` (INST-09)
+- [x] `services/usage.ts`: per-replica counters flushed every 60 s with `INSERT … ON CONFLICT DO UPDATE SET x = x + excluded.x` (ADR-012); manifest route counts every request including 304s and cache hits (USG-01)
+- [x] Deploy records `sizeBytes`: measured by server-side validation when it runs, else as the uploader reports it (`sizeBytes` in the deploy body; no `HEAD` of arbitrary URLs, which would be an SSRF path); nightly `usage.snapshot` job sums storage, members and keys and drops rows after 13 months (USG-02)
+- [x] `Quotas` service next to `Plans`: `HARMONIQ_PLAN_LIMITS`, overrides, `require(workspace, quota, delta)`; called by org workspace creation and attach, invitations and access approvals (seats: members plus pending invitations; SSO, SCIM and group-rule provisioning are not refused), module, environment (preview environments excluded) and webhook creation, deploy and promote (monthly), and GitOps plans; `402 QUOTA_EXCEEDED` (PLN-04/05)
+- [x] `GET /api/orgs/:org/usage`, `GET /api/workspaces/:ws/usage`, `GET /api/admin/usage` (JSON and CSV) (USG-03)
+- [x] Instance admin: `PUT /api/admin/{workspaces,orgs}/:slug/plan` accepts `overrides` and `expiresAt`; pg-boss `plans.expire` (hourly) (PLN-06)
+- [x] `plan.changed`, `quota.warning` (80%), `quota.exceeded`: audited and sent to the workspace's webhooks; org-level webhook delivery comes with TAD-10 (9.8) (USG-04)
+- [x] Management, deploy and health-ingest rate limits keyed by workspace (or organization, for org routes) with plan tiers (`HARMONIQ_API_RATE_LIMIT*`, `HARMONIQ_DEPLOY_RATE_LIMIT*`, `HARMONIQ_HEALTH_RATE_LIMIT*`); writes outside a tenant stay per credential (MT-12)
+- [x] `/api/admin/workspaces` returns `storageBytes` (INST-09)
 
 #### Dashboard
 
@@ -944,10 +944,10 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Test Suite
 
-- [ ] Counter flush correctness under concurrency; manifest 304s counted
-- [ ] Every quota on its route, with enforcement off (unlimited) and on; overrides; expiry downgrade job
-- [ ] Usage API permissions (`org_billing` can read; `org_member` can't)
-- [ ] Per-tenant rate limits keyed correctly for workspace and org keys
+- [x] Counter flush correctness under concurrency; manifest 304s counted
+- [x] Every quota on its route, with enforcement off (unlimited) and on; overrides; expiry downgrade job
+- [x] Usage API permissions (`org_billing` can read; `org_member` can't)
+- [x] Per-tenant rate limits keyed correctly for workspace and org keys
 
 ### 9.7 Identity & Session Security (M5.7)
 

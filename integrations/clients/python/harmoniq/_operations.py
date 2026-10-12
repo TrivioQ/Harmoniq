@@ -175,6 +175,10 @@ class Client(BaseClient):
         """GET /api/admin/setup (Instance administration)."""
         return self.request("GET", "/api/admin/setup", None, query)
 
+    def get_admin_usage(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/usage (Instance administration)."""
+        return self.request("GET", "/api/admin/usage", None, query)
+
     def get_admin_users(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/users (Instance administration)."""
         return self.request("GET", "/api/admin/users", None, query)
@@ -307,6 +311,10 @@ class Client(BaseClient):
         """GET /api/orgs/{orgSlug}/sso/saml/test/{testId} (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/sso/saml/test/" + _q(test_id), None, query)
 
+    def get_orgs_usage(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/usage (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/usage", None, query)
+
     def get_schema_harmoniq_json(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/schema/harmoniq.json (Manifests)."""
         return self.request("GET", "/api/schema/harmoniq.json", None, query)
@@ -434,6 +442,10 @@ class Client(BaseClient):
     def get_workspaces_storage(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/storage (Storage)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/storage", None, query)
+
+    def get_workspaces_usage(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/usage (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/usage", None, query)
 
     def get_workspaces_webhooks(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/webhooks (Webhooks)."""

@@ -215,6 +215,11 @@ func (c *Client) GetAdminSetup(ctx context.Context, query url.Values) (*Response
 	return c.Do(ctx, "GET", "/api/admin/setup", nil, query)
 }
 
+// GetAdminUsage calls GET /api/admin/usage (Instance administration).
+func (c *Client) GetAdminUsage(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/usage", nil, query)
+}
+
 // GetAdminUsers calls GET /api/admin/users (Instance administration).
 func (c *Client) GetAdminUsers(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/users", nil, query)
@@ -380,6 +385,11 @@ func (c *Client) GetOrgsSsoSamlTestByTestId(ctx context.Context, orgSlug string,
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/sso/saml/test/"+url.PathEscape(testId), nil, query)
 }
 
+// GetOrgsUsage calls GET /api/orgs/{orgSlug}/usage (Organizations).
+func (c *Client) GetOrgsUsage(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/usage", nil, query)
+}
+
 // GetSchemaHarmoniqJson calls GET /api/schema/harmoniq.json (Manifests).
 func (c *Client) GetSchemaHarmoniqJson(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/schema/harmoniq.json", nil, query)
@@ -538,6 +548,11 @@ func (c *Client) GetWorkspacesSsoSamlTestByTestId(ctx context.Context, workspace
 // GetWorkspacesStorage calls GET /api/workspaces/{workspaceSlug}/storage (Storage).
 func (c *Client) GetWorkspacesStorage(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/storage", nil, query)
+}
+
+// GetWorkspacesUsage calls GET /api/workspaces/{workspaceSlug}/usage (Workspaces).
+func (c *Client) GetWorkspacesUsage(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/usage", nil, query)
 }
 
 // GetWorkspacesWebhooks calls GET /api/workspaces/{workspaceSlug}/webhooks (Webhooks).

@@ -119,7 +119,7 @@ describe('Plans and limits (M4.11, PLN-01..03, RL-04)', () => {
         .statusCode
     ).toBe(403);
     expect((await setPlan('platinum')).statusCode).toBe(400);
-    expect((await setPlan('startup')).json()).toEqual({ slug: ws, plan: 'startup' });
+    expect((await setPlan('startup')).json()).toMatchObject({ slug: ws, plan: 'startup' });
     expect((await policy()).statusCode).toBe(200);
     expect(
       (await api(owner, 'POST', `/api/workspaces/${ws}/scim/token`)).json().error.details

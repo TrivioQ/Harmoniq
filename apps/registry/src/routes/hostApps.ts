@@ -73,7 +73,7 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const workspace = request.workspace!;
       const publishTarget = await publisher.targetFor(workspace.id);
-      const plan = await fastify.container.plans.planOf({ id: workspace.id });
+      const entitlements = await fastify.container.plans.forWorkspace({ id: workspace.id });
       const hostApps = await withTenant(workspace.id, (tx) =>
         tx.hostApp.findMany({
           orderBy: [{ isDefault: 'desc' }, { slug: 'asc' }],
@@ -92,8 +92,10 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         suspendedAt: workspace.suspendedAt,
         suspendedReason: workspace.suspendedReason,
         // PLN-01..03: what the workspace's plan allows (everything when not enforced).
-        plan,
-        features: fastify.container.plans.features(plan),
+        plan: entitlements.plan,
+        features: entitlements.features,
+        // PLN-04: quotas (null: unlimited).
+        limits: entitlements.limits,
         role: request.workspaceRole ?? null,
         // TLC-05: org admins may manage owners even when they aren't owners themselves.
         viaOrgAdmin: request.viaOrgAdmin ?? false,
@@ -346,6 +348,11 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
           where: { hostAppId_slug: { hostAppId: hostApp.id, slug: body.slug } },
         });
         if (exists) throw new ConflictError(`Environment "${body.slug}" already exists`);
+        // PLN-04 (preview environments, which expire, don't count against it).
+        await fastify.container.quotas.require(
+          { workspaceId: workspace.id, hostAppId: hostApp.id },
+          'environmentsPerHostApp'
+        );
         const created = await tx.environment.create({
           data: { hostAppId: hostApp.id, name: body.name, slug: body.slug },
         });

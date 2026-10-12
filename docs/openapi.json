@@ -577,6 +577,11 @@
                     "type": "string",
                     "maxLength": 1024
                   },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
                   "dryRun": {
                     "type": "boolean",
                     "default": false
@@ -1560,6 +1565,11 @@
                               "storagePath": {
                                 "type": "string",
                                 "maxLength": 1024
+                              },
+                              "sizeBytes": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
                               },
                               "dryRun": {
                                 "type": "boolean",
@@ -5378,6 +5388,31 @@
         }
       }
     },
+    "/api/orgs/{orgSlug}/usage": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/workspaces": {
       "post": {
         "tags": ["Workspaces"],
@@ -7137,6 +7172,91 @@
                   "plan": {
                     "type": "string",
                     "enum": ["hobby", "startup", "enterprise"]
+                  },
+                  "overrides": {
+                    "type": "object",
+                    "properties": {
+                      "features": {
+                        "type": "object",
+                        "required": ["byob", "approvals", "saml", "scim"],
+                        "properties": {
+                          "byob": {
+                            "type": "boolean"
+                          },
+                          "approvals": {
+                            "type": "boolean"
+                          },
+                          "saml": {
+                            "type": "boolean"
+                          },
+                          "scim": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "limits": {
+                        "type": "object",
+                        "required": [
+                          "workspaces",
+                          "members",
+                          "modules",
+                          "environmentsPerHostApp",
+                          "storageGb",
+                          "deploysPerMonth",
+                          "webhooks"
+                        ],
+                        "properties": {
+                          "workspaces": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "members": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "modules": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "environmentsPerHostApp": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "storageGb": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "deploysPerMonth": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "webhooks": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false,
+                    "nullable": true
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "basePlan": {
+                    "type": "string",
+                    "enum": ["hobby", "startup", "enterprise"]
                   }
                 },
                 "required": ["plan"],
@@ -7270,6 +7390,91 @@
                   "plan": {
                     "type": "string",
                     "enum": ["hobby", "startup", "enterprise"]
+                  },
+                  "overrides": {
+                    "type": "object",
+                    "properties": {
+                      "features": {
+                        "type": "object",
+                        "required": ["byob", "approvals", "saml", "scim"],
+                        "properties": {
+                          "byob": {
+                            "type": "boolean"
+                          },
+                          "approvals": {
+                            "type": "boolean"
+                          },
+                          "saml": {
+                            "type": "boolean"
+                          },
+                          "scim": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "limits": {
+                        "type": "object",
+                        "required": [
+                          "workspaces",
+                          "members",
+                          "modules",
+                          "environmentsPerHostApp",
+                          "storageGb",
+                          "deploysPerMonth",
+                          "webhooks"
+                        ],
+                        "properties": {
+                          "workspaces": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "members": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "modules": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "environmentsPerHostApp": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "storageGb": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "deploysPerMonth": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "webhooks": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false,
+                    "nullable": true
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "basePlan": {
+                    "type": "string",
+                    "enum": ["hobby", "startup", "enterprise"]
                   }
                 },
                 "required": ["plan"],
@@ -7291,6 +7496,21 @@
             "in": "path",
             "name": "slug",
             "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/usage": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
           }
         ],
         "responses": {
@@ -7585,6 +7805,31 @@
       }
     },
     "/api/workspaces/{workspaceSlug}/policy": {
+      "get": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/usage": {
       "get": {
         "tags": ["Workspaces"],
         "security": [

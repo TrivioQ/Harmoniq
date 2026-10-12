@@ -140,6 +140,7 @@ const accessRequestRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const { role } = DecisionSchema.parse(request.body ?? {});
       const workspace = request.workspace!;
+      await fastify.container.quotas.require({ workspaceId: workspace.id }, 'members'); // PLN-04
       return withTenant(workspace.id, async (tx) => {
         const found = await pending(tx, workspace.id, request.params.requestId);
         const granted = (role ?? found.role) as Role;

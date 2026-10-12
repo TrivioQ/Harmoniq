@@ -22,6 +22,8 @@ import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
 import { InstanceSettings } from '../services/instanceSettings';
 import { withSpan } from '../services/tracing';
 import { Plans } from '../services/plans';
+import { Quotas } from '../services/quotas';
+import { UsageMeter } from '../services/usage';
 
 export interface AppContainer {
   cache: ICache;
@@ -64,6 +66,10 @@ export interface AppContainer {
   orgShared: OrgSharedModules;
   /** DOM-01..05: domains proven by DNS. */
   domains: Domains;
+  /** PLN-04/05: usage against plan quotas. */
+  quotas: Quotas;
+  /** USG-01: request counters, flushed to `UsageDaily` every minute. */
+  usage: UsageMeter;
 }
 
 declare module 'fastify' {
@@ -178,6 +184,10 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     await orgShared.fanOut(target.workspace.id, target.environment.slug);
   };
 
+  const plans = new Plans({ systemDb, config: fastify.config });
+  const usage = new UsageMeter({ systemDb, logger });
+  usage.start();
+
   fastify.decorate('container', {
     cache,
     logger,
@@ -198,7 +208,9 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     publisher,
     orgShared,
     settings,
-    plans: new Plans({ systemDb, config: fastify.config }),
+    plans,
+    quotas: new Quotas({ systemDb, plans, webhooks, logger }),
+    usage,
     domains: new Domains({ systemDb, config: fastify.config }),
     get instanceStorage() {
       return settings.storage();
@@ -210,6 +222,7 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
 
   fastify.addHook('onClose', async (instance) => {
     instance.container.settings.stop();
+    await instance.container.usage.stop().catch(() => undefined);
     if (instance.container.boss) {
       await instance.container.boss.stop();
     }

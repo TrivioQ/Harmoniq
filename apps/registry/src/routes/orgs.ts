@@ -61,6 +61,7 @@ import {
   sendInvitationEmail,
 } from '../services/invitations';
 import { organizationRecords, sendTenantExport } from '../services/tenantExport';
+import { reportDays, sendUsageCsv, usageTotals, workspaceUsage } from '../services/usageReport';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -146,7 +147,10 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
    * `member`: any org role; `admin`: org_admin; `auditor`: org_admin or org_auditor (PPL-08:
    * read-only access to the audit log, settings and people).
    */
-  function requireOrg(level: 'member' | 'admin' | 'auditor', opts: { allowOrgKey?: boolean } = {}) {
+  function requireOrg(
+    level: 'member' | 'admin' | 'auditor' | 'billing',
+    opts: { allowOrgKey?: boolean } = {}
+  ) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
       await fastify.authenticate(request, reply);
       if (reply.sent) return;
@@ -217,6 +221,20 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
           error: { code: 'FORBIDDEN', message: 'Requires an organization admin or auditor' },
         });
       }
+      // PPL-08: plan and usage are read by billing members, auditors and admins.
+      if (
+        level === 'billing' &&
+        role !== 'org_admin' &&
+        role !== 'org_billing' &&
+        role !== 'org_auditor'
+      ) {
+        return reply.code(403).send({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Requires an organization admin, billing or auditor',
+          },
+        });
+      }
       if (level === 'admin' && role !== 'org_admin') {
         return reply
           .code(403)
@@ -236,6 +254,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   const admin = { preHandler: requireOrg('admin') };
   const adminOrOrgKey = { preHandler: requireOrg('admin', { allowOrgKey: true }) };
   const auditor = { preHandler: requireOrg('auditor') };
+  const billing = { preHandler: requireOrg('billing') };
 
   /** An org audit event, in the given org transaction or in its own. */
   const orgAudit = (
@@ -993,6 +1012,8 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const body = CreateOrgWorkspaceSchema.parse(request.body);
       const principal = request.principal!;
+      // PLN-04: the organization's plan limits its workspaces.
+      await fastify.container.quotas.require({ organizationId: request.org!.id }, 'workspaces');
       const workspace = await createWorkspace(
         // eslint-disable-next-line no-restricted-syntax -- MT-09: creates a new tenant
         systemDb,
@@ -1036,6 +1057,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     admin,
     async (request) => {
       const org = request.org!;
+      await fastify.container.quotas.require({ organizationId: org.id }, 'workspaces'); // PLN-04
       // The workspace is outside the organization until attached: resolved by slug.
       // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
       const workspace = await systemDb.workspace.findUnique({
@@ -1683,6 +1705,41 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   orgSsoRoutes(fastify, { admin, reader: auditor, orgAudit });
   orgDomainRoutes(fastify, { admin, orgAudit });
   orgPolicyRoutes(fastify, { admin, reader: auditor, orgAudit });
+
+  // ─── Usage (USG-03, TAD-02) ───────────────────────────────────────────────
+
+  fastify.get<{ Params: OrgParams; Querystring: { days?: string; format?: string } }>(
+    '/api/orgs/:orgSlug/usage',
+    billing,
+    async (request, reply) => {
+      const org = request.org!;
+      const days = reportDays(request.query.days);
+      const { plans, quotas } = fastify.container;
+      const usage = await inOrg(request, async (tx) =>
+        workspaceUsage(
+          { plans, quotas },
+          tx,
+          await tx.workspace.findMany({
+            where: { organizationId: org.id, deletedAt: null },
+            select: { id: true, slug: true, name: true },
+            orderBy: { name: 'asc' },
+          }),
+          days
+        )
+      );
+      if (request.query.format === 'csv') return sendUsageCsv(reply, org.slug, usage);
+      const entitlements = await plans.forOrg(org.id);
+      return {
+        days,
+        warnAt: 0.8,
+        plan: entitlements.plan,
+        planExpiresAt: org.planExpiresAt?.toISOString() ?? null,
+        limits: { workspaces: entitlements.limits.workspaces },
+        totals: usageTotals(usage),
+        workspaces: usage,
+      };
+    }
+  );
 };
 
 export default orgRoutes;

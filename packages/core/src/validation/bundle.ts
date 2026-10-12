@@ -12,6 +12,8 @@ export interface BundleValidation {
   /** Whether the response allows cross-origin loading (needed for SRI-checked scripts). */
   corsAllowed: boolean | null;
   contentType: string | null;
+  /** USG-02: the downloaded size; null when not downloaded. */
+  sizeBytes?: number | null;
   warnings: string[];
   errors: string[];
 }
@@ -111,6 +113,7 @@ export async function validateBundle(
       result.errors.push(`Bundle is larger than ${maxBytes} bytes`);
       return result;
     }
+    result.sizeBytes = body.byteLength;
 
     if (match) {
       const actual = await computeIntegrity(body, match[1] as keyof typeof ALGORITHMS);

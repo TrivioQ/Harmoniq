@@ -208,6 +208,8 @@ model ModuleVersion {
   deployedBy       String
   deployedByType   ActorType
   commitSha        String?
+  /// USG-02: bundle size at deploy (uploads; null for URL-only deploys).
+  sizeBytes        BigInt?
   metadata         Json?
   dependencies     Json?
   exposes          Json?
@@ -391,6 +393,11 @@ model WorkspaceConfig {
   scimTokenHash      String?   @unique
   scimTokenCreatedAt DateTime?
   plan               String    @default("hobby")
+  /// PLN-06: `{ features?: { byob?: bool, … }, limits?: { members?: n | null, … } }`.
+  planOverrides      Json?
+  /// PLN-06: a trial: at this time the plan falls back to `basePlan`.
+  planExpiresAt      DateTime?
+  basePlan           String?
   updatedAt          DateTime  @updatedAt
   workspace          Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
@@ -631,6 +638,10 @@ model Organization {
   slug               String               @unique
   name               String
   plan               String               @default("hobby")
+  /// PLN-06: as for workspaces.
+  planOverrides      Json?
+  planExpiresAt      DateTime?
+  basePlan           String?
   /// ORG-05: inherited by workspaces without their own SSO.
   oidcConfig         Json?
   samlConfig         Json?
@@ -923,4 +934,21 @@ model AccessRequest {
 
   @@index([workspaceId, status])
   @@index([userId])
+}
+
+/// USG-01: daily usage per workspace. Counters (`manifestRequests`, `deploys`,
+/// `healthEvents`) are added up by each replica; levels (`storageBytes`, `members`,
+/// `apiKeys`) are the nightly snapshot. Kept 13 months.
+model UsageDaily {
+  workspaceId      String
+  day              DateTime @db.Date
+  manifestRequests BigInt   @default(0)
+  deploys          Int      @default(0)
+  healthEvents     Int      @default(0)
+  storageBytes     BigInt   @default(0)
+  members          Int      @default(0)
+  apiKeys          Int      @default(0)
+
+  @@id([workspaceId, day])
+  @@index([day])
 }

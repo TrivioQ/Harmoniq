@@ -90,3 +90,10 @@ export class PolicyViolationError extends AppError {
     super('POLICY_VIOLATION', message, 409, metadata);
   }
 }
+
+/** PLN-05: the create would exceed a plan quota (`metadata`: quota, limit, current usage). */
+export class QuotaExceededError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('QUOTA_EXCEEDED', message, 402, metadata);
+  }
+}

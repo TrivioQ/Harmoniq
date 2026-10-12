@@ -50,6 +50,14 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
 
   const { manifestMissLimit, manifestRateLimits } = fastify.config;
 
+  // USG-01: every served manifest counts, cache hits and 304s included (not errors).
+  fastify.addHook('onResponse', async (request, reply) => {
+    const { workspaceSlug } = request.params as { workspaceSlug?: string };
+    if (workspaceSlug && (reply.statusCode === 200 || reply.statusCode === 304)) {
+      fastify.container.usage.manifestServed(workspaceSlug);
+    }
+  });
+
   // Per-IP count of not-found responses, across all workspaces: the rate limit below is
   // keyed by workspace slug, so made-up slugs would each get a fresh quota. Per replica.
   const misses = new LRUCache<string, { count: number; resetAt: number }>({ max: 50_000 });

@@ -6,6 +6,8 @@ import {
   Plan,
   PlanFeature,
   PlanFeatureSchema,
+  PlanLimits,
+  PlanLimitsByPlanSchema,
   PlanSchema,
 } from '@harmoniq/core/dist/schemas/AdminSchemas';
 
@@ -78,6 +80,18 @@ const EnvSchema = z.object({
   HARMONIQ_PLAN_ENFORCEMENT: z.string().optional(),
   /** PLN-02: JSON `{ "hobby": ["approvals"], … }` replacing the features of those plans. */
   HARMONIQ_PLAN_FEATURES: z.string().optional(),
+  /** PLN-04: quotas by plan, JSON. */
+  HARMONIQ_PLAN_LIMITS: z.string().optional(),
+  /** MT-12: per-tenant budgets (per minute); the per-credential write limit still applies. */
+  HARMONIQ_API_RATE_LIMIT: z.coerce.number().int().positive().default(1200),
+  HARMONIQ_API_RATE_LIMIT_STARTUP: z.coerce.number().int().positive().default(6000),
+  HARMONIQ_API_RATE_LIMIT_ENTERPRISE: z.coerce.number().int().positive().default(30000),
+  HARMONIQ_DEPLOY_RATE_LIMIT: z.coerce.number().int().positive().default(30),
+  HARMONIQ_DEPLOY_RATE_LIMIT_STARTUP: z.coerce.number().int().positive().default(120),
+  HARMONIQ_DEPLOY_RATE_LIMIT_ENTERPRISE: z.coerce.number().int().positive().default(600),
+  HARMONIQ_HEALTH_RATE_LIMIT: z.coerce.number().int().positive().default(6000),
+  HARMONIQ_HEALTH_RATE_LIMIT_STARTUP: z.coerce.number().int().positive().default(30000),
+  HARMONIQ_HEALTH_RATE_LIMIT_ENTERPRISE: z.coerce.number().int().positive().default(120000),
   TRUST_PROXY: z.string().optional(),
   OIDC_ISSUER: z.string().url().optional(),
   OIDC_CLIENT_ID: z.string().optional(),
@@ -150,7 +164,17 @@ export interface Config {
   /** HTTP/2 over TLS (HTTP/1.1 still accepted) when both files are set. */
   tls?: { certFile: string; keyFile: string };
   /** PLN-02/03: enforce plan features; the feature matrix (overridable). */
-  plans: { enforced: boolean; features: Record<Plan, PlanFeature[]> };
+  plans: {
+    enforced: boolean;
+    features: Record<Plan, PlanFeature[]>;
+    limits: Record<Plan, PlanLimits>;
+  };
+  /** MT-12: management API writes per minute, per workspace or organization, by plan. */
+  apiRateLimits: Record<Plan, number>;
+  /** MT-12: deploys per minute per workspace, by plan. */
+  deployRateLimits: Record<Plan, number>;
+  /** MT-12: health reports per minute per workspace, by plan. */
+  healthRateLimits: Record<Plan, number>;
   /** Outbound email. Without SMTP in production, email sign-in is unavailable. */
   mail: { smtpUrl?: string; from: string };
   /** Where the `local` storage adapter keeps objects (also when chosen in the admin panel). */
@@ -199,6 +223,58 @@ function planFeatures(json: string | undefined): Record<Plan, PlanFeature[]> {
     throw new ConfigError(`HARMONIQ_PLAN_FEATURES: ${result.error.issues[0].message}`);
   }
   return { ...DEFAULT_PLAN_FEATURES, ...result.data };
+}
+
+/** PLN-04 defaults; `null` is unlimited. Without plan enforcement nothing is limited. */
+export const DEFAULT_PLAN_LIMITS: Record<Plan, PlanLimits> = {
+  hobby: {
+    workspaces: 3,
+    members: 5,
+    modules: 20,
+    environmentsPerHostApp: 5,
+    storageGb: 1,
+    deploysPerMonth: 500,
+    webhooks: 5,
+  },
+  startup: {
+    workspaces: 20,
+    members: 50,
+    modules: 200,
+    environmentsPerHostApp: 20,
+    storageGb: 50,
+    deploysPerMonth: 10_000,
+    webhooks: 25,
+  },
+  enterprise: {
+    workspaces: null,
+    members: null,
+    modules: null,
+    environmentsPerHostApp: null,
+    storageGb: null,
+    deploysPerMonth: null,
+    webhooks: null,
+  },
+};
+
+/** `HARMONIQ_PLAN_LIMITS`: JSON by plan, merged over the defaults per quota. */
+function planLimits(json: string | undefined): Record<Plan, PlanLimits> {
+  if (!json) return DEFAULT_PLAN_LIMITS;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new ConfigError('HARMONIQ_PLAN_LIMITS must be JSON, e.g. {"hobby":{"members":10}}');
+  }
+  const result = PlanLimitsByPlanSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ConfigError(`HARMONIQ_PLAN_LIMITS: ${result.error.issues[0].message}`);
+  }
+  return Object.fromEntries(
+    (Object.keys(DEFAULT_PLAN_LIMITS) as Plan[]).map((plan) => [
+      plan,
+      { ...DEFAULT_PLAN_LIMITS[plan], ...(result.data[plan] ?? {}) },
+    ])
+  ) as Record<Plan, PlanLimits>;
 }
 
 /** `HARMONIQ_AUTH_METHODS`: a comma-separated allowlist; unset or blank keeps the defaults. */
@@ -356,6 +432,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     plans: {
       enforced: e.HARMONIQ_PLAN_ENFORCEMENT === '1' || e.HARMONIQ_PLAN_ENFORCEMENT === 'true',
       features: planFeatures(e.HARMONIQ_PLAN_FEATURES),
+      limits: planLimits(e.HARMONIQ_PLAN_LIMITS),
+    },
+    apiRateLimits: {
+      hobby: e.HARMONIQ_API_RATE_LIMIT,
+      startup: e.HARMONIQ_API_RATE_LIMIT_STARTUP,
+      enterprise: e.HARMONIQ_API_RATE_LIMIT_ENTERPRISE,
+    },
+    deployRateLimits: {
+      hobby: e.HARMONIQ_DEPLOY_RATE_LIMIT,
+      startup: e.HARMONIQ_DEPLOY_RATE_LIMIT_STARTUP,
+      enterprise: e.HARMONIQ_DEPLOY_RATE_LIMIT_ENTERPRISE,
+    },
+    healthRateLimits: {
+      hobby: e.HARMONIQ_HEALTH_RATE_LIMIT,
+      startup: e.HARMONIQ_HEALTH_RATE_LIMIT_STARTUP,
+      enterprise: e.HARMONIQ_HEALTH_RATE_LIMIT_ENTERPRISE,
     },
     oidc:
       e.OIDC_ISSUER && e.OIDC_CLIENT_ID && e.OIDC_CLIENT_SECRET

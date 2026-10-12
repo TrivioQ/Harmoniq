@@ -35,6 +35,7 @@ import accessRequestRoutes from './routes/accessRequests';
 import workspaceRoutes from './routes/workspaces';
 import gitopsRoutes from './routes/gitops';
 import workspacePolicyRoutes from './routes/policy';
+import usageRoutes from './routes/usage';
 import authRoutes from './routes/auth';
 import jobsPlugin from './plugins/jobs';
 import metricsPlugin from './plugins/metrics';
@@ -189,16 +190,37 @@ export async function buildApp() {
     route.config = route.config ?? {};
     const routeConfig = route.config as { rateLimit?: unknown };
     if (routeConfig.rateLimit !== undefined) return;
-    routeConfig.rateLimit = {
-      max: config.writeRateLimit,
-      timeWindow: '1 minute',
-      keyGenerator: (request: { headers: Record<string, unknown>; ip: string }) => {
-        const auth = request.headers.authorization;
-        return typeof auth === 'string' && auth
-          ? `w:${createHash('sha256').update(auth).digest('hex').slice(0, 32)}`
-          : `w:${request.ip}`;
-      },
-    };
+    // MT-12: writes to a workspace or an organization share that tenant's budget (by plan,
+    // RL-04), whoever makes them; other writes are limited per credential.
+    const tenant = route.url.includes(':workspaceSlug')
+      ? 'workspaceSlug'
+      : route.url.includes(':orgSlug')
+        ? 'orgSlug'
+        : null;
+    routeConfig.rateLimit = tenant
+      ? {
+          timeWindow: '1 minute',
+          keyGenerator: (request: { params: unknown }) =>
+            `t:${tenant === 'workspaceSlug' ? 'ws' : 'org'}:${(request.params as Record<string, string>)[tenant]}`,
+          max: async (request: { params: unknown }) => {
+            const slug = (request.params as Record<string, string>)[tenant];
+            const plan =
+              tenant === 'workspaceSlug'
+                ? await app.container.plans.planOf({ slug })
+                : await app.container.plans.planOfOrgSlug(slug);
+            return config.apiRateLimits[plan];
+          },
+        }
+      : {
+          max: config.writeRateLimit,
+          timeWindow: '1 minute',
+          keyGenerator: (request: { headers: Record<string, unknown>; ip: string }) => {
+            const auth = request.headers.authorization;
+            return typeof auth === 'string' && auth
+              ? `w:${createHash('sha256').update(auth).digest('hex').slice(0, 32)}`
+              : `w:${request.ip}`;
+          },
+        };
   });
   // RL-03: with Redis, every replica counts against the same limits.
   const rateLimitRedis =
@@ -263,6 +285,7 @@ export async function buildApp() {
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
   await app.register(workspacePolicyRoutes);
+  await app.register(usageRoutes);
   await app.register(workspaceRoutes);
   await app.register(domainRoutes);
   await app.register(transferRoutes);
