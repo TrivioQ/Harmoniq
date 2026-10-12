@@ -50,6 +50,11 @@ func (c *Client) DeleteAdminUsersMfa(ctx context.Context, id string, query url.V
 	return c.Do(ctx, "DELETE", "/api/admin/users/"+url.PathEscape(id)+"/mfa", nil, query)
 }
 
+// DeleteAdminUsersSessionsBySessionId calls DELETE /api/admin/users/{id}/sessions/{sessionId} (Instance administration).
+func (c *Client) DeleteAdminUsersSessionsBySessionId(ctx context.Context, id string, sessionId string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/admin/users/"+url.PathEscape(id)+"/sessions/"+url.PathEscape(sessionId), nil, query)
+}
+
 // DeleteAdminWorkspacesBySlug calls DELETE /api/admin/workspaces/{slug} (Instance administration).
 func (c *Client) DeleteAdminWorkspacesBySlug(ctx context.Context, slug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/admin/workspaces/"+url.PathEscape(slug), nil, query)
@@ -280,6 +285,11 @@ func (c *Client) GetAdminOrgs(ctx context.Context, query url.Values) (*Response,
 	return c.Do(ctx, "GET", "/api/admin/orgs", nil, query)
 }
 
+// GetAdminOrgsBySlug calls GET /api/admin/orgs/{slug} (Instance administration).
+func (c *Client) GetAdminOrgsBySlug(ctx context.Context, slug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/orgs/"+url.PathEscape(slug), nil, query)
+}
+
 // GetAdminOrgsPlan calls GET /api/admin/orgs/{slug}/plan (Instance administration).
 func (c *Client) GetAdminOrgsPlan(ctx context.Context, slug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/orgs/"+url.PathEscape(slug)+"/plan", nil, query)
@@ -325,6 +335,11 @@ func (c *Client) GetAdminUsers(ctx context.Context, query url.Values) (*Response
 	return c.Do(ctx, "GET", "/api/admin/users", nil, query)
 }
 
+// GetAdminUsersById calls GET /api/admin/users/{id} (Instance administration).
+func (c *Client) GetAdminUsersById(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/users/"+url.PathEscape(id), nil, query)
+}
+
 // GetAdminWorkspaceAuditExport calls GET /api/admin/workspace-audit/{workspaceId}/export (Instance administration).
 func (c *Client) GetAdminWorkspaceAuditExport(ctx context.Context, workspaceId string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/workspace-audit/"+url.PathEscape(workspaceId)+"/export", nil, query)
@@ -333,6 +348,11 @@ func (c *Client) GetAdminWorkspaceAuditExport(ctx context.Context, workspaceId s
 // GetAdminWorkspaces calls GET /api/admin/workspaces (Instance administration).
 func (c *Client) GetAdminWorkspaces(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/workspaces", nil, query)
+}
+
+// GetAdminWorkspacesBySlug calls GET /api/admin/workspaces/{slug} (Instance administration).
+func (c *Client) GetAdminWorkspacesBySlug(ctx context.Context, slug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/workspaces/"+url.PathEscape(slug), nil, query)
 }
 
 // GetAdminWorkspacesPlan calls GET /api/admin/workspaces/{slug}/plan (Instance administration).
@@ -863,6 +883,16 @@ func (c *Client) PostAdminSetupStorage(ctx context.Context, query url.Values) (*
 // PostAdminSupportGrants calls POST /api/admin/support-grants (Instance administration).
 func (c *Client) PostAdminSupportGrants(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/admin/support-grants", nil, query)
+}
+
+// PostAdminUsersEmail calls POST /api/admin/users/{id}/email (Instance administration).
+func (c *Client) PostAdminUsersEmail(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/users/"+url.PathEscape(id)+"/email", nil, query)
+}
+
+// PostAdminUsersMerge calls POST /api/admin/users/{id}/merge (Instance administration).
+func (c *Client) PostAdminUsersMerge(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/users/"+url.PathEscape(id)+"/merge", nil, query)
 }
 
 // PostAdminUsersRevokeSessions calls POST /api/admin/users/{id}/revoke-sessions (Instance administration).

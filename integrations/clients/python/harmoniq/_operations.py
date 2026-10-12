@@ -43,6 +43,10 @@ class Client(BaseClient):
         """DELETE /api/admin/users/{id}/mfa (Instance administration)."""
         return self.request("DELETE", "/api/admin/users/" + _q(id) + "/mfa", None, query)
 
+    def delete_admin_users_sessions_by_session_id(self, id, session_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/users/{id}/sessions/{sessionId} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/users/" + _q(id) + "/sessions/" + _q(session_id), None, query)
+
     def delete_admin_workspaces_by_slug(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/workspaces/{slug} (Instance administration)."""
         return self.request("DELETE", "/api/admin/workspaces/" + _q(slug), None, query)
@@ -227,6 +231,10 @@ class Client(BaseClient):
         """GET /api/admin/orgs (Instance administration)."""
         return self.request("GET", "/api/admin/orgs", None, query)
 
+    def get_admin_orgs_by_slug(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/orgs/{slug} (Instance administration)."""
+        return self.request("GET", "/api/admin/orgs/" + _q(slug), None, query)
+
     def get_admin_orgs_plan(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/orgs/{slug}/plan (Instance administration)."""
         return self.request("GET", "/api/admin/orgs/" + _q(slug) + "/plan", None, query)
@@ -263,6 +271,10 @@ class Client(BaseClient):
         """GET /api/admin/users (Instance administration)."""
         return self.request("GET", "/api/admin/users", None, query)
 
+    def get_admin_users_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/users/{id} (Instance administration)."""
+        return self.request("GET", "/api/admin/users/" + _q(id), None, query)
+
     def get_admin_workspace_audit_export(self, workspace_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/workspace-audit/{workspaceId}/export (Instance administration)."""
         return self.request("GET", "/api/admin/workspace-audit/" + _q(workspace_id) + "/export", None, query)
@@ -270,6 +282,10 @@ class Client(BaseClient):
     def get_admin_workspaces(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/workspaces (Instance administration)."""
         return self.request("GET", "/api/admin/workspaces", None, query)
+
+    def get_admin_workspaces_by_slug(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/workspaces/{slug} (Instance administration)."""
+        return self.request("GET", "/api/admin/workspaces/" + _q(slug), None, query)
 
     def get_admin_workspaces_plan(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/workspaces/{slug}/plan (Instance administration)."""
@@ -694,6 +710,14 @@ class Client(BaseClient):
     def post_admin_support_grants(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/support-grants (Instance administration)."""
         return self.request("POST", "/api/admin/support-grants", None, query)
+
+    def post_admin_users_email(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/users/{id}/email (Instance administration)."""
+        return self.request("POST", "/api/admin/users/" + _q(id) + "/email", None, query)
+
+    def post_admin_users_merge(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/users/{id}/merge (Instance administration)."""
+        return self.request("POST", "/api/admin/users/" + _q(id) + "/merge", None, query)
 
     def post_admin_users_revoke_sessions(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/users/{id}/revoke-sessions (Instance administration)."""

@@ -115,7 +115,7 @@ const COLUMNS = [
 ] as const;
 
 /** RFC 4180 quoting; cells a spreadsheet would run as formulas are neutralized. */
-function csvCell(value: unknown): string {
+export function csvCell(value: unknown): string {
   let text = value === null || value === undefined ? '' : String(value);
   if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;

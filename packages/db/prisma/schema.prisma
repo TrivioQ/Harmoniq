@@ -11,30 +11,35 @@ datasource db {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  email               String               @unique
-  name                String?
-  avatarUrl           String?
-  lastLoginAt         DateTime?
+  id                    String               @id @default(cuid())
+  email                 String               @unique
+  name                  String?
+  avatarUrl             String?
+  lastLoginAt           DateTime?
   /// SES-04: set by an instance admin; sign-in, sessions and the user's keys are refused.
-  suspendedAt         DateTime?
-  suspendedReason     String?
+  suspendedAt           DateTime?
+  suspendedReason       String?
   /// SES-03: the TOTP secret (sealed); MFA is on once `mfaEnabledAt` is set.
-  mfaSecretSealed     String?
-  mfaEnabledAt        DateTime?
+  mfaSecretSealed       String?
+  mfaEnabledAt          DateTime?
   /// sha256 of each unused recovery code.
-  mfaRecoveryCodes    String[]             @default([])
+  mfaRecoveryCodes      String[]             @default([])
   /// The last TOTP time step accepted (a code can't be replayed).
-  mfaLastStep         Int?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  Identities          Identity[]
-  WorkspaceMembers    WorkspaceMember[]
-  ApiKeys             ApiKey[]
-  RefreshTokens       RefreshToken[]
-  OrganizationMembers OrganizationMember[]
-  InstanceAdmin       InstanceAdmin?
-  ScimUsers           ScimUser[]
+  mfaLastStep           Int?
+  /// INST-30: an email change an instance admin started, applied once the new address
+  /// confirms it (sha256 of the link token).
+  pendingEmail          String?
+  pendingEmailTokenHash String?              @unique
+  pendingEmailExpiresAt DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  Identities            Identity[]
+  WorkspaceMembers      WorkspaceMember[]
+  ApiKeys               ApiKey[]
+  RefreshTokens         RefreshToken[]
+  OrganizationMembers   OrganizationMember[]
+  InstanceAdmin         InstanceAdmin?
+  ScimUsers             ScimUser[]
 }
 
 model Workspace {
@@ -1173,7 +1178,7 @@ model SupportGrant {
 
 /// INST-28: each registry replica reports itself every 30 s.
 model ReplicaHeartbeat {
-  replicaId      String   @id
+  replicaId      String    @id
   version        String
   commit         String?
   hostname       String?

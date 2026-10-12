@@ -201,7 +201,13 @@ export const MaintenanceSettingsSchema = z
 export type MaintenanceSettings = z.infer<typeof MaintenanceSettingsSchema>;
 
 /** INST-38: the emails the instance sends. */
-export const EMAIL_TEMPLATES = ['sign_in', 'invitation', 'notification', 'test'] as const;
+export const EMAIL_TEMPLATES = [
+  'sign_in',
+  'invitation',
+  'notification',
+  'email_change',
+  'test',
+] as const;
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
 const templateOverride = z.object({
   subject: z.string().trim().min(1).max(200).optional(),
@@ -212,6 +218,7 @@ export const EmailTemplateSettingsSchema = z.object({
   sign_in: templateOverride.optional(),
   invitation: templateOverride.optional(),
   notification: templateOverride.optional(),
+  email_change: templateOverride.optional(),
   test: templateOverride.optional(),
 });
 export type EmailTemplateSettings = z.infer<typeof EmailTemplateSettingsSchema>;

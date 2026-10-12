@@ -28,6 +28,7 @@ import accessRoutes from './routes/access';
 import staticRoutes from './routes/static';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
+import adminDirectoryRoutes from './routes/adminDirectory';
 import domainRoutes from './routes/domains';
 import transferRoutes from './routes/transfers';
 import exportRoutes from './routes/exports';
@@ -322,6 +323,7 @@ export async function buildApp() {
   await app.register(staticRoutes);
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
+  await app.register(adminDirectoryRoutes);
   await app.register(workspacePolicyRoutes);
   await app.register(usageRoutes);
   await app.register(workspaceRoutes);

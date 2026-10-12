@@ -463,70 +463,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── Workspaces (INST-09) ─────────────────────────────────────────────────
 
-  fastify.get<{ Querystring: { query?: string; cursor?: string } }>(
-    '/api/admin/workspaces',
-    admin,
-    async (request) => {
-      const query = request.query.query?.trim();
-      const rows = await systemDb.workspace.findMany({
-        where: {
-          ...(query && {
-            OR: [
-              { slug: { contains: query, mode: 'insensitive' } },
-              { name: { contains: query, mode: 'insensitive' } },
-            ],
-          }),
-          ...cursorWhere(request.query.cursor),
-        },
-        include: {
-          organization: { select: { slug: true, plan: true } },
-          WorkspaceConfig: { select: { plan: true, planExpiresAt: true, planOverrides: true } },
-          _count: {
-            // Joined members only: pending invitations aren't members yet.
-            select: {
-              RemoteModules: true,
-              WorkspaceMembers: { where: { joinedAt: { not: null } } },
-              ModuleVersions: true,
-            },
-          },
-        },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        take: PAGE,
-      });
-      // INST-09, USG-02: bundle bytes of the versions each workspace keeps.
-      const storage = await systemDb.moduleVersion.groupBy({
-        by: ['workspaceId'],
-        where: { workspaceId: { in: rows.map((w) => w.id) }, deletedAt: null },
-        _sum: { sizeBytes: true },
-      });
-      const bytesOf = new Map(storage.map((g) => [g.workspaceId, Number(g._sum.sizeBytes ?? 0)]));
-      return {
-        workspaces: rows.map((w) => ({
-          id: w.id,
-          slug: w.slug,
-          name: w.name,
-          organization: w.organization?.slug ?? null,
-          // PLN-01: the workspace's own plan; its organization's applies when higher.
-          plan: w.WorkspaceConfig?.plan ?? 'hobby',
-          organizationPlan: w.organization?.plan ?? null,
-          modules: w._count.RemoteModules,
-          members: w._count.WorkspaceMembers,
-          deploys: w._count.ModuleVersions,
-          storageBytes: bytesOf.get(w.id) ?? 0,
-          // PLN-06
-          planExpiresAt: w.WorkspaceConfig?.planExpiresAt ?? null,
-          planOverrides: w.WorkspaceConfig?.planOverrides ?? null,
-          suspendedAt: w.suspendedAt,
-          // TLC-02: deleted, restorable until `purgeAfter`.
-          deletedAt: w.deletedAt,
-          purgeAfter: w.purgeAfter,
-          suspendedReason: w.suspendedReason,
-          createdAt: w.createdAt,
-        })),
-        nextCursor: nextCursor(rows, PAGE),
-      };
-    }
-  );
+  // INST-09, INST-29: the list and detail are in adminDirectory.ts.
 
   const workspaceBySlug = async (slug: string) => {
     const workspace = await systemDb.workspace.findUnique({ where: { slug } });
@@ -710,30 +647,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  fastify.get('/api/admin/orgs', admin, async () => {
-    // Deleted organizations too (until purged), so they can be restored.
-    const orgs = await systemDb.organization.findMany({
-      include: { _count: { select: { Workspaces: true, Members: true } } },
-      orderBy: { name: 'asc' },
-    });
-    return {
-      organizations: orgs.map((o) => ({
-        slug: o.slug,
-        name: o.name,
-        plan: o.plan,
-        // PLN-06
-        planExpiresAt: o.planExpiresAt,
-        basePlan: o.basePlan,
-        planOverrides: o.planOverrides,
-        workspaces: o._count.Workspaces,
-        members: o._count.Members,
-        suspendedAt: o.suspendedAt,
-        suspendedReason: o.suspendedReason,
-        deletedAt: o.deletedAt,
-        purgeAfter: o.purgeAfter,
-      })),
-    };
-  });
+  // INST-19: the list and detail are in adminDirectory.ts.
 
   const orgBySlug = async (slug: string) => {
     const org = await systemDb.organization.findUnique({ where: { slug } });
@@ -886,54 +800,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── Users (INST-10) ──────────────────────────────────────────────────────
 
-  fastify.get<{ Querystring: { query?: string; cursor?: string } }>(
-    '/api/admin/users',
-    admin,
-    async (request) => {
-      const query = request.query.query?.trim();
-      const now = new Date();
-      const rows = await systemDb.user.findMany({
-        where: {
-          ...(query && {
-            OR: [
-              { email: { contains: query, mode: 'insensitive' } },
-              { name: { contains: query, mode: 'insensitive' } },
-            ],
-          }),
-          ...cursorWhere(request.query.cursor),
-        },
-        include: {
-          WorkspaceMembers: {
-            where: { joinedAt: { not: null } },
-            include: { workspace: { select: { slug: true } } },
-          },
-          InstanceAdmin: true,
-          _count: {
-            select: { RefreshTokens: { where: { revokedAt: null, expiresAt: { gt: now } } } },
-          },
-        },
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        take: PAGE,
-      });
-      return {
-        users: rows.map((u) => ({
-          id: u.id,
-          email: u.email,
-          name: u.name,
-          lastLoginAt: u.lastLoginAt,
-          createdAt: u.createdAt,
-          isInstanceAdmin: !!u.InstanceAdmin && !u.InstanceAdmin.revokedAt,
-          activeSessions: u._count.RefreshTokens,
-          // SES-03/04
-          mfaEnabled: !!u.mfaEnabledAt,
-          suspendedAt: u.suspendedAt,
-          suspendedReason: u.suspendedReason,
-          workspaces: u.WorkspaceMembers.map((m) => ({ slug: m.workspace.slug, role: m.role })),
-        })),
-        nextCursor: nextCursor(rows, PAGE),
-      };
-    }
-  );
+  // INST-10, INST-30: the list and detail are in adminDirectory.ts.
 
   const userById = async (id: string) => {
     const user = await systemDb.user.findUnique({ where: { id } });

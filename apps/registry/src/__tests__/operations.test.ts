@@ -5,7 +5,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { PgBoss } from 'pg-boss';
 import { buildApp } from '../app';
-import { REPLICA_ID, migrationStatus, purgeOperationalLogs } from '../services/operations';
+import {
+  REPLICA_ID,
+  bundledMigrations,
+  migrationStatus,
+  purgeOperationalLogs,
+} from '../services/operations';
 import { Fixtures, bearer } from './helpers/fixtures';
 
 // INST-22, INST-28, INST-37, INST-38: operations of the instance.
@@ -45,7 +50,7 @@ describe('Instance operations (INST-22, 28, 37, 38)', () => {
     expect(body.replica).toBe(REPLICA_ID);
     expect(body.build).toMatchObject({ node: process.version });
     expect(body.migrations.pending).toEqual([]);
-    expect(body.migrations.latest).toMatch(/admin_operations$/);
+    expect(body.migrations.latest).toBe(bundledMigrations()!.at(-1));
     const self = body.replicas.find((r: { self: boolean }) => r.self);
     expect(self).toMatchObject({ live: true });
     expect(self.configAgeSeconds).toBeGreaterThanOrEqual(0);

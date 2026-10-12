@@ -1047,14 +1047,14 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Registry
 
-- [ ] `GET /api/admin/orgs?query=&cursor=`, `GET /api/admin/orgs/:slug` (workspaces, members, plan, usage, SSO and domains), with the 9.2 actions (INST-19)
+- [x] `GET /api/admin/orgs?query=&cursor=`, `GET /api/admin/orgs/:slug` (workspaces, members, plan, usage, SSO and domains), with the 9.2 actions (INST-19) (`routes/adminDirectory.ts`; offset cursors so every sort pages)
 - [x] `POST /api/admin/support-grants`, `DELETE …/:id`; `requireWorkspace` / `requireOrg` admit an active grant read-only; events in both audit logs; `GET /api/workspaces/:ws` reports active grants (INST-20) (`GET /api/orgs/:org` too; a new `support` capability for owners, operators and support; `403 SUPPORT_READ_ONLY` for changes)
-- [ ] `/api/admin/users` adds org memberships and suspension; CSV export for users and workspaces (INST-21)
+- [x] `/api/admin/users` adds org memberships and suspension; CSV export for users and workspaces (INST-21)
 - [x] `PUT /api/admin/settings/announcement`; `GET /api/instance` returns the active announcement (INST-22) (`level`, `startsAt`, `endsAt`)
 - [ ] `GET /api/admin/overview`: 30-day trends from `UsageDaily` and counts, and the attention list (publish errors, dead letters, failed jobs, `WorkspaceStorageConfig` verification failures, SAML certificates expiring, alert rules with `lastError`, quota breaches, failing domains) (INST-27)
 - [x] Replica heartbeat every 30 s; `GET /api/admin/health` adds version, commit, pending migrations (`_prisma_migrations` vs. the bundled list), replicas; `GET /api/admin/jobs` (schedules, last run, last success and failure per queue), `GET /api/admin/jobs/failed`, `POST /api/admin/jobs/:id/retry`, `POST /api/admin/jobs/:queue/run` for maintenance queues (INST-28) (build, migrations and replicas at `GET /api/admin/system`; the daily `ops.retention` job purges the email and sign-in logs)
-- [ ] `GET /api/admin/workspaces/:slug` detail; list `status`, `plan`, `org`, `inactiveDays`, `sort` parameters (INST-29)
-- [ ] `GET /api/admin/users/:id` detail with identities, memberships, sessions (`DELETE …/sessions/:id`), keys and activity; list filters; `POST /api/admin/users/:id/email` (verification email) and `POST /api/admin/users/:id/merge` (moves identities, memberships, keys; audited) (INST-30)
+- [x] `GET /api/admin/workspaces/:slug` detail; list `status`, `plan`, `org`, `inactiveDays`, `sort` parameters (INST-29)
+- [x] `GET /api/admin/users/:id` detail with identities, memberships, sessions (`DELETE …/sessions/:id`), keys and activity; list filters; `POST /api/admin/users/:id/email` (verification email) and `POST /api/admin/users/:id/merge` (moves identities, memberships, keys; audited) (INST-30) (the email change waits for the new address to confirm: `POST /api/auth/email-change`)
 - [ ] `GET /api/admin/audit` filters (`action`, `actor`, `resource`, `from`, `to`) and actor labels; `GET /api/admin/audit/search?actor=` across workspace, org and instance logs, audited (INST-36)
 - [x] Maintenance mode: `PUT /api/admin/settings/maintenance` (`from`, `until`, `message`); writes `503 MAINTENANCE` with `Retry-After`, manifests and health served (INST-37) (`/api/admin`, `/api/auth`, `/api/me`, health reports and `/api/instance` stay writable)
 - [x] Mailer decorator recording `EmailDelivery`; per-template subject and intro overrides (INST-38)
@@ -1079,11 +1079,11 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [ ] Overview attention items, one fixture per item type
 - [x] Jobs: failed job listed and retried, run-now limited to maintenance queues
 - [x] Replica heartbeats and pending-migration detection
-- [ ] User email change and merge (identities, memberships, keys, sessions), audited
+- [x] User email change and merge (identities, memberships, keys, sessions), audited
 - [ ] Audit filters and cross-tenant search permissions
 - [x] Maintenance mode: writes 503, reads and manifests served, scheduled start and end
 - [ ] Email delivery log and template overrides; sign-in events and security page aggregates
-- [ ] CSV exports; announcement scheduling
+- [x] CSV exports; announcement scheduling
 
 ### Deliverables
 

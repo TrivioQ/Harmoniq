@@ -61,6 +61,8 @@ const RULES: Record<string, Rule> = {
   'PUT /api/admin/workspaces/:slug/plan': { capability: 'plans' },
   'PUT /api/admin/orgs/:slug/plan': { capability: 'plans' },
   'POST /api/admin/users/:id/revoke-sessions': { capability: 'sessions' },
+  'DELETE /api/admin/users/:id/sessions/:sessionId': { capability: 'sessions' },
+  'POST /api/admin/users/:id/email': { capability: 'users', destructive: true },
   'POST /api/admin/jobs/:id/retry': { capability: 'jobs' },
   'POST /api/admin/support-grants': { capability: 'support' },
   'DELETE /api/admin/support-grants/:id': { capability: 'support' },
@@ -71,6 +73,7 @@ const RULES: Record<string, Rule> = {
   // Destructive, owners only (INST-32).
   'DELETE /api/admin/workspaces/:slug': { capability: 'owner', destructive: true },
   'DELETE /api/admin/users/:id': { capability: 'owner', destructive: true },
+  'POST /api/admin/users/:id/merge': { capability: 'owner', destructive: true },
   'POST /api/admin/admins': { capability: 'owner', destructive: true },
   'PATCH /api/admin/admins/:userId': { capability: 'owner', destructive: true },
   'DELETE /api/admin/admins/:userId': { capability: 'owner', destructive: true },
