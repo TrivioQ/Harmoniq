@@ -19,6 +19,10 @@ import {
   RateLimitSettingsSchema,
   GcSettingsSchema,
   BundleSettingsSchema,
+  type AnnouncementSettings,
+  type EmailTemplate,
+  type EmailTemplateSettings,
+  type MaintenanceSettings,
 } from '@harmoniq/core/dist/schemas/InstanceSettingsSchemas';
 import type { Plan, PlanFeature, PlanLimits } from '@harmoniq/core/dist/schemas/AdminSchemas';
 import YAML from 'yaml';
@@ -29,6 +33,7 @@ import {
   storageTargetFromSettings,
 } from '../adapters/storage/createStorage';
 import { SmtpMailer } from '../adapters/mail/SmtpMailer';
+import { RecordingMailer } from './emailLog';
 import { maskSecret, openSecret, sealSecret } from './crypto';
 
 /** Write-only fields per setting, sealed at rest (INST-15). */
@@ -42,6 +47,9 @@ const SECRETS: Record<InstanceSettingKey, string[]> = {
   rateLimits: [],
   gc: [],
   bundles: [],
+  announcement: [],
+  maintenance: [],
+  emailTemplates: [],
 };
 
 const RELOAD_MS = 60_000;
@@ -143,10 +151,14 @@ export class InstanceSettings {
     return this.version;
   }
 
+  /** INST-28: when this replica last read the settings (shown per replica in health). */
+  loadedAt: Date | null = null;
+
   async reload() {
     const rows = await this.deps.systemDb.instanceConfig.findMany({
       where: { key: { in: INSTANCE_SETTING_KEYS.map(rowKey) } },
     });
+    this.loadedAt = new Date();
     const next: Partial<Record<InstanceSettingKey, Json>> = {};
     for (const row of rows)
       next[row.key.slice('settings.'.length) as InstanceSettingKey] = row.value as Json;
@@ -201,23 +213,34 @@ export class InstanceSettings {
   /** INST-12: outbound email, or null when none is configured in production. */
   mailer(): IMailer | null {
     return this.memo('mailer', () => {
-      const value = this.plain('email') as EmailSettings | null;
-      if (value) {
-        return new SmtpMailer(
-          {
-            host: value.host,
-            port: value.port,
-            secure: value.security === 'tls',
-            requireTLS: value.security === 'starttls',
-            ignoreTLS: value.security === 'none',
-            ...(value.username && { auth: { user: value.username, pass: value.password ?? '' } }),
-          },
-          value.from
-        );
-      }
-      const { mail } = this.deps.config;
-      return mail.smtpUrl ? new SmtpMailer(mail.smtpUrl, mail.from) : this.deps.fallbackMailer;
+      const inner = this.baseMailer();
+      // INST-38: template overrides and the delivery log.
+      return inner
+        ? new RecordingMailer(inner, {
+            systemDb: this.deps.systemDb,
+            override: (template) => this.emailTemplate(template),
+          })
+        : null;
     }) as IMailer | null;
+  }
+
+  private baseMailer(): IMailer | null {
+    const value = this.plain('email') as EmailSettings | null;
+    if (value) {
+      return new SmtpMailer(
+        {
+          host: value.host,
+          port: value.port,
+          secure: value.security === 'tls',
+          requireTLS: value.security === 'starttls',
+          ignoreTLS: value.security === 'none',
+          ...(value.username && { auth: { user: value.username, pass: value.password ?? '' } }),
+        },
+        value.from
+      );
+    }
+    const { mail } = this.deps.config;
+    return mail.smtpUrl ? new SmtpMailer(mail.smtpUrl, mail.from) : this.deps.fallbackMailer;
   }
 
   /** INST-13: which sign-in methods the instance allows. */
@@ -401,6 +424,32 @@ export class InstanceSettings {
     return { validate: stored.validate ?? this.deps.config.validateBundles };
   }
 
+  /** INST-22: the announcement to show now, if any. */
+  announcement(now = new Date()): AnnouncementSettings | null {
+    const a = this.plain('announcement') as AnnouncementSettings | null;
+    if (!a?.message) return null;
+    if (a.startsAt && new Date(a.startsAt) > now) return null;
+    if (a.endsAt && new Date(a.endsAt) <= now) return null;
+    return { ...a, level: a.level ?? 'info' };
+  }
+
+  /**
+   * INST-37: the maintenance window, if one is saved and not over: `active` while it runs,
+   * otherwise upcoming.
+   */
+  maintenance(now = new Date()): (MaintenanceSettings & { active: boolean }) | null {
+    const m = this.plain('maintenance') as MaintenanceSettings | null;
+    if (!m) return null;
+    if (m.until && new Date(m.until) <= now) return null;
+    return { ...m, active: !m.from || new Date(m.from) <= now };
+  }
+
+  /** INST-38: an email template's subject and intro overrides. */
+  emailTemplate(template: EmailTemplate | string) {
+    const all = (this.plain('emailTemplates') as EmailTemplateSettings | null) ?? {};
+    return all[template as EmailTemplate] ?? {};
+  }
+
   /** INST-14. */
   branding(): BrandingSettings {
     return (this.plain('branding') as BrandingSettings | null) ?? { name: 'Harmoniq' };
@@ -452,6 +501,9 @@ export class InstanceSettings {
         healthRollupRetentionDays: 30,
       },
       bundles: { validate: config.validateBundles },
+      announcement: {},
+      maintenance: {},
+      emailTemplates: {},
     };
     const locked = this.lockedAuthSettings();
     const view = Object.fromEntries(

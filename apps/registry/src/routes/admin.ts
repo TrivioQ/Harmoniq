@@ -3,6 +3,17 @@
 
 /* eslint-disable no-restricted-syntax -- MT-09: instance administration spans every tenant (INST-05) */
 
+import {
+  MAINTENANCE_QUEUES,
+  REPLICA_ID,
+  buildInfo,
+  failedJobs,
+  jobQueues,
+  migrationStatus,
+  replicas,
+  retryJob,
+  runNow,
+} from '../services/operations';
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { createHash, timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
@@ -133,7 +144,20 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   };
 
   /** INST-14: the instance's name and look, for the dashboard (public). */
-  fastify.get('/api/instance', async () => ({ branding: settings.branding() }));
+  fastify.get('/api/instance', async () => {
+    // INST-22/37: the banner, and maintenance (running or upcoming) for every page.
+    const maintenance = settings.maintenance();
+    return {
+      branding: settings.branding(),
+      announcement: settings.announcement(),
+      maintenance: maintenance && {
+        active: maintenance.active,
+        from: maintenance.from ?? null,
+        until: maintenance.until ?? null,
+        message: maintenance.message ?? null,
+      },
+    };
+  });
 
   fastify.get('/api/admin/setup', setupLimit, async () => ({
     needed: !(await setupConsumed()),
@@ -250,6 +274,68 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     ]);
     return { ...health, stats: { workspaces, modules, users }, encryption: keys };
   });
+
+  // ─── Operations (INST-28) ─────────────────────────────────────────────────
+
+  /** Version, commit, migrations not applied yet, and every replica's heartbeat. */
+  fastify.get('/api/admin/system', admin, async () => {
+    const [migrations, replicaList] = await Promise.all([
+      migrationStatus(systemDb),
+      replicas(systemDb),
+    ]);
+    return { build: buildInfo(), replica: REPLICA_ID, migrations, replicas: replicaList };
+  });
+
+  /** Each job queue: schedule, last run, last success and failure. */
+  fastify.get('/api/admin/jobs', admin, async () => ({
+    queueRunning: !!fastify.container.boss,
+    queues: await jobQueues(systemDb),
+  }));
+
+  fastify.get<{ Querystring: { queue?: string } }>(
+    '/api/admin/jobs/failed',
+    admin,
+    async (request) => ({ jobs: await failedJobs(systemDb, request.query.queue || undefined) })
+  );
+
+  const requireBoss = () => {
+    const { boss } = fastify.container;
+    if (!boss) throw new ConflictError('The job queue is not running on this registry');
+    return boss;
+  };
+
+  fastify.post<{ Params: { id: string } }>('/api/admin/jobs/:id/retry', admin, async (request) => {
+    const retried = await retryJob(requireBoss(), systemDb, request.params.id);
+    if (!retried) throw new NotFoundError('No failed job with this id');
+    await instanceAudit(request, {
+      action: 'instance.job_retry',
+      resourceType: 'job',
+      resourceId: retried.id,
+      metadata: { queue: retried.queue },
+    });
+    return retried;
+  });
+
+  /** Maintenance jobs only (GC, rollups, purge, domain re-check …). */
+  fastify.post<{ Params: { queue: string } }>(
+    '/api/admin/jobs/:queue/run',
+    admin,
+    async (request, reply) => {
+      const { queue } = request.params;
+      if (!(MAINTENANCE_QUEUES as readonly string[]).includes(queue)) {
+        throw new BadRequestError(
+          `Only maintenance jobs can be run: ${MAINTENANCE_QUEUES.join(', ')}`
+        );
+      }
+      const started = await runNow(requireBoss(), queue);
+      await instanceAudit(request, {
+        action: 'instance.job_run',
+        resourceType: 'job',
+        resourceId: queue,
+      });
+      return reply.code(202).send(started);
+    }
+  );
 
   // ─── Workspaces (INST-09) ─────────────────────────────────────────────────
 
@@ -1328,6 +1414,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const name = settings.branding().name;
     try {
       await mailer.send({
+        template: 'test',
         to: user.email,
         subject: `${name}: test email`,
         text: `This test message from ${name} shows that outbound email works.`,

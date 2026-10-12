@@ -59,6 +59,8 @@ const RULES: Record<string, Rule> = {
   'PUT /api/admin/workspaces/:slug/plan': { capability: 'plans' },
   'PUT /api/admin/orgs/:slug/plan': { capability: 'plans' },
   'POST /api/admin/users/:id/revoke-sessions': { capability: 'sessions' },
+  'POST /api/admin/jobs/:id/retry': { capability: 'jobs' },
+  'POST /api/admin/jobs/:queue/run': { capability: 'jobs' },
   'POST /api/admin/users/:id/suspend': { capability: 'users' },
   'POST /api/admin/users/:id/unsuspend': { capability: 'users' },
   'DELETE /api/admin/users/:id/mfa': { capability: 'users', destructive: true },

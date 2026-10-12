@@ -1040,24 +1040,24 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Database
 
-- [ ] `SupportGrant`: `adminUserId`, `organizationId?` / `workspaceId?`, `reason`, `expiresAt`, `revokedAt?` (INST-20)
-- [ ] `ReplicaHeartbeat`: `replicaId`, `version`, `commit`, `startedAt`, `lastSeenAt`, `configLoadedAt` (INST-28)
-- [ ] `SignInEvent`: `userId?`, `email`, `method`, `success`, `reason?`, `ip`, `createdAt` (90-day GC) (INST-39)
-- [ ] `EmailDelivery`: `to`, `template`, `status`, `error?`, `createdAt` (30-day GC); `InstanceConfig` keys `announcement`, `maintenance`, `emailTemplates` (INST-22, INST-37, INST-38)
+- [x] `SupportGrant`: `adminUserId`, `organizationId?` / `workspaceId?`, `reason`, `expiresAt`, `revokedAt?` (INST-20)
+- [x] `ReplicaHeartbeat`: `replicaId`, `version`, `commit`, `startedAt`, `lastSeenAt`, `configLoadedAt` (INST-28)
+- [x] `SignInEvent`: `userId?`, `email`, `method`, `success`, `reason?`, `ip`, `createdAt` (90-day GC) (INST-39)
+- [x] `EmailDelivery`: `to`, `template`, `status`, `error?`, `createdAt` (30-day GC); `InstanceConfig` keys `announcement`, `maintenance`, `emailTemplates` (INST-22, INST-37, INST-38)
 
 #### Registry
 
 - [ ] `GET /api/admin/orgs?query=&cursor=`, `GET /api/admin/orgs/:slug` (workspaces, members, plan, usage, SSO and domains), with the 9.2 actions (INST-19)
 - [ ] `POST /api/admin/support-grants`, `DELETE …/:id`; `requireWorkspace` / `requireOrg` admit an active grant read-only; events in both audit logs; `GET /api/workspaces/:ws` reports active grants (INST-20)
 - [ ] `/api/admin/users` adds org memberships and suspension; CSV export for users and workspaces (INST-21)
-- [ ] `PUT /api/admin/settings/announcement`; `GET /api/instance` returns the active announcement (INST-22)
+- [x] `PUT /api/admin/settings/announcement`; `GET /api/instance` returns the active announcement (INST-22) (`level`, `startsAt`, `endsAt`)
 - [ ] `GET /api/admin/overview`: 30-day trends from `UsageDaily` and counts, and the attention list (publish errors, dead letters, failed jobs, `WorkspaceStorageConfig` verification failures, SAML certificates expiring, alert rules with `lastError`, quota breaches, failing domains) (INST-27)
-- [ ] Replica heartbeat every 30 s; `GET /api/admin/health` adds version, commit, pending migrations (`_prisma_migrations` vs. the bundled list), replicas; `GET /api/admin/jobs` (schedules, last run, last success and failure per queue), `GET /api/admin/jobs/failed`, `POST /api/admin/jobs/:id/retry`, `POST /api/admin/jobs/:queue/run` for maintenance queues (INST-28)
+- [x] Replica heartbeat every 30 s; `GET /api/admin/health` adds version, commit, pending migrations (`_prisma_migrations` vs. the bundled list), replicas; `GET /api/admin/jobs` (schedules, last run, last success and failure per queue), `GET /api/admin/jobs/failed`, `POST /api/admin/jobs/:id/retry`, `POST /api/admin/jobs/:queue/run` for maintenance queues (INST-28) (build, migrations and replicas at `GET /api/admin/system`; the daily `ops.retention` job purges the email and sign-in logs)
 - [ ] `GET /api/admin/workspaces/:slug` detail; list `status`, `plan`, `org`, `inactiveDays`, `sort` parameters (INST-29)
 - [ ] `GET /api/admin/users/:id` detail with identities, memberships, sessions (`DELETE …/sessions/:id`), keys and activity; list filters; `POST /api/admin/users/:id/email` (verification email) and `POST /api/admin/users/:id/merge` (moves identities, memberships, keys; audited) (INST-30)
 - [ ] `GET /api/admin/audit` filters (`action`, `actor`, `resource`, `from`, `to`) and actor labels; `GET /api/admin/audit/search?actor=` across workspace, org and instance logs, audited (INST-36)
-- [ ] Maintenance mode: `PUT /api/admin/settings/maintenance` (`from`, `until`, `message`); writes `503 MAINTENANCE` with `Retry-After`, manifests and health served (INST-37)
-- [ ] Mailer decorator recording `EmailDelivery`; per-template subject and intro overrides (INST-38)
+- [x] Maintenance mode: `PUT /api/admin/settings/maintenance` (`from`, `until`, `message`); writes `503 MAINTENANCE` with `Retry-After`, manifests and health served (INST-37) (`/api/admin`, `/api/auth`, `/api/me`, health reports and `/api/instance` stay writable)
+- [x] Mailer decorator recording `EmailDelivery`; per-template subject and intro overrides (INST-38)
 - [ ] `SignInEvent` written by every sign-in path; `GET /api/admin/security` (failed sign-ins by IP and email, rate-limited tenants from the limiter, revoked/expired key attempts, SCIM errors) (INST-39)
 
 #### Dashboard
@@ -1077,11 +1077,11 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [ ] Org admin pages and API permissions per admin role
 - [ ] Support grant: read-only, expiry, revocation, visible to tenant, audited in both logs
 - [ ] Overview attention items, one fixture per item type
-- [ ] Jobs: failed job listed and retried, run-now limited to maintenance queues
-- [ ] Replica heartbeats and pending-migration detection
+- [x] Jobs: failed job listed and retried, run-now limited to maintenance queues
+- [x] Replica heartbeats and pending-migration detection
 - [ ] User email change and merge (identities, memberships, keys, sessions), audited
 - [ ] Audit filters and cross-tenant search permissions
-- [ ] Maintenance mode: writes 503, reads and manifests served, scheduled start and end
+- [x] Maintenance mode: writes 503, reads and manifests served, scheduled start and end
 - [ ] Email delivery log and template overrides; sign-in events and security page aggregates
 - [ ] CSV exports; announcement scheduling
 

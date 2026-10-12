@@ -172,6 +172,50 @@ export type GcSettings = z.infer<typeof GcSettingsSchema>;
 export const BundleSettingsSchema = z.object({ validate: z.boolean().optional() });
 export type BundleSettings = z.infer<typeof BundleSettingsSchema>;
 
+// ─── INST-22, INST-37, INST-38: operations ─────────────────────────────────
+
+const instant = z.string().datetime({ offset: true });
+
+/** INST-22: a banner on every dashboard page, between `startsAt` and `endsAt` when set. */
+export const AnnouncementSettingsSchema = z
+  .object({
+    message: z.string().trim().min(1).max(500),
+    level: z.enum(['info', 'warning', 'maintenance']).default('info'),
+    startsAt: instant.optional(),
+    endsAt: instant.optional(),
+  })
+  .refine((a) => !a.startsAt || !a.endsAt || a.startsAt < a.endsAt, 'endsAt must be after startsAt');
+export type AnnouncementSettings = z.infer<typeof AnnouncementSettingsSchema>;
+
+/**
+ * INST-37: read-only mode from `from` (default: now) until `until` (default: until reset).
+ * Writes answer `503 MAINTENANCE`; manifests, health and sign-in keep working.
+ */
+export const MaintenanceSettingsSchema = z
+  .object({
+    from: instant.optional(),
+    until: instant.optional(),
+    message: z.string().trim().max(500).optional(),
+  })
+  .refine((m) => !m.from || !m.until || m.from < m.until, 'until must be after from');
+export type MaintenanceSettings = z.infer<typeof MaintenanceSettingsSchema>;
+
+/** INST-38: the emails the instance sends. */
+export const EMAIL_TEMPLATES = ['sign_in', 'invitation', 'notification', 'test'] as const;
+export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
+const templateOverride = z.object({
+  subject: z.string().trim().min(1).max(200).optional(),
+  /** A paragraph put before the email's own text. */
+  intro: z.string().trim().max(2000).optional(),
+});
+export const EmailTemplateSettingsSchema = z.object({
+  sign_in: templateOverride.optional(),
+  invitation: templateOverride.optional(),
+  notification: templateOverride.optional(),
+  test: templateOverride.optional(),
+});
+export type EmailTemplateSettings = z.infer<typeof EmailTemplateSettingsSchema>;
+
 export const INSTANCE_SETTING_KEYS = [
   'storage',
   'email',
@@ -182,6 +226,9 @@ export const INSTANCE_SETTING_KEYS = [
   'rateLimits',
   'gc',
   'bundles',
+  'announcement',
+  'maintenance',
+  'emailTemplates',
 ] as const;
 export type InstanceSettingKey = (typeof INSTANCE_SETTING_KEYS)[number];
 
@@ -195,4 +242,7 @@ export const InstanceSettingSchemas = {
   rateLimits: RateLimitSettingsSchema,
   gc: GcSettingsSchema,
   bundles: BundleSettingsSchema,
+  announcement: AnnouncementSettingsSchema,
+  maintenance: MaintenanceSettingsSchema,
+  emailTemplates: EmailTemplateSettingsSchema,
 } as const;

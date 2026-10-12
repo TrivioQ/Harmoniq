@@ -112,6 +112,7 @@ export async function sendInvitationEmail(
   const what = input.kind === 'workspace' ? 'workspace' : 'organization';
   try {
     await deps.mailer.send({
+      template: 'invitation',
       to: input.email,
       subject: `${deps.instanceName}: you're invited to the ${what} ${input.name}`,
       text: [

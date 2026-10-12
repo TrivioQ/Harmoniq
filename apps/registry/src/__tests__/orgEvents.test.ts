@@ -7,6 +7,7 @@ import { FastifyInstance } from 'fastify';
 import type { OrgEventName } from '@harmoniq/core/dist/schemas/OrgEventsSchema';
 import { buildApp } from '../app';
 import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
+import { RecordingMailer } from '../services/emailLog';
 import { sealSecret } from '../services/crypto';
 import {
   NOTIFY_QUEUE,
@@ -267,7 +268,7 @@ describe('Organization webhooks and notifications (TAD-09, TAD-10)', () => {
       limit: 5,
     };
     await events.notify({ channelId: email.id, event: 'quota.warning', body });
-    const mail = (app.container.mailer as ConsoleMailer).sent.at(-1)!;
+    const mail = ((app.container.mailer as RecordingMailer).inner as ConsoleMailer).sent.at(-1)!;
     expect(mail).toMatchObject({ to: 'ops@example.test' });
     expect(mail.subject).toContain('shop (' + org + ') is at 80% of its members quota (4 of 5)');
     expect(mail.text).toContain(`https://dash.example.test/orgs/${org}`);

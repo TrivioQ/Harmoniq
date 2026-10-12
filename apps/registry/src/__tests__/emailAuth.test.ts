@@ -6,6 +6,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../app';
 import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
+import { RecordingMailer } from '../services/emailLog';
 
 const WEB = 'http://localhost:3000';
 
@@ -43,7 +44,7 @@ describe('Email sign-in', () => {
     process.env.WEB_ORIGIN = WEB;
     app = await buildApp();
     await app.ready();
-    mailer = app.container.mailer as ConsoleMailer;
+    mailer = (app.container.mailer as RecordingMailer).inner as ConsoleMailer;
   });
 
   afterAll(async () => {

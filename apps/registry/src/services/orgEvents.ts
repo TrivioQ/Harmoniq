@@ -106,6 +106,7 @@ export class OrgEvents {
         const mailer = this.deps.mailer();
         if (!mailer) throw new Error('Outbound email is not configured');
         await mailer.send({
+          template: 'notification',
           to: channel.target,
           subject: `${this.deps.instanceName()}: ${text}`,
           text: `${text}\n\n${link}`,

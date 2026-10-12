@@ -1,6 +1,7 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { purgeOperationalLogs } from '../services/operations';
 import { rollUpHealth } from '../services/health';
 import { FastifyInstance } from 'fastify';
 import { PrismaClient } from '@prisma/client';
@@ -331,6 +332,16 @@ export async function registerGcJobs(fastify: FastifyInstance) {
   await boss.schedule('plans.expire', '5 * * * *');
   boss.work('plans.expire', async () => {
     await expirePlans(fastify.container);
+  });
+
+  // INST-38/39: the email log after 30 days, sign-in events after 90 - Daily
+  await boss.createQueue('ops.retention');
+  await boss.schedule('ops.retention', '40 2 * * *');
+  boss.work('ops.retention', async () => {
+    const purged = await purgeOperationalLogs(db);
+    logger.info(
+      `ops.retention: ${purged.emails} email(s), ${purged.signIns} sign-in event(s) purged`
+    );
   });
 
   // 5. Orphan Scan - Weekly

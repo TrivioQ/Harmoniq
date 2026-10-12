@@ -6,6 +6,8 @@ export interface MailMessage {
   subject: string;
   text: string;
   html?: string;
+  /** INST-38: which email this is (`sign_in`, `invitation`, `notification`, `test`). */
+  template?: string;
 }
 
 /** Outbound email (sign-in links, invitations, approval requests). */

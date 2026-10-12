@@ -70,6 +70,7 @@ export class EmailIdentityProvider implements EmailProvider {
     link.searchParams.set('token', token);
     const name = this.brand();
     await mailer.send({
+      template: 'sign_in',
       to: email,
       subject: `Your ${name} sign-in code: ${code}`,
       text: [

@@ -211,6 +211,14 @@ class Client(BaseClient):
         """GET /api/admin/health (Instance administration)."""
         return self.request("GET", "/api/admin/health", None, query)
 
+    def get_admin_jobs(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/jobs (Instance administration)."""
+        return self.request("GET", "/api/admin/jobs", None, query)
+
+    def get_admin_jobs_failed(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/jobs/failed (Instance administration)."""
+        return self.request("GET", "/api/admin/jobs/failed", None, query)
+
     def get_admin_orgs(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/orgs (Instance administration)."""
         return self.request("GET", "/api/admin/orgs", None, query)
@@ -234,6 +242,10 @@ class Client(BaseClient):
     def get_admin_setup(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/setup (Instance administration)."""
         return self.request("GET", "/api/admin/setup", None, query)
+
+    def get_admin_system(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/system (Instance administration)."""
+        return self.request("GET", "/api/admin/system", None, query)
 
     def get_admin_usage(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/usage (Instance administration)."""
@@ -626,6 +638,14 @@ class Client(BaseClient):
     def post_admin_encryption_reseal(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/encryption/reseal (Instance administration)."""
         return self.request("POST", "/api/admin/encryption/reseal", None, query)
+
+    def post_admin_jobs_retry(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/jobs/{id}/retry (Instance administration)."""
+        return self.request("POST", "/api/admin/jobs/" + _q(id) + "/retry", None, query)
+
+    def post_admin_jobs_run(self, queue, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/jobs/{queue}/run (Instance administration)."""
+        return self.request("POST", "/api/admin/jobs/" + _q(queue) + "/run", None, query)
 
     def post_admin_orgs_restore(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/orgs/{slug}/restore (Instance administration)."""

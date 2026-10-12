@@ -260,6 +260,16 @@ func (c *Client) GetAdminHealth(ctx context.Context, query url.Values) (*Respons
 	return c.Do(ctx, "GET", "/api/admin/health", nil, query)
 }
 
+// GetAdminJobs calls GET /api/admin/jobs (Instance administration).
+func (c *Client) GetAdminJobs(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/jobs", nil, query)
+}
+
+// GetAdminJobsFailed calls GET /api/admin/jobs/failed (Instance administration).
+func (c *Client) GetAdminJobsFailed(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/jobs/failed", nil, query)
+}
+
 // GetAdminOrgs calls GET /api/admin/orgs (Instance administration).
 func (c *Client) GetAdminOrgs(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/orgs", nil, query)
@@ -288,6 +298,11 @@ func (c *Client) GetAdminSettingsHistory(ctx context.Context, key string, query 
 // GetAdminSetup calls GET /api/admin/setup (Instance administration).
 func (c *Client) GetAdminSetup(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/setup", nil, query)
+}
+
+// GetAdminSystem calls GET /api/admin/system (Instance administration).
+func (c *Client) GetAdminSystem(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/system", nil, query)
 }
 
 // GetAdminUsage calls GET /api/admin/usage (Instance administration).
@@ -778,6 +793,16 @@ func (c *Client) PostAdminApiKeys(ctx context.Context, query url.Values) (*Respo
 // PostAdminEncryptionReseal calls POST /api/admin/encryption/reseal (Instance administration).
 func (c *Client) PostAdminEncryptionReseal(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/admin/encryption/reseal", nil, query)
+}
+
+// PostAdminJobsRetry calls POST /api/admin/jobs/{id}/retry (Instance administration).
+func (c *Client) PostAdminJobsRetry(ctx context.Context, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/jobs/"+url.PathEscape(id)+"/retry", nil, query)
+}
+
+// PostAdminJobsRun calls POST /api/admin/jobs/{queue}/run (Instance administration).
+func (c *Client) PostAdminJobsRun(ctx context.Context, queue string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/admin/jobs/"+url.PathEscape(queue)+"/run", nil, query)
 }
 
 // PostAdminOrgsRestore calls POST /api/admin/orgs/{slug}/restore (Instance administration).

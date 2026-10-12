@@ -9,6 +9,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import Redis from 'ioredis';
 import containerPlugin from './plugins/container';
+import { startHeartbeat } from './services/operations';
 import authenticatePlugin from './plugins/authenticate';
 import manifestRoutes from './routes/manifest';
 import moduleRoutes from './routes/modules';
@@ -264,6 +265,42 @@ export async function buildApp() {
   // Register local plugins
   await app.register(metricsPlugin);
   await app.register(containerPlugin);
+  // INST-28: this replica's version and liveness, for the admin health page.
+  const stopHeartbeat = startHeartbeat(
+    app.container.systemDb,
+    () => app.container.settings.loadedAt
+  );
+  app.addHook('onClose', stopHeartbeat);
+
+  // INST-37: maintenance mode makes the instance read-only. Reads, manifests, health
+  // reports, sign-in and the admin API (to end it) keep working.
+  const MAINTENANCE_OPEN = [
+    '/api/admin/',
+    '/api/auth/',
+    '/api/me/',
+    '/api/health/',
+    '/api/instance',
+  ];
+  app.addHook('onRequest', async (request, reply) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return;
+    const maintenance = app.container.settings.maintenance();
+    if (!maintenance?.active) return;
+    const path = request.url.split('?')[0];
+    if (MAINTENANCE_OPEN.some((prefix) => path.startsWith(prefix))) return;
+    const retryAfter = maintenance.until
+      ? Math.max(1, Math.ceil((new Date(maintenance.until).getTime() - Date.now()) / 1000))
+      : 300;
+    return reply
+      .code(503)
+      .header('Retry-After', String(retryAfter))
+      .send({
+        error: {
+          code: 'MAINTENANCE',
+          message: maintenance.message || 'The registry is in maintenance; changes are paused.',
+          ...(maintenance.until && { until: maintenance.until }),
+        },
+      });
+  });
   await app.register(authenticatePlugin);
   await app.register(jobsPlugin);
 

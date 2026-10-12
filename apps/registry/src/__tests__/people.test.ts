@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../app';
 import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
+import { RecordingMailer } from '../services/emailLog';
 import { Fixtures, bearer } from './helpers/fixtures';
 
 // PPL-01..08 (Phase 9.3): invitations, people directory, access requests, org roles.
@@ -24,7 +25,7 @@ describe('People and invitations (PPL-01..08)', () => {
   const api = (as: string | null, method: Method, url: string, payload?: object) =>
     app.inject({ method, url, payload, headers: as ? bearer(as) : {} });
   const db = () => app.container.systemDb;
-  const sent = () => (app.container.mailer as ConsoleMailer).sent;
+  const sent = () => ((app.container.mailer as RecordingMailer).inner as ConsoleMailer).sent;
   const tokenFrom = (url: string) => url.split('/invite/')[1];
   /** A signed-in user with this email. */
   const person = async (email = `p-${randomUUID().slice(0, 8)}@test.local`) => {

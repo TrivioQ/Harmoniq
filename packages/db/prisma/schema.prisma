@@ -1152,3 +1152,61 @@ model InstanceConfigVersion {
 
   @@unique([key, version])
 }
+
+/// INST-20: a time-boxed, read-only grant for an instance admin to look inside one
+/// organization or workspace (support). Shown to the tenant's admins while active.
+model SupportGrant {
+  id             String    @id @default(cuid())
+  adminUserId    String
+  organizationId String?
+  workspaceId    String?
+  reason         String
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  revokedBy      String?
+  createdAt      DateTime  @default(now())
+
+  @@index([adminUserId, expiresAt])
+  @@index([organizationId])
+  @@index([workspaceId])
+}
+
+/// INST-28: each registry replica reports itself every 30 s.
+model ReplicaHeartbeat {
+  replicaId      String   @id
+  version        String
+  commit         String?
+  hostname       String?
+  startedAt      DateTime
+  lastSeenAt     DateTime
+  configLoadedAt DateTime?
+}
+
+/// INST-39: sign-in attempts, kept 90 days.
+model SignInEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  email     String?
+  method    String
+  success   Boolean
+  reason    String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+}
+
+/// INST-38: outgoing email (no bodies), kept 30 days.
+model EmailDelivery {
+  id        String   @id @default(cuid())
+  to        String
+  template  String
+  status    String
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

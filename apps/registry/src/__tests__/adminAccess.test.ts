@@ -265,8 +265,9 @@ describe('Instance admin access (INST-31..33)', () => {
     expect((await api(read.key, 'GET', '/api/admin/workspaces/nope-nope/plan')).statusCode).toBe(
       404
     );
-    expect((await api(write.key, 'PUT', '/api/admin/settings/gc', { keepVersions: 7 })).json())
-      .toMatchObject({ source: 'database', value: { keepVersions: 7 } });
+    expect(
+      (await api(write.key, 'PUT', '/api/admin/settings/gc', { keepVersions: 7 })).json()
+    ).toMatchObject({ source: 'database', value: { keepVersions: 7 } });
     expect((await api(write.key, 'DELETE', '/api/admin/settings/gc')).statusCode).toBe(204);
     // No escalation, no tenants.
     expect(
