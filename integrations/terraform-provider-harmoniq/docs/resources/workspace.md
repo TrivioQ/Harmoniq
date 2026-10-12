@@ -19,6 +19,8 @@ resource "harmoniq_workspace" "checkout_team" {
   name                         = "Checkout team"
   retention_days               = 90
   allow_ephemeral_environments = true
+  # Invited as owners when the workspace is created.
+  owners = ["lead@acme.example"]
 }
 ```
 
@@ -34,6 +36,7 @@ resource "harmoniq_workspace" "checkout_team" {
 ### Optional
 
 - `allow_ephemeral_environments` (Boolean) Whether deploys may create preview environments (e.g. `pr-123`).
+- `owners` (Set of String) Emails invited as the workspace's owners when it is created; their first sign-in accepts the invitation. Until one has joined, the organization's admins act as owners. Only applied at creation: organization API keys don't manage members, so later changes are made in the dashboard and this attribute is not refreshed.
 - `retention_days` (Number) Days of version history and snapshots kept (1–3650).
 
 ### Read-Only

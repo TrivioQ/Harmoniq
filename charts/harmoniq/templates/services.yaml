@@ -16,4 +16,10 @@ spec:
       port: {{ (index $.Values $component).port }}
       targetPort: http
       protocol: TCP
+    {{- if and (eq $component "registry") $.Values.registry.metricsPort }}
+    - name: metrics
+      port: {{ $.Values.registry.metricsPort }}
+      targetPort: metrics
+      protocol: TCP
+    {{- end }}
 {{- end }}

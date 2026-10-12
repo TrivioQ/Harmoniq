@@ -47,6 +47,10 @@ app.kubernetes.io/component: {{ .component }}
   value: {{ .Values.urls.registry | quote }}
 - name: WEB_ORIGIN
   value: {{ .Values.urls.web | quote }}
+{{- with .Values.registry.metricsPort }}
+- name: HARMONIQ_METRICS_PORT
+  value: {{ . | quote }}
+{{- end }}
 {{- range $key, $value := .Values.env }}
 - name: {{ $key }}
   value: {{ $value | quote }}

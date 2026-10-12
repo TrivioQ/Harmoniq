@@ -21,24 +21,24 @@ The audience is org admins (self-service tenant administration), security and co
 
 ## Requirements
 
-| ID                                                      | Requirement                                                                                                                                                                                | Status                                           |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
-| `MT-07`–`MT-10`                                         | Org-scope RLS (`withOrg`), system-client rule for routes, cross-org isolation suite                                                                                                        | ✅ Done (9.1)                                    |
-| `MT-11`                                                 | Production refuses to start while the app role accepts the placeholder password                                                                                                            | ✅ Done (9.1)                                    |
-| `TLC-05`                                                | Every workspace can get an owner: org admins act as owners while none has joined and can always assign owners; `owners` on org workspace creation                                          | ✅ Done (9.1; Terraform `owners` attribute open) |
-| `DOM-01`–`DOM-05`                                       | Verified domains (DNS TXT), one verified owner per domain, discovery and trusted emails on verified domains, grace period, daily re-checks                                                 | ✅ Done (9.1)                                    |
-| `PPL-04`, `PPL-05`                                      | Offboarding: org member removal cascades to workspaces, keys and org-SSO sessions; workspace member removal revokes their keys                                                             | ✅ Done (9.1)                                    |
-| `TLC-03`                                                | Deleting a workspace removes its bundles and published copies (immediately, best effort; the retrying purge job comes with soft delete)                                                    | 🔄 Partial                                       |
-| `TLC-01`, `TLC-02`, `TLC-04`, `TLC-06`–`TLC-08`         | Owner self-delete, soft delete and restore, org suspension, transfers, exports, creation policy                                                                                            | 📋 Planned (9.2)                                 |
-| `AUD-05`                                                | Audit history survives workspace deletion; retention GC; export of a deleted workspace's log                                                                                               | ✅ Done (9.2 item, delivered with 9.1)           |
-| `PPL-02` (scope)                                        | A sign-in accepts only invitations its session can reach                                                                                                                                   | ✅ Done                                          |
-| `PPL-01`–`PPL-03`, `PPL-06`–`PPL-08`                    | Invitations (emailed, expiring), People directory, effective access, access requests, billing/auditor roles                                                                                | 📋 Planned (9.3)                                 |
-| `TAD-01`, `TAD-04`–`TAD-08`, `AUD-07`, `AUD-08`         | Org settings and people pages, org key parity, org home and catalog upgrades, shared navigation, audit UX                                                                                  | 📋 Planned (9.4)                                 |
-| `POL-01`–`POL-09`, `TAD-03`                             | Organization policy center (approval defaults complete `ORG-08`)                                                                                                                           | 📋 Planned (9.5)                                 |
-| `PLN-04`–`PLN-06`, `USG-01`–`USG-04`, `MT-12`, `TAD-02` | Usage metering, numeric quotas, overrides and trials, per-tenant API rate limits, usage pages (complete `INST-09`)                                                                         | 📋 Planned (9.6)                                 |
-| `SES-01`–`SES-04`                                       | Session settings, self-service sessions, TOTP MFA, user suspension                                                                                                                         | 📋 Planned (9.7)                                 |
-| `AUD-06`, `AUD-09`, `TAD-09`, `TAD-10`                  | Audit streaming, hash-chained audit, org notifications and webhooks                                                                                                                        | 📋 Planned (9.8)                                 |
-| `INST-19`–`INST-22`                                     | Operator tooling: org administration, support access, user/workspace CSV, announcements (with the rest of system administration in [instance admin](./instance-admin-and-byob-storage.md)) | 📋 Planned (9.10)                                |
+| ID                                                      | Requirement                                                                                                                                                                                | Status                                      |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| `MT-07`–`MT-10`                                         | Org-scope RLS (`withOrg`), system-client rule for routes, cross-org isolation suite                                                                                                        | ✅ Done (9.1)                               |
+| `MT-11`                                                 | Production refuses to start while the app role accepts the placeholder password                                                                                                            | ✅ Done (9.1)                               |
+| `TLC-05`                                                | Every workspace can get an owner: org admins act as owners while none has joined and can always assign owners; `owners` on org workspace creation                                          | ✅ Done (9.1, including Terraform `owners`) |
+| `DOM-01`–`DOM-05`                                       | Verified domains (DNS TXT), one verified owner per domain, discovery and trusted emails on verified domains, grace period, daily re-checks                                                 | ✅ Done (9.1)                               |
+| `PPL-04`, `PPL-05`                                      | Offboarding: org member removal cascades to workspaces, keys and org-SSO sessions; workspace member removal revokes their keys                                                             | ✅ Done (9.1)                               |
+| `TLC-03`                                                | Deleting a workspace removes its bundles and published copies (immediately, best effort; the retrying purge job comes with soft delete)                                                    | 🔄 Partial                                  |
+| `TLC-01`, `TLC-02`, `TLC-04`, `TLC-06`–`TLC-08`         | Owner self-delete, soft delete and restore, org suspension, transfers, exports, creation policy                                                                                            | 📋 Planned (9.2)                            |
+| `AUD-05`                                                | Audit history survives workspace deletion; retention GC; export of a deleted workspace's log                                                                                               | ✅ Done (9.2 item, delivered with 9.1)      |
+| `PPL-02` (scope)                                        | A sign-in accepts only invitations its session can reach                                                                                                                                   | ✅ Done                                     |
+| `PPL-01`–`PPL-03`, `PPL-06`–`PPL-08`                    | Invitations (emailed, expiring), People directory, effective access, access requests, billing/auditor roles                                                                                | 📋 Planned (9.3)                            |
+| `TAD-01`, `TAD-04`–`TAD-08`, `AUD-07`, `AUD-08`         | Org settings and people pages, org key parity, org home and catalog upgrades, shared navigation, audit UX                                                                                  | 📋 Planned (9.4)                            |
+| `POL-01`–`POL-09`, `TAD-03`                             | Organization policy center (approval defaults complete `ORG-08`)                                                                                                                           | 📋 Planned (9.5)                            |
+| `PLN-04`–`PLN-06`, `USG-01`–`USG-04`, `MT-12`, `TAD-02` | Usage metering, numeric quotas, overrides and trials, per-tenant API rate limits, usage pages (complete `INST-09`)                                                                         | 📋 Planned (9.6)                            |
+| `SES-01`–`SES-04`                                       | Session settings, self-service sessions, TOTP MFA, user suspension                                                                                                                         | 📋 Planned (9.7)                            |
+| `AUD-06`, `AUD-09`, `TAD-09`, `TAD-10`                  | Audit streaming, hash-chained audit, org notifications and webhooks                                                                                                                        | 📋 Planned (9.8)                            |
+| `INST-19`–`INST-22`                                     | Operator tooling: org administration, support access, user/workspace CSV, announcements (with the rest of system administration in [instance admin](./instance-admin-and-byob-storage.md)) | 📋 Planned (9.10)                           |
 
 See [`docs/requirements.md §19`](../requirements.md) for the full specification and [`implementation-plan.md` Phase 9](../implementation-plan.md) for the task checklists.
 
@@ -151,6 +151,21 @@ All API additions are additive. New org roles don't change the meaning of `org_a
 ---
 
 ## Change History
+
+### 2026-10-11 — Terraform workspace owners, separate metrics port
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** TLC-05, INST-25
+
+#### What changed
+
+- Terraform: `harmoniq_workspace.owners` (set of emails) invites the workspace's owners at creation. It isn't read back, because org keys don't manage members. Provider docs and examples are regenerated.
+- `HARMONIQ_METRICS_PORT` serves `/metrics` on its own listener (with the token, if set), and the API port stops serving it. Helm `registry.metricsPort` (chart 0.3.0) adds the container and Service port.
+
+#### Testing
+
+Terraform acceptance suite (`TF_ACC=1`, Terraform 1.16.5) against a local registry, including `owners`. `metricsAccess.test.ts` covers the separate port, token and 404s. `helm lint` and `helm template` were run with and without `metricsPort`.
 
 ### 2026-10-11 — Organization-scoped RLS, audit retention, deletion purge, invitation scope
 

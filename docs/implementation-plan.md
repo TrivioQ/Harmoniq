@@ -753,7 +753,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] `routes/orgs.ts`, `routes/orgSso.ts`, `services/orgShared.ts`, org SCIM (`routes/scim.ts`) and org SSO provisioning run in `withOrg`; attach runs in the workspace's `withTenant`; `systemDb` stays for tenant resolution, creating tenants, the user's own memberships and sessions (MT-09)
 - [x] ESLint `no-restricted-syntax` on `systemDb` in `apps/registry/src/routes`: files that span tenants (`admin`, `auth`, `saml`, `scim`) disable it at the top with the reason, other uses are marked per line; `gitops` moved to `withTenant` (MT-09)
 - [x] TLC-05: org admins may assign `owner` in their org's workspaces (`assertCanAssign`); `requireWorkspace` treats org admins as owners while a workspace has no joined owner; `POST /api/orgs/:org/workspaces` accepts `owners: string[]` (invitations)
-- [ ] Terraform `harmoniq_workspace.owners` attribute (TLC-05)
+- [x] Terraform `harmoniq_workspace.owners` attribute, applied at creation (TLC-05; acceptance test with Terraform 1.16)
 - [x] PPL-04: `DELETE /api/orgs/:org/members/:id` shares the SCIM deprovisioning routine (`removeFromWorkspaces`, covering every workspace of the org) (workspace memberships, keys created in the org's workspaces unless `?keepKeys=true`, org-SSO sessions); the response lists what was removed
 - [x] PPL-05: `DELETE /api/workspaces/:ws/members/:id?keepKeys=true|false` (default revoke)
 - [x] Domains: `GET/POST /api/orgs/:org/domains`, `POST …/domains/:domain/verify`, `DELETE …/domains/:domain` (and the same under `/api/workspaces/:ws/domains` for standalone workspaces); DNS TXT lookup of `_harmoniq-challenge.<domain>`; instance admins list and release claims (`/api/admin/domains`) (DOM-01/02)
@@ -762,7 +762,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Lockout guard (`InstanceSettings.adminSignInAfter`, checked by `PUT /api/admin/settings/auth`): refuse a value with which no instance admin, or the caller, could sign in; name other admins it locks out (INST-23)
 - [x] Recovery CLI `apps/registry/scripts/harmoniq-admin.ts` (`pnpm --filter @harmoniq/registry admin …`; in the image `npx tsx scripts/harmoniq-admin.ts`): `grant-admin`, `reset-setting`, `revoke-sessions`, `list-admins`; system-actor audit events (INST-24)
 - [x] `/metrics`: `HARMONIQ_METRICS_TOKEN` bearer check, workspace label only with `HARMONIQ_METRICS_TENANT_LABELS=1`, production warning without a token (INST-25)
-- [ ] `/metrics` on a separate port (`HARMONIQ_METRICS_PORT`); Helm chart value for the token
+- [x] `/metrics` on a separate port (`HARMONIQ_METRICS_PORT`); Helm `registry.metricsPort` (chart 0.3.0), token through `registry.extraEnvFrom`
 
 #### Dashboard
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, afterEach } from 'vitest';
+import { AddressInfo } from 'net';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../app';
 
@@ -11,14 +12,16 @@ describe('Metrics access (INST-25)', () => {
   const saved = {
     token: process.env.HARMONIQ_METRICS_TOKEN,
     labels: process.env.HARMONIQ_METRICS_TENANT_LABELS,
+    port: process.env.HARMONIQ_METRICS_PORT,
   };
   const restore = (name: string, value: string | undefined) => {
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   };
-  const start = async (env: { token?: string; labels?: string }) => {
+  const start = async (env: { token?: string; labels?: string; port?: string }) => {
     restore('HARMONIQ_METRICS_TOKEN', env.token);
     restore('HARMONIQ_METRICS_TENANT_LABELS', env.labels);
+    restore('HARMONIQ_METRICS_PORT', env.port);
     app = await buildApp();
     await app.ready();
     return app;
@@ -31,6 +34,7 @@ describe('Metrics access (INST-25)', () => {
     app = undefined;
     restore('HARMONIQ_METRICS_TOKEN', saved.token);
     restore('HARMONIQ_METRICS_TENANT_LABELS', saved.labels);
+    restore('HARMONIQ_METRICS_PORT', saved.port);
   });
 
   it('requires the bearer token when one is configured', async () => {
@@ -67,5 +71,17 @@ describe('Metrics access (INST-25)', () => {
     const a = await start({ labels: '1' });
     a.metricMeters.manifestRateLimited.add(1, { workspace: 'acme-secret-team' });
     expect((await scrape(a)).body).toContain('workspace="acme-secret-team"');
+  });
+
+  it('serves metrics on a separate port only, with the token', async () => {
+    const a = await start({ port: '0', token: 'scrape-token-0123456789' });
+    expect((await scrape(a, 'Bearer scrape-token-0123456789')).statusCode).toBe(404);
+    const { port } = a.metricsServer!.address() as AddressInfo;
+    const url = `http://127.0.0.1:${port}/metrics`;
+    expect((await fetch(url)).status).toBe(401);
+    const ok = await fetch(url, { headers: { authorization: 'Bearer scrape-token-0123456789' } });
+    expect(ok.status).toBe(200);
+    expect(await ok.text()).toContain('# HELP');
+    expect((await fetch(`http://127.0.0.1:${port}/other`)).status).toBe(404);
   });
 });

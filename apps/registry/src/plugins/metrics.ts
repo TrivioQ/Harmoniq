@@ -3,6 +3,8 @@
 
 import fp from 'fastify-plugin';
 import { createHash, timingSafeEqual } from 'crypto';
+import { IncomingMessage, Server, ServerResponse, createServer } from 'http';
+import { AddressInfo } from 'net';
 import { FastifyPluginAsync } from 'fastify';
 import { MeterProvider } from '@opentelemetry/sdk-metrics';
 import { PrometheusExporter } from '@opentelemetry/exporter-prometheus';
@@ -16,6 +18,8 @@ declare module 'fastify' {
       deployCount: Counter;
       manifestRateLimited: Counter;
     };
+    /** INST-25: the separate metrics listener (`HARMONIQ_METRICS_PORT`), when configured. */
+    metricsServer: Server | null;
   }
 }
 
@@ -27,7 +31,7 @@ function tokenMatches(header: string | undefined, expected: string): boolean {
 }
 
 const metricsPlugin: FastifyPluginAsync = async (fastify, _options) => {
-  const { token, tenantLabels } = fastify.config.metrics;
+  const { token, tenantLabels, port } = fastify.config.metrics;
   const exporter = new PrometheusExporter({ preventServerStart: true });
 
   const meterProvider = new MeterProvider({
@@ -82,25 +86,53 @@ const metricsPlugin: FastifyPluginAsync = async (fastify, _options) => {
     deployCount,
   });
 
-  if (!token && fastify.config.isProduction) {
+  /** Serves the Prometheus text format; INST-25: requires the scrape token when configured. */
+  const serve = (req: IncomingMessage, res: ServerResponse) => {
+    if (token && !tokenMatches(req.headers.authorization, token)) {
+      res.writeHead(401, { 'content-type': 'application/json', 'www-authenticate': 'Bearer' });
+      res.end(
+        JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'A metrics token is required' } })
+      );
+      return;
+    }
+    exporter.getMetricsRequestHandler(req, res);
+  };
+
+  if (!token && port === undefined && fastify.config.isProduction) {
     fastify.log.warn(
-      'GET /metrics is public: set HARMONIQ_METRICS_TOKEN, or keep the registry port off the internet'
+      'GET /metrics is public: set HARMONIQ_METRICS_TOKEN or HARMONIQ_METRICS_PORT, or keep the registry port off the internet'
     );
   }
 
+  fastify.decorate('metricsServer', null);
+  if (port !== undefined) {
+    // INST-25: a separate listener (e.g. reachable only inside the cluster); the API port has
+    // no /metrics then.
+    const server = createServer((req, res) => {
+      if (req.method === 'GET' && req.url?.split('?')[0] === '/metrics') return serve(req, res);
+      res.writeHead(404).end();
+    });
+    fastify.metricsServer = server;
+    fastify.addHook('onReady', async () => {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(port, () => {
+          fastify.log.info(`Metrics on port ${(server.address() as AddressInfo).port}`);
+          resolve();
+        });
+      });
+    });
+    fastify.addHook('onClose', async () => {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    });
+    return;
+  }
+
   fastify.get('/metrics', async (request, reply) => {
-    // INST-25: a scrape token, when configured.
-    if (token && !tokenMatches(request.headers.authorization, token)) {
-      return reply
-        .code(401)
-        .header('WWW-Authenticate', 'Bearer')
-        .send({ error: { code: 'UNAUTHORIZED', message: 'A metrics token is required' } });
-    }
-    // The PrometheusExporter exposes a request handler for http.Server.
-    // We can directly pass the raw node req and res objects.
+    reply.hijack();
     await new Promise((resolve) => {
-      exporter.getMetricsRequestHandler(request.raw, reply.raw);
       reply.raw.on('finish', resolve);
+      serve(request.raw, reply.raw);
     });
   });
 };

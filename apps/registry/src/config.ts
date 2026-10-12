@@ -43,6 +43,10 @@ const EnvSchema = z.object({
     z.string().min(16, 'HARMONIQ_METRICS_TOKEN must be at least 16 characters').optional()
   ),
   HARMONIQ_METRICS_TENANT_LABELS: z.string().optional(),
+  HARMONIQ_METRICS_PORT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().min(0).max(65_535).optional()
+  ),
   HARMONIQ_GC_KEEP_VERSIONS: z.coerce.number().int().min(1).default(10),
   HARMONIQ_DOMAIN_GRACE_DAYS: z.coerce.number().int().min(0).max(365).default(30),
   HARMONIQ_AUDIT_RETENTION_DAYS: z.coerce.number().int().min(1).default(400),
@@ -101,8 +105,9 @@ export interface Config {
   /**
    * INST-25: `/metrics` requires `Authorization: Bearer <token>` when set. Workspace slugs
    * appear as metric labels only with `tenantLabels` (they name the instance's tenants).
+   * With `port`, metrics are served on that port only, not on the API port.
    */
-  metrics: { token?: string; tenantLabels: boolean };
+  metrics: { token?: string; tenantLabels: boolean; port?: number };
   /** Newest versions kept per module+environment regardless of age, so rollback always works. */
   gcKeepVersions: number;
   /**
@@ -321,6 +326,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       token: e.HARMONIQ_METRICS_TOKEN,
       tenantLabels:
         e.HARMONIQ_METRICS_TENANT_LABELS === '1' || e.HARMONIQ_METRICS_TENANT_LABELS === 'true',
+      port: e.HARMONIQ_METRICS_PORT,
     },
     gcKeepVersions: e.HARMONIQ_GC_KEEP_VERSIONS,
     domainGraceDays: e.HARMONIQ_DOMAIN_GRACE_DAYS,

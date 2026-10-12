@@ -165,9 +165,13 @@ func (c *Client) FindEnvironment(ctx context.Context, workspace, hostApp, slug s
 }
 
 // CreateWorkspace creates a workspace in an organization (needs an org key with the admin scope).
-func (c *Client) CreateWorkspace(ctx context.Context, org, slug, name string) error {
-	return c.Do(ctx, http.MethodPost, Path("api", "orgs", org, "workspaces"),
-		map[string]any{"slug": slug, "name": name}, nil)
+func (c *Client) CreateWorkspace(ctx context.Context, org, slug, name string, owners []string) error {
+	body := map[string]any{"slug": slug, "name": name}
+	if len(owners) > 0 {
+		// TLC-05: invited as owners; until one joins, org admins act as owners.
+		body["owners"] = owners
+	}
+	return c.Do(ctx, http.MethodPost, Path("api", "orgs", org, "workspaces"), body, nil)
 }
 
 // UpdateWorkspace patches a workspace.

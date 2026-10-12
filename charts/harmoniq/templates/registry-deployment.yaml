@@ -42,6 +42,11 @@ spec:
             - name: http
               containerPort: {{ .Values.registry.port }}
               protocol: TCP
+            {{- with .Values.registry.metricsPort }}
+            - name: metrics
+              containerPort: {{ . }}
+              protocol: TCP
+            {{- end }}
           # /health: the process is up; /ready: database and cache answer.
           livenessProbe:
             httpGet: { path: /health, port: http }

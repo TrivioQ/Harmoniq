@@ -45,6 +45,7 @@ resource "harmoniq_workspace" "w" {
   slug           = %[2]q
   name           = %[3]q
   retention_days = 30
+  owners         = ["tfacc-owner@example.com"]
 }
 
 resource "harmoniq_host_app" "portal" {
@@ -151,6 +152,7 @@ func TestAccFullStack(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("harmoniq_workspace.w", "id", ws),
 					resource.TestCheckResourceAttr("harmoniq_workspace.w", "retention_days", "30"),
+					resource.TestCheckResourceAttr("harmoniq_workspace.w", "owners.#", "1"),
 					resource.TestCheckResourceAttr("harmoniq_host_app.portal", "id", ws+"/portal"),
 					resource.TestCheckResourceAttr("harmoniq_host_app.portal", "shared_dependencies.react", "^19.0.0"),
 					resource.TestCheckResourceAttr("harmoniq_host_app.portal", "is_default", "false"),
@@ -184,7 +186,8 @@ func TestAccFullStack(t *testing.T) {
 			},
 			// The second apply changes nothing.
 			{Config: config(ws, second), PlanOnly: true},
-			{ResourceName: "harmoniq_workspace.w", ImportState: true, ImportStateId: os.Getenv("HARMONIQ_TEST_ORG") + "/" + ws, ImportStateVerify: true},
+			// `owners` is applied at creation only and not read back (org keys don't manage members).
+			{ResourceName: "harmoniq_workspace.w", ImportState: true, ImportStateId: os.Getenv("HARMONIQ_TEST_ORG") + "/" + ws, ImportStateVerify: true, ImportStateVerifyIgnore: []string{"owners"}},
 			{ResourceName: "harmoniq_host_app.portal", ImportState: true, ImportStateVerify: true},
 			{ResourceName: "harmoniq_environment.staging", ImportState: true, ImportStateVerify: true},
 			{ResourceName: "harmoniq_remote_module.checkout", ImportState: true, ImportStateIdFunc: wsScoped("harmoniq_remote_module.checkout", ws), ImportStateVerify: true},
