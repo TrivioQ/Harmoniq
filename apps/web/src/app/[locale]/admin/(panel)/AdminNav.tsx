@@ -13,6 +13,7 @@ const ITEMS = [
   ['health', '/admin/health'],
   ['workspaces', '/admin/workspaces'],
   ['orgs', '/admin/orgs'],
+  ['usage', '/admin/usage'],
   ['users', '/admin/users'],
   ['admins', '/admin/admins'],
   ['storage', '/admin/storage'],

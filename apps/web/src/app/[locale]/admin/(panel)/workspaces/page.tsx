@@ -72,9 +72,22 @@ export default async function AdminWorkspacesPage(props: {
                     members: ws.members,
                     deploys: ws.deploys,
                   })}
+                  {/* INST-09, USG-02 */}
+                  <div className="text-xs text-gray-500">
+                    {t('storageLine', {
+                      gb: format.number((ws.storageBytes ?? 0) / 1024 ** 3, {
+                        maximumFractionDigits: 2,
+                      }),
+                    })}
+                  </div>
                 </td>
                 <td className={td}>
-                  <PlanForm target={{ kind: 'workspace', slug: ws.slug }} plan={ws.plan} />
+                  <PlanForm
+                    target={{ kind: 'workspace', slug: ws.slug }}
+                    plan={ws.plan}
+                    expiresAt={ws.planExpiresAt ?? null}
+                    overrides={ws.planOverrides ?? null}
+                  />
                   {ws.organizationPlan && (
                     <div className="text-xs text-gray-500 mt-1">
                       {t('orgPlan', { plan: ws.organizationPlan })}

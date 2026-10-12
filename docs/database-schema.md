@@ -130,6 +130,7 @@ Workspace (RLS tenant) ── WorkspaceMember ── User
 | `deployedBy`     | `String`    | User ID or API key ID                                                                     |
 | `deployedByType` | `Enum`      | `user \| apiKey`                                                                          |
 | `commitSha`      | `String?`   | Optional git commit reference                                                             |
+| `sizeBytes`      | `BigInt?`   | USG-02: bundle size, measured by validation or reported by the uploader (null: unknown)   |
 | `metadata`       | `Json?`     | Arbitrary key-value pairs                                                                 |
 | `deployedAt`     | `DateTime`  |                                                                                           |
 | `activatedAt`    | `DateTime?` | Last time it became active; null for aborted canaries, which "rollback to previous" skips |
@@ -222,17 +223,20 @@ Workspace (RLS tenant) ── WorkspaceMember ── User
 
 ### `WorkspaceConfig`
 
-| Column            | Type       | Notes                                     |
-| ----------------- | ---------- | ----------------------------------------- |
-| `id`              | `CUID`     | Primary key                               |
-| `workspaceId`     | `CUID`     | Unique FK → Workspace (one per workspace) |
-| `oauthProvider`   | `String`   | `github \| google`                        |
-| `oauthConfig`     | `Json`     | Encrypted provider-specific config        |
-| `storageProvider` | `String`   | `local \| s3 \| gcs`                      |
-| `storageConfig`   | `Json`     | Encrypted provider-specific config        |
-| `logProvider`     | `String`   | `console \| otel`                         |
-| `logConfig`       | `Json`     | Provider-specific config                  |
-| `updatedAt`       | `DateTime` |                                           |
+| Column                      | Type                   | Notes                                                    |
+| --------------------------- | ---------------------- | -------------------------------------------------------- |
+| `id`                        | `CUID`                 | Primary key                                              |
+| `workspaceId`               | `CUID`                 | Unique FK → Workspace (one per workspace)                |
+| `oauthProvider`             | `String`               | `github \| google`                                       |
+| `oauthConfig`               | `Json`                 | Encrypted provider-specific config                       |
+| `storageProvider`           | `String`               | `local \| s3 \| gcs`                                     |
+| `storageConfig`             | `Json`                 | Encrypted provider-specific config                       |
+| `logProvider`               | `String`               | `console \| otel`                                        |
+| `logConfig`                 | `Json`                 | Provider-specific config                                 |
+| `plan`                      | `String`               | PLN-01: `hobby \| startup \| enterprise`                 |
+| `planOverrides`             | `Json?`                | PLN-06: `{ features?, limits? }` set by instance admins  |
+| `planExpiresAt`, `basePlan` | `DateTime?`, `String?` | PLN-06: a trial; `plans.expire` falls back to `basePlan` |
+| `updatedAt`                 | `DateTime`             |                                                          |
 
 ---
 
@@ -268,16 +272,16 @@ CREATE POLICY workspace_isolation_version ON "ModuleVersion"
       OR "workspaceId" = ANY (string_to_array(current_setting('app.current_org_workspace_ids', TRUE), ',')));
 ```
 
-| Scope                                              | Tables                                                                                                                                                                                                                                                                                                                                                                      |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| By `workspaceId` (workspace or its org)            | `WorkspaceMember`, `HostApp`, `RemoteModule`, `ModuleVersion`, `ApiKey`, `WebhookEndpoint`, `WebhookDelivery`, `WebhookDeadLetter`, `AuditEvent`, `ModuleOwnership`, `AlertRule`, `ManifestSnapshot`, `ModuleHealthEvent`, `ModuleHealthRollup`, `ModuleEnvState`, `ScheduledOperation`, `ApprovalPolicy`, `DeploymentRequest`, `WorkspaceConfig`, `WorkspaceStorageConfig` |
-| By `workspaceId` or `organizationId`               | `ScimUser`, `ScimGroup`, `ScimAuditEvent`, `VerifiedDomain`, `OwnershipTransfer`, `Invitation` (rows of a workspace or of an organization)                                                                                                                                                                                                                                  |
-| `Workspace`                                        | Its `id` is the current workspace or one of the organization's, or its `organizationId` is the current organization                                                                                                                                                                                                                                                         |
-| By `organizationId`                                | `OrganizationMember`, `OrgApiKey`, `OrganizationAuditEvent`; `Organization` by `id`                                                                                                                                                                                                                                                                                         |
-| By `organizationId`, read also from its workspaces | `OrgPolicy` (separate `SELECT` and write policies)                                                                                                                                                                                                                                                                                                                          |
-| Through the parent row                             | `Environment` (via `HostApp`), `DeploymentApproval` (via `DeploymentRequest`)                                                                                                                                                                                                                                                                                               |
-| No RLS, revoked from `harmoniq_app`                | `Identity`, `EmailLoginToken`, `RefreshToken`                                                                                                                                                                                                                                                                                                                               |
-| No RLS (global)                                    | `User` (accounts are shared across tenants), `InstanceConfig`, `InstanceAdmin`, `InstanceAuditEvent`                                                                                                                                                                                                                                                                        |
+| Scope                                              | Tables                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| By `workspaceId` (workspace or its org)            | `WorkspaceMember`, `HostApp`, `RemoteModule`, `ModuleVersion`, `ApiKey`, `WebhookEndpoint`, `WebhookDelivery`, `WebhookDeadLetter`, `AuditEvent`, `ModuleOwnership`, `AlertRule`, `ManifestSnapshot`, `ModuleHealthEvent`, `ModuleHealthRollup`, `ModuleEnvState`, `ScheduledOperation`, `ApprovalPolicy`, `DeploymentRequest`, `WorkspaceConfig`, `WorkspaceStorageConfig`, `UsageDaily` |
+| By `workspaceId` or `organizationId`               | `ScimUser`, `ScimGroup`, `ScimAuditEvent`, `VerifiedDomain`, `OwnershipTransfer`, `Invitation` (rows of a workspace or of an organization)                                                                                                                                                                                                                                                |
+| `Workspace`                                        | Its `id` is the current workspace or one of the organization's, or its `organizationId` is the current organization                                                                                                                                                                                                                                                                       |
+| By `organizationId`                                | `OrganizationMember`, `OrgApiKey`, `OrganizationAuditEvent`; `Organization` by `id`                                                                                                                                                                                                                                                                                                       |
+| By `organizationId`, read also from its workspaces | `OrgPolicy` (separate `SELECT` and write policies)                                                                                                                                                                                                                                                                                                                                        |
+| Through the parent row                             | `Environment` (via `HostApp`), `DeploymentApproval` (via `DeploymentRequest`)                                                                                                                                                                                                                                                                                                             |
+| No RLS, revoked from `harmoniq_app`                | `Identity`, `EmailLoginToken`, `RefreshToken`                                                                                                                                                                                                                                                                                                                                             |
+| No RLS (global)                                    | `User` (accounts are shared across tenants), `InstanceConfig`, `InstanceAdmin`, `InstanceAuditEvent`                                                                                                                                                                                                                                                                                      |
 
 Append-only for `harmoniq_app` (`REVOKE UPDATE, DELETE`): `AuditEvent`, `OrganizationAuditEvent`, `InstanceAuditEvent`. `AuditEvent` and `ScimAuditEvent` have no foreign key to `Workspace` (AUD-05): a deleted workspace's audit trail stays, still scoped by `workspaceId`, until GC removes events older than `HARMONIQ_AUDIT_RETENTION_DAYS`.
 
@@ -578,6 +582,7 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 | `slug`                                                        | `String`    | Unique, URL-safe (e.g., `acme-corp`)                                                         |
 | `name`                                                        | `String`    | Display name                                                                                 |
 | `plan`                                                        | `String`    | `hobby \| startup \| enterprise`                                                             |
+| `planOverrides`, `planExpiresAt`, `basePlan`                  |             | PLN-06: as for workspaces                                                                    |
 | `oidcConfig`                                                  | `Json?`     | ORG-05: org-level OIDC (client secret sealed), inherited by workspaces without their own SSO |
 | `samlConfig`                                                  | `Json?`     | ORG-05/06: org-level SAML 2.0 (SP private key sealed)                                        |
 | `forceSso`                                                    | `Boolean`   | Forced SSO for the inheriting workspaces                                                     |
@@ -605,6 +610,23 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 **Unique**: `(organizationId, userId)`
 
 ---
+
+### `UsageDaily`
+
+USG-01: one row per workspace and UTC day. Counters are added by every replica (`ON CONFLICT DO UPDATE SET x = x + excluded.x`, ADR-012); levels come from the nightly `usage.snapshot`, which also drops rows older than 13 months. No foreign key: history doesn't depend on the workspace row.
+
+| Column             | Type     | Notes                                               |
+| ------------------ | -------- | --------------------------------------------------- |
+| `workspaceId`      | `CUID`   | Primary key with `day`                              |
+| `day`              | `Date`   | UTC                                                 |
+| `manifestRequests` | `BigInt` | Served manifests (200 and 304, cache hits included) |
+| `deploys`          | `Int`    | Deploys and promotes                                |
+| `healthEvents`     | `Int`    | Accepted health events                              |
+| `storageBytes`     | `BigInt` | Snapshot: `sizeBytes` of versions not deleted       |
+| `members`          | `Int`    | Snapshot: joined members                            |
+| `apiKeys`          | `Int`    | Snapshot: active keys                               |
+
+**Index**: `day`. RLS as other workspace rows (the workspace, or the current organization's workspaces).
 
 ### `OrgPolicy`
 

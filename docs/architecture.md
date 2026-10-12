@@ -269,7 +269,7 @@ This document records the key architectural decisions made for the Harmoniq proj
 
 ## ADR-012: Usage Metering with Buffered Counters
 
-**Status**: Proposed (Phase 9.6, USG-01–USG-04, PLN-04/05)
+**Status**: Accepted (implemented in Phase 9.6)
 
 **Context**: Quotas and usage pages need per-workspace counts of manifest requests, deploys, health events and storage. The manifest endpoint is the hot path (cache hits, 304s, NFR p99 targets) and can't wait on a database write per request.
 
@@ -279,11 +279,11 @@ This document records the key architectural decisions made for the Harmoniq proj
 2. **Redis counters (`INCRBY`) flushed by a job**: shared across replicas, but needs Redis, and Redis is optional (`ICache` can be in-memory).
 3. **Per-replica in-memory counters flushed every 60 s** with an additive upsert into `UsageDaily`.
 
-**Decision**: Option 3 for request-path counters. Deploys are counted in their transaction. Storage, members and keys come from a nightly snapshot plus `ModuleVersion.sizeBytes` recorded at deploy.
+**Decision**: Option 3 for the daily counters (manifest requests, deploys, health events). Quotas never read these counters: they count rows in the database (versions this month, modules, members and invitations, `sizeBytes`). Storage, members and keys in `UsageDaily` come from a nightly snapshot plus `ModuleVersion.sizeBytes` recorded at deploy.
 
 **Rationale**: No new infrastructure and no work on the hot path. Additive upserts are safe across replicas.
 
-**Consequences**: A crashed replica loses up to a minute of request counts. That is acceptable for usage display and soft quotas; hard quotas apply only to counts kept in the database (resources, deploys).
+**Consequences**: A crashed replica loses up to a minute of counts (a failed flush keeps them for the next one). That is acceptable for usage display. Quotas are exact up to concurrent creates (count, then create), which can overshoot a limit by one.
 
 ---
 

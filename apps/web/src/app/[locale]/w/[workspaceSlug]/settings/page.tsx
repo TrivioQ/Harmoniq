@@ -5,6 +5,7 @@ import { getTranslations } from 'next-intl/server';
 import type { WorkspaceStorageConfigResponse } from '@harmoniq/core/dist/schemas/WorkspaceStorageConfigSchema';
 import { authedFetch } from '@/lib/registry';
 import { StorageForm } from '@/components/StorageForm';
+import { QuotaBars, Trend } from '@/components/UsageMeters';
 import { workspaceApi } from '@/lib/workspaceApi';
 import { ActionForm } from '@/components/ActionForm';
 import { deleteWorkspaceAction, transferWorkspaceAction } from '../../../lifecycleActions';
@@ -20,6 +21,9 @@ export default async function StorageSettingsPage(props: {
     ),
     workspaceApi.get(workspaceSlug),
   ]);
+  // TAD-02, USG-03: usage against the plan's quotas (admins).
+  const isAdmin = detail.role === 'owner' || detail.role === 'admin' || detail.viaOrgAdmin;
+  const usage = isAdmin ? await workspaceApi.usage(workspaceSlug, 30).catch(() => null) : null;
   // POL-09: what the organization imposes here, and where each value comes from.
   const policy = await workspaceApi.policy(workspaceSlug).catch(() => null);
   const imposed = policy?.organization
@@ -68,6 +72,25 @@ export default async function StorageSettingsPage(props: {
               <li key={line}>{line}</li>
             ))}
           </ul>
+        </section>
+      )}
+      {usage && (
+        <section className="rounded-xl border bg-card p-6 space-y-4 max-w-2xl">
+          <div className="flex justify-between gap-2">
+            <h3 className="font-semibold">{t('usage.title', { plan: usage.workspace.plan })}</h3>
+            <a
+              href={`/api/usage-export?${new URLSearchParams({ scope: 'workspace', slug: workspaceSlug })}`}
+              className="text-sm underline hover:text-primary"
+              download
+            >
+              {t('usage.csv')}
+            </a>
+          </div>
+          <QuotaBars usage={usage.workspace} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Trend daily={usage.workspace.daily} field="manifestRequests" days={30} />
+            <Trend daily={usage.workspace.daily} field="deploys" days={30} />
+          </div>
         </section>
       )}
       <section className="rounded-xl border bg-card p-6 space-y-4 max-w-2xl">

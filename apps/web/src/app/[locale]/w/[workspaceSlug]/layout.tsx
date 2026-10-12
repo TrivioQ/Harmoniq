@@ -7,6 +7,7 @@ import { Breadcrumbs, ContextSwitcher, UserMenu, type ShellContext } from '@/com
 import { getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
 import { workspaceApi } from '@/lib/workspaceApi';
+import { nearLimits } from '@/lib/usage';
 
 export default async function WorkspaceLayout(props: {
   children: React.ReactNode;
@@ -27,6 +28,16 @@ export default async function WorkspaceLayout(props: {
   const suspended =
     ('suspended' in workspace && !!workspace.suspended) ||
     ('suspendedAt' in workspace && !!workspace.suspendedAt);
+
+  // PLN-05: admins see quotas at 80% or more on every page (usage is admin-only).
+  const role = me.workspaces.find((w) => w.slug === workspace.slug)?.role;
+  const near =
+    role === 'owner' || role === 'admin'
+      ? await workspaceApi
+          .usage(workspace.slug, 1)
+          .then((u) => nearLimits(u.workspace))
+          .catch(() => [])
+      : [];
 
   // TAD-08: the organization in the breadcrumbs, when you can see it.
   const orgSlug = me.workspaces.find((w) => w.slug === workspace.slug)?.organization;
@@ -78,6 +89,16 @@ export default async function WorkspaceLayout(props: {
           </nav>
         </div>
       </header>
+      {near.length > 0 && (
+        <div role="status" className="bg-amber-50 text-amber-900 text-sm px-4 md:px-8 py-2">
+          {t('quotaWarning', {
+            quotas: near.map((q) => t(`quotaName.${q.quota}`)).join(', '),
+          })}{' '}
+          <Link href={`/w/${workspace.slug}/settings`} className="underline">
+            {t('quotaDetails')}
+          </Link>
+        </div>
+      )}
       {suspended && (
         <div role="status" className="bg-amber-50 text-amber-900 text-sm px-4 md:px-8 py-2">
           {t('suspended')}

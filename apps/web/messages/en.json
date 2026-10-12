@@ -35,7 +35,17 @@
     "quickstart": "Integrate",
     "scheduled": "Scheduled",
     "approvals": "Approvals",
-    "suspended": "This workspace is suspended by the instance administrator: you can look around, but changes are disabled. Its manifests are still served."
+    "suspended": "This workspace is suspended by the instance administrator: you can look around, but changes are disabled. Its manifests are still served.",
+    "quotaWarning": "Close to the plan limit: {quotas}.",
+    "quotaDetails": "See usage",
+    "quotaName": {
+      "members": "Members and invitations",
+      "modules": "Modules",
+      "environmentsPerHostApp": "Environments per host app",
+      "storageGb": "Bundle storage (GB)",
+      "deploysPerMonth": "Deploys this month",
+      "webhooks": "Webhook endpoints"
+    }
   },
   "WorkspaceOverview": {
     "title": "Overview",
@@ -124,6 +134,10 @@
       "sessionMax": "Sessions end after {hours} hours",
       "idle": "Idle sessions end after {minutes} minutes",
       "ip": "Access only from {count, plural, one {# allowed network} other {# allowed networks}}"
+    },
+    "usage": {
+      "title": "Usage ({plan} plan)",
+      "csv": "Download CSV"
     }
   },
   "LoginPage": {
@@ -182,7 +196,8 @@
     "email": "Email",
     "auth": "Sign-in methods",
     "branding": "Branding",
-    "orgs": "Organizations"
+    "orgs": "Organizations",
+    "usage": "Usage"
   },
   "AdminSetupPage": {
     "errorSetup": "Failed to setup admin",
@@ -242,7 +257,8 @@
     "orgPlan": "Organization plan: {plan}",
     "deleted": "Deleted",
     "purgeAfter": "Purged after {date}",
-    "restore": "Restore"
+    "restore": "Restore",
+    "storageLine": "{gb} GB of bundles"
   },
   "WorkspaceStoragePage": {
     "errorUpdate": "Failed to update storage",
@@ -373,7 +389,8 @@
     "orgDeleted": "Organization deleted.",
     "policySaved": "Policies saved.",
     "freezeOverridden": "Changes go through the freeze for {hours, plural, one {# hour} other {# hours}}.",
-    "freezeOverrideEnded": "The freeze applies again."
+    "freezeOverrideEnded": "The freeze applies again.",
+    "overridesNotJson": "The overrides must be valid JSON (see the example in the field)."
   },
   "Audit": {
     "apiKeyActor": "API key",
@@ -801,7 +818,8 @@
     "provisioning": "Provisioning",
     "people": "People",
     "settings": "Settings",
-    "policies": "Policies"
+    "policies": "Policies",
+    "usage": "Usage"
   },
   "OrgHome": {
     "description": "Workspaces in this organization, with recent activity and health over the last 24 hours.",
@@ -1070,7 +1088,14 @@
     "set": "Set",
     "hobby": "Hobby",
     "startup": "Startup",
-    "enterprise": "Enterprise"
+    "enterprise": "Enterprise",
+    "trialUntil": "Trial until {date}, then {base}",
+    "advanced": "Trial and overrides",
+    "expiresAt": "Trial ends on (UTC)",
+    "basePlan": "Then falls back to",
+    "previousPlan": "The current plan",
+    "overrides": "Overrides (JSON)",
+    "overridesHint": "Features and quotas that differ from the plan; null is unlimited. Empty clears them."
   },
   "AdminOrgsPage": {
     "title": "Organizations",
@@ -1248,5 +1273,63 @@
     "ownApprovals": "{environment}: its own approval policy",
     "ownSso": "Its own single sign-on",
     "comparedFirst": "Only the first {count} workspaces are compared."
+  },
+  "OrgUsage": {
+    "title": "Usage",
+    "plan": "Plan: {plan}",
+    "trialUntil": "trial until {date}",
+    "days": "Last {days} days",
+    "csv": "Download CSV",
+    "workspaces": "Workspaces",
+    "ofLimit": "{used} of {limit}",
+    "members": "Members and invitations",
+    "storage": "Bundle storage",
+    "gb": "{value} GB",
+    "deploysThisMonth": "Deploys this month",
+    "nearLimit": "{count, plural, one {# quota at 80% or more} other {# quotas at 80% or more}}",
+    "empty": "No workspaces yet."
+  },
+  "Usage": {
+    "quota": {
+      "members": "Members and invitations",
+      "modules": "Modules",
+      "environmentsPerHostApp": "Environments per host app",
+      "storageGb": "Bundle storage (GB)",
+      "deploysPerMonth": "Deploys this month",
+      "webhooks": "Webhook endpoints"
+    },
+    "unlimited": "{used} · unlimited",
+    "ofLimit": "{used} of {limit}",
+    "trend": {
+      "manifestRequests": "Manifest requests",
+      "deploys": "Deploys",
+      "healthEvents": "Health reports"
+    },
+    "trendLabel": "{what}: {total} in {days} days"
+  },
+  "AdminUsage": {
+    "title": "Usage",
+    "days": "Last {days} days",
+    "csv": "Download CSV (all workspaces)",
+    "totals": "On this page, last {days} days: {manifests} manifest requests, {deploys} deploys; {storage} GB of bundles kept.",
+    "workspace": "Workspace",
+    "plan": "Plan",
+    "manifests": "Manifest requests",
+    "deploys": "Deploys",
+    "storage": "Storage",
+    "limits": "Quotas",
+    "gb": "{value} GB",
+    "near": "{quota} {percent}%",
+    "quota": {
+      "members": "Members and invitations",
+      "modules": "Modules",
+      "environmentsPerHostApp": "Environments per host app",
+      "storageGb": "Bundle storage (GB)",
+      "deploysPerMonth": "Deploys this month",
+      "webhooks": "Webhook endpoints"
+    },
+    "unlimited": "Unlimited",
+    "ok": "Within limits",
+    "next": "Next page"
   }
 }

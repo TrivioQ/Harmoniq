@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { authedFetch } from './registry';
+import type { UsageTotals, WorkspaceUsage } from './usage';
 
 export interface Check {
   ok: boolean;
@@ -38,6 +39,11 @@ export interface AdminWorkspace {
   modules: number;
   members: number;
   deploys: number;
+  /** INST-09, USG-02: bundle bytes of the versions kept. */
+  storageBytes?: number;
+  /** PLN-06: a trial's end, and per-workspace exceptions. */
+  planExpiresAt?: string | null;
+  planOverrides?: Record<string, unknown> | null;
   suspendedAt: string | null;
   suspendedReason: string | null;
   /** TLC-02: deleted, restorable until `purgeAfter`. */
@@ -159,6 +165,10 @@ export const adminApi = {
         slug: string;
         name: string;
         plan: 'hobby' | 'startup' | 'enterprise';
+        /** PLN-06 */
+        planExpiresAt?: string | null;
+        basePlan?: string | null;
+        planOverrides?: Record<string, unknown> | null;
         workspaces: number;
         members: number;
         suspendedAt: string | null;
@@ -167,6 +177,14 @@ export const adminApi = {
         purgeAfter: string | null;
       }>;
     }>('/api/admin/orgs'),
+  /** USG-03: every live workspace's usage, a page at a time. */
+  usage: (params: { days?: string; cursor?: string }) =>
+    authedFetch<{
+      days: number;
+      totals: UsageTotals;
+      workspaces: WorkspaceUsage[];
+      nextCursor: string | null;
+    }>(`/api/admin/usage${query(params)}`),
   audit: (params: {
     cursor?: string;
     actor?: string;

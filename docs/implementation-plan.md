@@ -938,9 +938,9 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Dashboard
 
-- [ ] `/orgs/:org/usage` and workspace settings usage card: usage vs quota bars, 30/90-day trends, CSV (TAD-02)
-- [ ] Quota warnings in the shell at 80%; `QUOTA_EXCEEDED` errors explain the limit
-- [ ] Admin panel: usage page, storage column, plan overrides and expiry form
+- [x] `/orgs/:org/usage` and workspace settings usage card: usage vs quota bars, 30/90-day trends, CSV (TAD-02)
+- [x] Quota warnings in the shell at 80%; `QUOTA_EXCEEDED` errors explain the limit
+- [x] Admin panel: usage page, storage column, plan overrides and expiry form
 
 #### Test Suite
 

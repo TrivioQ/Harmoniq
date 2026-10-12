@@ -35,7 +35,7 @@ The audience is org admins (self-service tenant administration), security and co
 | `PPL-01`–`PPL-03`, `PPL-06`–`PPL-08`                    | Invitations (emailed, expiring, resend, revoke, accept link), People directory, implicit org admins on members, access requests, org auditor and billing roles                                                     | ✅ Done (9.3)                               |
 | `TAD-01`, `TAD-04`–`TAD-08`, `AUD-07`, `AUD-08`         | Org settings page, org key rotation and parity, paginated org home and catalog with status, consumers and filters, shared navigation, readable audit actors and filters                                            | ✅ Done (9.4)                               |
 | `POL-01`–`POL-09`, `TAD-03`                             | Organization policy: approval defaults (complete `ORG-08`), key limits, retention floor, org freeze windows with override, locked SSO, session limits, IP allowlist, effective policy per workspace, policies page | ✅ Done (9.5)                               |
-| `PLN-04`–`PLN-06`, `USG-01`–`USG-04`, `MT-12`, `TAD-02` | Usage metering, numeric quotas, overrides and trials, per-tenant API rate limits, usage pages (complete `INST-09`)                                                                                                 | 📋 Planned (9.6)                            |
+| `PLN-04`–`PLN-06`, `USG-01`–`USG-04`, `MT-12`, `TAD-02` | Usage metering, numeric quotas, overrides and trials, per-tenant API rate limits, usage pages (complete `INST-09`)                                                                                                 | ✅ Done (9.6)                               |
 | `SES-01`–`SES-04`                                       | Session settings, self-service sessions, TOTP MFA, user suspension                                                                                                                                                 | 📋 Planned (9.7)                            |
 | `AUD-06`, `AUD-09`, `TAD-09`, `TAD-10`                  | Audit streaming, hash-chained audit, org notifications and webhooks                                                                                                                                                | 📋 Planned (9.8)                            |
 | `INST-19`–`INST-22`                                     | Operator tooling: org administration, support access, user/workspace CSV, announcements (with the rest of system administration in [instance admin](./instance-admin-and-byob-storage.md))                         | 📋 Planned (9.10)                           |
@@ -147,12 +147,63 @@ Instance admins no longer get workspace access implicitly. Only the storage rout
 | An org key issued by another org key has `createdBy: null` (it held the issuing key's id)                                                                                                                                                                                                                     | Issued keys are recorded in the `org.key_create` audit event with the acting key.                                                                                             |
 | The RLS migration no longer creates `harmoniq_app`                                                                                                                                                                                                                                                            | Only affects new databases: run `scripts/bootstrap-db.ts` or `docker/init.sql` first (already documented in `self-hosting.md`).                                               |
 | `AuditEvent` / `ScimAuditEvent` lose their cascading FK to `Workspace`: a deleted workspace's events stay until retention                                                                                                                                                                                     | Schema-only; `HARMONIQ_AUDIT_RETENTION_DAYS` (default 400) sets how long. Code that counted on audit rows disappearing with the workspace must filter by existing workspaces. |
+| With plan enforcement on, quotas refuse creates past the plan's limits (`402 QUOTA_EXCEEDED`); defaults apply unless `HARMONIQ_PLAN_LIMITS` is set                                                                                                                                                            | Self-hosters without enforcement see no change. Hosted instances: set `HARMONIQ_PLAN_LIMITS` before upgrading, or give tenants overrides.                                     |
+| Writes to workspace and organization routes share a per-tenant budget instead of a per-credential one; deploys are limited per workspace (was per IP), health reports per workspace (was per workspace and IP)                                                                                                | Raise `HARMONIQ_API_RATE_LIMIT*`, `HARMONIQ_DEPLOY_RATE_LIMIT*` or `HARMONIQ_HEALTH_RATE_LIMIT*`.                                                                             |
+| `PUT /api/admin/{workspaces,orgs}/:slug/plan` answers `{ slug, plan, expiresAt, basePlan, overrides }`                                                                                                                                                                                                        | Additive.                                                                                                                                                                     |
 
 All API additions are additive. New org roles don't change the meaning of `org_admin` / `org_member`.
 
 ---
 
 ## Change History
+
+### 2026-10-12 — Phase 9.6: usage, quotas and plans
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** PLN-04–PLN-06, USG-01–USG-04, MT-12, TAD-02, INST-09
+
+#### What changed
+
+- **USG-01:**
+  - `UsageDaily` (migration `20261012120000_usage_and_quotas`, RLS).
+  - `services/usage.ts` counts served manifests (304s and cache hits included), deploys and promotes, and accepted health events per replica, and adds them to the day's row every minute (ADR-012).
+  - The nightly `usage.snapshot` records storage, members and keys, and drops rows after 13 months.
+- **USG-02:** `ModuleVersion.sizeBytes` comes from validation, or from `sizeBytes` in the deploy body. The admin workspace list shows `storageBytes` (INST-09). The registry doesn't `HEAD` arbitrary bundle URLs, to avoid SSRF.
+- **PLN-04/05:**
+  - Quotas by plan (`HARMONIQ_PLAN_LIMITS`). `services/quotas.ts` checks them on org workspace creation and attach, invitations and access approvals, modules, environments, webhooks, deploys and promotes, and GitOps plans.
+  - A refused create gets `402 QUOTA_EXCEEDED` with the limit and the usage.
+- **PLN-06:**
+  - `planOverrides`, `planExpiresAt` and `basePlan` on workspaces and organizations.
+  - `services/plans.ts` resolves entitlements: plan features and limits, then the organization's overrides, then the workspace's.
+  - The hourly `plans.expire` job falls back to the base plan and audits it.
+- **USG-03:** usage APIs for workspaces, organizations (admin, billing and auditor) and the instance, as JSON or CSV.
+- **USG-04:** `plan.changed`, `quota.warning` (at 80%) and `quota.exceeded` are audited and sent to the workspace's webhooks. Organization webhooks come with TAD-10.
+- **MT-12:** tenant writes, deploys and health reports are limited per workspace or organization, by plan.
+- **Dashboard:**
+  - `/orgs/:org/usage` (TAD-02): bars, trends, 30 or 90 days, CSV.
+  - A usage card in workspace settings.
+  - An 80% banner for workspace admins.
+  - `/admin/usage`, and storage in the admin workspace list.
+  - Trial and overrides on the admin plan form.
+
+#### Testing
+
+`usageQuotas.test.ts` covers:
+
+- each quota on its route, with the 402 details and the 80% warning;
+- storage and deploys per month;
+- overrides that grant a feature and lift a quota;
+- a trial and its expiry job, with its audit;
+- no limits without enforcement;
+- the organization's workspace quota;
+- manifest metering with a 304 and an unserved request, plus additive flushes under concurrency;
+- the nightly snapshot;
+- usage API permissions (billing yes, member no) and CSV;
+- the admin usage report and the storage column;
+- a per-workspace write budget shared by a session and a key.
+
+Registry: 62 files, 429 tests. Usage pages were fetched as org admin, billing member and member, and as instance admin, against a local registry with low quotas (the 80% banner shown).
 
 ### 2026-10-12 — Phase 9.5: organization policy
 

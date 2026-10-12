@@ -44,7 +44,13 @@ export default async function AdminOrgsPage() {
                     {t('sizeLine', { workspaces: o.workspaces, members: o.members })}
                   </td>
                   <td className={td}>
-                    <PlanForm target={{ kind: 'org', slug: o.slug }} plan={o.plan} />
+                    <PlanForm
+                      target={{ kind: 'org', slug: o.slug }}
+                      plan={o.plan}
+                      expiresAt={o.planExpiresAt ?? null}
+                      basePlan={o.basePlan ?? null}
+                      overrides={o.planOverrides ?? null}
+                    />
                   </td>
                   <td className={`${td} space-y-2`}>
                     {o.deletedAt ? (

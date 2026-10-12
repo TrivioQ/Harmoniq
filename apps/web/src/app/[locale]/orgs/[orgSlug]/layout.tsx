@@ -22,6 +22,8 @@ export default async function OrgLayout(props: {
   const admin = org.role === 'org_admin';
   // PPL-08: auditors read the audit log and the people directory.
   const reader = admin || org.role === 'org_auditor';
+  // PPL-08: billing members read plan and usage.
+  const billing = reader || org.role === 'org_billing';
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -63,6 +65,11 @@ export default async function OrgLayout(props: {
             {admin && (
               <Link href={`${base}/provisioning`} className="hover:text-primary">
                 {t('provisioning')}
+              </Link>
+            )}
+            {billing && (
+              <Link href={`${base}/usage`} className="hover:text-primary">
+                {t('usage')}
               </Link>
             )}
             {reader && (

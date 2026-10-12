@@ -6,21 +6,22 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 
 ## Requirements
 
-| Requirement ID         | Description                                                                                                                                                                    | Status            |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
-| DASH-01                | Scaffold Next.js application                                                                                                                                                   | Done              |
-| DASH-02                | GitHub OAuth Authentication Flow                                                                                                                                               | Done              |
-| DASH-03                | Edge middleware for JWT Verification                                                                                                                                           | Done              |
-| DASH-04                | Workspace Selector                                                                                                                                                             | Done              |
-| DASH-05                | Dashboard Overview Page                                                                                                                                                        | Done              |
-| DASH-06                | Modules Management Page                                                                                                                                                        | Done              |
-| DASH-07                | Environments Configuration Page                                                                                                                                                | Done              |
-| DASH-08                | Dashboard Integration Tests                                                                                                                                                    | Done              |
-| ORG-14, ORG-15         | Organization pages (`/orgs/:org`: overview, catalog, audit, members, keys, SSO, provisioning)                                                                                  | Done (M4.7)       |
-| INST-01–INST-14        | Instance admin panel (`/admin/*`) and setup wizard                                                                                                                             | Done (M4.8)       |
-| TAD-01, TAD-04–TAD-08  | Tenant admin dashboard: org settings, people, key parity, org home and catalog search, readable audit, shared navigation ([tenant administration](./tenant-administration.md)) | Done (9.4)        |
-| TAD-03                 | Org policies page; workspace settings show what the organization imposes                                                                                                       | Done (9.5)        |
-| TAD-02, TAD-09, TAD-10 | Org usage and notifications                                                                                                                                                    | Planned (Phase 9) |
+| Requirement ID        | Description                                                                                                                                                                    | Status            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| DASH-01               | Scaffold Next.js application                                                                                                                                                   | Done              |
+| DASH-02               | GitHub OAuth Authentication Flow                                                                                                                                               | Done              |
+| DASH-03               | Edge middleware for JWT Verification                                                                                                                                           | Done              |
+| DASH-04               | Workspace Selector                                                                                                                                                             | Done              |
+| DASH-05               | Dashboard Overview Page                                                                                                                                                        | Done              |
+| DASH-06               | Modules Management Page                                                                                                                                                        | Done              |
+| DASH-07               | Environments Configuration Page                                                                                                                                                | Done              |
+| DASH-08               | Dashboard Integration Tests                                                                                                                                                    | Done              |
+| ORG-14, ORG-15        | Organization pages (`/orgs/:org`: overview, catalog, audit, members, keys, SSO, provisioning)                                                                                  | Done (M4.7)       |
+| INST-01–INST-14       | Instance admin panel (`/admin/*`) and setup wizard                                                                                                                             | Done (M4.8)       |
+| TAD-01, TAD-04–TAD-08 | Tenant admin dashboard: org settings, people, key parity, org home and catalog search, readable audit, shared navigation ([tenant administration](./tenant-administration.md)) | Done (9.4)        |
+| TAD-03                | Org policies page; workspace settings show what the organization imposes                                                                                                       | Done (9.5)        |
+| TAD-02                | Org usage page; workspace usage card and 80% banner; admin usage page and plan trials                                                                                          | Done (9.6)        |
+| TAD-09, TAD-10        | Org notifications and webhooks                                                                                                                                                 | Planned (Phase 9) |
 
 ## Architecture Notes
 
@@ -36,6 +37,23 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 - N/A (Initial implementation)
 
 ## Change History
+
+### 2026-10-12 — Usage pages (Phase 9.6)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** TAD-02, USG-03, PLN-05, PLN-06
+
+#### What changed
+
+- `components/UsageMeters.tsx`: quota bars (amber from 80%, red at the limit) and daily trends as inline SVG. `lib/usage.ts` holds the types and helpers.
+- `/orgs/:org/usage` for org admins, billing members and auditors (nav link). `/api/usage-export` proxies the CSV with the session.
+- Workspace settings: a usage card for admins. The workspace layout shows a banner when a quota is at 80% or more.
+- Admin: `/admin/usage`, storage in the workspace list, and trial end, fallback plan and JSON overrides on the plan form.
+
+#### Testing
+
+Typecheck, lint, unit tests and the production build. The pages were fetched against a local registry with enforcement on and low limits: admin and billing see the usage, members get 404, the settings card and the banner show, and the CSV downloads.
 
 ### 2026-10-12 — Organization policies page (Phase 9.5)
 

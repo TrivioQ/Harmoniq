@@ -291,8 +291,26 @@ export async function setPlanAction(
     target.kind === 'workspace'
       ? `/api/admin/workspaces/${enc(target.slug)}/plan`
       : `/api/admin/orgs/${enc(target.slug)}/plan`;
+  // PLN-06: a trial ends at the end of the chosen day (UTC); empty overrides clear them.
+  const expires = field(form, 'expiresAt');
+  const rawOverrides = field(form, 'overrides');
+  let overrides: unknown = null;
+  if (rawOverrides) {
+    try {
+      overrides = JSON.parse(rawOverrides);
+    } catch {
+      const t = await getTranslations('Actions');
+      return { status: 'error', message: t('overridesNotJson') };
+    }
+  }
+  const body = {
+    plan: field(form, 'plan'),
+    expiresAt: expires ? new Date(`${expires}T23:59:59.999Z`).toISOString() : null,
+    ...(field(form, 'basePlan') && { basePlan: field(form, 'basePlan') }),
+    overrides,
+  };
   return run(
-    () => authedFetch(path, { method: 'PUT', body: { plan: field(form, 'plan') } }),
+    () => authedFetch(path, { method: 'PUT', body }),
     (t) => ({ status: 'success', message: t('planSet') })
   );
 }

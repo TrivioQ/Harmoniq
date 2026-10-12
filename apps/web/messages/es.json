@@ -35,7 +35,17 @@
     "quickstart": "Integrar",
     "scheduled": "Programado",
     "approvals": "Aprobaciones",
-    "suspended": "El administrador de la instancia ha suspendido este espacio: puedes consultarlo, pero los cambios están desactivados. Sus manifiestos se siguen sirviendo."
+    "suspended": "El administrador de la instancia ha suspendido este espacio: puedes consultarlo, pero los cambios están desactivados. Sus manifiestos se siguen sirviendo.",
+    "quotaWarning": "Cerca del límite del plan: {quotas}.",
+    "quotaDetails": "Ver el uso",
+    "quotaName": {
+      "members": "Miembros e invitaciones",
+      "modules": "Módulos",
+      "environmentsPerHostApp": "Entornos por aplicación host",
+      "storageGb": "Almacenamiento de bundles (GB)",
+      "deploysPerMonth": "Despliegues este mes",
+      "webhooks": "Endpoints de webhook"
+    }
   },
   "WorkspaceOverview": {
     "title": "Resumen",
@@ -124,6 +134,10 @@
       "sessionMax": "Las sesiones terminan tras {hours} horas",
       "idle": "Las sesiones inactivas terminan tras {minutes} minutos",
       "ip": "Acceso solo desde {count, plural, one {# red permitida} other {# redes permitidas}}"
+    },
+    "usage": {
+      "title": "Uso (plan {plan})",
+      "csv": "Descargar CSV"
     }
   },
   "LoginPage": {
@@ -182,7 +196,8 @@
     "email": "Email",
     "auth": "Métodos de inicio de sesión",
     "branding": "Marca",
-    "orgs": "Organizaciones"
+    "orgs": "Organizaciones",
+    "usage": "Uso"
   },
   "AdminSetupPage": {
     "errorSetup": "Error al configurar el administrador",
@@ -242,7 +257,8 @@
     "orgPlan": "Plan de la organización: {plan}",
     "deleted": "Eliminado",
     "purgeAfter": "Se purga después del {date}",
-    "restore": "Restaurar"
+    "restore": "Restaurar",
+    "storageLine": "{gb} GB de bundles"
   },
   "WorkspaceStoragePage": {
     "errorUpdate": "No se pudo actualizar el almacenamiento",
@@ -373,7 +389,8 @@
     "orgDeleted": "Organización eliminada.",
     "policySaved": "Políticas guardadas.",
     "freezeOverridden": "Los cambios pasan la congelación durante {hours, plural, one {# hora} other {# horas}}.",
-    "freezeOverrideEnded": "La congelación vuelve a aplicarse."
+    "freezeOverrideEnded": "La congelación vuelve a aplicarse.",
+    "overridesNotJson": "Las excepciones deben ser JSON válido (ver el ejemplo del campo)."
   },
   "Audit": {
     "apiKeyActor": "clave de API",
@@ -801,7 +818,8 @@
     "provisioning": "Aprovisionamiento",
     "people": "Personas",
     "settings": "Configuración",
-    "policies": "Políticas"
+    "policies": "Políticas",
+    "usage": "Uso"
   },
   "OrgHome": {
     "description": "Espacios de trabajo de esta organización, con la actividad reciente y la salud de las últimas 24 horas.",
@@ -1070,7 +1088,14 @@
     "set": "Aplicar",
     "hobby": "Hobby",
     "startup": "Startup",
-    "enterprise": "Enterprise"
+    "enterprise": "Enterprise",
+    "trialUntil": "Prueba hasta el {date}, luego {base}",
+    "advanced": "Prueba y excepciones",
+    "expiresAt": "La prueba termina el (UTC)",
+    "basePlan": "Después vuelve a",
+    "previousPlan": "El plan actual",
+    "overrides": "Excepciones (JSON)",
+    "overridesHint": "Funciones y cuotas distintas del plan; null es ilimitado. Vacío las quita."
   },
   "AdminOrgsPage": {
     "title": "Organizaciones",
@@ -1248,5 +1273,63 @@
     "ownApprovals": "{environment}: su propia política de aprobación",
     "ownSso": "Su propio inicio de sesión único",
     "comparedFirst": "Solo se comparan los primeros {count} espacios."
+  },
+  "OrgUsage": {
+    "title": "Uso",
+    "plan": "Plan: {plan}",
+    "trialUntil": "prueba hasta el {date}",
+    "days": "Últimos {days} días",
+    "csv": "Descargar CSV",
+    "workspaces": "Espacios de trabajo",
+    "ofLimit": "{used} de {limit}",
+    "members": "Miembros e invitaciones",
+    "storage": "Almacenamiento de bundles",
+    "gb": "{value} GB",
+    "deploysThisMonth": "Despliegues este mes",
+    "nearLimit": "{count, plural, one {# cuota al 80 % o más} other {# cuotas al 80 % o más}}",
+    "empty": "Aún no hay espacios de trabajo."
+  },
+  "Usage": {
+    "quota": {
+      "members": "Miembros e invitaciones",
+      "modules": "Módulos",
+      "environmentsPerHostApp": "Entornos por aplicación host",
+      "storageGb": "Almacenamiento de bundles (GB)",
+      "deploysPerMonth": "Despliegues este mes",
+      "webhooks": "Endpoints de webhook"
+    },
+    "unlimited": "{used} · ilimitado",
+    "ofLimit": "{used} de {limit}",
+    "trend": {
+      "manifestRequests": "Peticiones de manifiesto",
+      "deploys": "Despliegues",
+      "healthEvents": "Informes de salud"
+    },
+    "trendLabel": "{what}: {total} en {days} días"
+  },
+  "AdminUsage": {
+    "title": "Uso",
+    "days": "Últimos {days} días",
+    "csv": "Descargar CSV (todos los espacios)",
+    "totals": "En esta página, últimos {days} días: {manifests} peticiones de manifiesto, {deploys} despliegues; {storage} GB de bundles conservados.",
+    "workspace": "Espacio de trabajo",
+    "plan": "Plan",
+    "manifests": "Peticiones de manifiesto",
+    "deploys": "Despliegues",
+    "storage": "Almacenamiento",
+    "limits": "Cuotas",
+    "gb": "{value} GB",
+    "near": "{quota} {percent} %",
+    "quota": {
+      "members": "Miembros e invitaciones",
+      "modules": "Módulos",
+      "environmentsPerHostApp": "Entornos por aplicación host",
+      "storageGb": "Almacenamiento de bundles (GB)",
+      "deploysPerMonth": "Despliegues este mes",
+      "webhooks": "Endpoints de webhook"
+    },
+    "unlimited": "Ilimitado",
+    "ok": "Dentro de los límites",
+    "next": "Página siguiente"
   }
 }

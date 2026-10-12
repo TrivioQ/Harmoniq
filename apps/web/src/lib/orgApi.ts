@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { notFound } from 'next/navigation';
+import type { PlanLimits, UsageTotals, WorkspaceUsage } from './usage';
 import { RegistryError, authedFetch as registryAuthedFetch } from './registry';
 import type {
   OidcSettings,
@@ -248,6 +249,16 @@ export const orgApi = {
       invitations: OrgInvitation[];
     }>(`${org(slug)}/people?${params(query)}`),
   policy: (slug: string) => authedFetch<OrgPolicy>(`${org(slug)}/policy`),
+  /** USG-03, TAD-02 */
+  usage: (slug: string, days: number) =>
+    authedFetch<{
+      days: number;
+      plan: string;
+      planExpiresAt: string | null;
+      limits: Pick<PlanLimits, 'workspaces'>;
+      totals: UsageTotals;
+      workspaces: WorkspaceUsage[];
+    }>(`${org(slug)}/usage?days=${days}`),
   keys: (slug: string) => authedFetch<{ keys: OrgKey[] }>(`${org(slug)}/keys`),
   sso: (slug: string) => authedFetch<OrgSsoOverview>(`${org(slug)}/sso`),
   oidc: (slug: string) => authedFetch<{ oidc: OidcSettings | null }>(`${org(slug)}/sso/oidc`),
