@@ -18,21 +18,23 @@ Large enterprises operating in regulated industries require three capabilities t
 
 ## Requirements
 
-| ID                                                      | Requirement                                                                                                             | Status          |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------- |
-| `RBAC-01`–`RBAC-06`                                     | Module ownership and module-scoped access                                                                               | ✅ Done (M4.1)  |
-| `SSO-01`–`SSO-08`, `SSO-21`–`SSO-23`, `SSO-26`–`SSO-28` | OIDC single sign-on, JIT, domain join, group mapping, forced SSO, IdP session lifetime                                  | ✅ Done (M4.4)  |
-| `SSO-09`–`SSO-20`                                       | SAML 2.0 single sign-on: SP/IdP-initiated, metadata, SLO, signing keypair, setup notes, test connection                 | ✅ Done (M4.5)  |
-| `SSO-24`, `SSO-25`                                      | SCIM 2.0 provisioning and deprovisioning (workspace level; org level comes with organizations)                          | ✅ Done (M4.6)  |
-| `ENV-FRZ-03`–`04`                                       | Owner freeze override, scheduled freeze windows                                                                         | ✅ Done (M4.2)  |
-| `APR-01`–`APR-18`                                       | Change Approval Workflows                                                                                               | ✅ Done (M4.3)  |
-| `ORG-01`–`ORG-04`, `ORG-08`–`ORG-15`                    | Organizations: members, workspaces, org admins, cross-workspace audit, shared modules, catalog, org API keys, dashboard | ✅ Done (M4.7)  |
-| `ORG-05`–`ORG-07`                                       | Org-level SSO (OIDC, SAML) inherited by workspaces, group rules, org SCIM                                               | ✅ Done (M4.7b) |
-| `INST-01`–`INST-10`, `INST-18`                          | Instance admin: setup wizard, health, workspace suspension and deletion, users, instance admins, instance audit log     | ✅ Done (M4.8a) |
-| `INST-11`–`INST-17`                                     | Instance settings in the database (storage, email, sign-in, branding), hot reload                                       | ✅ Done (M4.8b) |
-| `PLN-01`–`PLN-03`, `RL-04`                              | Plans: per-workspace and per-organization plans, feature gating (opt-in), rate limit tiers; audit export                | ✅ Done (M4.11) |
-| `IaC-09`–`IaC-12`                                       | Workspace as code: `harmoniq.yaml`, plan, apply, import ([details](./gitops.md))                                        | ✅ Done (M4.10) |
-| `IaC-01`–`IaC-04`, `IaC-13`–`IaC-14`                    | Terraform provider, GitLab CI component                                                                                 | 📋 Planned      |
+| ID                                                      | Requirement                                                                                                                                  | Status                                                        |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `RBAC-01`–`RBAC-06`                                     | Module ownership and module-scoped access                                                                                                    | ✅ Done (M4.1)                                                |
+| `SSO-01`–`SSO-08`, `SSO-21`–`SSO-23`, `SSO-26`–`SSO-28` | OIDC single sign-on, JIT, domain join, group mapping, forced SSO, IdP session lifetime                                                       | ✅ Done (M4.4)                                                |
+| `SSO-09`–`SSO-20`                                       | SAML 2.0 single sign-on: SP/IdP-initiated, metadata, SLO, signing keypair, setup notes, test connection                                      | ✅ Done (M4.5)                                                |
+| `SSO-24`, `SSO-25`                                      | SCIM 2.0 provisioning and deprovisioning (workspace level; org level comes with organizations)                                               | ✅ Done (M4.6)                                                |
+| `ENV-FRZ-03`–`04`                                       | Owner freeze override, scheduled freeze windows                                                                                              | ✅ Done (M4.2)                                                |
+| `APR-01`–`APR-18`                                       | Change Approval Workflows                                                                                                                    | ✅ Done (M4.3)                                                |
+| `ORG-01`–`ORG-04`, `ORG-09`–`ORG-15`                    | Organizations: members, workspaces, org admins, cross-workspace audit, shared modules, catalog, org API keys, dashboard                      | ✅ Done (M4.7)                                                |
+| `ORG-08`                                                | Org admin powers: done except org-wide approval policy defaults (specified as `POL-02`, [tenant administration](./tenant-administration.md)) | 🔄 Partial (M4.7; rest Phase 9.5)                             |
+| `ORG-05`–`ORG-07`                                       | Org-level SSO (OIDC, SAML) inherited by workspaces, group rules, org SCIM                                                                    | ✅ Done (M4.7b)                                               |
+| `INST-01`–`INST-10`, `INST-18`                          | Instance admin: setup wizard, health, workspace suspension and deletion, users, instance admins, instance audit log                          | ✅ Done (M4.8a)                                               |
+| `INST-11`–`INST-17`                                     | Instance settings in the database (storage, email, sign-in, branding), hot reload                                                            | ✅ Done (M4.8b)                                               |
+| `PLN-01`, `PLN-02`, `RL-04`                             | Plans: per-workspace and per-organization plans, env-configurable, rate limit tiers; audit export                                            | ✅ Done (M4.11)                                               |
+| `PLN-03`                                                | Plan enforcement: feature gating done; numeric limits are `PLN-04`–`PLN-06` ([tenant administration](./tenant-administration.md))            | 🔄 Partial (M4.11; rest Phase 9.6)                            |
+| `IaC-09`–`IaC-12`                                       | Workspace as code: `harmoniq.yaml`, plan, apply, import ([details](./gitops.md))                                                             | ✅ Done (M4.10)                                               |
+| `IaC-01`–`IaC-04`, `IaC-13`–`IaC-14`                    | Terraform provider (`integrations/terraform-provider-harmoniq`), GitLab CI component (`integrations/gitlab`)                                 | ✅ Done (publishing to the registries is a maintainer action) |
 
 See [`docs/requirements.md §16`](../requirements.md) for the full specification.
 
@@ -123,6 +125,27 @@ None. `Workspace.organizationId` is nullable — all existing standalone workspa
 ---
 
 ## Change History
+
+### 2026-10-11 — Status corrections and Phase 9 hand-off
+
+**Type:** docs  
+**PR / Branch:** —  
+**Refs:** ORG-08, PLN-03, IaC-01–IaC-04, IaC-13, IaC-14
+
+#### What changed
+
+- `ORG-08` is partial: org admins can do everything except set org-wide approval policy defaults. That part is specified as `POL-02` and planned in Phase 9.5.
+- `PLN-03` is partial: plans gate features, but there are no numeric limits yet (`PLN-04`–`PLN-06`, Phase 9.6).
+- The Terraform provider and GitLab CI component are marked done; they live under `integrations/` and only publishing remains.
+- Follow-up work on organizations (lifecycle, people, policy, usage, admin dashboard) continues in [tenant administration](./tenant-administration.md).
+
+#### Why
+
+The [multi-tenancy gap analysis](../multi-tenancy-gap-analysis.md) compared the requirements with the code and found these statuses out of date.
+
+#### Testing
+
+Docs only.
 
 ### 2026-10-10 — Plans, limits and audit export (M4.11)
 

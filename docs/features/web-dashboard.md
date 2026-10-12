@@ -6,23 +6,27 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 
 ## Requirements
 
-| Requirement ID | Description                          | Status |
-| -------------- | ------------------------------------ | ------ |
-| DASH-01        | Scaffold Next.js application         | Done   |
-| DASH-02        | GitHub OAuth Authentication Flow     | Done   |
-| DASH-03        | Edge middleware for JWT Verification | Done   |
-| DASH-04        | Workspace Selector                   | Done   |
-| DASH-05        | Dashboard Overview Page              | Done   |
-| DASH-06        | Modules Management Page              | Done   |
-| DASH-07        | Environments Configuration Page      | Done   |
-| DASH-08        | Dashboard Integration Tests          | Done   |
+| Requirement ID  | Description                                                                                                                                        | Status            |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| DASH-01         | Scaffold Next.js application                                                                                                                       | Done              |
+| DASH-02         | GitHub OAuth Authentication Flow                                                                                                                   | Done              |
+| DASH-03         | Edge middleware for JWT Verification                                                                                                               | Done              |
+| DASH-04         | Workspace Selector                                                                                                                                 | Done              |
+| DASH-05         | Dashboard Overview Page                                                                                                                            | Done              |
+| DASH-06         | Modules Management Page                                                                                                                            | Done              |
+| DASH-07         | Environments Configuration Page                                                                                                                    | Done              |
+| DASH-08         | Dashboard Integration Tests                                                                                                                        | Done              |
+| ORG-14, ORG-15  | Organization pages (`/orgs/:org`: overview, catalog, audit, members, keys, SSO, provisioning)                                                      | Done (M4.7)       |
+| INST-01–INST-14 | Instance admin panel (`/admin/*`) and setup wizard                                                                                                 | Done (M4.8)       |
+| TAD-01–TAD-10   | Tenant admin dashboard: org settings, people, usage, policies, key parity, shared navigation ([tenant administration](./tenant-administration.md)) | Planned (Phase 9) |
 
 ## Architecture Notes
 
 - Next.js 16 (App Router). `src/proxy.ts` (formerly middleware) does an optimistic session check and transparent refresh; see [authentication](./authentication.md).
 - **All data comes from the registry API** (`src/lib/registry.ts`, typed reads in `src/lib/workspaceApi.ts`). The dashboard has no database access; authorization, audit and tenant isolation live in the registry.
-- Mutations are server actions (`[workspaceSlug]/actions.ts`) rendered through `components/ActionForm.tsx`, which shows results, confirmations and one-time secrets.
+- Mutations are server actions (`w/[workspaceSlug]/actions.ts`, `orgs/actions.ts`, `admin/(panel)/actions.ts`) rendered through `components/ActionForm.tsx`, which shows results, confirmations and one-time secrets.
 - Role checks in the UI only hide controls; the registry enforces permissions on every call.
+- Route areas: `/w/:workspaceSlug/…` (workspace), `/orgs/:orgSlug/…` (organization), `/admin/…` (instance admin). Each has its own layout today; a shared shell with switchers and a user menu is planned (TAD-08).
 - Copy lives in `messages/en.json` and `messages/es.json` (next-intl); both locales must have the same keys.
 
 ## Breaking Changes
@@ -30,6 +34,25 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 - N/A (Initial implementation)
 
 ## Change History
+
+### 2026-10-11 — Requirements table brought up to date
+
+**Type:** docs  
+**PR / Branch:** —  
+**Refs:** ORG-14, ORG-15, INST-01–INST-14, TAD-01–TAD-10
+
+#### What changed
+
+- Listed the organization pages and the instance admin panel, which the table was missing, and the planned tenant admin dashboard (Phase 9).
+- Corrected the server action paths after the move to `/w/:workspaceSlug` (ORG-15).
+
+#### Why
+
+Part of the documentation update for the [multi-tenancy gap analysis](../multi-tenancy-gap-analysis.md).
+
+#### Testing
+
+Docs only.
 
 ### 2026-10-09 — Integrate (quickstart) page
 

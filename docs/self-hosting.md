@@ -39,7 +39,7 @@ On a managed database (RDS, Cloud SQL, Azure) where you only have the master use
 docker run --rm -e DATABASE_URL=… -e SYSTEM_DATABASE_URL=… harmoniq/registry npx tsx scripts/bootstrap-db.ts
 ```
 
-It is idempotent and re-applies the password, so it also rotates it. Then run migrations as the owner (the registry image includes the Prisma CLI):
+It is idempotent and re-applies the password, so it also rotates it. In production the registry refuses to start while the app role still accepts the placeholder password (MT-11); running this script fixes it. Then run migrations as the owner (the registry image includes the Prisma CLI):
 
 ```bash
 docker run --rm -e DATABASE_URL=… -e SYSTEM_DATABASE_URL=… \
@@ -74,6 +74,10 @@ Put these in `docker/.env` for Compose, or in your orchestrator's secret store:
 | `TRUST_PROXY`                                                              | registry  | Peers allowed to set `X-Forwarded-For` (default `loopback,linklocal,uniquelocal`: the dashboard and load balancers on private networks). Per-IP rate limits and audit IPs use the client address. `false` to disable, or a list of IPs/CIDRs                                                                               |
 | `HARMONIQ_VALIDATE_BUNDLES`                                                | registry  | `1` to fetch and verify every bundle on deploy                                                                                                                                                                                                                                                                             |
 | `HARMONIQ_GC_KEEP_VERSIONS`                                                | registry  | Versions always kept per module and environment for rollback (default 10)                                                                                                                                                                                                                                                  |
+| `HARMONIQ_METRICS_TOKEN`                                                   | registry  | Bearer token `/metrics` requires (at least 16 characters); unset: public                                                                                                                                                                                                                                                   |
+| `HARMONIQ_METRICS_TENANT_LABELS`                                           | registry  | `1` labels metrics by workspace slug (off by default: labels name tenants)                                                                                                                                                                                                                                                 |
+| `HARMONIQ_DOMAIN_GRACE_DAYS`                                               | registry  | Days unverified trusted SSO domains keep working after upgrading (default 30; `0` enforces at once)                                                                                                                                                                                                                        |
+| `HARMONIQ_AUDIT_RETENTION_DAYS`                                            | registry  | Days a deleted workspace's audit events are kept, counted from each event (default 400)                                                                                                                                                                                                                                    |
 | `HARMONIQ_MANIFEST_RATE_LIMIT`, `_STARTUP`, `_ENTERPRISE`                  | registry  | Manifest requests per minute per workspace and client IP, by the workspace's plan (defaults 600, 3000, 10000)                                                                                                                                                                                                              |
 | `HARMONIQ_WRITE_RATE_LIMIT`                                                | registry  | Writes (POST, PUT, PATCH, DELETE) per minute per credential, or per client IP without one (default 300). Sign-in, setup and health ingest have their own, stricter limits                                                                                                                                                  |
 | `HARMONIQ_MANIFEST_MISS_LIMIT`                                             | registry  | Not-found manifest answers per minute per client IP, across all workspaces (default 120). Stops requests that invent workspace names from reaching the database                                                                                                                                                            |
@@ -90,7 +94,22 @@ Never set `HARMONIQ_DEV_LOGIN` in production; the registry refuses to start with
 3. Sign in with that email (email link or GitHub with the same verified address).
 4. Create a workspace from the dashboard and an API key for CI under **Settings → API keys**.
 5. The admin panel (`/admin`) shows system health and lets you manage workspaces (suspend, delete), users (end sessions, erase accounts), other instance admins and the instance audit log.
-6. Storage, email (SMTP), sign-in methods and branding can also be set in the admin panel. Those settings are stored encrypted in the database, take precedence over the environment variables above (which remain the defaults) and reach every registry replica within a minute, without a restart.
+6. Storage, email (SMTP), sign-in methods and branding can also be set in the admin panel. Those settings are stored encrypted in the database, take precedence over the environment variables above (which remain the defaults) and reach every registry replica within a minute, without a restart. The panel refuses sign-in settings that would leave no instance admin able to sign in, or that would lock you out (INST-23).
+7. Organizations and workspaces that use single sign-on verify their email domains (**Single sign-on → Verified domains**, a DNS TXT record). For `HARMONIQ_DOMAIN_GRACE_DAYS` (default 30) after the first start of a version with domain verification, unverified trusted domains keep working for sign-in; after that, only verified ones do.
+
+### Recovery
+
+When nobody can use the admin panel (every sign-in method off, the last admin gone, a broken IdP), the registry image has a recovery CLI that works directly on the database (INST-24). It needs only `SYSTEM_DATABASE_URL`, and every command is recorded in the instance audit log:
+
+```bash
+docker run --rm -e SYSTEM_DATABASE_URL=… harmoniq/registry npx tsx scripts/harmoniq-admin.ts <command>
+#   grant-admin <email>       make an account an instance admin (created if needed)
+#   reset-setting <key>       drop a setting saved in the admin panel (storage, email, auth, branding)
+#   revoke-sessions <email>   end every session of an account
+#   list-admins               instance admins and the sign-in methods they have used
+```
+
+Running registries pick up a reset setting within a minute.
 
 ### 4. Images
 
@@ -110,7 +129,7 @@ Both expose `/health`-style checks used by the Docker `HEALTHCHECK`. The registr
 
 ## Observability
 
-- **Metrics**: `GET /metrics` on the registry (Prometheus): `harmoniq_http_request_duration_ms` (histogram by method, route, status), `harmoniq_manifest_cache_hits_total` / `_misses_total`, `harmoniq_deploy_count_total`, `harmoniq_manifest_rate_limited_total`. [`docker/grafana`](../docker/grafana) has a dashboard (request rate, p95 by route, manifest p99 against the 50 ms target, cache hit ratio, 5xx, deploys, rate limiting): `docker compose -f docker/docker-compose.yml --profile observability up -d`, then http://localhost:3001.
+- **Metrics**: `GET /metrics` on the registry (Prometheus; set `HARMONIQ_METRICS_TOKEN` and scrape with `Authorization: Bearer <token>` unless the registry port is private; the registry warns in production when it's public): `harmoniq_http_request_duration_ms` (histogram by method, route, status), `harmoniq_manifest_cache_hits_total` / `_misses_total`, `harmoniq_deploy_count_total`, `harmoniq_manifest_rate_limited_total` (by `workspace` only with `HARMONIQ_METRICS_TENANT_LABELS=1`, since labels name your tenants). [`docker/grafana`](../docker/grafana) has a dashboard (request rate, p95 by route, manifest p99 against the 50 ms target, cache hit ratio, 5xx, deploys, rate limiting): `docker compose -f docker/docker-compose.yml --profile observability up -d`, then http://localhost:3001.
 - **Traces**: set `OTEL_EXPORTER_OTLP_ENDPOINT` (e.g. `http://otel-collector:4318`) and the registry exports OpenTelemetry traces over OTLP/HTTP: HTTP, Fastify, Postgres and Redis automatically, plus spans for manifest resolution (`harmoniq.manifest.resolve`), every change to a manifest (`harmoniq.mutation`, with workspace and environment) and every background job (`harmoniq.job <name>`). The other standard `OTEL_*` variables (service name, sampler, headers) apply.
 - **Logs**: JSON in production. Every line of a request carries `requestId` (a caller's `X-Request-Id` is kept and returned on every response), the workspace once resolved (`workspace`, `workspaceId`), and "request completed" its `responseTime` in milliseconds.
 

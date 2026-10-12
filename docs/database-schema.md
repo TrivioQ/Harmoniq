@@ -1,7 +1,7 @@
 # Harmoniq — Database Schema Reference
 
 > **Version**: 1.0.0  
-> **Last Updated**: 2026-09-13  
+> **Last Updated**: 2026-10-11  
 > **ORM**: Prisma  
 > **Database**: PostgreSQL 15+
 
@@ -9,18 +9,22 @@
 
 ## Entity Relationship Overview
 
-```
-User ─────────────────── WorkspaceMember ─────────── Workspace
-                                                          │
-                    ┌─────────────────────────────────────┼──────────────────────────────┐
-                    │                    │                 │                │              │
-               HostApp            ApiKey         WebhookEndpoint      AuditEvent   WorkspaceConfig
-                    │                                 │
-              Environment               WebhookDelivery
-                    │
-             RemoteModule
-                    │
-             ModuleVersion
+```text
+Instance level (no RLS)      InstanceConfig · InstanceAdmin · InstanceAuditEvent
+                             User · Identity · RefreshToken · EmailLoginToken
+
+Organization (optional,      Organization ── OrganizationMember ── User
+no RLS today, ADR-010)            │       ── OrgApiKey · OrganizationAuditEvent
+                                  │       ── ScimUser / ScimGroup / ScimAuditEvent (org-scoped rows)
+                                  ▼ organizationId (nullable)
+Workspace (RLS tenant) ── WorkspaceMember ── User
+     │
+     ├── WorkspaceConfig · WorkspaceStorageConfig · ApiKey · AuditEvent
+     ├── WebhookEndpoint ── WebhookDelivery · WebhookDeadLetter
+     ├── ApprovalPolicy · DeploymentRequest ── DeploymentApproval · ScheduledOperation
+     ├── AlertRule · ModuleHealthEvent · ModuleHealthRollup · ModuleEnvState
+     └── HostApp ── Environment ── ManifestSnapshot
+                └── RemoteModule ── ModuleVersion · ModuleOwnership
 ```
 
 ---
@@ -199,18 +203,18 @@ User ─────────────────── WorkspaceMember �
 
 ### `AuditEvent`
 
-| Column         | Type       | Notes                                                   |
-| -------------- | ---------- | ------------------------------------------------------- |
-| `id`           | `CUID`     | Primary key                                             |
-| `workspaceId`  | `CUID`     | FK → Workspace (RLS key)                                |
-| `actorId`      | `String`   | User ID or ApiKey ID                                    |
-| `actorType`    | `Enum`     | `user \| apiKey \| system` (jobs such as auto-rollback) |
-| `action`       | `String`   | e.g. `module.deploy`, `key.revoke`                      |
-| `resourceType` | `String`   | e.g. `ModuleVersion`, `ApiKey`                          |
-| `resourceId`   | `String`   | ID of the affected resource                             |
-| `metadata`     | `Json?`    | Contextual data (version, env, etc.)                    |
-| `ip`           | `String?`  | Requester IP                                            |
-| `createdAt`    | `DateTime` | Immutable                                               |
+| Column         | Type       | Notes                                                                             |
+| -------------- | ---------- | --------------------------------------------------------------------------------- |
+| `id`           | `CUID`     | Primary key                                                                       |
+| `workspaceId`  | `CUID`     | Workspace id (RLS key); no FK, so the trail outlives a deleted workspace (AUD-05) |
+| `actorId`      | `String`   | User ID or ApiKey ID                                                              |
+| `actorType`    | `Enum`     | `user \| apiKey \| system` (jobs such as auto-rollback)                           |
+| `action`       | `String`   | e.g. `module.deploy`, `key.revoke`                                                |
+| `resourceType` | `String`   | e.g. `ModuleVersion`, `ApiKey`                                                    |
+| `resourceId`   | `String`   | ID of the affected resource                                                       |
+| `metadata`     | `Json?`    | Contextual data (version, env, etc.)                                              |
+| `ip`           | `String?`  | Requester IP                                                                      |
+| `createdAt`    | `DateTime` | Immutable                                                                         |
 
 **RLS**: enabled, policy on `workspaceId`  
 **No soft-delete**: this table is append-only and has no `deletedAt` column.  
@@ -234,37 +238,56 @@ User ─────────────────── WorkspaceMember �
 
 ## Row-Level Security Policies
 
-The following RLS is applied to all tables marked with **RLS: enabled**.
+See [ADR-003](./architecture.md#adr-003-postgresql-row-level-security-for-multi-tenancy) and [ADR-010](./architecture.md#adr-010-organization-scoped-row-level-security). The registry connects with two roles:
 
-```sql
--- Enable RLS
-ALTER TABLE "ModuleVersion" ENABLE ROW LEVEL SECURITY;
+| Role           | Connection            | Used for                                                                                                     | RLS              |
+| -------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `harmoniq`     | `SYSTEM_DATABASE_URL` | Migrations (schema owner); `systemDb` for tenant resolution, creating tenants, sign-in, jobs, instance admin | Bypassed (owner) |
+| `harmoniq_app` | `DATABASE_URL`        | Everything done for a tenant (`withTenant`, `withOrg`)                                                       | Always applies   |
 
--- Create policy
-CREATE POLICY workspace_isolation ON "ModuleVersion"
-  USING (
-    "workspaceId" = current_setting('app.current_workspace_id', TRUE)::TEXT
-  );
-
--- App role cannot bypass RLS
-ALTER ROLE harmoniq_app NOINHERIT;
-```
-
-The Prisma client middleware sets the session variable at the start of every request:
+Work for a workspace runs inside `withTenant`; work for an organization (its routes, SCIM and SSO provisioning, cross-workspace reads such as the org home, catalog, audit and shared modules) inside `withOrg`:
 
 ```typescript
-prisma.$use(async (params, next) => {
-  await prisma.$executeRaw`SET LOCAL app.current_workspace_id = ${workspaceId}`;
-  return next(params);
+// packages/db/src/index.ts
+await client.$transaction(async (tx) => {
+  await tx.$executeRaw`SELECT set_config('app.current_workspace_id', ${workspaceId}, true)`;
+  return fn(tx);
 });
+
+// withOrg: the organization, and its workspaces resolved inside the same transaction.
+await tx.$executeRaw`SELECT set_config('app.current_org_id', ${organizationId}, true)`;
+await tx.$executeRaw`SELECT set_config('app.current_org_workspace_ids',
+  coalesce((SELECT string_agg("id", ',') FROM "Workspace" WHERE "organizationId" = ${organizationId}), ''), true)`;
 ```
+
+Policies are created in the migrations themselves. A workspace-scoped table admits its workspace, or one of the current organization's workspaces:
+
+```sql
+CREATE POLICY workspace_isolation_version ON "ModuleVersion"
+  USING ("workspaceId" = current_setting('app.current_workspace_id', TRUE)
+      OR "workspaceId" = ANY (string_to_array(current_setting('app.current_org_workspace_ids', TRUE), ',')));
+```
+
+| Scope                                   | Tables                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| By `workspaceId` (workspace or its org) | `WorkspaceMember`, `HostApp`, `RemoteModule`, `ModuleVersion`, `ApiKey`, `WebhookEndpoint`, `WebhookDelivery`, `WebhookDeadLetter`, `AuditEvent`, `ModuleOwnership`, `AlertRule`, `ManifestSnapshot`, `ModuleHealthEvent`, `ModuleHealthRollup`, `ModuleEnvState`, `ScheduledOperation`, `ApprovalPolicy`, `DeploymentRequest`, `WorkspaceConfig`, `WorkspaceStorageConfig` |
+| By `workspaceId` or `organizationId`    | `ScimUser`, `ScimGroup`, `ScimAuditEvent`, `VerifiedDomain` (rows of a workspace or of an organization)                                                                                                                                                                                                                                                                     |
+| `Workspace`                             | Its `id` is the current workspace or one of the organization's, or its `organizationId` is the current organization                                                                                                                                                                                                                                                         |
+| By `organizationId`                     | `OrganizationMember`, `OrgApiKey`, `OrganizationAuditEvent`; `Organization` by `id`                                                                                                                                                                                                                                                                                         |
+| Through the parent row                  | `Environment` (via `HostApp`), `DeploymentApproval` (via `DeploymentRequest`)                                                                                                                                                                                                                                                                                               |
+| No RLS, revoked from `harmoniq_app`     | `Identity`, `EmailLoginToken`, `RefreshToken`                                                                                                                                                                                                                                                                                                                               |
+| No RLS (global)                         | `User` (accounts are shared across tenants), `InstanceConfig`, `InstanceAdmin`, `InstanceAuditEvent`                                                                                                                                                                                                                                                                        |
+
+Append-only for `harmoniq_app` (`REVOKE UPDATE, DELETE`): `AuditEvent`, `OrganizationAuditEvent`, `InstanceAuditEvent`. `AuditEvent` and `ScimAuditEvent` have no foreign key to `Workspace` (AUD-05): a deleted workspace's audit trail stays, still scoped by `workspaceId`, until GC removes events older than `HARMONIQ_AUDIT_RETENTION_DAYS`.
+
+MT-09: registry routes may not use `systemDb` (ESLint `no-restricted-syntax` on `apps/registry/src/routes`); each allowed use is marked with its reason. `packages/db/src/__tests__/rls.test.ts` checks both scopes (no rows without a context, nothing of another workspace or organization, no context left on pooled connections), and `apps/registry/src/__tests__/tenantIsolation.test.ts` calls every GET route as one organization and checks no response mentions another (MT-10).
 
 ---
 
 ## Migration Strategy
 
 - Migrations are managed by Prisma (`prisma migrate dev` / `prisma migrate deploy`).
-- Post-migration SQL hooks (RLS policies, roles) are applied via a custom `db:migrate` script that runs `prisma migrate deploy` followed by `psql` with the RLS SQL file.
+- RLS policies, grants and revokes are part of the migration SQL files. Roles are created before the first migration (`docker/init.sql` or `apps/registry/scripts/bootstrap-db.ts`; see [self-hosting](./self-hosting.md)).
 - All migration files are committed to `packages/db/prisma/migrations/`.
 - **Never use `prisma db push` in production**.
 
@@ -758,3 +781,49 @@ Per-workspace BYOB storage adapter override (§18). When present, the registry r
 > `WorkspaceStorageConfig` present → use workspace adapter  
 > No `WorkspaceStorageConfig` → use `InstanceConfig["storage.adapter"]`  
 > No `InstanceConfig` entry → use `STORAGE_ADAPTER` env var (bootstrap default)
+
+---
+
+## New Tables (Phase 9 — Tenant Administration)
+
+### `VerifiedDomain`
+
+DOM-01..05 (migration `20261011120000_verified_domains`). A domain claimed by an organization or a workspace, proven with the DNS TXT record `_harmoniq-challenge.<domain>` = `harmoniq-verification=<token>`. Many tenants may claim a domain; only one can verify it.
+
+| Column           | Type        | Notes                                                                                          |
+| ---------------- | ----------- | ---------------------------------------------------------------------------------------------- |
+| `id`             | `CUID`      | Primary key                                                                                    |
+| `domain`         | `String`    | Lowercase; indexed. Unique per owner (`[domain, organizationId]`, `[domain, workspaceId]`)     |
+| `organizationId` | `CUID?`     | FK → Organization (cascade). Exactly one of the two is set (CHECK)                             |
+| `workspaceId`    | `CUID?`     | FK → Workspace (cascade); RLS key (organization claims are invisible to the tenant role)       |
+| `token`          | `String`    | The TXT value's token (not a secret: DNS is public)                                            |
+| `verifiedAt`     | `DateTime?` | Set by a successful check                                                                      |
+| `verifiedDomain` | `String?`   | **Unique.** Equals `domain` while verified (CHECK), so a domain has at most one verified owner |
+| `lastCheckedAt`  | `DateTime?` | DOM-05 re-checks                                                                               |
+| `failingSince`   | `DateTime?` | Record missing since; unverified after 14 days                                                 |
+| `createdBy`      | `String`    | User or key that claimed it                                                                    |
+| `createdAt`      | `DateTime`  |                                                                                                |
+
+`InstanceConfig` key `domains.graceUntil` holds the end of the DOM-04 transition period, fixed at the first start with domain verification.
+
+---
+
+## Planned Changes (Phase 9 — Tenant Administration)
+
+> Not yet in `schema.prisma`. Designed in [features/tenant-administration.md](./features/tenant-administration.md) and tracked in [implementation-plan.md Phase 9](./implementation-plan.md). Move each entry into the sections above when its migration lands.
+
+| Change                                                                                               | Sub-phase | Requirements              |
+| ---------------------------------------------------------------------------------------------------- | --------- | ------------------------- |
+| `Workspace.deletedAt/purgeAfter/deletedBy`; `Organization.purgeAfter/suspendedAt/suspendedReason`    | 9.2       | TLC-02–TLC-04             |
+| `ModuleVersion.storageBackend`, `TenantExport`, `OwnershipTransfer`                                  | 9.2       | TLC-03, TLC-06/07         |
+| `Invitation` (org or workspace, token hash, expiry); pending `WorkspaceMember` rows migrated into it | 9.3       | PPL-01, PPL-02            |
+| `AccessRequest`; `OrgRole` adds `org_billing`, `org_auditor`                                         | 9.3       | PPL-07, PPL-08            |
+| `OrgApiKey.gracePeriodEnd`                                                                           | 9.4       | TAD-05                    |
+| `OrgPolicy`                                                                                          | 9.5       | POL-01–POL-08             |
+| `UsageDaily`, `ModuleVersion.sizeBytes`, plan `overrides` / `planExpiresAt` / `basePlan`             | 9.6       | USG-01, PLN-04–06         |
+| `User.suspendedAt/suspendedReason/mfa*`; `RefreshToken.lastUsedAt/userAgent/ip`                      | 9.7       | SES-01–SES-04             |
+| `AuditSink`, audit `prevHash`/`hash`, org webhooks, `NotificationChannel`                            | 9.8       | AUD-06, AUD-09, TAD-09/10 |
+| `SupportGrant`                                                                                       | 9.10      | INST-20                   |
+| Sealed JSON envelopes gain `kid` (key id); no schema change                                          | 9.9       | INST-26                   |
+| `InstanceAdmin.role`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceConfigVersion`           | 9.9       | INST-31, INST-33, INST-35 |
+| `ReplicaHeartbeat`, `SignInEvent`, `EmailDelivery`                                                   | 9.10      | INST-28, INST-38, INST-39 |

@@ -1,14 +1,14 @@
 # Harmoniq — Implementation Plan
 
 > **Version**: 1.0.0  
-> **Last Updated**: 2026-09-13  
+> **Last Updated**: 2026-10-11  
 > **Package Manager**: pnpm v9+
 
 ---
 
 ## Overview
 
-This document breaks the Harmoniq build into six sequential phases. Each phase delivers a shippable, testable increment. Every single feature implemented in any phase MUST include corresponding automated test cases (unit, integration, or E2E) covering happy paths, edge cases, and security boundaries. Phases 1–3 form the **Minimum Viable Product (MVP)**; Phases 4–6 deliver production-grade features.
+This document breaks the Harmoniq build into sequential phases (0–9). Each phase delivers a shippable, testable increment. Every single feature implemented in any phase MUST include corresponding automated test cases (unit, integration, or E2E) covering happy paths, edge cases, and security boundaries. Phases 1–3 form the **Minimum Viable Product (MVP)**; Phases 4–6 deliver production-grade features; Phases 7–8 add self-hosting and enterprise governance; Phase 9 completes tenant lifecycle and tenant administration ([gap analysis](./multi-tenancy-gap-analysis.md)).
 
 ---
 
@@ -459,20 +459,20 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 #### Registry — Admin API
 
 - [x] Admin auth middleware: extract session, verify `InstanceAdmin` record is active. Reject all `/admin/*` routes for non-admin sessions — even workspace `owner` (INST-06)
-- [x] `GET /admin/api/health` — DB ping, Redis ping, storage adapter ping, `pg-boss` queue depth, active job count (INST-08)
-- [x] `GET /admin/api/workspaces` — all workspaces with usage metrics
-- [x] `POST /admin/api/workspaces/:id/suspend` and `/unsuspend` (INST-09)
-- [x] `DELETE /admin/api/workspaces/:id` — hard delete
-- [x] `GET /admin/api/users` — all users with workspace memberships + last login
-- [x] `POST /admin/api/users/:id/revoke-sessions` (INST-10)
-- [x] `DELETE /admin/api/users/:id` — hard delete
-- [x] `GET /admin/api/config` — return all `InstanceConfig` keys with values **redacted** for sensitive keys
-- [x] `PUT /admin/api/config/:key` — update a config value (encrypt sensitive keys before storing)
-- [x] `POST /admin/api/config/storage/test` — connectivity test for the configured default storage adapter
-- [x] `POST /admin/api/config/smtp/test` — send test email to authenticated admin (INST-12)
+- [x] `GET /api/admin/health` — DB ping, Redis ping, storage adapter ping, `pg-boss` queue depth, active job count (INST-08)
+- [x] `GET /api/admin/workspaces` — all workspaces with usage metrics (modules, members, deploys; storage bytes are USG-02, Phase 9.6)
+- [x] `POST /api/admin/workspaces/:slug/suspend` and `/unsuspend` (INST-09)
+- [x] `DELETE /api/admin/workspaces/:slug?confirm=<slug>` — hard delete (soft delete and purge: TLC-02/03, Phase 9.2)
+- [x] `GET /api/admin/users` — all users with workspace memberships + last login
+- [x] `POST /api/admin/users/:id/revoke-sessions` (INST-10)
+- [x] `DELETE /api/admin/users/:id?confirm=<email>` — hard delete
+- [x] `GET /api/admin/settings` — every setting with secrets **redacted** and its source (database or environment)
+- [x] `PUT /api/admin/settings/:key` (and `DELETE` to reset to the environment) — update a setting (secrets sealed before storing)
+- [x] `POST /api/admin/settings/storage/test` — connectivity test for the configured default storage adapter
+- [x] `POST /api/admin/settings/email/test` — send test email to authenticated admin (INST-12)
 - [x] Hot-reload (a 60 s timer per registry rather than a pg-boss cron): `config.reload` (60s interval) refreshes registry's in-memory config snapshot from `InstanceConfig` (INST-17)
-- [x] `GET /admin/setup` — serve setup wizard (only when no active `InstanceAdmin` exists)
-- [x] `POST /admin/setup` — consume `HARMONIQ_SETUP_TOKEN`, create first admin user, set initial `InstanceConfig` values (INST-01–INST-04)
+- [x] `GET /api/admin/setup` — whether setup is needed (the wizard is served at `/admin/setup` by the dashboard)
+- [x] `POST /api/admin/setup` (with `/check` and `/storage` steps) — consume `HARMONIQ_SETUP_TOKEN`, create first admin user, set initial `InstanceConfig` values (INST-01–INST-04)
 - [x] Emit `InstanceAuditEvent` (`action: 'instance.config_updated'`, key only, no plaintext value) on every config change (INST-18)
 
 #### Dashboard — Admin Panel Pages
@@ -493,7 +493,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] Unit tests: admin auth middleware (verify non-admin workspace sessions are rejected, including `owner` role)
 - [x] Unit tests: config hot-reload (mock `InstanceConfig` update, verify in-memory snapshot refreshes)
 - [x] Integration tests: setup wizard flow (token consumption, duplicate call rejected, first admin created)
-- [x] Integration tests: all `/admin/api/*` endpoints with admin session and with non-admin session (must return 403)
+- [x] Integration tests: all `/api/admin/*` endpoints with admin session and with non-admin session (must return 403)
 
 ---
 
@@ -569,6 +569,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 | Phase 6 — Hardening + SSO       | 3 weeks            | Week 15    |
 | Phase 7 — Scale & Community     | 2 weeks            | Week 17    |
 | Phase 8 — Enterprise Governance | 3 weeks            | Week 20    |
+| Phase 9 — Tenant & System Admin | 17–20 weeks        | Week 40    |
 
 ---
 
@@ -599,8 +600,8 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 
 #### Registry — Approval Policy CRUD
 
-- [x] `POST /api/workspaces/:slug/environments/:envId/approval-policy` — create/update policy
-- [x] `DELETE /api/workspaces/:slug/environments/:envId/approval-policy` — remove policy (immediate deploys restored)
+- [x] `PUT /api/workspaces/:ws/host-apps/:hostApp/environments/:env/approval-policy` — create/update policy
+- [x] `DELETE /api/workspaces/:ws/host-apps/:hostApp/environments/:env/approval-policy` — remove policy (immediate deploys restored)
 - [x] `GET /api/workspaces/:slug/approvals?status=pending` — list pending requests for the authenticated user
 
 #### Dashboard
@@ -635,6 +636,7 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - [x] `GET /api/orgs/:orgSlug/workspaces` — list all workspaces (part of `GET /api/orgs/:orgSlug`)
 - [x] `GET /api/orgs/:orgSlug/audit` — cross-workspace audit log (paginated, filterable) (ORG-09)
 - [x] `GET /api/orgs/:orgSlug/modules` — org module catalog across all workspaces (ORG-12)
+- [ ] Org-wide approval policy defaults (ORG-08; specified as POL-02, Phase 9.5)
 - [x] Org-level SAML endpoints: `POST /auth/org-saml/:orgSlug/acs`, `GET /auth/org-saml/:orgSlug/metadata` (ORG-06)
 - [x] Org-level SCIM: `/scim/v2/orgs/:orgSlug` (ORG-07)
 - [x] `WorkspaceConfig` SSO resolution: check workspace-level SSO first; fall back to org-level SSO if workspace has no override
@@ -647,9 +649,11 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 #### Dashboard
 
 - [x] **Organization home** page (`/orgs/:orgSlug`) — all workspaces with aggregate health, recent deploys, cross-workspace audit log (ORG-14)
-- [x] **Org Module Catalog** (`/orgs/:orgSlug/catalog`) — searchable, filterable by team, module, env (ORG-12)
+- [x] **Org Module Catalog** (`/orgs/:orgSlug/catalog`) — every module with its team, owners and version per env (ORG-12)
+- [ ] Catalog search, filters and pagination (TAD-07, Phase 9.4)
 - [x] **Org SSO Settings** — configure SAML/OIDC once, applies to all workspaces (ORG-05)
-- [x] **Org Members** — directory of all users across all workspaces
+- [x] **Org Members** — org members and roles (ORG-04)
+- [ ] Directory of all users across the org's workspaces with effective access (PPL-03, Phase 9.3)
 - [x] Workspace pages move to `/w/:workspaceSlug`; old `/:workspaceSlug/…` URLs redirect there (ORG-15)
 
 #### Test Suite
@@ -710,3 +714,380 @@ This document breaks the Harmoniq build into six sequential phases. Each phase d
 - Terraform provider published to registry.terraform.io
 - GitHub Actions action published to Marketplace
 - `harmoniq plan` / `harmoniq apply` / `harmoniq import` CLI commands working end-to-end
+
+---
+
+## Phase 9 — Tenant Lifecycle, Tenant & System Administration
+
+**Goal**: Make organizations and workspaces enterprise-ready across their whole lifecycle: integrity and isolation first, then onboarding and offboarding, the tenant admin dashboard, organization policy, usage and quotas, identity hardening, audit streaming, and the system (instance) administration needed to run a production instance.
+
+**Specification**: [`requirements.md §19`](./requirements.md) · **Design and status**: [`features/tenant-administration.md`](./features/tenant-administration.md) · **Findings**: [`multi-tenancy-gap-analysis.md`](./multi-tenancy-gap-analysis.md)
+
+**Sequencing**: 9.1 ships first (it fixes defects). 9.2 and 9.3 follow and can run in parallel. 9.4 builds on 9.3. 9.5 needs `withOrg` from 9.1. 9.6–9.10 are independent of each other once 9.1 lands, except that 9.10 uses the lifecycle actions of 9.2 and the usage data of 9.6. Each sub-phase is one or more pull requests with its migration, tests, feature doc entry and changeset.
+
+| Sub-phase                                        | Requirements                                                        | Estimate  | Depends on |
+| ------------------------------------------------ | ------------------------------------------------------------------- | --------- | ---------- |
+| 9.1 Integrity & isolation (M5.1)                 | MT-07–MT-11, TLC-05, DOM-01–DOM-05, PPL-04, PPL-05, INST-23–INST-25 | 3.5 weeks | —          |
+| 9.2 Tenant lifecycle (M5.2)                      | TLC-01–TLC-04, TLC-06–TLC-08, AUD-05                                | 2 weeks   | 9.1        |
+| 9.3 People & invitations (M5.3)                  | PPL-01–PPL-03, PPL-06–PPL-08                                        | 2 weeks   | 9.1        |
+| 9.4 Tenant admin dashboard (M5.4)                | TAD-01, TAD-04–TAD-08, AUD-07, AUD-08                               | 2 weeks   | 9.3        |
+| 9.5 Organization policy (M5.5)                   | POL-01–POL-09, TAD-03 (completes ORG-08)                            | 2.5 weeks | 9.1        |
+| 9.6 Usage, quotas & plans (M5.6)                 | PLN-04–PLN-06, USG-01–USG-04, MT-12, TAD-02 (completes INST-09)     | 2 weeks   | 9.1        |
+| 9.7 Identity & session security (M5.7)           | SES-01–SES-04                                                       | 1.5 weeks | 9.1        |
+| 9.8 Audit streaming & notifications (M5.8)       | AUD-06, AUD-09, TAD-09, TAD-10                                      | 1.5 weeks | 9.1        |
+| 9.9 Operator security & automation (M5.9)        | INST-26, INST-31–INST-35                                            | 2 weeks   | 9.1, 9.7   |
+| 9.10 System admin dashboard & operations (M5.10) | INST-19–INST-22, INST-27–INST-30, INST-36–INST-39                   | 3 weeks   | 9.2, 9.6   |
+
+### 9.1 Integrity & Isolation (M5.1)
+
+#### Database
+
+- [x] Migration `20261011130000_org_rls`: RLS on `Organization` (by `id`), `OrganizationMember`, `OrgApiKey`, `OrganizationAuditEvent` (by `app.current_org_id`); `ScimUser`, `ScimGroup`, `ScimAuditEvent` and `VerifiedDomain` also admit the current organization's rows (MT-07)
+- [x] Workspace-scoped policies also admit `"workspaceId" = ANY (string_to_array(current_setting('app.current_org_workspace_ids', true), ','))`, so an org transaction reads exactly its own workspaces (MT-08, ADR-010)
+- [x] `VerifiedDomain` model: `domain`, `organizationId?` / `workspaceId?` (exactly one, CHECK), `token` (public: it's in DNS), `verifiedAt?`, `verifiedDomain?` (unique: one verified owner per domain), `lastCheckedAt?`, `failingSince?`, `createdBy`; RLS on `workspaceId` (migration `20261011120000_verified_domains`) (DOM-01/02)
+- [x] MT-11: the production registry refuses to start while the app role accepts the placeholder password (`services/dbRoleCheck.ts`). The applied migration stays unchanged: editing it would make `prisma migrate dev` reset existing databases
+
+#### Registry
+
+- [x] `withOrg(client, orgId, fn)` in `@harmoniq/db` (and `container.withOrg`): sets `app.current_org_id`, then resolves `app.current_org_workspace_ids` inside the same transaction (the `Workspace` policy admits the org's rows) (MT-07/08)
+- [x] `routes/orgs.ts`, `routes/orgSso.ts`, `services/orgShared.ts`, org SCIM (`routes/scim.ts`) and org SSO provisioning run in `withOrg`; attach runs in the workspace's `withTenant`; `systemDb` stays for tenant resolution, creating tenants, the user's own memberships and sessions (MT-09)
+- [x] ESLint `no-restricted-syntax` on `systemDb` in `apps/registry/src/routes`: files that span tenants (`admin`, `auth`, `saml`, `scim`) disable it at the top with the reason, other uses are marked per line; `gitops` moved to `withTenant` (MT-09)
+- [x] TLC-05: org admins may assign `owner` in their org's workspaces (`assertCanAssign`); `requireWorkspace` treats org admins as owners while a workspace has no joined owner; `POST /api/orgs/:org/workspaces` accepts `owners: string[]` (invitations)
+- [ ] Terraform `harmoniq_workspace.owners` attribute (TLC-05)
+- [x] PPL-04: `DELETE /api/orgs/:org/members/:id` shares the SCIM deprovisioning routine (`removeFromWorkspaces`, covering every workspace of the org) (workspace memberships, keys created in the org's workspaces unless `?keepKeys=true`, org-SSO sessions); the response lists what was removed
+- [x] PPL-05: `DELETE /api/workspaces/:ws/members/:id?keepKeys=true|false` (default revoke)
+- [x] Domains: `GET/POST /api/orgs/:org/domains`, `POST …/domains/:domain/verify`, `DELETE …/domains/:domain` (and the same under `/api/workspaces/:ws/domains` for standalone workspaces); DNS TXT lookup of `_harmoniq-challenge.<domain>`; instance admins list and release claims (`/api/admin/domains`) (DOM-01/02)
+- [x] SSO discovery by `VerifiedDomain` lookup (during the grace period also an unverified domain exactly one tenant lists); OIDC and SAML configs load only the trusted domains the tenant may use (`Domains.usableTrustedDomains`), which also stops another tenant's domain from making emails "verified" (DOM-03/04)
+- [x] pg-boss `domains.recheck` (daily; checks domains last checked six days ago and failing ones): re-resolve TXT, set `failingSince`, unverify after 14 days, audit in the instance and owner logs (DOM-05; notifications come with TAD-09)
+- [x] Lockout guard (`InstanceSettings.adminSignInAfter`, checked by `PUT /api/admin/settings/auth`): refuse a value with which no instance admin, or the caller, could sign in; name other admins it locks out (INST-23)
+- [x] Recovery CLI `apps/registry/scripts/harmoniq-admin.ts` (`pnpm --filter @harmoniq/registry admin …`; in the image `npx tsx scripts/harmoniq-admin.ts`): `grant-admin`, `reset-setting`, `revoke-sessions`, `list-admins`; system-actor audit events (INST-24)
+- [x] `/metrics`: `HARMONIQ_METRICS_TOKEN` bearer check, workspace label only with `HARMONIQ_METRICS_TENANT_LABELS=1`, production warning without a token (INST-25)
+- [ ] `/metrics` on a separate port (`HARMONIQ_METRICS_PORT`); Helm chart value for the token
+
+#### Dashboard
+
+- [x] Org and workspace SSO pages: verified domains list with the TXT record to add, Verify button, grace-period warning for unverified trusted domains
+- [x] Org member removal: confirmation says workspaces, keys and sessions go too, "keep their API keys" option, result lists what was removed
+- [x] Workspace member removal: "keep their API keys" checkbox (keys are revoked by default)
+- [x] Members page offers the `owner` role to org admins (TLC-05); admin settings warn about admins a sign-in change locks out (INST-23)
+
+#### Test Suite
+
+- [x] `rls.test.ts`: organization scope (own rows, own workspaces, no writes into another organization, nothing in workspace or unscoped queries, no context left on the pool, detaching)
+- [x] `tenantIsolation.test.ts`: two organizations; every GET route of the OpenAPI document as org A's admin and org key, no org B identifier in any response, no 5xx, B's routes `403`/`404`, B's shared module not in A's manifests (MT-10)
+- [x] Ownerless workspace (`ownerlessWorkspace.test.ts`): org admin assigns an owner, freeze override and module sharing work afterwards
+- [x] Org member removal (`offboarding.test.ts`): memberships, keys and sessions gone; `keepKeys`; last owner kept; workspace member removal revokes keys
+- [x] Domain verification (`domains.test.ts`): TXT match and mismatch, uniqueness across tenants, discovery ignores unverified domains, grace period, recheck failure path
+- [x] Placeholder role password detected (`dbRoleCheck.test.ts`)
+- [x] Lockout guard (`adminLockout.test.ts`) and recovery commands (`adminRecovery.test.ts`)
+- [x] `/metrics` with and without the token, empty and short tokens, no workspace label by default (`metricsAccess.test.ts`)
+
+### 9.2 Tenant Lifecycle (M5.2)
+
+#### Database
+
+- [ ] `Workspace`: `deletedAt`, `purgeAfter`, `deletedBy`; `Organization`: `purgeAfter`, `suspendedAt`, `suspendedReason`
+- [x] `AuditEvent`, `ScimAuditEvent`: cascading foreign keys to `Workspace` dropped (migration `20261011140000_audit_outlives_workspace`; organizations are soft-deleted, so `OrganizationAuditEvent` keeps its key) (AUD-05, ADR-011)
+- [ ] `ModuleVersion.storageBackend` (`instance` | `byob`) so purge knows where each bundle lives
+- [ ] `TenantExport` model: `scope`, `scopeId`, `status`, `requestedBy`, `storagePath?`, `expiresAt`, `error?`
+- [ ] `OwnershipTransfer` model: `scope`, `scopeId`, `fromUserId`, `toUserId`, `expiresAt`, `acceptedAt?`, `cancelledAt?`
+
+#### Registry
+
+- [ ] `DELETE /api/workspaces/:ws?confirm=<slug>` for owners of standalone workspaces (TLC-01)
+- [ ] Soft delete in `services/workspaces.ts` for every delete path (owner, org admin, instance admin): set `deletedAt`/`purgeAfter`, refuse writes (`410 WORKSPACE_DELETED`), manifests `410 Gone`, slug reserved; `HARMONIQ_TENANT_RESTORE_DAYS=0` purges at once (TLC-02)
+- [ ] `POST /api/workspaces/:ws/restore`, `POST /api/orgs/:org/restore`, `POST /api/admin/workspaces/:slug/restore`, `POST /api/admin/orgs/:slug/restore` (TLC-02)
+- [ ] pg-boss `tenant.purge` (hourly): for workspaces past `purgeAfter`, delete bundles (instance and BYOB), published manifest and import-map copies, cache keys, then the rows; idempotent; `instance.workspace_purged` audit (TLC-03)
+- [ ] Organization soft delete and purge; slug released after purge (TLC-03)
+- [ ] `POST /api/admin/orgs/:slug/suspend` / `unsuspend`; `requireWorkspace` and `requireOrg` refuse writes when the workspace's organization is suspended; org keys refused for writes (TLC-04)
+- [ ] Ownership transfer: `POST /api/workspaces/:ws/transfer`, `POST /api/orgs/:org/transfer`, `POST /api/transfers/:id/accept|cancel` (TLC-06)
+- [ ] Exports: `POST /api/workspaces/:ws/exports`, `POST /api/orgs/:org/exports`, `GET …/exports/:id` (signed download, 24 h); pg-boss `tenant.export` (TLC-07)
+- [ ] Instance setting `tenancy` (`creation: anyone | verified_domains | instance_admins`, allowed domains) enforced in `POST /api/orgs` and `POST /api/workspaces` (TLC-08)
+- [x] GC `gc.auditRetention` (daily): events of deleted workspaces older than `HARMONIQ_AUDIT_RETENTION_DAYS` are removed (AUD-05)
+- [x] `GET /api/admin/workspace-audit/:workspaceId/export`: a deleted workspace's audit log for instance admins (AUD-05)
+- [x] Until soft delete: `deleteWorkspace` collects bundle keys and published paths, deletes the rows, then the objects in the workspace's bucket and the instance storage (best effort, counted in the deletion's audit event) (TLC-03, gap analysis P0-3)
+- [ ] `@harmoniq/client`: treat a `410` manifest like `404` (fallback manifest, no retry storm); changeset
+
+#### Dashboard
+
+- [ ] Workspace settings danger zone: delete (type the slug), transfer ownership
+- [ ] Deleted-workspace page with restore (for those allowed) and the purge date
+- [ ] Org settings danger zone (with 9.4): delete, restore, transfer; exports list with download links
+- [ ] Admin panel: org suspend/unsuspend, workspace and org restore; `/admin/auth` creation policy
+
+#### Test Suite
+
+- [ ] Soft delete: writes 410, manifest 410, restore brings everything back, slug can't be taken while pending
+- [ ] Purge: instance and BYOB objects deleted (mock storage), published copies deleted, rows gone, audit rows kept; rerun is a no-op
+- [ ] Org suspension: workspace writes refused for members, org admins and org keys; manifests served
+- [ ] Transfer: accept, cancel, expiry, last-owner rules
+- [ ] Export: contents, permissions, expiry
+- [ ] Creation policy: each mode for org and workspace creation
+
+### 9.3 People & Invitations (M5.3)
+
+#### Database
+
+- [ ] `Invitation` model: `scope` (`organization` | `workspace`), `organizationId?`, `workspaceId?` (RLS on `workspaceId` / org RLS), `email`, `role`, `tokenHash` (unique), `invitedBy`, `expiresAt`, `acceptedAt?`, `revokedAt?`, `lastSentAt?`
+- [ ] Data migration: `WorkspaceMember` rows with `joinedAt = null` become `Invitation` rows (7-day expiry from migration time) and are deleted
+- [ ] `AccessRequest` model: `workspaceId`, `userId`, `role`, `message?`, `status`, `decidedBy?`, `decidedAt?`
+- [ ] `OrgRole` adds `org_billing`, `org_auditor` (PPL-08)
+
+#### Registry
+
+- [ ] `POST /api/workspaces/:ws/invitations`, `POST /api/orgs/:org/invitations` (replaces member creation for unknown users; `POST …/members` keeps working and creates an invitation), `GET`, `POST …/:id/resend`, `DELETE …/:id` (PPL-01)
+- [ ] Invitation email through `IMailer` with the instance branding; `GET /api/invitations/:token` and `POST /api/invitations/:token/accept` (signed-in user with the same verified email); first sign-in fallback when no mailer (PPL-02)
+- [x] `authService.login` accepts only invitations the new session can reach (`invitationScope.test.ts`): an SSO-scoped sign-in accepts invitations to its own workspace (or its organization's workspaces), not every pending one (PPL-02, gap analysis P1-9)
+- [ ] `GET /api/orgs/:org/people?query=&workspace=&role=&cursor=`: org members, workspace members of the org's workspaces, implicit org admins, SSO/SCIM source, last sign-in, keys created, pending invitations (PPL-03)
+- [ ] Workspace members response adds implicit org admins (`source: "org_admin"`, not removable there) (PPL-06)
+- [ ] `POST /api/workspaces/:ws/access-requests` (org members only), `GET`, `POST …/:id/approve|deny`; `access_request.created` webhook event (PPL-07)
+- [ ] `requireOrg` levels for `org_billing` and `org_auditor`; org audit and export open to `org_auditor`; SSO, provisioning and policy GETs open to `org_auditor` (PPL-08)
+
+#### Dashboard
+
+- [ ] Invitations section on workspace members and org People pages: pending list, resend, revoke, expiry
+- [ ] `/invite/:token` accept page
+- [ ] "Request access" on org home and catalog rows for workspaces the user isn't in; access requests queue for workspace admins
+
+#### Test Suite
+
+- [ ] Invitation lifecycle: create, email sent (ConsoleMailer), accept with matching email only, expired and revoked refused, resend rotates the token
+- [ ] Data migration of pending memberships
+- [ ] People directory: sources, filters, pagination, `org_member` can't read it
+- [ ] Access requests: only org members, approve creates the membership, deny audited
+- [ ] New org roles: allowed and refused endpoints for each
+
+### 9.4 Tenant Admin Dashboard (M5.4)
+
+#### Registry
+
+- [ ] Audit responses add `actor` (`{ type, id, label }`: email, or key name and prefix, or `deleted user #<hash>`) for workspace, org and instance logs (AUD-07)
+- [ ] Org audit filter by actor email; workspace audit gains the same filters as the org audit (AUD-08)
+- [ ] Org keys: `POST /api/orgs/:org/keys/:id/rotate` with grace period (`OrgApiKey.gracePeriodEnd`), `createdBy` in the list, `unused` flag (90 days) (TAD-05)
+- [ ] `GET /api/orgs/:org` paginated (`cursor`, `query`) with `suspended`, `frozenEnvironments` and `pendingApprovals` per workspace (TAD-06)
+- [ ] `GET /api/orgs/:org/modules?query=&workspace=&environment=&shared=&cursor=` and `GET …/modules/:id/consumers` (TAD-07)
+
+#### Dashboard
+
+- [ ] `/orgs/:org/settings` — rename, plan and features, verified domains, danger zone (TAD-01)
+- [ ] `/orgs/:org/people` — directory, invitations, access requests (TAD-04)
+- [ ] Org keys page: expiry, module scope picker, rotate, creator, unused warning (TAD-05)
+- [ ] Org home: search, pagination, delete workspace (slug confirmation), suspended and frozen badges, pending approvals panel (TAD-06)
+- [ ] Catalog: search, filters, pagination, consumers drawer (TAD-07)
+- [ ] Audit pages (org, workspace, instance): actor labels, actor and date filters, metadata drawer (AUD-07/08)
+- [ ] Shared app shell: org/workspace switcher, breadcrumbs, user menu (sessions, sign-out) in org, workspace and admin layouts (TAD-08)
+- [ ] `messages/en.json` and `messages/es.json` for every new string
+
+#### Test Suite
+
+- [ ] Registry: actor labels including erased users and keys; org key rotation grace period; paginated org home and catalog filters
+- [ ] Dashboard: pages render for `org_admin`, `org_member`, `org_auditor`, `org_billing` with the right controls (against a dev registry, as for M4.7)
+
+### 9.5 Organization Policy (M5.5)
+
+#### Database
+
+- [ ] `OrgPolicy` model (one per organization): `approvalDefaults` (Json: `[{ environmentPattern, requiredApprovers, eligibleRoles, requireChangeTicket, ticketUrlPattern, expiryHours }]`), `maxApiKeyDays?`, `allowedKeyScopes[]`, `minRetentionDays?`, `freezeWindows` (Json), `lockSso`, `sessionMaxHours?`, `idleTimeoutMinutes?`, `requireMfa`, `ipAllowlist[]`, `ipAllowlistManifests`, `updatedAt`, `updatedBy`; org RLS
+
+#### Registry
+
+- [ ] `GET/PUT /api/orgs/:org/policy` with field-level before/after audit (`org.policy_updated`) (POL-01)
+- [ ] `services/policy.ts`: effective policy (instance → org → workspace, strictest wins) with sources; `GET /api/workspaces/:ws/policy` (POL-09)
+- [ ] Approval gate: when no stricter workspace policy exists, apply the org default matching the environment slug; workspace `PUT …/approval-policy` rejects weaker policies (`409 POLICY_VIOLATION`) (POL-02, ORG-08)
+- [ ] Key creation and rotation (workspace and org): enforce `maxApiKeyDays` and `allowedKeyScopes`; `policyViolations` on key lists (POL-03)
+- [ ] `PATCH /api/workspaces/:ws` and `harmoniq.yaml` apply: refuse `retentionDays` below the floor (POL-04)
+- [ ] `isFrozen` includes org freeze windows by environment pattern; org admin override endpoint with ENV-FRZ-03 audit metadata (POL-05)
+- [ ] Workspace SSO save refused while `lockSso`; `effectiveSso` ignores workspace SSO when locked (POL-06)
+- [ ] Refresh: enforce `sessionMaxHours` / `idleTimeoutMinutes` for users whose memberships are in the org (most restrictive) (POL-07)
+- [ ] IP allowlist check in `requireWorkspace` / `requireOrg` (users and keys); manifest and health routes only when `ipAllowlistManifests`; honours `trustProxy` (POL-08)
+- [ ] GitOps: `harmoniq.yaml` plan shows policy violations before apply
+
+#### Dashboard
+
+- [ ] `/orgs/:org/policies`: sections per policy, effective values, workspaces stricter than the org (TAD-03)
+- [ ] Workspace settings show inherited values with their source and lock icons
+
+#### Test Suite
+
+- [ ] Policy resolution matrix (instance, org, workspace) for every field
+- [ ] Approval defaults applied to a workspace with no policy; weaker workspace policy refused; GitOps path
+- [ ] Key policy on create and rotate for workspace and org keys
+- [ ] Org freeze on matching environments only; override audited
+- [ ] Locked SSO; session lifetime and idle timeout at refresh; IP allowlist with and without proxies
+
+### 9.6 Usage, Quotas & Plans (M5.6)
+
+#### Database
+
+- [ ] `UsageDaily` model: `workspaceId`, `day`, `manifestRequests` (BigInt), `deploys`, `healthEvents`, `storageBytes` (BigInt), `members`, `apiKeys`; `@@id([workspaceId, day])`; RLS (USG-01)
+- [ ] `ModuleVersion.sizeBytes BigInt?` (USG-02)
+- [ ] `WorkspaceConfig` / `Organization`: `planOverrides Json?`, `planExpiresAt DateTime?`, `basePlan String?` (PLN-06)
+
+#### Registry
+
+- [ ] `services/usage.ts`: per-replica counters flushed every 60 s with `INSERT … ON CONFLICT DO UPDATE SET x = x + excluded.x` (ADR-012); manifest route counts every request including 304s and cache hits (USG-01)
+- [ ] Deploy records `sizeBytes` from the upload (or a `HEAD` of the URL, best effort); nightly `usage.snapshot` job sums storage, members and keys (USG-02)
+- [ ] `Quotas` service next to `Plans`: `HARMONIQ_PLAN_LIMITS`, overrides, `require(workspace, quota, delta)`; called by workspace, member/invitation, module, environment, webhook creation and deploy (monthly) routes; `402 QUOTA_EXCEEDED` (PLN-04/05)
+- [ ] `GET /api/orgs/:org/usage`, `GET /api/workspaces/:ws/usage`, `GET /api/admin/usage` (JSON and CSV) (USG-03)
+- [ ] Instance admin: `PUT /api/admin/{workspaces,orgs}/:slug/plan` accepts `overrides` and `expiresAt`; pg-boss `plans.expire` (hourly) (PLN-06)
+- [ ] `plan.changed`, `quota.warning` (80%), `quota.exceeded` events (USG-04)
+- [ ] Management, deploy and health-ingest rate limits keyed by workspace or org key with plan tiers (`HARMONIQ_API_RATE_LIMIT*`) (MT-12)
+- [ ] `/api/admin/workspaces` returns `storageBytes` (INST-09)
+
+#### Dashboard
+
+- [ ] `/orgs/:org/usage` and workspace settings usage card: usage vs quota bars, 30/90-day trends, CSV (TAD-02)
+- [ ] Quota warnings in the shell at 80%; `QUOTA_EXCEEDED` errors explain the limit
+- [ ] Admin panel: usage page, storage column, plan overrides and expiry form
+
+#### Test Suite
+
+- [ ] Counter flush correctness under concurrency; manifest 304s counted
+- [ ] Every quota on its route, with enforcement off (unlimited) and on; overrides; expiry downgrade job
+- [ ] Usage API permissions (`org_billing` can read; `org_member` can't)
+- [ ] Per-tenant rate limits keyed correctly for workspace and org keys
+
+### 9.7 Identity & Session Security (M5.7)
+
+#### Database
+
+- [ ] `User`: `suspendedAt?`, `suspendedReason?`, `mfaSecretSealed?`, `mfaEnabledAt?`, `mfaRecoveryCodes String[]` (hashed)
+- [ ] `RefreshToken`: `lastUsedAt`, `userAgent?`, `ip?` (session list)
+
+#### Registry
+
+- [ ] Instance setting `auth.session` (`maxDays`, `idleMinutes`) replacing `REFRESH_TOKEN_TTL_MS` (SES-01)
+- [ ] `GET /api/me/sessions`, `DELETE /api/me/sessions/:id`, `DELETE /api/me/sessions` (SES-02)
+- [ ] TOTP: `POST /api/me/mfa/setup`, `POST /api/me/mfa/enable`, `DELETE /api/me/mfa`, recovery codes; second step after email or GitHub sign-in; `requireMfa` from org policy (SES-03)
+- [ ] `POST /api/admin/users/:id/suspend` / `unsuspend`: refuse sign-in and refresh, reject access tokens (checked in `resolveSession`, which already loads the user), keys created by the user refused (SES-04)
+
+#### Dashboard
+
+- [ ] Account page: sessions, MFA setup with QR code and recovery codes
+- [ ] Admin users page: suspend and unsuspend, suspended badge
+
+#### Test Suite
+
+- [ ] Session lifetime and idle timeout; org policy shortens only
+- [ ] Session list and revocation scoped to the user
+- [ ] TOTP enrolment, verification window, recovery code single use, `requireMfa` enforcement, SSO sign-ins exempt
+- [ ] Suspension: sign-in, refresh, live access token and created keys all refused; unsuspend restores
+
+### 9.8 Audit Streaming & Notifications (M5.8)
+
+#### Database
+
+- [ ] `AuditSink` model: `organizationId`, `kind` (`https` | `s3`), `config` (sealed), `cursorAt`, `cursorId`, `lastError?`, `enabled`
+- [ ] `AuditEvent`, `OrganizationAuditEvent`, `InstanceAuditEvent`: `prevHash`, `hash` (AUD-09)
+- [ ] `OrgWebhookEndpoint` / `OrgWebhookDelivery` (or `WebhookEndpoint.organizationId` with the one-scope check used for SCIM rows); `NotificationChannel` model: `organizationId`, `kind` (`email` | `slack` | `teams`), `target`, `events[]`
+
+#### Registry
+
+- [ ] `GET/POST/PATCH/DELETE /api/orgs/:org/audit-sinks`, `POST …/:id/test`; pg-boss `audit.stream` (every minute) reading by keyset cursor, HMAC-signed batches, S3 hourly objects, retries and dead letters (AUD-06)
+- [ ] Hash chain computed on insert per scope (advisory lock per scope); `GET …/audit/verify` and chain fields in exports (AUD-09)
+- [ ] Org webhooks with the WHK delivery engine and events `org.member.*`, `org.workspace.*`, `org.key.*`, `org.policy.updated`, `quota.*` (TAD-10)
+- [ ] Notification dispatcher: email via `IMailer`, Slack and Teams incoming webhooks through the outbound guard (TAD-09)
+
+#### Dashboard
+
+- [ ] Org settings: audit sinks (status, last delivery, test), webhooks, notification channels
+
+#### Test Suite
+
+- [ ] Streaming: at-least-once with a failing sink, cursor resume, S3 object layout, HMAC
+- [ ] Hash chain: tamper detection in verify, concurrent inserts keep a single chain
+- [ ] Org webhooks and notifications for each event type
+
+### 9.9 Operator Security & Automation (M5.9)
+
+#### Database
+
+- [ ] `InstanceAdmin.role` (`instance_owner` | `instance_operator` | `instance_support` | `instance_billing`; existing grants become `instance_owner`); `InstanceAdminInvitation` (email, role, token hash, expiry) (INST-31)
+- [ ] `InstanceApiKey`: `name`, `keyHash`, `prefix`, `scopes[]`, `expiresAt?`, `lastUsedAt?`, `createdBy`, `revokedAt?` (INST-33)
+- [ ] `InstanceConfigVersion`: `key`, `version`, `value` (sealed), `createdAt`, `createdBy` (INST-35)
+- [ ] Sealed envelopes gain `kid`; existing values read as the legacy key (INST-26)
+
+#### Registry
+
+- [ ] Keyring: `HARMONIQ_ENCRYPTION_KEYS=id:base64,…` (first is active; `HARMONIQ_ENCRYPTION_KEY` stays as the single-key form); `encryptJson` / `sealSecret` write `kid`; decryption picks the key by `kid` (INST-26)
+- [ ] pg-boss `secrets.reseal` (on demand from the CLI and the admin panel): re-seals `WorkspaceConfig`, `Organization`, `WorkspaceStorageConfig`, `InstanceConfig`, `RefreshToken.ssoRefreshToken`; health reports values on non-active keys (INST-26)
+- [ ] `requireInstanceAdmin(capability)` with a role → capability map; every `/api/admin` route declares its capability; `POST /api/admin/admins` accepts `role` and invites unknown emails (INST-31)
+- [ ] Step-up: `POST /api/auth/reauth` issues a short-lived `reauth_at` claim; destructive admin routes require it within 10 minutes (`403 REAUTH_REQUIRED`); admin session cap (`auth.session.adminMaxHours`); optional `HARMONIQ_ADMIN_IP_ALLOWLIST` (INST-32)
+- [ ] Instance API keys: `GET/POST/DELETE /api/admin/api-keys`; `hq_inst_` parsing in `authenticate.ts`; `instance:read` for GET admin routes, `instance:admin` for the rest; never accepted by `requireWorkspace` / `requireOrg` (INST-33)
+- [ ] Settings keys `plans`, `rateLimits`, `gc`, `bundles`, `tenancy`, `session`, `health` in `InstanceSettingsSchemas`, read through `InstanceSettings` by `Plans`, the rate limiter and GC jobs with env fallback (INST-34)
+- [ ] Settings versions on every save; `GET /api/admin/settings/:key/history`, `POST …/history/:version/restore`; `GET /api/admin/settings/export` and `PUT /api/admin/settings/import` (YAML, secrets excluded, dry-run diff) (INST-35)
+- [ ] Terraform provider: `harmoniq_instance_setting`, `harmoniq_instance_admin`, plan resources (with instance keys)
+
+#### Dashboard
+
+- [ ] `/admin/admins`: role picker, pending invitations, role badges; navigation hides what the role can't do
+- [ ] Re-authentication dialog before destructive actions
+- [ ] `/admin/api-keys` page; `/admin/settings` pages for the new keys with source badges (database or environment); history drawer with diff and restore; export and import
+- [ ] Encryption page: active key id, values per key, "re-seal now"
+
+#### Test Suite
+
+- [ ] Keyring: decrypt legacy and new envelopes, rotate, re-seal job idempotent, unknown `kid` fails closed
+- [ ] Role → capability matrix over every `/api/admin` route
+- [ ] Step-up window, admin session cap, IP allowlist with `trustProxy`
+- [ ] Instance keys: scopes, expiry, revocation, refused on workspace and org routes
+- [ ] New settings take effect without restart and on other replicas (as `instanceSettings.test.ts`); history, restore and import dry-run
+
+### 9.10 System Admin Dashboard & Operations (M5.10)
+
+#### Database
+
+- [ ] `SupportGrant`: `adminUserId`, `organizationId?` / `workspaceId?`, `reason`, `expiresAt`, `revokedAt?` (INST-20)
+- [ ] `ReplicaHeartbeat`: `replicaId`, `version`, `commit`, `startedAt`, `lastSeenAt`, `configLoadedAt` (INST-28)
+- [ ] `SignInEvent`: `userId?`, `email`, `method`, `success`, `reason?`, `ip`, `createdAt` (90-day GC) (INST-39)
+- [ ] `EmailDelivery`: `to`, `template`, `status`, `error?`, `createdAt` (30-day GC); `InstanceConfig` keys `announcement`, `maintenance`, `emailTemplates` (INST-22, INST-37, INST-38)
+
+#### Registry
+
+- [ ] `GET /api/admin/orgs?query=&cursor=`, `GET /api/admin/orgs/:slug` (workspaces, members, plan, usage, SSO and domains), with the 9.2 actions (INST-19)
+- [ ] `POST /api/admin/support-grants`, `DELETE …/:id`; `requireWorkspace` / `requireOrg` admit an active grant read-only; events in both audit logs; `GET /api/workspaces/:ws` reports active grants (INST-20)
+- [ ] `/api/admin/users` adds org memberships and suspension; CSV export for users and workspaces (INST-21)
+- [ ] `PUT /api/admin/settings/announcement`; `GET /api/instance` returns the active announcement (INST-22)
+- [ ] `GET /api/admin/overview`: 30-day trends from `UsageDaily` and counts, and the attention list (publish errors, dead letters, failed jobs, `WorkspaceStorageConfig` verification failures, SAML certificates expiring, alert rules with `lastError`, quota breaches, failing domains) (INST-27)
+- [ ] Replica heartbeat every 30 s; `GET /api/admin/health` adds version, commit, pending migrations (`_prisma_migrations` vs. the bundled list), replicas; `GET /api/admin/jobs` (schedules, last run, last success and failure per queue), `GET /api/admin/jobs/failed`, `POST /api/admin/jobs/:id/retry`, `POST /api/admin/jobs/:queue/run` for maintenance queues (INST-28)
+- [ ] `GET /api/admin/workspaces/:slug` detail; list `status`, `plan`, `org`, `inactiveDays`, `sort` parameters (INST-29)
+- [ ] `GET /api/admin/users/:id` detail with identities, memberships, sessions (`DELETE …/sessions/:id`), keys and activity; list filters; `POST /api/admin/users/:id/email` (verification email) and `POST /api/admin/users/:id/merge` (moves identities, memberships, keys; audited) (INST-30)
+- [ ] `GET /api/admin/audit` filters (`action`, `actor`, `resource`, `from`, `to`) and actor labels; `GET /api/admin/audit/search?actor=` across workspace, org and instance logs, audited (INST-36)
+- [ ] Maintenance mode: `PUT /api/admin/settings/maintenance` (`from`, `until`, `message`); writes `503 MAINTENANCE` with `Retry-After`, manifests and health served (INST-37)
+- [ ] Mailer decorator recording `EmailDelivery`; per-template subject and intro overrides (INST-38)
+- [ ] `SignInEvent` written by every sign-in path; `GET /api/admin/security` (failed sign-ins by IP and email, rate-limited tenants from the limiter, revoked/expired key attempts, SCIM errors) (INST-39)
+
+#### Dashboard
+
+- [ ] `/admin` overview: trend charts, attention list, recent instance audit (INST-27)
+- [ ] `/admin/health`: system info, replicas, migrations; `/admin/jobs`: schedules, failed jobs with retry, run now (INST-28)
+- [ ] `/admin/workspaces/:slug` and `/admin/users/:id` detail pages; filters and sorting on both lists; delete and merge move to the detail pages (INST-29, INST-30)
+- [ ] `/admin/orgs` list with search and pagination, `/admin/orgs/:slug` detail with suspend, delete and restore (INST-19)
+- [ ] Support-grant dialog; tenant banner while a grant is active (INST-20)
+- [ ] Audit page filters, actor labels, metadata drawer, cross-tenant actor search (INST-36)
+- [ ] Announcement and maintenance editor; global banner (INST-22, INST-37)
+- [ ] `/admin/email`: delivery log and template overrides (INST-38); `/admin/security` (INST-39)
+- [ ] `messages/en.json` and `messages/es.json` for every new string
+
+#### Test Suite
+
+- [ ] Org admin pages and API permissions per admin role
+- [ ] Support grant: read-only, expiry, revocation, visible to tenant, audited in both logs
+- [ ] Overview attention items, one fixture per item type
+- [ ] Jobs: failed job listed and retried, run-now limited to maintenance queues
+- [ ] Replica heartbeats and pending-migration detection
+- [ ] User email change and merge (identities, memberships, keys, sessions), audited
+- [ ] Audit filters and cross-tenant search permissions
+- [ ] Maintenance mode: writes 503, reads and manifests served, scheduled start and end
+- [ ] Email delivery log and template overrides; sign-in events and security page aggregates
+- [ ] CSV exports; announcement scheduling
+
+### Deliverables
+
+- No known cross-tenant, offboarding or data-retention defects (9.1, 9.2)
+- Organizations administered end to end from `/orgs/:org` without instance-admin help
+- Organization policies enforced across every workspace, including approval defaults (ORG-08)
+- Usage metering and numeric plan quotas for hosted offerings
+- MFA, session policies and audit streaming for security reviews
+- A system admin panel that shows what needs attention, runs and retries jobs, rotates secrets, delegates by role, supports automation, and can't lock its admins out
+- Feature doc [`tenant-administration.md`](./features/tenant-administration.md) updated per sub-phase; `docs/openapi.json`, `api-reference.md`, `database-schema.md`, Terraform provider docs and `self-hosting.md` (new environment variables) updated with each PR
