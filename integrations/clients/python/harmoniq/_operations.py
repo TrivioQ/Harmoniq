@@ -239,6 +239,10 @@ class Client(BaseClient):
         """GET /api/admin/orgs/{slug}/plan (Instance administration)."""
         return self.request("GET", "/api/admin/orgs/" + _q(slug) + "/plan", None, query)
 
+    def get_admin_overview(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/overview (Instance administration)."""
+        return self.request("GET", "/api/admin/overview", None, query)
+
     def get_admin_settings(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/settings (Instance administration)."""
         return self.request("GET", "/api/admin/settings", None, query)

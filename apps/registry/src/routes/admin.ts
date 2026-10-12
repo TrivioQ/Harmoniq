@@ -3,6 +3,7 @@
 
 /* eslint-disable no-restricted-syntax -- MT-09: instance administration spans every tenant (INST-05) */
 
+import { attention, trends } from '../services/overview';
 import { SUPPORT_GRANT_MAX_HOURS, auditInTenant } from '../services/supportGrants';
 import {
   MAINTENANCE_QUEUES,
@@ -274,6 +275,35 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       encryptionSummary(),
     ]);
     return { ...health, stats: { workspaces, modules, users }, encryption: keys };
+  });
+
+  // ─── Overview (INST-27) ───────────────────────────────────────────────────
+
+  /** The admin home: counts, 30-day trends, what needs attention, recent changes. */
+  fastify.get('/api/admin/overview', admin, async () => {
+    const [workspaces, organizations, users, modules, series, items, events] = await Promise.all([
+      systemDb.workspace.count({ where: { deletedAt: null } }),
+      systemDb.organization.count({ where: { deletedAt: null } }),
+      systemDb.user.count(),
+      systemDb.remoteModule.count(),
+      trends(systemDb),
+      attention(systemDb),
+      systemDb.instanceAuditEvent.findMany({ orderBy: { createdAt: 'desc' }, take: 10 }),
+    ]);
+    const actors = await resolveActors(systemDb, events);
+    return {
+      counts: { workspaces, organizations, users, modules },
+      trends: series,
+      attention: items,
+      recentAudit: events.map((e) => ({
+        id: e.id,
+        action: e.action,
+        actor: actorOf(actors, e),
+        resourceType: e.resourceType,
+        resourceId: e.resourceId,
+        createdAt: e.createdAt.toISOString(),
+      })),
+    };
   });
 
   // ─── Support access (INST-20) ─────────────────────────────────────────────

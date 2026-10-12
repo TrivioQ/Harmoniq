@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { purgeOperationalLogs } from '../services/operations';
+import { verifyTenantStorage } from '../services/overview';
 import { rollUpHealth } from '../services/health';
 import { FastifyInstance } from 'fastify';
 import { PrismaClient } from '@prisma/client';
@@ -342,6 +343,14 @@ export async function registerGcJobs(fastify: FastifyInstance) {
     logger.info(
       `ops.retention: ${purged.emails} email(s), ${purged.signIns} sign-in event(s) purged`
     );
+  });
+
+  // INST-27: tenant buckets that stopped working show on the admin home - Daily
+  await boss.createQueue('storage.verify');
+  await boss.schedule('storage.verify', '10 4 * * *');
+  boss.work('storage.verify', async () => {
+    const result = await verifyTenantStorage(db, fastify.config.encryptionKey);
+    logger.info(`storage.verify: ${result.checked} bucket(s), ${result.failed} failing`);
   });
 
   // 5. Orphan Scan - Weekly

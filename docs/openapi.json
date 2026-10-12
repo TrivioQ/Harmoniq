@@ -7644,6 +7644,21 @@
         }
       }
     },
+    "/api/admin/overview": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/admin/support-grants": {
       "get": {
         "tags": ["Instance administration"],

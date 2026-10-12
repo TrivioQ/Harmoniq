@@ -842,6 +842,9 @@ model WorkspaceStorageConfig {
   pathPrefix           String?
   /// BYOB-04/05: the last successful write-read-delete check.
   lastVerifiedAt       DateTime?
+  /// INST-27: the last failed verification (daily check or test), cleared by a success.
+  lastVerifyError      String?
+  lastVerifyFailedAt   DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
   workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

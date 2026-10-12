@@ -115,6 +115,7 @@ export const MAINTENANCE_QUEUES = [
   'usage.snapshot',
   'plans.expire',
   'ops.retention',
+  'storage.verify',
   DOMAINS_RECHECK_QUEUE,
 ] as const;
 

@@ -15,6 +15,7 @@ import { audit } from '../services/audit';
 import { checkPublicUrl } from '../services/bundleValidator';
 import { decryptJson, encryptJson, isEncryptedValue, maskSecret } from '../services/crypto';
 import { probeStorage } from '../services/instanceHealth';
+import { recordStorageCheck } from '../services/overview';
 
 type Params = { workspaceSlug: string };
 
@@ -181,14 +182,8 @@ const workspaceRoutes: FastifyPluginAsync = async (fastify) => {
         pathPrefix: existing.pathPrefix ?? undefined,
         credentials: credentialsOf(existing),
       });
-      if (check.ok) {
-        await withTenant(workspace.id, (tx) =>
-          tx.workspaceStorageConfig.update({
-            where: { workspaceId: workspace.id },
-            data: { lastVerifiedAt: new Date() },
-          })
-        );
-      }
+      // INST-27: a failure stays visible to instance admins until a check succeeds.
+      await withTenant(workspace.id, (tx) => recordStorageCheck(tx, workspace.id, check));
       return check;
     }
     const body = WorkspaceStorageConfigSchema.parse(request.body);

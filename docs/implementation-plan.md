@@ -1051,7 +1051,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] `POST /api/admin/support-grants`, `DELETE …/:id`; `requireWorkspace` / `requireOrg` admit an active grant read-only; events in both audit logs; `GET /api/workspaces/:ws` reports active grants (INST-20) (`GET /api/orgs/:org` too; a new `support` capability for owners, operators and support; `403 SUPPORT_READ_ONLY` for changes)
 - [x] `/api/admin/users` adds org memberships and suspension; CSV export for users and workspaces (INST-21)
 - [x] `PUT /api/admin/settings/announcement`; `GET /api/instance` returns the active announcement (INST-22) (`level`, `startsAt`, `endsAt`)
-- [ ] `GET /api/admin/overview`: 30-day trends from `UsageDaily` and counts, and the attention list (publish errors, dead letters, failed jobs, `WorkspaceStorageConfig` verification failures, SAML certificates expiring, alert rules with `lastError`, quota breaches, failing domains) (INST-27)
+- [x] `GET /api/admin/overview`: 30-day trends from `UsageDaily` and counts, and the attention list (publish errors, dead letters, failed jobs, `WorkspaceStorageConfig` verification failures, SAML certificates expiring, alert rules with `lastError`, quota breaches, failing domains) (INST-27) (a daily `storage.verify` job and the BYOB test record `lastVerifyError`; active users are distinct users whose session was refreshed that day)
 - [x] Replica heartbeat every 30 s; `GET /api/admin/health` adds version, commit, pending migrations (`_prisma_migrations` vs. the bundled list), replicas; `GET /api/admin/jobs` (schedules, last run, last success and failure per queue), `GET /api/admin/jobs/failed`, `POST /api/admin/jobs/:id/retry`, `POST /api/admin/jobs/:queue/run` for maintenance queues (INST-28) (build, migrations and replicas at `GET /api/admin/system`; the daily `ops.retention` job purges the email and sign-in logs)
 - [x] `GET /api/admin/workspaces/:slug` detail; list `status`, `plan`, `org`, `inactiveDays`, `sort` parameters (INST-29)
 - [x] `GET /api/admin/users/:id` detail with identities, memberships, sessions (`DELETE …/sessions/:id`), keys and activity; list filters; `POST /api/admin/users/:id/email` (verification email) and `POST /api/admin/users/:id/merge` (moves identities, memberships, keys; audited) (INST-30) (the email change waits for the new address to confirm: `POST /api/auth/email-change`)
@@ -1076,7 +1076,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 - [ ] Org admin pages and API permissions per admin role
 - [x] Support grant: read-only, expiry, revocation, visible to tenant, audited in both logs
-- [ ] Overview attention items, one fixture per item type
+- [x] Overview attention items, one fixture per item type
 - [x] Jobs: failed job listed and retried, run-now limited to maintenance queues
 - [x] Replica heartbeats and pending-migration detection
 - [x] User email change and merge (identities, memberships, keys, sessions), audited

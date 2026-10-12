@@ -295,6 +295,11 @@ func (c *Client) GetAdminOrgsPlan(ctx context.Context, slug string, query url.Va
 	return c.Do(ctx, "GET", "/api/admin/orgs/"+url.PathEscape(slug)+"/plan", nil, query)
 }
 
+// GetAdminOverview calls GET /api/admin/overview (Instance administration).
+func (c *Client) GetAdminOverview(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/overview", nil, query)
+}
+
 // GetAdminSettings calls GET /api/admin/settings (Instance administration).
 func (c *Client) GetAdminSettings(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/settings", nil, query)
