@@ -69,6 +69,8 @@ export const CreateAuditSinkSchema = z.discriminatedUnion('kind', [
     kind: z.literal('https'),
     name: z.string().min(1).max(100),
     url: z.string().url().max(2048),
+    /** Send the existing history too (default: from now on). */
+    backfill: z.boolean().default(false),
   }),
   z.object({
     kind: z.literal('s3'),
@@ -79,6 +81,7 @@ export const CreateAuditSinkSchema = z.discriminatedUnion('kind', [
     prefix: z.string().max(200).optional(),
     accessKeyId: z.string().min(1).max(256),
     secretAccessKey: z.string().min(1).max(512),
+    backfill: z.boolean().default(false),
   }),
 ]);
 export const UpdateAuditSinkSchema = z.object({

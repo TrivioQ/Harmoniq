@@ -979,13 +979,13 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Database
 
-- [ ] `AuditSink` model: `organizationId`, `kind` (`https` | `s3`), `config` (sealed), `cursorAt`, `cursorId`, `lastError?`, `enabled`
+- [x] `AuditSink` model: `organizationId`, `kind` (`https` | `s3`), `name`, `config` (sealed), `cursorAt`, `cursorId`, `failures`, `lastError?`, `lastDeliveredAt`, `enabled`; `AuditSinkDeadLetter`
 - [x] `AuditEvent`, `OrganizationAuditEvent`, `InstanceAuditEvent`: `chainSeq`, `prevHash`, `hash`, set by the `harmoniq_audit_chain` trigger; existing rows backfilled (AUD-09)
 - [x] `OrgWebhookEndpoint`, `OrgWebhookDelivery`, `OrgWebhookDeadLetter` (org RLS; delivered by the WHK engine through a table adapter); `NotificationChannel`: `organizationId`, `kind` (`email` | `slack` | `teams`), `name`, `target` (incoming-webhook URLs sealed), `events[]`, `lastSentAt`, `lastError`
 
 #### Registry
 
-- [ ] `GET/POST/PATCH/DELETE /api/orgs/:org/audit-sinks`, `POST …/:id/test`; pg-boss `audit.stream` (every minute) reading by keyset cursor, HMAC-signed batches, S3 hourly objects, retries and dead letters (AUD-06)
+- [x] `GET/POST/PATCH/DELETE /api/orgs/:org/audit-sinks`, `POST …/:id/test`, dead letters and resend; pg-boss `audit.stream` (every minute) reading by keyset cursor, batches of 500 (HMAC-signed for HTTPS), S3 objects per hour named by their first event, resent until accepted, dead-lettered after 10 failures; new sinks start from now unless `backfill` (AUD-06)
 - [x] Hash chain computed on insert per scope in a database trigger (advisory lock per scope, so every insert path is covered); `GET …/audit/verify` for workspaces, organizations and the instance; chain fields in exports; `services/auditChain.ts` recomputes hashes outside the database (AUD-09)
 - [x] Org webhooks with the WHK delivery engine (`org-webhook.deliver`) and events `org.member.*`, `org.workspace.*`, `org.key.*`, `org.policy.updated`, `quota.*`, `plan.changed`; org route events are sent only once the request succeeds (TAD-10)
 - [x] Notification dispatcher (`notify.send`, retried): email via `IMailer`, Slack and Teams incoming webhooks through the outbound guard; also `deploy.approval_requested` and `domain.verification_lost`; a test message per channel (TAD-09)
@@ -996,7 +996,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Test Suite
 
-- [ ] Streaming: at-least-once with a failing sink, cursor resume, S3 object layout, HMAC
+- [x] Streaming: at-least-once with a failing sink, cursor resume, S3 object layout, HMAC
 - [x] Hash chain: tamper detection in verify, concurrent inserts keep a single chain
 - [x] Org webhooks and notifications for each event type
 

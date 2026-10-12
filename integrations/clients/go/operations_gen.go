@@ -55,6 +55,11 @@ func (c *Client) DeleteMeSessionsById(ctx context.Context, id string, query url.
 	return c.Do(ctx, "DELETE", "/api/me/sessions/"+url.PathEscape(id), nil, query)
 }
 
+// DeleteOrgsAuditSinksById calls DELETE /api/orgs/{orgSlug}/audit-sinks/{id} (Organizations).
+func (c *Client) DeleteOrgsAuditSinksById(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit-sinks/"+url.PathEscape(id), nil, query)
+}
+
 // DeleteOrgsByOrgSlug calls DELETE /api/orgs/{orgSlug} (Organizations).
 func (c *Client) DeleteOrgsByOrgSlug(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/orgs/"+url.PathEscape(orgSlug), nil, query)
@@ -343,6 +348,16 @@ func (c *Client) GetOrgsAudit(ctx context.Context, orgSlug string, query url.Val
 // GetOrgsAuditExport calls GET /api/orgs/{orgSlug}/audit/export (Organizations).
 func (c *Client) GetOrgsAuditExport(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit/export", nil, query)
+}
+
+// GetOrgsAuditSinks calls GET /api/orgs/{orgSlug}/audit-sinks (Organizations).
+func (c *Client) GetOrgsAuditSinks(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit-sinks", nil, query)
+}
+
+// GetOrgsAuditSinksDeadLetters calls GET /api/orgs/{orgSlug}/audit-sinks/{id}/dead-letters (Organizations).
+func (c *Client) GetOrgsAuditSinksDeadLetters(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit-sinks/"+url.PathEscape(id)+"/dead-letters", nil, query)
 }
 
 // GetOrgsAuditVerify calls GET /api/orgs/{orgSlug}/audit/verify (Organizations).
@@ -645,6 +660,11 @@ func (c *Client) GetWorkspacesWebhooksDeliveries(ctx context.Context, workspaceS
 	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/webhooks/"+url.PathEscape(endpointId)+"/deliveries", nil, query)
 }
 
+// PatchOrgsAuditSinksById calls PATCH /api/orgs/{orgSlug}/audit-sinks/{id} (Organizations).
+func (c *Client) PatchOrgsAuditSinksById(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "PATCH", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit-sinks/"+url.PathEscape(id), nil, query)
+}
+
 // PatchOrgsByOrgSlug calls PATCH /api/orgs/{orgSlug} (Organizations).
 func (c *Client) PatchOrgsByOrgSlug(ctx context.Context, orgSlug string, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "PATCH", "/api/orgs/"+url.PathEscape(orgSlug), body, query)
@@ -803,6 +823,21 @@ func (c *Client) PostMeMfaSetup(ctx context.Context, query url.Values) (*Respons
 // PostOrgs calls POST /api/orgs (Organizations).
 func (c *Client) PostOrgs(ctx context.Context, body any, query url.Values) (*Response, error) {
 	return c.Do(ctx, "POST", "/api/orgs", body, query)
+}
+
+// PostOrgsAuditSinks calls POST /api/orgs/{orgSlug}/audit-sinks (Organizations).
+func (c *Client) PostOrgsAuditSinks(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit-sinks", nil, query)
+}
+
+// PostOrgsAuditSinksDeadLettersRetry calls POST /api/orgs/{orgSlug}/audit-sinks/{id}/dead-letters/{letterId}/retry (Organizations).
+func (c *Client) PostOrgsAuditSinksDeadLettersRetry(ctx context.Context, orgSlug string, id string, letterId string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit-sinks/"+url.PathEscape(id)+"/dead-letters/"+url.PathEscape(letterId)+"/retry", nil, query)
+}
+
+// PostOrgsAuditSinksTest calls POST /api/orgs/{orgSlug}/audit-sinks/{id}/test (Organizations).
+func (c *Client) PostOrgsAuditSinksTest(ctx context.Context, orgSlug string, id string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "POST", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit-sinks/"+url.PathEscape(id)+"/test", nil, query)
 }
 
 // PostOrgsDomains calls POST /api/orgs/{orgSlug}/domains (Organizations).

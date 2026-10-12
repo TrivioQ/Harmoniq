@@ -48,6 +48,7 @@ import { orgSsoRoutes } from './orgSso';
 import { orgDomainRoutes } from './domains';
 import { orgPolicyRoutes } from './policy';
 import { orgEventRoutes } from './orgEvents';
+import { orgAuditSinkRoutes } from './auditSinks';
 import type { OrgEventName } from '@harmoniq/core/dist/schemas/OrgEventsSchema';
 import {
   assertKeyPolicy,
@@ -1813,6 +1814,7 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   orgDomainRoutes(fastify, { admin, orgAudit });
   orgPolicyRoutes(fastify, { admin, reader: auditor, orgAudit });
   orgEventRoutes(fastify, { admin, orgAudit });
+  orgAuditSinkRoutes(fastify, { admin, orgAudit });
 
   // ─── Usage (USG-03, TAD-02) ───────────────────────────────────────────────
 

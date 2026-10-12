@@ -47,6 +47,10 @@ class Client(BaseClient):
         """DELETE /api/me/sessions/{id} (Service)."""
         return self.request("DELETE", "/api/me/sessions/" + _q(id), None, query)
 
+    def delete_orgs_audit_sinks_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/audit-sinks/{id} (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id), None, query)
+
     def delete_orgs_by_org_slug(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug} (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug), None, query)
@@ -278,6 +282,14 @@ class Client(BaseClient):
     def get_orgs_audit_export(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/audit/export (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/audit/export", None, query)
+
+    def get_orgs_audit_sinks(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/audit-sinks (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/audit-sinks", None, query)
+
+    def get_orgs_audit_sinks_dead_letters(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/audit-sinks/{id}/dead-letters (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id) + "/dead-letters", None, query)
 
     def get_orgs_audit_verify(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/audit/verify (Organizations)."""
@@ -519,6 +531,10 @@ class Client(BaseClient):
         """GET /api/workspaces/{workspaceSlug}/webhooks/{endpointId}/deliveries (Webhooks)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/webhooks/" + _q(endpoint_id) + "/deliveries", None, query)
 
+    def patch_orgs_audit_sinks_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PATCH /api/orgs/{orgSlug}/audit-sinks/{id} (Organizations)."""
+        return self.request("PATCH", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id), None, query)
+
     def patch_orgs_by_org_slug(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PATCH /api/orgs/{orgSlug} (Organizations)."""
         return self.request("PATCH", "/api/orgs/" + _q(org_slug), body, query)
@@ -646,6 +662,18 @@ class Client(BaseClient):
     def post_orgs(self, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs (Organizations)."""
         return self.request("POST", "/api/orgs", body, query)
+
+    def post_orgs_audit_sinks(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/audit-sinks (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/audit-sinks", None, query)
+
+    def post_orgs_audit_sinks_dead_letters_retry(self, org_slug, id, letter_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/audit-sinks/{id}/dead-letters/{letterId}/retry (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id) + "/dead-letters/" + _q(letter_id) + "/retry", None, query)
+
+    def post_orgs_audit_sinks_test(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/audit-sinks/{id}/test (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id) + "/test", None, query)
 
     def post_orgs_domains(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/domains (Organizations)."""
