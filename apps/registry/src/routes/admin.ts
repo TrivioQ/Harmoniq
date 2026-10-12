@@ -41,6 +41,7 @@ import {
   sendExport,
 } from '../services/auditExport';
 import { recordPlanChange } from '../services/planChanges';
+import { verifyChain } from '../services/auditChain';
 import { reportDays, sendUsageCsv, usageTotals, workspaceUsage } from '../services/usageReport';
 import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
 
@@ -1002,6 +1003,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // ─── Instance audit log (INST-18) ─────────────────────────────────────────
 
+  /** AUD-09: checks the instance audit chain. */
+  fastify.get('/api/admin/audit/verify', admin, async () =>
+    verifyChain(systemDb, { kind: 'instance' })
+  );
+
   fastify.get<{ Querystring: { format?: string; action?: string; from?: string; to?: string } }>(
     '/api/admin/audit/export',
     admin,
@@ -1093,7 +1099,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     });
     const actors = await resolveActors(systemDb, events);
     return {
-      events: events.map((e) => ({ ...e, actor: actorOf(actors, e) })),
+      events: events.map((e) => ({
+        ...e,
+        chainSeq: e.chainSeq?.toString() ?? null,
+        actor: actorOf(actors, e),
+      })),
       nextCursor: nextCursor(events, PAGE),
     };
   });

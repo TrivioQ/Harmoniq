@@ -7,6 +7,7 @@ import { BadRequestError, NotFoundError } from '@harmoniq/core/dist/errors/AppEr
 import type { Manifest } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import { diffManifests } from '@harmoniq/core/dist/manifest/diff';
 import { audit } from '../services/audit';
+import { verifyChain } from '../services/auditChain';
 import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
 import {
   NEWEST_FIRST,
@@ -84,6 +85,18 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
         })),
         nextCursor: events.length > limit ? page[page.length - 1].id : null,
       };
+    }
+  );
+
+  /** AUD-09: checks the workspace's audit hash chain (admins). */
+  fastify.get<{ Params: WsParams }>(
+    '/api/workspaces/:workspaceSlug/audit/verify',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request) => {
+      const workspace = request.workspace!;
+      return withTenant(workspace.id, (tx) =>
+        verifyChain(tx, { kind: 'workspace', id: workspace.id })
+      );
     }
   );
 

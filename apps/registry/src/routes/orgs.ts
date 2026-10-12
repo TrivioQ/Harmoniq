@@ -25,6 +25,7 @@ import {
 import { formatOrgApiKey, generateApiKeySecret } from '../auth/apiKeys';
 import { ssoScope } from '../plugins/authenticate';
 import { audit } from '../services/audit';
+import { verifyChain } from '../services/auditChain';
 import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
 import { invalidateManifest } from '../services/cacheKeys';
 import { createWorkspace } from '../services/workspaces';
@@ -1266,6 +1267,35 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
         merged.length > limit && last ? `${last.createdAt.toISOString()}|${last.id}` : null,
     };
   });
+
+  /** AUD-09: checks the organization's chain and each of its workspaces'. */
+  fastify.get<{ Params: OrgParams }>(
+    '/api/orgs/:orgSlug/audit/verify',
+    auditor,
+    async (request) => {
+      const org = request.org!;
+      return inOrg(request, async (tx) => {
+        const organization = await verifyChain(tx, { kind: 'organization', id: org.id });
+        const workspaces = await tx.workspace.findMany({
+          where: { organizationId: org.id },
+          select: { id: true, slug: true },
+          orderBy: { slug: 'asc' },
+        });
+        const reports = [];
+        for (const w of workspaces) {
+          reports.push({
+            slug: w.slug,
+            ...(await verifyChain(tx, { kind: 'workspace', id: w.id })),
+          });
+        }
+        return {
+          ok: organization.ok && reports.every((r) => r.ok),
+          organization,
+          workspaces: reports,
+        };
+      });
+    }
+  );
 
   /** ORG-09: compliance export of the organization's audit log (workspaces and org). */
   fastify.get<{

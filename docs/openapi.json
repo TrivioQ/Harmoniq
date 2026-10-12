@@ -4286,6 +4286,31 @@
         }
       }
     },
+    "/api/orgs/{orgSlug}/audit/verify": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/orgs/{orgSlug}/audit/export": {
       "get": {
         "tags": ["Organizations"],
@@ -6214,6 +6239,31 @@
         }
       }
     },
+    "/api/workspaces/{workspaceSlug}/audit/verify": {
+      "get": {
+        "tags": ["Audit"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/workspaces/{workspaceSlug}/audit/export": {
       "get": {
         "tags": ["Audit"],
@@ -7811,6 +7861,21 @@
     },
     "/api/admin/settings/email/test": {
       "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/audit/verify": {
+      "get": {
         "tags": ["Instance administration"],
         "security": [
           {

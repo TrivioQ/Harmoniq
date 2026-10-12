@@ -383,9 +383,15 @@ model AuditEvent {
   resourceId   String
   metadata     Json?
   ip           String?
+  /// AUD-09: tamper evidence, set by a database trigger: the row's position in its scope's
+  /// chain, the previous row's hash, and sha256 of the previous hash and this row.
+  chainSeq     BigInt?
+  prevHash     String?
+  hash         String?
   createdAt    DateTime  @default(now())
 
   @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([workspaceId, chainSeq])
   @@index([workspaceId, actorId])
   @@index([workspaceId, action])
 }
@@ -762,9 +768,15 @@ model OrganizationAuditEvent {
   resourceId     String
   metadata       Json?
   ip             String?
+  /// AUD-09: tamper evidence, set by a database trigger: the row's position in its scope's
+  /// chain, the previous row's hash, and sha256 of the previous hash and this row.
+  chainSeq       BigInt?
+  prevHash       String?
+  hash           String?
   createdAt      DateTime  @default(now())
 
   @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, chainSeq])
 }
 
 model InstanceConfig {
@@ -785,9 +797,15 @@ model InstanceAuditEvent {
   resourceId   String
   metadata     Json?
   ip           String?
+  /// AUD-09: tamper evidence, set by a database trigger: the row's position in its scope's
+  /// chain, the previous row's hash, and sha256 of the previous hash and this row.
+  chainSeq     BigInt?
+  prevHash     String?
+  hash         String?
   createdAt    DateTime  @default(now())
 
   @@index([createdAt(sort: Desc)])
+  @@index([chainSeq])
 }
 
 model InstanceAdmin {

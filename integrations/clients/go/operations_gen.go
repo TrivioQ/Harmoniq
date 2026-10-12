@@ -210,6 +210,11 @@ func (c *Client) GetAdminAuditExport(ctx context.Context, query url.Values) (*Re
 	return c.Do(ctx, "GET", "/api/admin/audit/export", nil, query)
 }
 
+// GetAdminAuditVerify calls GET /api/admin/audit/verify (Instance administration).
+func (c *Client) GetAdminAuditVerify(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/audit/verify", nil, query)
+}
+
 // GetAdminDomains calls GET /api/admin/domains (Instance administration).
 func (c *Client) GetAdminDomains(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/domains", nil, query)
@@ -328,6 +333,11 @@ func (c *Client) GetOrgsAudit(ctx context.Context, orgSlug string, query url.Val
 // GetOrgsAuditExport calls GET /api/orgs/{orgSlug}/audit/export (Organizations).
 func (c *Client) GetOrgsAuditExport(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit/export", nil, query)
+}
+
+// GetOrgsAuditVerify calls GET /api/orgs/{orgSlug}/audit/verify (Organizations).
+func (c *Client) GetOrgsAuditVerify(ctx context.Context, orgSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/orgs/"+url.PathEscape(orgSlug)+"/audit/verify", nil, query)
 }
 
 // GetOrgsByOrgSlug calls GET /api/orgs/{orgSlug} (Organizations).
@@ -473,6 +483,11 @@ func (c *Client) GetWorkspacesAudit(ctx context.Context, workspaceSlug string, q
 // GetWorkspacesAuditExport calls GET /api/workspaces/{workspaceSlug}/audit/export (Audit).
 func (c *Client) GetWorkspacesAuditExport(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/audit/export", nil, query)
+}
+
+// GetWorkspacesAuditVerify calls GET /api/workspaces/{workspaceSlug}/audit/verify (Audit).
+func (c *Client) GetWorkspacesAuditVerify(ctx context.Context, workspaceSlug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/workspaces/"+url.PathEscape(workspaceSlug)+"/audit/verify", nil, query)
 }
 
 // GetWorkspacesByWorkspaceSlug calls GET /api/workspaces/{workspaceSlug} (Workspaces).

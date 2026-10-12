@@ -171,6 +171,10 @@ class Client(BaseClient):
         """GET /api/admin/audit/export (Instance administration)."""
         return self.request("GET", "/api/admin/audit/export", None, query)
 
+    def get_admin_audit_verify(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/audit/verify (Instance administration)."""
+        return self.request("GET", "/api/admin/audit/verify", None, query)
+
     def get_admin_domains(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/domains (Instance administration)."""
         return self.request("GET", "/api/admin/domains", None, query)
@@ -266,6 +270,10 @@ class Client(BaseClient):
     def get_orgs_audit_export(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/audit/export (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/audit/export", None, query)
+
+    def get_orgs_audit_verify(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/audit/verify (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/audit/verify", None, query)
 
     def get_orgs_by_org_slug(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug} (Organizations)."""
@@ -382,6 +390,10 @@ class Client(BaseClient):
     def get_workspaces_audit_export(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/audit/export (Audit)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/audit/export", None, query)
+
+    def get_workspaces_audit_verify(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/audit/verify (Audit)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/audit/verify", None, query)
 
     def get_workspaces_by_workspace_slug(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug} (Workspaces)."""

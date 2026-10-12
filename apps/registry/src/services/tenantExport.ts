@@ -140,6 +140,10 @@ export async function* workspaceRecords(
       resourceType: e.resourceType,
       resourceId: e.resourceId,
       metadata: e.metadata,
+      // AUD-09
+      chainSeq: e.chainSeq?.toString() ?? null,
+      prevHash: e.prevHash,
+      hash: e.hash,
     };
   }
 }
@@ -208,6 +212,10 @@ export async function* organizationRecords(
       resourceType: e.resourceType,
       resourceId: e.resourceId,
       metadata: e.metadata,
+      // AUD-09
+      chainSeq: e.chainSeq?.toString() ?? null,
+      prevHash: e.prevHash,
+      hash: e.hash,
     };
   }
   for (const workspace of head.workspaces) yield* workspaceRecords(scoped, workspace);

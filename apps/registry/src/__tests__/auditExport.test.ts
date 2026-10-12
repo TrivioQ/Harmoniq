@@ -66,7 +66,9 @@ describe('Audit export (M4.11)', () => {
       new RegExp(`attachment; filename="harmoniq-audit-${ws}-\\d{4}-\\d{2}-\\d{2}\\.csv"`)
     );
     const rows = csvRows(res.body);
-    expect(rows[0]).toBe('createdAt,actorType,actorId,action,resourceType,resourceId,ip,metadata');
+    expect(rows[0]).toBe(
+      'createdAt,actorType,actorId,action,resourceType,resourceId,ip,metadata,id,chainSeq,prevHash,hash'
+    );
     // Header, the export itself (recorded first, so newest), then every event.
     expect(rows).toHaveLength(1 + 1 + 1205);
     expect(rows[1]).toContain('audit.export');
@@ -132,7 +134,7 @@ describe('Audit export (M4.11)', () => {
     const res = await get(root, '/api/admin/audit/export');
     expect(res.statusCode).toBe(200);
     expect(csvRows(res.body)[0]).toBe(
-      'createdAt,actorType,actorId,action,resourceType,resourceId,ip,metadata'
+      'createdAt,actorType,actorId,action,resourceType,resourceId,ip,metadata,id,chainSeq,prevHash,hash'
     );
     expect((await get(admin, '/api/admin/audit/export')).statusCode).toBe(403);
   });

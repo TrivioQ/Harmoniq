@@ -19,6 +19,10 @@ export interface ExportRow {
   resourceId: string;
   ip?: string | null;
   metadata: unknown;
+  /** AUD-09: the row's place in its scope's hash chain. */
+  chainSeq?: bigint | null;
+  prevHash?: string | null;
+  hash?: string | null;
 }
 
 export type ExportFormat = 'csv' | 'jsonl';
@@ -103,6 +107,11 @@ const COLUMNS = [
   'resourceId',
   'ip',
   'metadata',
+  // AUD-09: enough to check the chain (see services/auditChain.ts).
+  'id',
+  'chainSeq',
+  'prevHash',
+  'hash',
 ] as const;
 
 /** RFC 4180 quoting; cells a spreadsheet would run as formulas are neutralized. */
@@ -132,11 +141,14 @@ export function sendExport(
         resourceId: row.resourceId,
         ip: row.ip ?? null,
         metadata: row.metadata ?? null,
+        id: row.id,
+        chainSeq: row.chainSeq === null || row.chainSeq === undefined ? null : String(row.chainSeq),
+        prevHash: row.prevHash ?? null,
+        hash: row.hash ?? null,
       };
       if (opts.format === 'jsonl') {
-        const { workspace, ...rest } = record;
-        yield JSON.stringify({ id: row.id, ...(opts.workspaceColumn && { workspace }), ...rest }) +
-          '\n';
+        const { workspace, id, ...rest } = record;
+        yield JSON.stringify({ id, ...(opts.workspaceColumn && { workspace }), ...rest }) + '\n';
       } else {
         yield columns
           .map((c) => csvCell(c === 'metadata' ? JSON.stringify(record.metadata) : record[c]))
