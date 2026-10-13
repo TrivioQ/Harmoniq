@@ -184,7 +184,10 @@ export const AnnouncementSettingsSchema = z
     startsAt: instant.optional(),
     endsAt: instant.optional(),
   })
-  .refine((a) => !a.startsAt || !a.endsAt || a.startsAt < a.endsAt, 'endsAt must be after startsAt');
+  .refine(
+    (a) => !a.startsAt || !a.endsAt || a.startsAt < a.endsAt,
+    'endsAt must be after startsAt'
+  );
 export type AnnouncementSettings = z.infer<typeof AnnouncementSettingsSchema>;
 
 /**
