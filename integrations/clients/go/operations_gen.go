@@ -30,6 +30,11 @@ func (c *Client) DeleteAdminDomainsById(ctx context.Context, id string, query ur
 	return c.Do(ctx, "DELETE", "/api/admin/domains/"+url.PathEscape(id), nil, query)
 }
 
+// DeleteAdminOrgsBySlug calls DELETE /api/admin/orgs/{slug} (Instance administration).
+func (c *Client) DeleteAdminOrgsBySlug(ctx context.Context, slug string, query url.Values) (*Response, error) {
+	return c.Do(ctx, "DELETE", "/api/admin/orgs/"+url.PathEscape(slug), nil, query)
+}
+
 // DeleteAdminSettingsByKey calls DELETE /api/admin/settings/{key} (Instance administration).
 func (c *Client) DeleteAdminSettingsByKey(ctx context.Context, key string, query url.Values) (*Response, error) {
 	return c.Do(ctx, "DELETE", "/api/admin/settings/"+url.PathEscape(key), nil, query)
@@ -263,6 +268,11 @@ func (c *Client) GetAdminAuditVerify(ctx context.Context, query url.Values) (*Re
 // GetAdminDomains calls GET /api/admin/domains (Instance administration).
 func (c *Client) GetAdminDomains(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/domains", nil, query)
+}
+
+// GetAdminEmailDeliveries calls GET /api/admin/email/deliveries (Instance administration).
+func (c *Client) GetAdminEmailDeliveries(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/email/deliveries", nil, query)
 }
 
 // GetAdminEncryption calls GET /api/admin/encryption (Instance administration).

@@ -27,6 +27,10 @@ class Client(BaseClient):
         """DELETE /api/admin/domains/{id} (Instance administration)."""
         return self.request("DELETE", "/api/admin/domains/" + _q(id), None, query)
 
+    def delete_admin_orgs_by_slug(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/orgs/{slug} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/orgs/" + _q(slug), None, query)
+
     def delete_admin_settings_by_key(self, key, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/settings/{key} (Instance administration)."""
         return self.request("DELETE", "/api/admin/settings/" + _q(key), None, query)
@@ -214,6 +218,10 @@ class Client(BaseClient):
     def get_admin_domains(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/domains (Instance administration)."""
         return self.request("GET", "/api/admin/domains", None, query)
+
+    def get_admin_email_deliveries(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/email/deliveries (Instance administration)."""
+        return self.request("GET", "/api/admin/email/deliveries", None, query)
 
     def get_admin_encryption(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/encryption (Instance administration)."""

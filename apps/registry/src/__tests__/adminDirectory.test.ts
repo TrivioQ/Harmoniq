@@ -114,6 +114,20 @@ describe('Admin directory (INST-19, 21, 29, 30)', () => {
     expect(orgDetail.workspaces).toHaveLength(3);
     expect(orgDetail.domains).toEqual([expect.objectContaining({ domain: `dir-${run}.test` })]);
     expect(orgDetail.plan.plan).toBe('startup');
+
+    // Deleting needs the slug and an empty organization; it stays restorable.
+    const del = (confirm: string) => api('DELETE', `/api/admin/orgs/dir-${run}?confirm=${confirm}`);
+    expect((await del('nope')).statusCode).toBe(400);
+    expect((await del(`dir-${run}`)).statusCode).toBe(409);
+    await db().workspace.updateMany({
+      where: { organizationId: org.id },
+      data: { organizationId: null },
+    });
+    expect((await del(`dir-${run}`)).statusCode).toBe(204);
+    expect(
+      (await db().organization.findUniqueOrThrow({ where: { id: org.id } })).purgeAfter
+    ).not.toBeNull();
+    expect((await api('POST', `/api/admin/orgs/dir-${run}/restore`)).statusCode).toBe(200);
   });
 
   it('filters and exports users and shows one with sessions, which can be ended', async () => {

@@ -185,6 +185,9 @@ describe('Instance operations (INST-22, 28, 37, 38)', () => {
       orderBy: { createdAt: 'desc' },
     });
     expect(logged).toMatchObject({ template: 'test', status: 'sent', error: null });
+    const log = await api('GET', `/api/admin/email/deliveries?to=${encodeURIComponent(to)}`);
+    expect(log.json().deliveries[0]).toMatchObject({ to, template: 'test', status: 'sent' });
+    expect(log.body).not.toContain('Hello from ops');
     const inner = (app.container.mailer as unknown as { inner: { sent: Array<{ to: string }> } })
       .inner.sent;
     expect(inner.filter((m) => m.to === to).at(-1)).toMatchObject({

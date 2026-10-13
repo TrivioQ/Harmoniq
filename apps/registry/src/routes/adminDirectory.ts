@@ -511,6 +511,79 @@ const adminDirectoryRoutes: FastifyPluginAsync = async (fastify) => {
     };
   });
 
+  /**
+   * INST-19: deletes an organization (`confirm` = its slug). Like its admins' own delete:
+   * only without live workspaces, its org keys are revoked, and it is restorable until
+   * `purgeAfter`.
+   */
+  fastify.delete<{ Params: { slug: string }; Querystring: { confirm?: string } }>(
+    '/api/admin/orgs/:slug',
+    admin,
+    async (request, reply) => {
+      const org = await systemDb.organization.findFirst({
+        where: { slug: request.params.slug, deletedAt: null },
+      });
+      if (!org) throw new NotFoundError('Organization not found');
+      if (request.query.confirm !== org.slug) {
+        throw new BadRequestError('Confirm with ?confirm=<organization slug>');
+      }
+      if (await systemDb.workspace.count({ where: { organizationId: org.id, deletedAt: null } })) {
+        throw new ConflictError('Detach or delete the organization’s workspaces first');
+      }
+      const now = new Date();
+      await systemDb.$transaction([
+        systemDb.organization.update({
+          where: { id: org.id },
+          data: {
+            deletedAt: now,
+            purgeAfter: new Date(now.getTime() + fastify.config.tenantRestoreDays * DAY),
+          },
+        }),
+        systemDb.orgApiKey.updateMany({
+          where: { organizationId: org.id, revokedAt: null },
+          data: { revokedAt: now },
+        }),
+      ]);
+      await instanceAudit(request, {
+        action: 'instance.org_delete',
+        resourceType: 'organization',
+        resourceId: org.id,
+        metadata: { slug: org.slug },
+      });
+      return reply.code(204).send();
+    }
+  );
+
+  // ─── Email log (INST-38) ──────────────────────────────────────────────────
+
+  /** Emails of the last 30 days, newest first: recipient, template, result; no bodies. */
+  fastify.get<{ Querystring: { to?: string; status?: string; cursor?: string } }>(
+    '/api/admin/email/deliveries',
+    admin,
+    async (request) => {
+      const q = request.query;
+      const where: Prisma.EmailDeliveryWhereInput = {
+        ...(q.to && { to: { contains: q.to.trim(), mode: 'insensitive' } }),
+        ...(q.status && { status: q.status }),
+      };
+      const offset = page(q.cursor);
+      const [rows, total] = await Promise.all([
+        systemDb.emailDelivery.findMany({
+          where,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip: offset,
+          take: PAGE,
+        }),
+        systemDb.emailDelivery.count({ where }),
+      ]);
+      return {
+        deliveries: rows.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() })),
+        total,
+        nextCursor: offset + PAGE < total ? String(offset + PAGE) : null,
+      };
+    }
+  );
+
   // ─── Users (INST-10, INST-21, INST-30) ────────────────────────────────────
 
   type UserQuery = {

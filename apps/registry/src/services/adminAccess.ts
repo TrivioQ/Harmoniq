@@ -72,6 +72,7 @@ const RULES: Record<string, Rule> = {
   'DELETE /api/admin/users/:id/mfa': { capability: 'users', destructive: true },
   // Destructive, owners only (INST-32).
   'DELETE /api/admin/workspaces/:slug': { capability: 'owner', destructive: true },
+  'DELETE /api/admin/orgs/:slug': { capability: 'owner', destructive: true },
   'DELETE /api/admin/users/:id': { capability: 'owner', destructive: true },
   'POST /api/admin/users/:id/merge': { capability: 'owner', destructive: true },
   'POST /api/admin/admins': { capability: 'owner', destructive: true },
