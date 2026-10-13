@@ -636,7 +636,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] `GET /api/orgs/:orgSlug/workspaces` — list all workspaces (part of `GET /api/orgs/:orgSlug`)
 - [x] `GET /api/orgs/:orgSlug/audit` — cross-workspace audit log (paginated, filterable) (ORG-09)
 - [x] `GET /api/orgs/:orgSlug/modules` — org module catalog across all workspaces (ORG-12)
-- [ ] Org-wide approval policy defaults (ORG-08; specified as POL-02, Phase 9.5)
+- [x] Org-wide approval policy defaults (ORG-08; specified as POL-02, done in Phase 9.5)
 - [x] Org-level SAML endpoints: `POST /auth/org-saml/:orgSlug/acs`, `GET /auth/org-saml/:orgSlug/metadata` (ORG-06)
 - [x] Org-level SCIM: `/scim/v2/orgs/:orgSlug` (ORG-07)
 - [x] `WorkspaceConfig` SSO resolution: check workspace-level SSO first; fall back to org-level SSO if workspace has no override
@@ -813,7 +813,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Workspace settings danger zone: delete (type the slug) for owners
 - [x] Transfer ownership (workspace danger zone, org members page); incoming transfers with accept and decline on the home page; export downloads (workspace settings, org audit page)
 - [x] Deleted workspaces you own on the home page (`/api/me` `deletedWorkspaces`), with restore and the purge date; org home shows deleted workspaces with restore, and delete (type the slug)
-- [ ] Org settings danger zone (with 9.4): delete, restore, transfer, exports in one place
+- [x] Org settings danger zone (with 9.4): delete, transfer and export on the org settings page; deleted workspaces are restored from the org home, a deleted organization by an instance admin
 - [x] Admin panel: org suspend/unsuspend and restore, workspace restore and deletion status; `/admin/auth` creation policy
 
 #### Test Suite
@@ -849,7 +849,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Invitations on the workspace members page and the org People page: pending list, resend (shows the new link), revoke, expiry; invite forms show the link
 - [x] `/invite/:token` page (public): what the invitation is for, accept when signed in with that email, otherwise how to
 - [x] "Request access" on the org home for workspaces you're not in; access-request queue with approve (role) / deny on the workspace members page; org People page; new roles in the org members page; Audit and People in the nav for auditors
-- [ ] "Request access" from the org catalog (with the catalog work in TAD-07)
+- [x] "Request access" from the org catalog (with the catalog work in TAD-07)
 
 #### Test Suite
 
