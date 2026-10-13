@@ -146,7 +146,20 @@ describe('workspace storage (BYOB)', () => {
 
 describe('instance settings', () => {
   it('validates each setting', () => {
-    expect(Object.keys(InstanceSettingSchemas)).toEqual(['storage', 'email', 'auth', 'branding']);
+    expect(Object.keys(InstanceSettingSchemas)).toEqual([
+      'storage',
+      'email',
+      'auth',
+      'branding',
+      'tenancy',
+      'plans',
+      'rateLimits',
+      'gc',
+      'bundles',
+      'announcement',
+      'maintenance',
+      'emailTemplates',
+    ]);
     expect(
       problem(StorageSettingsSchema, {
         adapter: 's3',
