@@ -29,6 +29,9 @@ export default async function AdminPanelLayout({ children }: { children: React.R
           labels={{
             dashboard: t('dashboard'),
             health: t('health'),
+            jobs: t('jobs'),
+            announcements: t('announcements'),
+            security: t('security'),
             workspaces: t('workspaces'),
             orgs: t('orgs'),
             usage: t('usage'),

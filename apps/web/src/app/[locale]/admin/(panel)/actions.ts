@@ -4,6 +4,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import type { ActionResult } from '@/lib/actionResult';
 import { RegistryError, authedFetch } from '@/lib/registry';
@@ -484,5 +485,180 @@ export async function setPlanAction(
   return run(
     () => authedFetch(path, { method: 'PUT', body }),
     (t) => ({ status: 'success', message: t('planSet') })
+  );
+}
+
+// ─── Phase 9.10: operations (INST-22, 28, 37, 38) ────────────────────────────
+
+/** A `datetime-local` value, read as UTC (the forms say so). */
+const utc = (form: FormData, name: string) => {
+  const v = field(form, name);
+  return v ? new Date(`${v}:00Z`).toISOString() : undefined;
+};
+
+export async function retryJobAction(id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/jobs/${enc(id)}/retry`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('jobRetried') })
+  );
+}
+
+export async function runJobAction(queue: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/jobs/${enc(queue)}/run`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('jobStarted', { queue }) })
+  );
+}
+
+export async function saveAnnouncementAction(
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch('/api/admin/settings/announcement', {
+        method: 'PUT',
+        body: {
+          message: field(form, 'message'),
+          level: field(form, 'level') || 'info',
+          startsAt: utc(form, 'startsAt'),
+          endsAt: utc(form, 'endsAt'),
+        },
+      }),
+    (t) => ({ status: 'success', message: t('settingSaved') })
+  );
+}
+
+export async function saveMaintenanceAction(
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch('/api/admin/settings/maintenance', {
+        method: 'PUT',
+        body: {
+          from: utc(form, 'from'),
+          until: utc(form, 'until'),
+          message: optional(form, 'message'),
+        },
+      }),
+    (t) => ({ status: 'success', message: t('maintenanceSaved') })
+  );
+}
+
+export async function saveEmailTemplatesAction(
+  templates: readonly string[],
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const body = Object.fromEntries(
+    templates.flatMap((name) => {
+      const subject = optional(form, `${name}.subject`);
+      const intro = optional(form, `${name}.intro`);
+      return subject || intro ? [[name, { subject, intro }]] : [];
+    })
+  );
+  return run(
+    () => authedFetch('/api/admin/settings/emailTemplates', { method: 'PUT', body }),
+    (t) => ({ status: 'success', message: t('settingSaved') })
+  );
+}
+
+// ─── Tenants and users (INST-19, 20, 29, 30) ─────────────────────────────────
+
+/** INST-20: read-only access to a workspace or organization, for 1–4 hours. */
+export async function openSupportGrantAction(
+  target: { kind: 'workspace' | 'organization'; slug: string },
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch('/api/admin/support-grants', {
+        body: {
+          [target.kind]: target.slug,
+          reason: field(form, 'reason'),
+          hours: Number(field(form, 'hours') || 1),
+        },
+      }),
+    (t) => ({ status: 'success', message: t('supportGranted') })
+  );
+}
+
+export async function endSupportGrantAction(id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/support-grants/${enc(id)}`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('supportEnded') })
+  );
+}
+
+export async function endUserSessionAction(userId: string, sessionId: string, _prev: ActionResult) {
+  return run(
+    () =>
+      authedFetch(`/api/admin/users/${enc(userId)}/sessions/${enc(sessionId)}`, {
+        method: 'DELETE',
+      }),
+    (t) => ({ status: 'success', message: t('sessionEnded') })
+  );
+}
+
+export async function changeUserEmailAction(
+  userId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(`/api/admin/users/${enc(userId)}/email`, {
+        body: { email: field(form, 'email') },
+      }),
+    (t) => ({ status: 'success', message: t('emailChangeSent', { email: field(form, 'email') }) })
+  );
+}
+
+/** INST-30: this account goes into the one with `into` (an email); then to that one. */
+export async function mergeUserAction(
+  userId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const t = await getTranslations('Actions');
+  const email = field(form, 'into').toLowerCase();
+  const found = await authedFetch<{ users: Array<{ id: string; email: string }> }>(
+    `/api/admin/users?query=${enc(email)}`
+  ).catch(() => ({ users: [] }));
+  const target = found.users.find((u) => u.email.toLowerCase() === email);
+  if (!target) return { status: 'error', message: t('mergeTargetNotFound', { email }) };
+  const result = await run(
+    () => authedFetch(`/api/admin/users/${enc(userId)}/merge`, { body: { into: target.id } }),
+    (tr) => ({ status: 'success', message: tr('usersMerged') })
+  );
+  if (result.status === 'success') redirect(`/admin/users/${target.id}`);
+  return result;
+}
+
+/** Deletion from a detail page: back to the list afterwards. */
+export async function deleteUserAndReturnAction(
+  userId: string,
+  prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const result = await deleteUserAction(userId, prev, form);
+  if (result.status === 'success') redirect('/admin/users');
+  return result;
+}
+
+export async function deleteOrgAction(
+  slug: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(`/api/admin/orgs/${enc(slug)}?confirm=${enc(field(form, 'confirm'))}`, {
+        method: 'DELETE',
+      }),
+    (t) => ({ status: 'success', message: t('orgDeleted') })
   );
 }

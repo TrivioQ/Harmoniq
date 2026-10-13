@@ -13,6 +13,7 @@ const idle = 'text-gray-700 hover:bg-gray-50';
 const ITEMS = [
   ['dashboard', '/admin', false],
   ['health', '/admin/health', false],
+  ['jobs', '/admin/jobs', false],
   ['workspaces', '/admin/workspaces', false],
   ['orgs', '/admin/orgs', false],
   ['usage', '/admin/usage', false],
@@ -24,7 +25,9 @@ const ITEMS = [
   ['auth', '/admin/auth', true],
   ['branding', '/admin/branding', true],
   ['settings', '/admin/settings', true],
+  ['announcements', '/admin/announcements', true],
   ['encryption', '/admin/encryption', true],
+  ['security', '/admin/security', false],
   ['audit', '/admin/audit', false],
 ] as const;
 

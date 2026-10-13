@@ -1062,14 +1062,14 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Dashboard
 
-- [ ] `/admin` overview: trend charts, attention list, recent instance audit (INST-27)
-- [ ] `/admin/health`: system info, replicas, migrations; `/admin/jobs`: schedules, failed jobs with retry, run now (INST-28)
+- [x] `/admin` overview: trend charts, attention list, recent instance audit (INST-27)
+- [x] `/admin/health`: system info, replicas, migrations; `/admin/jobs`: schedules, failed jobs with retry, run now (INST-28) (replicas, build and migrations on `/admin/health`; `/admin/jobs` for schedules, failures and run now)
 - [ ] `/admin/workspaces/:slug` and `/admin/users/:id` detail pages; filters and sorting on both lists; delete and merge move to the detail pages (INST-29, INST-30)
 - [ ] `/admin/orgs` list with search and pagination, `/admin/orgs/:slug` detail with suspend, delete and restore (INST-19)
 - [ ] Support-grant dialog; tenant banner while a grant is active (INST-20)
-- [ ] Audit page filters, actor labels, metadata drawer, cross-tenant actor search (INST-36)
-- [ ] Announcement and maintenance editor; global banner (INST-22, INST-37)
-- [ ] `/admin/email`: delivery log and template overrides (INST-38); `/admin/security` (INST-39)
+- [x] Audit page filters, actor labels, metadata drawer, cross-tenant actor search (INST-36) (resource type filter; "find a person in every log")
+- [x] Announcement and maintenance editor; global banner (INST-22, INST-37) (`/admin/announcements`; `InstanceBanner` in the root layout)
+- [x] `/admin/email`: delivery log and template overrides (INST-38); `/admin/security` (INST-39) (and `/admin/security`)
 - [ ] `messages/en.json` and `messages/es.json` for every new string
 
 #### Test Suite

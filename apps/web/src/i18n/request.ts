@@ -16,5 +16,7 @@ export default getRequestConfig(async ({ requestLocale }) => {
   return {
     locale,
     messages: (await import(`../../messages/${locale}.json`)).default,
+    // `format.dateTime(date, 'short')` across the dashboard: date and time, compact.
+    formats: { dateTime: { short: { dateStyle: 'medium', timeStyle: 'short' } } },
   };
 });

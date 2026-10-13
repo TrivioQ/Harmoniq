@@ -11,11 +11,41 @@ export interface Branding {
   accentColor?: string;
 }
 
-/** INST-14: the instance's name and look (once per request; defaults if unreachable). */
-export const getBranding = cache(async (): Promise<Branding> => {
+/** INST-22 */
+export interface Announcement {
+  message: string;
+  level: 'info' | 'warning' | 'maintenance';
+  startsAt?: string;
+  endsAt?: string;
+}
+
+/** INST-37: running (`active`) or announced. */
+export interface Maintenance {
+  active: boolean;
+  from: string | null;
+  until: string | null;
+  message: string | null;
+}
+
+export interface InstanceInfo {
+  branding: Branding;
+  announcement: Announcement | null;
+  maintenance: Maintenance | null;
+}
+
+/** `GET /api/instance`, once per request; defaults if the registry is unreachable. */
+export const getInstance = cache(async (): Promise<InstanceInfo> => {
   try {
-    return (await registryFetch<{ branding: Branding }>('/api/instance')).branding;
+    const info = await registryFetch<Partial<InstanceInfo>>('/api/instance');
+    return {
+      branding: info.branding ?? { name: 'Harmoniq' },
+      announcement: info.announcement ?? null,
+      maintenance: info.maintenance ?? null,
+    };
   } catch {
-    return { name: 'Harmoniq' };
+    return { branding: { name: 'Harmoniq' }, announcement: null, maintenance: null };
   }
 });
+
+/** INST-14: the instance's name and look. */
+export const getBranding = async (): Promise<Branding> => (await getInstance()).branding;

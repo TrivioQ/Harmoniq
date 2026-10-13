@@ -11,6 +11,8 @@ export interface AuditQuery {
   from?: string;
   to?: string;
   workspace?: string;
+  /** INST-36: instance log only. */
+  resourceType?: string;
   cursor?: string;
 }
 
@@ -37,6 +39,8 @@ export async function AuditFilters(props: {
   query: AuditQuery;
   actionPlaceholder?: string;
   workspaces?: Array<{ slug: string; name: string }>;
+  /** Show the resource type filter (INST-36). */
+  resourceType?: boolean;
 }) {
   const t = await getTranslations('AuditView');
   const q = props.query;
@@ -72,6 +76,15 @@ export async function AuditFilters(props: {
         aria-label={t('action')}
         className={`${input} font-mono`}
       />
+      {props.resourceType && (
+        <input
+          name="resourceType"
+          defaultValue={q.resourceType}
+          placeholder={t('resourceTypePlaceholder')}
+          aria-label={t('resourceType')}
+          className={`${input} font-mono`}
+        />
+      )}
       <label className="text-xs text-muted-foreground flex flex-col">
         {t('from')}
         <input name="from" type="date" defaultValue={q.from} className={input} />

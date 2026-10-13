@@ -208,6 +208,15 @@ export interface InstanceSettingsView {
     healthRollupRetentionDays?: number;
   }>;
   bundles?: SettingView<{ validate?: boolean }>;
+  /** INST-22, INST-37, INST-38 */
+  announcement?: SettingView<{
+    message?: string;
+    level?: 'info' | 'warning' | 'maintenance';
+    startsAt?: string;
+    endsAt?: string;
+  }>;
+  maintenance?: SettingView<{ from?: string; until?: string; message?: string }>;
+  emailTemplates?: SettingView<Record<string, { subject?: string; intro?: string }>>;
 }
 
 export const SETTING_KEYS = [
@@ -220,6 +229,9 @@ export const SETTING_KEYS = [
   'rateLimits',
   'gc',
   'bundles',
+  'announcement',
+  'maintenance',
+  'emailTemplates',
 ] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
@@ -230,7 +242,355 @@ export const SETTING_PAGES: Partial<Record<SettingKey, string>> = {
   auth: '/admin/auth',
   tenancy: '/admin/auth',
   branding: '/admin/branding',
+  announcement: '/admin/announcements',
+  maintenance: '/admin/announcements',
+  emailTemplates: '/admin/email',
 };
+
+// ─── Phase 9.10: operations, tenants and security ───────────────────────────
+
+/** INST-27 */
+export interface AttentionItem {
+  kind:
+    | 'publish_failed'
+    | 'webhook_dead_letters'
+    | 'failed_jobs'
+    | 'storage_unverified'
+    | 'saml_certificate_expiring'
+    | 'alert_rule_error'
+    | 'quota_exceeded'
+    | 'domain_failing';
+  tenant: { type: 'workspace' | 'organization'; slug: string } | null;
+  subject: string;
+  detail: string | null;
+  since: string | null;
+}
+
+export interface TrendDay {
+  day: string;
+  deploys: number;
+  manifestRequests: number;
+  activeUsers: number;
+  newWorkspaces: number;
+  newOrganizations: number;
+}
+
+export interface AuditActorLabel {
+  type: string;
+  id: string;
+  label: string;
+  deleted: boolean;
+}
+
+export interface TenantAuditEvent {
+  id: string;
+  action: string;
+  actor: AuditActorLabel;
+  resourceType: string;
+  resourceId: string;
+  metadata?: unknown;
+  createdAt: string;
+}
+
+export interface AdminOverview {
+  counts: { workspaces: number; organizations: number; users: number; modules: number };
+  trends: TrendDay[];
+  attention: AttentionItem[];
+  recentAudit: TenantAuditEvent[];
+}
+
+/** INST-28 */
+export interface SystemInfo {
+  build: { version: string; commit: string | null; node: string; startedAt: string };
+  replica: string;
+  migrations: {
+    applied: number;
+    latest: string | null;
+    pending: string[] | null;
+    failed: string[];
+  };
+  replicas: Array<{
+    id: string;
+    hostname: string | null;
+    version: string;
+    commit: string | null;
+    startedAt: string;
+    lastSeenAt: string;
+    uptimeSeconds: number;
+    configAgeSeconds: number | null;
+    live: boolean;
+    self: boolean;
+  }>;
+}
+
+export interface JobQueue {
+  name: string;
+  schedule: string | null;
+  lastRun: string | null;
+  lastSuccess: string | null;
+  lastFailure: string | null;
+  failed: number;
+  queued: number;
+  active: number;
+  runnable: boolean;
+}
+
+export interface FailedJob {
+  id: string;
+  queue: string;
+  error: string | null;
+  retries: number;
+  createdAt: string;
+  failedAt: string | null;
+}
+
+/** INST-20 */
+export interface SupportAccess {
+  id: string;
+  admin: string;
+  reason: string;
+  scope: 'workspace' | 'organization';
+  expiresAt: string;
+}
+
+export interface SupportGrantEntry {
+  id: string;
+  admin: string;
+  adminUserId: string;
+  workspace: string | null;
+  organization: string | null;
+  reason: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  createdAt: string;
+  active: boolean;
+}
+
+/** INST-29 */
+export interface AdminWorkspaceDetail {
+  id: string;
+  slug: string;
+  name: string;
+  organization: { slug: string; name: string } | null;
+  createdAt: string;
+  retentionDays: number;
+  suspendedAt: string | null;
+  suspendedReason: string | null;
+  deletedAt: string | null;
+  purgeAfter: string | null;
+  plan: {
+    plan: 'hobby' | 'startup' | 'enterprise';
+    effective: string;
+    expiresAt: string | null;
+    basePlan: string | null;
+    overrides: Record<string, unknown> | null;
+    limits: Record<string, number | null>;
+  };
+  usage: WorkspaceUsage | null;
+  members: Array<{
+    userId: string;
+    email: string;
+    role: string;
+    joinedAt: string | null;
+    lastLoginAt: string | null;
+  }>;
+  hostApps: Array<{
+    slug: string;
+    name: string;
+    environments: Array<{
+      slug: string;
+      name: string;
+      lastPublishedAt: string | null;
+      lastPublishError: string | null;
+      frozen: boolean;
+      ephemeral: boolean;
+    }>;
+  }>;
+  apiKeys: { active: number; lastUsedAt: string | null };
+  sso: {
+    own: { oidc: boolean; saml: boolean };
+    from: 'workspace' | 'organization' | null;
+    forceSso: boolean;
+    scim: boolean;
+  };
+  storage: {
+    provider: string;
+    bucket: string;
+    region: string;
+    lastVerifiedAt: string | null;
+  } | null;
+  supportAccess: SupportAccess[];
+  recentAudit: TenantAuditEvent[];
+}
+
+/** INST-19 */
+export interface AdminOrgSummary {
+  slug: string;
+  name: string;
+  plan: 'hobby' | 'startup' | 'enterprise';
+  planExpiresAt?: string | null;
+  basePlan?: string | null;
+  planOverrides?: Record<string, unknown> | null;
+  workspaces: number;
+  members: number;
+  suspendedAt: string | null;
+  suspendedReason: string | null;
+  deletedAt: string | null;
+  purgeAfter: string | null;
+  createdAt?: string;
+}
+
+export interface AdminOrgDetail {
+  id: string;
+  slug: string;
+  name: string;
+  createdAt: string;
+  suspendedAt: string | null;
+  suspendedReason: string | null;
+  deletedAt: string | null;
+  purgeAfter: string | null;
+  plan: {
+    plan: 'hobby' | 'startup' | 'enterprise';
+    expiresAt: string | null;
+    basePlan: string | null;
+    overrides: Record<string, unknown> | null;
+    limits: Record<string, number | null>;
+  };
+  usage: UsageTotals;
+  members: Array<{ userId: string; email: string; role: string; lastLoginAt: string | null }>;
+  workspaces: Array<{
+    slug: string;
+    name: string;
+    members: number;
+    modules: number;
+    suspended: boolean;
+    deletedAt: string | null;
+  }>;
+  sso: { oidc: boolean; saml: boolean; forceSso: boolean; scim: boolean };
+  domains: Array<{
+    domain: string;
+    verifiedAt: string | null;
+    lastCheckedAt: string | null;
+    failingSince: string | null;
+  }>;
+  supportAccess: SupportAccess[];
+  recentAudit: TenantAuditEvent[];
+}
+
+/** INST-30 */
+export interface AdminUserDetail {
+  id: string;
+  email: string;
+  name: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
+  mfaEnabled: boolean;
+  suspendedAt: string | null;
+  suspendedReason: string | null;
+  pendingEmail: string | null;
+  instanceAdmin: { role: string } | null;
+  identities: Array<{
+    provider: string;
+    email: string;
+    createdAt: string;
+    lastUsedAt: string | null;
+  }>;
+  workspaces: Array<{
+    slug: string;
+    name: string;
+    role: string;
+    joinedAt: string | null;
+    deleted: boolean;
+  }>;
+  organizations: Array<{ slug: string; name: string; role: string }>;
+  sessions: Array<{
+    id: string;
+    provider: string | null;
+    createdAt: string;
+    lastActiveAt: string;
+    expiresAt: string;
+    ip: string | null;
+    userAgent: string | null;
+    mfa: boolean;
+  }>;
+  apiKeys: Array<{
+    id: string;
+    scope: 'workspace' | 'organization';
+    tenant: string;
+    name: string;
+    prefix: string;
+    lastUsedAt: string | null;
+    revokedAt: string | null;
+  }>;
+  activity: Array<{
+    scope: 'workspace' | 'organization' | 'instance';
+    tenant: string | null;
+    action: string;
+    resourceType: string;
+    resourceId: string;
+    createdAt: string;
+  }>;
+  signIns: Array<{
+    method: string;
+    success: boolean;
+    reason: string | null;
+    ip: string | null;
+    createdAt: string;
+  }>;
+}
+
+/** INST-36 */
+export interface AuditSearchEvent extends TenantAuditEvent {
+  scope: 'workspace' | 'organization' | 'instance';
+  tenant: string | null;
+  ip: string | null;
+}
+
+/** INST-39 */
+export interface SecurityReport {
+  days: number;
+  signIns: { succeeded: number; failed: number };
+  failedByIp: Array<{ ip: string | null; failures: number; lastAt: string | null }>;
+  failedByEmail: Array<{ email: string | null; failures: number; lastAt: string | null }>;
+  recentFailures: Array<{
+    email: string | null;
+    method: string;
+    reason: string | null;
+    ip: string | null;
+    createdAt: string;
+  }>;
+  rejectedKeys: Array<{
+    prefix: string | null;
+    reason: string | null;
+    attempts: number;
+    lastAt: string | null;
+  }>;
+  rateLimitedWorkspaces: Array<{ workspace: string; requests: number }>;
+  scimErrors: Array<{
+    tenant: { type: string; slug: string | null };
+    operation: string;
+    statusCode: number;
+    createdAt: string;
+  }>;
+}
+
+/** INST-38 */
+export interface EmailDeliveryEntry {
+  id: string;
+  to: string;
+  template: string;
+  status: 'sent' | 'failed';
+  error: string | null;
+  createdAt: string;
+}
+
+export const EMAIL_TEMPLATES = [
+  'sign_in',
+  'invitation',
+  'notification',
+  'email_change',
+  'test',
+] as const;
 
 const query = (params: Record<string, string | undefined>) => {
   const qs = new URLSearchParams(
@@ -243,13 +603,38 @@ const query = (params: Record<string, string | undefined>) => {
 export const adminApi = {
   health: () => authedFetch<AdminHealth>('/api/admin/health'),
   settings: () => authedFetch<InstanceSettingsView>('/api/admin/settings'),
-  workspaces: (params: { query?: string; cursor?: string }) =>
-    authedFetch<{ workspaces: AdminWorkspace[]; nextCursor: string | null }>(
+  workspaces: (params: {
+    query?: string;
+    cursor?: string;
+    status?: string;
+    plan?: string;
+    org?: string;
+    inactiveDays?: string;
+    sort?: string;
+  }) =>
+    authedFetch<{ workspaces: AdminWorkspace[]; total?: number; nextCursor: string | null }>(
       `/api/admin/workspaces${query(params)}`
     ),
-  users: (params: { query?: string; cursor?: string }) =>
-    authedFetch<{ users: AdminUser[]; nextCursor: string | null }>(
+  users: (params: { query?: string; cursor?: string; filter?: string; inactiveDays?: string }) =>
+    authedFetch<{ users: AdminUser[]; total?: number; nextCursor: string | null }>(
       `/api/admin/users${query(params)}`
+    ),
+  workspace: (slug: string) =>
+    authedFetch<AdminWorkspaceDetail>(`/api/admin/workspaces/${encodeURIComponent(slug)}`),
+  org: (slug: string) => authedFetch<AdminOrgDetail>(`/api/admin/orgs/${encodeURIComponent(slug)}`),
+  user: (id: string) => authedFetch<AdminUserDetail>(`/api/admin/users/${encodeURIComponent(id)}`),
+  overview: () => authedFetch<AdminOverview>('/api/admin/overview'),
+  system: () => authedFetch<SystemInfo>('/api/admin/system'),
+  jobs: () => authedFetch<{ queueRunning: boolean; queues: JobQueue[] }>('/api/admin/jobs'),
+  failedJobs: (queueName?: string) =>
+    authedFetch<{ jobs: FailedJob[] }>(`/api/admin/jobs/failed${query({ queue: queueName })}`),
+  supportGrants: () => authedFetch<{ grants: SupportGrantEntry[] }>('/api/admin/support-grants'),
+  security: (days?: string) => authedFetch<SecurityReport>(`/api/admin/security${query({ days })}`),
+  auditSearch: (params: { actor: string; from?: string; to?: string }) =>
+    authedFetch<{ events: AuditSearchEvent[] }>(`/api/admin/audit/search${query(params)}`),
+  emailDeliveries: (params: { to?: string; status?: string; cursor?: string }) =>
+    authedFetch<{ deliveries: EmailDeliveryEntry[]; total: number; nextCursor: string | null }>(
+      `/api/admin/email/deliveries${query(params)}`
     ),
   admins: () =>
     authedFetch<{ admins: InstanceAdminEntry[]; invitations?: AdminInvitation[] }>(
@@ -261,24 +646,10 @@ export const adminApi = {
       `/api/admin/settings/${encodeURIComponent(key)}/history`
     ),
   encryption: () => authedFetch<EncryptionReport>('/api/admin/encryption'),
-  orgs: () =>
-    authedFetch<{
-      organizations: Array<{
-        slug: string;
-        name: string;
-        plan: 'hobby' | 'startup' | 'enterprise';
-        /** PLN-06 */
-        planExpiresAt?: string | null;
-        basePlan?: string | null;
-        planOverrides?: Record<string, unknown> | null;
-        workspaces: number;
-        members: number;
-        suspendedAt: string | null;
-        suspendedReason: string | null;
-        deletedAt: string | null;
-        purgeAfter: string | null;
-      }>;
-    }>('/api/admin/orgs'),
+  orgs: (params: { query?: string; cursor?: string; status?: string } = {}) =>
+    authedFetch<{ organizations: AdminOrgSummary[]; total?: number; nextCursor?: string | null }>(
+      `/api/admin/orgs${query(params)}`
+    ),
   /** AUD-09 */
   verifyAudit: () => authedFetch<ChainReport>('/api/admin/audit/verify'),
   /** USG-03: every live workspace's usage, a page at a time. */
@@ -294,6 +665,7 @@ export const adminApi = {
     actor?: string;
     action?: string;
     resourceId?: string;
+    resourceType?: string;
     from?: string;
     to?: string;
   }) =>
