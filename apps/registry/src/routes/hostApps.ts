@@ -100,6 +100,8 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         role: request.workspaceRole ?? null,
         // TLC-05: org admins may manage owners even when they aren't owners themselves.
         viaOrgAdmin: request.viaOrgAdmin ?? false,
+        // INST-20: an instance admin reading through their support grant (read-only).
+        support: !!request.supportGrant,
         // INST-20: instance admins with support access right now (on it or its org).
         // eslint-disable-next-line no-restricted-syntax -- MT-09: grants are instance rows
         supportAccess: await activeGrantsOn(fastify.container.systemDb, {

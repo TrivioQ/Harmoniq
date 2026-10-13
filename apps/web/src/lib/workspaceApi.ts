@@ -48,6 +48,8 @@ export interface WorkspaceDetail {
   role: Role | null;
   /** TLC-05: the caller administers this workspace as an org admin. */
   viaOrgAdmin?: boolean;
+  /** INST-20: the caller reads through their support grant (read-only). */
+  support?: boolean;
   /** INST-20: instance admins with read-only support access right now. */
   supportAccess?: Array<{ id: string; admin: string; reason: string; expiresAt: string }>;
   hostApps: Array<{

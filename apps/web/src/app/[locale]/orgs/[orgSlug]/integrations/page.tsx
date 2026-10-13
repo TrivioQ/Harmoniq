@@ -60,7 +60,8 @@ export default async function OrgIntegrationsPage(props: { params: Promise<{ org
   const t = await getTranslations('OrgIntegrations');
   const format = await getFormatter();
   const home = await orgApi.home(orgSlug, { limit: '1' });
-  if (home.role !== 'org_admin') notFound();
+  // INST-20: also read through support access (the layout makes it read-only).
+  if (home.role !== 'org_admin' && !home.support) notFound();
   const [{ endpoints }, { channels }, { sinks }] = await Promise.all([
     orgApi.webhooks(orgSlug),
     orgApi.notifications(orgSlug),

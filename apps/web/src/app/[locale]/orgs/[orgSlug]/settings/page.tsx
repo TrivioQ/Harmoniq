@@ -15,7 +15,8 @@ export default async function OrgSettingsPage(props: { params: Promise<{ orgSlug
   const { orgSlug } = await props.params;
   const t = await getTranslations('OrgSettings');
   const org = await orgApi.home(orgSlug, { limit: '1' });
-  if (org.role !== 'org_admin') notFound();
+  // INST-20: also read through support access (the layout makes it read-only).
+  if (org.role !== 'org_admin' && !org.support) notFound();
   const [{ oidc }, { saml }] = await Promise.all([orgApi.oidc(orgSlug), orgApi.saml(orgSlug)]);
 
   return (

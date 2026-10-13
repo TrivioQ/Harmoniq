@@ -45,7 +45,10 @@
       "storageGb": "Almacenamiento de bundles (GB)",
       "deploysPerMonth": "Despliegues este mes",
       "webhooks": "Endpoints de webhook"
-    }
+    },
+    "supportView": "Estás viendo esto con acceso de soporte hasta {until}. Es de solo lectura y los administradores del inquilino lo ven.",
+    "supportViewShort": "Estás viendo esto con acceso de soporte. Es de solo lectura y los administradores del inquilino lo ven.",
+    "supportReadOnly": "Solo lectura: acceso de soporte"
   },
   "WorkspaceOverview": {
     "title": "Resumen",
@@ -906,7 +909,10 @@
     "settings": "Configuración",
     "policies": "Políticas",
     "usage": "Uso",
-    "integrations": "Integraciones"
+    "integrations": "Integraciones",
+    "supportView": "Estás viendo esto con acceso de soporte hasta {until}. Es de solo lectura y los administradores del inquilino lo ven.",
+    "supportViewShort": "Estás viendo esto con acceso de soporte. Es de solo lectura y los administradores del inquilino lo ven.",
+    "supportReadOnly": "Solo lectura: acceso de soporte"
   },
   "OrgHome": {
     "description": "Espacios de trabajo de esta organización, con la actividad reciente y la salud de las últimas 24 horas.",
@@ -1797,7 +1803,8 @@
     "reason": "Motivo (p. ej. una incidencia)",
     "reasonPlaceholder": "Incidencia #1234: fallan los despliegues de checkout",
     "hours": "Durante",
-    "hoursOption": "{count, plural, one {# hora} other {# horas}}"
+    "hoursOption": "{count, plural, one {# hora} other {# horas}}",
+    "view": "Verlo (solo lectura)"
   },
   "SupportBanner": {
     "active": "{admin}, del soporte de la instancia, puede leer esto hasta {until} («{reason}»). No puede cambiar nada."

@@ -38,6 +38,27 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 
 ## Change History
 
+### 2026-10-13 — Tenant pages through support access (Phase 9.10)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-20
+
+#### What changed
+
+- An instance admin with an active support grant can open the organization (`/orgs/:org/…`) or workspace (`/w/:ws/…`) pages without being a member. They see what the tenant's admins see, including settings, keys and integrations, with a banner saying it is read-only until the grant ends.
+- `components/ReadOnly.tsx`: inside it, every `ActionForm` is disabled (the registry refuses changes anyway: `403 SUPPORT_READ_ONLY`).
+- The registry's `support` flag on `GET /api/workspaces/:ws` and `GET /api/orgs/:org` tells the layouts when to use it.
+- The admin's support panel links to the tenant's pages while their own grant is active.
+
+#### Testing
+
+- `supportGrants.test.ts` checks the `support` flag for the grant holder, the tenant owner and after expiry.
+- Against a local registry, as an instance owner who isn't a member:
+  - Organization and workspace pages return 404 without a grant.
+  - With a grant, they render with the banner and disabled forms, and return 404 again once the grant is ended.
+  - A real org admin still gets editable pages.
+
 ### 2026-10-13 — System admin dashboard (Phase 9.10)
 
 **Type:** feature  

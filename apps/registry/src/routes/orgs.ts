@@ -571,6 +571,13 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
       name: org.name,
       plan: org.plan,
       role: request.orgRole ?? null,
+      // INST-20: an instance admin reading through their support grant (read-only).
+      support:
+        !request.orgRole &&
+        request.principal!.type === 'user' &&
+        request.principal!.isInstanceAdmin &&
+        // eslint-disable-next-line no-restricted-syntax -- MT-09: support grants are instance rows
+        !!(await grantForOrg(systemDb, request.principal!.id, org.id)),
       suspended: !!org.suspendedAt,
       // INST-20: instance admins with support access right now.
       // eslint-disable-next-line no-restricted-syntax -- MT-09: support grants are instance rows

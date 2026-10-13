@@ -45,7 +45,10 @@
       "storageGb": "Bundle storage (GB)",
       "deploysPerMonth": "Deploys this month",
       "webhooks": "Webhook endpoints"
-    }
+    },
+    "supportView": "You are viewing with support access until {until}. It is read-only, and the tenant’s admins can see it.",
+    "supportViewShort": "You are viewing with support access. It is read-only, and the tenant’s admins can see it.",
+    "supportReadOnly": "Read-only: support access"
   },
   "WorkspaceOverview": {
     "title": "Overview",
@@ -906,7 +909,10 @@
     "settings": "Settings",
     "policies": "Policies",
     "usage": "Usage",
-    "integrations": "Integrations"
+    "integrations": "Integrations",
+    "supportView": "You are viewing with support access until {until}. It is read-only, and the tenant’s admins can see it.",
+    "supportViewShort": "You are viewing with support access. It is read-only, and the tenant’s admins can see it.",
+    "supportReadOnly": "Read-only: support access"
   },
   "OrgHome": {
     "description": "Workspaces in this organization, with recent activity and health over the last 24 hours.",
@@ -1797,7 +1803,8 @@
     "reason": "Reason (e.g. a ticket)",
     "reasonPlaceholder": "Ticket #1234: deploys fail for checkout",
     "hours": "For",
-    "hoursOption": "{count, plural, one {# hour} other {# hours}}"
+    "hoursOption": "{count, plural, one {# hour} other {# hours}}",
+    "view": "View it (read-only)"
   },
   "SupportBanner": {
     "active": "{admin} from the instance’s support team can read this until {until} (“{reason}”). They can’t change anything."

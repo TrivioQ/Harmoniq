@@ -710,7 +710,7 @@ M4.8, INST-01..10, 18; Phase 9.10: INST-19..22, 27..30, 36..39. Instance admins 
 
 Every save, restore, import and reset is kept as a version (INST-35).
 
-**Support access** (INST-20): while an instance admin's grant on a workspace (or its organization) is active, they may make GET requests there as its admins would; any change answers `403 SUPPORT_READ_ONLY`. `GET /api/workspaces/:ws` and `GET /api/orgs/:org` list active grants in `supportAccess`.
+**Support access** (INST-20): while an instance admin's grant on a workspace (or its organization) is active, they may make GET requests there as its admins would; any change answers `403 SUPPORT_READ_ONLY`. `GET /api/workspaces/:ws` and `GET /api/orgs/:org` list active grants in `supportAccess`. Both also return `support: true` when the caller is reading through their own grant (no role in the tenant), so the dashboard can show the pages read-only.
 
 **Sign-in events** (INST-39): every sign-in attempt (method, address, IP, success or reason) is kept 90 days; the email log 30 days (`ops.retention`). Requests refused by a rate limit are counted per workspace in `UsageDaily.rateLimited`.
 

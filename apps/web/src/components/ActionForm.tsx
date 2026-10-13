@@ -6,6 +6,7 @@
 import { ReactNode, useActionState } from 'react';
 import type { ActionResult } from '@/lib/actionResult';
 import { ReauthPrompt } from './ReauthPrompt';
+import { useReadOnly } from './ReadOnly';
 
 const buttonStyles = {
   primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
@@ -39,6 +40,8 @@ export function ActionForm({
   className?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, { status: 'idle' });
+  // INST-20: no changes through support access.
+  const readOnly = useReadOnly();
 
   return (
     <>
@@ -46,13 +49,14 @@ export function ActionForm({
         action={formAction}
         className={className}
         onSubmit={(e) => {
-          if (confirm && !window.confirm(confirm)) e.preventDefault();
+          if (readOnly || (confirm && !window.confirm(confirm))) e.preventDefault();
         }}
       >
         {children}
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || !!readOnly}
+          title={readOnly ?? undefined}
           className={`inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${buttonStyles[variant]}`}
         >
           {pending ? (pendingLabel ?? submitLabel) : submitLabel}

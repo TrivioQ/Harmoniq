@@ -66,6 +66,13 @@ describe('Support access (INST-20)', () => {
     const grant = granted.json();
 
     expect((await api(support.token, 'GET', audit)).statusCode).toBe(200);
+    // The dashboard learns it is reading through support access (read-only).
+    expect(
+      (await api(support.token, 'GET', `/api/workspaces/${workspace.slug}`)).json()
+    ).toMatchObject({ support: true, role: null });
+    expect((await api(ownerToken, 'GET', `/api/workspaces/${workspace.slug}`)).json().support).toBe(
+      false
+    );
     const change = await api(support.token, 'PATCH', `/api/workspaces/${workspace.slug}`, {
       name: 'Hacked',
     });
@@ -128,6 +135,10 @@ describe('Support access (INST-20)', () => {
       })
     ).json();
     expect((await api(support.token, 'GET', orgAudit)).statusCode).toBe(200);
+    expect((await api(support.token, 'GET', `/api/orgs/${org.slug}`)).json()).toMatchObject({
+      support: true,
+      role: null,
+    });
     expect(
       (await api(support.token, 'GET', `/api/workspaces/${workspace.slug}/audit`)).statusCode
     ).toBe(200);
@@ -146,6 +157,7 @@ describe('Support access (INST-20)', () => {
       data: { expiresAt: new Date(Date.now() - 1000) },
     });
     expect((await api(support.token, 'GET', orgAudit)).statusCode).toBe(403);
+    expect((await api(support.token, 'GET', `/api/orgs/${org.slug}`)).json().support).toBe(false);
     const list = (await api(support.token, 'GET', '/api/admin/support-grants')).json().grants;
     expect(list.find((g: { id: string }) => g.id === grant.id)).toMatchObject({
       active: false,

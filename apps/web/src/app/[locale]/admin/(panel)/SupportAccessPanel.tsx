@@ -4,6 +4,8 @@
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { ActionForm } from '@/components/ActionForm';
 import type { SupportAccess } from '@/lib/adminApi';
+import { Link } from '@/i18n/routing';
+import { getMe } from '@/lib/registry';
 import { endSupportGrantAction, openSupportGrantAction } from './actions';
 
 /**
@@ -19,10 +21,19 @@ export async function SupportAccessPanel({
 }) {
   const t = await getTranslations('AdminSupportAccess');
   const format = await getFormatter();
+  // With your own grant active, open the tenant's pages (read-only).
+  const me = await getMe();
+  const mine = grants.some((g) => g.admin === me?.user.email);
+  const view = target.kind === 'workspace' ? `/w/${target.slug}` : `/orgs/${target.slug}`;
   return (
     <section className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 space-y-3">
       <h2 className="text-sm font-medium text-gray-700">{t('title')}</h2>
       <p className="text-xs text-gray-500">{t('hint')}</p>
+      {mine && (
+        <Link href={view} className="inline-block text-sm text-indigo-700 hover:underline">
+          {t('view')} →
+        </Link>
+      )}
       {grants.length > 0 && (
         <ul className="divide-y text-sm">
           {grants.map((g) => (

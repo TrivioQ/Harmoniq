@@ -4,17 +4,19 @@
 import { notFound, redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
 import { Breadcrumbs, ContextSwitcher, UserMenu, type ShellContext } from '@/components/AppShell';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
 import { workspaceApi } from '@/lib/workspaceApi';
 import { nearLimits } from '@/lib/usage';
 import { SupportBanner } from '@/components/SupportBanner';
+import { ReadOnly } from '@/components/ReadOnly';
 
 export default async function WorkspaceLayout(props: {
   children: React.ReactNode;
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const t = await getTranslations('WorkspaceLayout');
+  const format = await getFormatter();
   const params = await props.params;
   const me = await getMe();
   if (!me) redirect('/auth/login');
@@ -49,6 +51,13 @@ export default async function WorkspaceLayout(props: {
             .get(workspace.slug)
             .then((w) => w.supportAccess)
             .catch(() => undefined)
+      : undefined;
+
+  // INST-20: an instance admin reading through their support grant: read-only.
+  const supportMode = 'support' in workspace && !!workspace.support;
+  const myGrant =
+    supportMode && 'supportAccess' in workspace
+      ? workspace.supportAccess?.find((g) => g.admin === me.user.email)
       : undefined;
 
   // TAD-08: the organization in the breadcrumbs, when you can see it.
@@ -112,12 +121,21 @@ export default async function WorkspaceLayout(props: {
         </div>
       )}
       <SupportBanner grants={support} />
+      {supportMode && (
+        <div role="status" className="bg-blue-50 text-blue-900 text-sm px-4 md:px-8 py-2">
+          {myGrant
+            ? t('supportView', { until: format.dateTime(new Date(myGrant.expiresAt), 'short') })
+            : t('supportViewShort')}
+        </div>
+      )}
       {suspended && (
         <div role="status" className="bg-amber-50 text-amber-900 text-sm px-4 md:px-8 py-2">
           {t('suspended')}
         </div>
       )}
-      <main className="flex-1 bg-muted/20">{props.children}</main>
+      <main className="flex-1 bg-muted/20">
+        <ReadOnly reason={supportMode ? t('supportReadOnly') : null}>{props.children}</ReadOnly>
+      </main>
     </div>
   );
 }
