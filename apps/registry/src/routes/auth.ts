@@ -52,6 +52,13 @@ const REFRESH_RATE_LIMIT = {
   },
 };
 
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** INST-39: a sign-in attempt, recorded once the response is sent. */
+    signIn?: { method: string; email?: string; userId?: string; reason?: string };
+  }
+}
+
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const { config } = fastify;
   const { systemDb, logger, settings } = fastify.container;
@@ -110,12 +117,50 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     userAgent: request.headers['user-agent'],
   });
 
+  // INST-39: every sign-in attempt (success or failure, method, address) is recorded
+  // once its response is sent; the routes below note what they learnt.
+  const attempt = (request: FastifyRequest, method: string, email?: string) =>
+    (request.signIn = { method, ...(email && { email: email.toLowerCase() }) });
+  const outcome = <T>(request: FastifyRequest, result: T): T => {
+    const r = result as { user?: { id: string; email: string }; mfaRequired?: boolean };
+    if (request.signIn && r?.user) {
+      request.signIn.userId = r.user.id;
+      request.signIn.email = r.user.email;
+    }
+    if (request.signIn && r?.mfaRequired) request.signIn.reason = 'mfa_required';
+    return result;
+  };
+  fastify.addHook('onResponse', async (request, reply) => {
+    const s = request.signIn;
+    if (!s) return;
+    const success = reply.statusCode < 400;
+    await systemDb.signInEvent
+      .create({
+        data: {
+          userId: s.userId,
+          email: s.email,
+          method: s.method,
+          success,
+          reason: s.reason ?? (success ? null : `http_${reply.statusCode}`),
+          ip: request.ip,
+          userAgent: request.headers['user-agent']?.slice(0, 500),
+        },
+      })
+      .catch((err: unknown) =>
+        fastify.container.logger.warn(`Recording a sign-in failed: ${(err as Error).message}`)
+      );
+  });
+
   // SES-03: the second step of a sign-in.
   fastify.post('/api/auth/mfa/verify', { config: LOGIN_RATE_LIMIT }, async (request, reply) => {
+    attempt(request, 'mfa');
     const parsed = MfaVerifyRequestSchema.safeParse(request.body);
     if (!parsed.success) return badRequest(reply, parsed.error);
     try {
-      return await auth.verifyMfa(parsed.data.challenge, parsed.data.code, clientOf(request));
+      return outcome(
+        request,
+        await auth.verifyMfa(parsed.data.challenge, parsed.data.code, clientOf(request))
+      );
     } catch (err) {
       return identityFailure(reply, err);
     }
@@ -125,6 +170,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
   const identityFailure = (reply: FastifyReply, err: unknown) => {
     if (err instanceof IdentityError) {
+      if (reply.request.signIn) reply.request.signIn.reason = err.code;
       const status =
         err.code === 'provider_unavailable' ? 502 : err.code === 'account_suspended' ? 403 : 401;
       return reply
@@ -292,9 +338,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           .code(404)
           .send({ error: { code: 'NOT_FOUND', message: 'SAML sign-in is disabled' } });
       }
+      attempt(request, provider);
       try {
         const info = await providers.samlService.redeem(code, null, provider);
-        return await finishLogin(info, provider, request.ip, clientOf(request));
+        request.signIn!.email = info.email?.toLowerCase();
+        return outcome(request, await finishLogin(info, provider, request.ip, clientOf(request)));
       } catch (err) {
         return identityFailure(reply, err);
       }
@@ -335,9 +383,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (!isAllowedRedirect(parsed.data.redirectUri)) {
         return badRequest(reply, 'redirectUri must be on the dashboard origin');
       }
+      attempt(request, provider.id);
       try {
         const info = await provider.handleCallback(parsed.data);
-        return await finishLogin(info, provider.id, request.ip, clientOf(request));
+        request.signIn!.email = info.email?.toLowerCase();
+        return outcome(
+          request,
+          await finishLogin(info, provider.id, request.ip, clientOf(request))
+        );
       } catch (err) {
         return identityFailure(reply, err);
       }
@@ -349,15 +402,19 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.post('/api/auth/dev/login', { config: LOGIN_RATE_LIMIT }, async (request, reply) => {
       const parsed = DevLoginRequestSchema.safeParse(request.body);
       if (!parsed.success) return badRequest(reply, parsed.error);
-      return auth.completeLogin(
-        {
-          providerUserId: parsed.data.email.toLowerCase(),
-          email: parsed.data.email,
-          emailVerified: true,
-          name: parsed.data.name,
-        },
-        'dev',
-        clientOf(request)
+      attempt(request, 'dev', parsed.data.email);
+      return outcome(
+        request,
+        await auth.completeLogin(
+          {
+            providerUserId: parsed.data.email.toLowerCase(),
+            email: parsed.data.email,
+            emailVerified: true,
+            name: parsed.data.name,
+          },
+          'dev',
+          clientOf(request)
+        )
       );
     });
   }
@@ -383,9 +440,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (!emailEnabled()) return emailUnavailable(reply);
       const parsed = EmailLoginVerifySchema.safeParse(request.body);
       if (!parsed.success) return badRequest(reply, parsed.error);
+      attempt(request, email.id, 'email' in parsed.data ? parsed.data.email : undefined);
       try {
         const info = await email.verifyLogin(parsed.data);
-        return await auth.completeLogin(info, email.id, clientOf(request));
+        request.signIn!.email = info.email?.toLowerCase();
+        return outcome(request, await auth.completeLogin(info, email.id, clientOf(request)));
       } catch (err) {
         return identityFailure(reply, err);
       }

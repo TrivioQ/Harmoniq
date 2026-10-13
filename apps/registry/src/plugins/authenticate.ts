@@ -387,13 +387,62 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     ...(entry.instance && { instance: true }),
   });
 
-  async function resolveApiKey(raw: string): Promise<Principal | null> {
+  /**
+   * INST-39: a revoked or expired key that is still in use, for the security page. At most
+   * one event per key, reason and address a minute.
+   */
+  const keyAttempts = new Map<string, number>();
+  async function recordKeyAttempt(
+    kind: 'instance' | 'org' | 'workspace',
+    keyId: string,
+    reason: 'revoked' | 'expired' | null,
+    client: { ip?: string; userAgent?: string }
+  ) {
+    try {
+      const where = { where: { id: keyId }, select: { revokedAt: true, prefix: true } };
+      const record =
+        kind === 'instance'
+          ? await systemDb.instanceApiKey.findUnique(where)
+          : kind === 'org'
+            ? await systemDb.orgApiKey.findUnique(where)
+            : await systemDb.apiKey.findUnique(where);
+      const why = reason ?? (record?.revokedAt ? 'revoked' : null);
+      if (!record || !why) return;
+      const key = `${keyId}|${why}|${client.ip}`;
+      const now = Date.now();
+      if ((keyAttempts.get(key) ?? 0) > now - 60_000) return;
+      if (keyAttempts.size > 10_000) keyAttempts.clear();
+      keyAttempts.set(key, now);
+      await systemDb.signInEvent.create({
+        data: {
+          method: 'api_key',
+          success: false,
+          reason: why,
+          keyPrefix: record.prefix,
+          ip: client.ip,
+          userAgent: client.userAgent?.slice(0, 500),
+        },
+      });
+    } catch (err) {
+      logger.warn(`Recording a rejected key failed: ${(err as Error).message}`);
+    }
+  }
+
+  async function resolveApiKey(
+    raw: string,
+    client: { ip?: string; userAgent?: string } = {}
+  ): Promise<Principal | null> {
     const now = Date.now();
     const tokenHash = createHash('sha256').update(raw).digest('hex');
     const cached = keyCache.get(tokenHash);
 
     let entry: CachedKey | null;
+    let attempted: { kind: 'instance' | 'org' | 'workspace'; keyId: string } | null = null;
     if (cached && cached.cachedUntil > now) {
+      attempted = {
+        kind: cached.instance ? 'instance' : cached.organizationId ? 'org' : 'workspace',
+        keyId: cached.keyId,
+      };
       // The cache only saves the argon2 hash. The key row is re-read on every request, so
       // a revocation (dashboard, rotation, SCIM deprovisioning, on any replica), a new
       // expiry or a scope change applies to the very next request.
@@ -410,6 +459,12 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
       const instanceKey = parseInstanceApiKey(raw);
       const orgKey = instanceKey ? null : parseOrgApiKey(raw);
       const parsed = instanceKey ?? orgKey ?? parseApiKey(raw);
+      if (parsed) {
+        attempted = {
+          kind: instanceKey ? 'instance' : orgKey ? 'org' : 'workspace',
+          keyId: parsed.keyId,
+        };
+      }
       entry = !parsed
         ? null
         : instanceKey
@@ -421,6 +476,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
 
     if (!entry) {
       keyCache.delete(tokenHash);
+      if (attempted) void recordKeyAttempt(attempted.kind, attempted.keyId, null, client);
       return null;
     }
     if (!cached || cached.cachedUntil <= now) {
@@ -428,7 +484,10 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     }
     keyCache.set(tokenHash, entry);
 
-    if (!keyIsUsable(entry, now)) return null;
+    if (!keyIsUsable(entry, now)) {
+      if (attempted) void recordKeyAttempt(attempted.kind, attempted.keyId, 'expired', client);
+      return null;
+    }
     touchLastUsed(entry, now);
     return toPrincipal(entry);
   }
@@ -554,7 +613,10 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify) => {
     if (!header?.startsWith('Bearer ')) return null;
     const token = header.slice('Bearer '.length).trim();
     const principal = isApiKeyFormat(token)
-      ? await resolveApiKey(token)
+      ? await resolveApiKey(token, {
+          ip: request.ip,
+          userAgent: request.headers['user-agent'],
+        })
       : await resolveSession(token);
     if (principal) request.principal = principal;
     return principal;

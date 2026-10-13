@@ -203,6 +203,10 @@ class Client(BaseClient):
         """GET /api/admin/audit/export (Instance administration)."""
         return self.request("GET", "/api/admin/audit/export", None, query)
 
+    def get_admin_audit_search(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/audit/search (Instance administration)."""
+        return self.request("GET", "/api/admin/audit/search", None, query)
+
     def get_admin_audit_verify(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/audit/verify (Instance administration)."""
         return self.request("GET", "/api/admin/audit/verify", None, query)
@@ -242,6 +246,10 @@ class Client(BaseClient):
     def get_admin_overview(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/overview (Instance administration)."""
         return self.request("GET", "/api/admin/overview", None, query)
+
+    def get_admin_security(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/security (Instance administration)."""
+        return self.request("GET", "/api/admin/security", None, query)
 
     def get_admin_settings(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/settings (Instance administration)."""

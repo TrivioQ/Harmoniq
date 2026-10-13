@@ -999,6 +999,8 @@ model UsageDaily {
   storageBytes     BigInt   @default(0)
   members          Int      @default(0)
   apiKeys          Int      @default(0)
+  /// INST-39: requests refused by a rate limit (429).
+  rateLimited      Int      @default(0)
 
   @@id([workspaceId, day])
   @@index([day])
@@ -1200,6 +1202,8 @@ model SignInEvent {
   reason    String?
   ip        String?
   userAgent String?
+  /// For `api_key` attempts with a revoked or expired key: its prefix.
+  keyPrefix String?
   createdAt DateTime @default(now())
 
   @@index([createdAt])

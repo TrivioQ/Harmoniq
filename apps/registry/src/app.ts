@@ -29,6 +29,7 @@ import staticRoutes from './routes/static';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
 import adminDirectoryRoutes from './routes/adminDirectory';
+import adminSecurityRoutes from './routes/adminSecurity';
 import domainRoutes from './routes/domains';
 import transferRoutes from './routes/transfers';
 import exportRoutes from './routes/exports';
@@ -273,6 +274,13 @@ export async function buildApp() {
   );
   app.addHook('onClose', stopHeartbeat);
 
+  // INST-39: requests refused by a rate limit, per workspace, for the security page.
+  app.addHook('onResponse', async (request, reply) => {
+    if (reply.statusCode !== 429) return;
+    const slug = (request.params as { workspaceSlug?: string } | undefined)?.workspaceSlug;
+    if (slug) app.container.usage.rateLimited(slug);
+  });
+
   // INST-37: maintenance mode makes the instance read-only. Reads, manifests, health
   // reports, sign-in and the admin API (to end it) keep working.
   const MAINTENANCE_OPEN = [
@@ -324,6 +332,7 @@ export async function buildApp() {
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
   await app.register(adminDirectoryRoutes);
+  await app.register(adminSecurityRoutes);
   await app.register(workspacePolicyRoutes);
   await app.register(usageRoutes);
   await app.register(workspaceRoutes);

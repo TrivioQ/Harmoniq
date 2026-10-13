@@ -10,8 +10,18 @@ const FLUSH_MS = 60_000;
 // Slugs come from URLs; only served responses are counted, but stay bounded regardless.
 const MAX_KEYS = 50_000;
 
-type Counters = { manifestRequests: number; deploys: number; healthEvents: number };
-const empty = (): Counters => ({ manifestRequests: 0, deploys: 0, healthEvents: 0 });
+type Counters = {
+  manifestRequests: number;
+  deploys: number;
+  healthEvents: number;
+  rateLimited: number;
+};
+const empty = (): Counters => ({
+  manifestRequests: 0,
+  deploys: 0,
+  healthEvents: 0,
+  rateLimited: 0,
+});
 
 /** The UTC day, as the `date` column stores it. */
 export const usageDay = (now = new Date()) => now.toISOString().slice(0, 10);
@@ -47,6 +57,11 @@ export class UsageMeter {
 
   healthEvents(workspaceSlug: string, count: number) {
     if (count > 0) this.bump(this.bySlug, workspaceSlug, 'healthEvents', count);
+  }
+
+  /** INST-39: a request to the workspace refused by a rate limit (429). */
+  rateLimited(workspaceSlug: string) {
+    this.bump(this.bySlug, workspaceSlug, 'rateLimited', 1);
   }
 
   deployed(workspaceId: string) {
@@ -90,6 +105,7 @@ export class UsageMeter {
           const sum = totals.get(id) ?? empty();
           sum.manifestRequests += add.manifestRequests;
           sum.healthEvents += add.healthEvents;
+          sum.rateLimited += add.rateLimited;
           totals.set(id, sum);
         }
       }
@@ -97,20 +113,22 @@ export class UsageMeter {
       const day = usageDay();
       const values = [...totals].map(
         ([id, c]) =>
-          Prisma.sql`(${id}, ${day}::date, ${BigInt(c.manifestRequests)}, ${c.deploys}, ${c.healthEvents})`
+          Prisma.sql`(${id}, ${day}::date, ${BigInt(c.manifestRequests)}, ${c.deploys}, ${c.healthEvents}, ${c.rateLimited})`
       );
       await this.deps.systemDb.$executeRaw`
-        INSERT INTO "UsageDaily" ("workspaceId", "day", "manifestRequests", "deploys", "healthEvents")
+        INSERT INTO "UsageDaily" ("workspaceId", "day", "manifestRequests", "deploys", "healthEvents", "rateLimited")
         VALUES ${Prisma.join(values)}
         ON CONFLICT ("workspaceId", "day") DO UPDATE SET
           "manifestRequests" = "UsageDaily"."manifestRequests" + excluded."manifestRequests",
           "deploys" = "UsageDaily"."deploys" + excluded."deploys",
-          "healthEvents" = "UsageDaily"."healthEvents" + excluded."healthEvents"`;
+          "healthEvents" = "UsageDaily"."healthEvents" + excluded."healthEvents",
+          "rateLimited" = "UsageDaily"."rateLimited" + excluded."rateLimited"`;
     } catch (err) {
       this.deps.logger.warn(`Usage flush failed, kept for the next one: ${(err as Error).message}`);
       for (const [slug, c] of bySlug) {
         this.bump(this.bySlug, slug, 'manifestRequests', c.manifestRequests);
         this.bump(this.bySlug, slug, 'healthEvents', c.healthEvents);
+        this.bump(this.bySlug, slug, 'rateLimited', c.rateLimited);
       }
       for (const [id, c] of byId) this.bump(this.byId, id, 'deploys', c.deploys);
     }

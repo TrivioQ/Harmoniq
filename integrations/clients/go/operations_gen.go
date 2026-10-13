@@ -250,6 +250,11 @@ func (c *Client) GetAdminAuditExport(ctx context.Context, query url.Values) (*Re
 	return c.Do(ctx, "GET", "/api/admin/audit/export", nil, query)
 }
 
+// GetAdminAuditSearch calls GET /api/admin/audit/search (Instance administration).
+func (c *Client) GetAdminAuditSearch(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/audit/search", nil, query)
+}
+
 // GetAdminAuditVerify calls GET /api/admin/audit/verify (Instance administration).
 func (c *Client) GetAdminAuditVerify(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/audit/verify", nil, query)
@@ -298,6 +303,11 @@ func (c *Client) GetAdminOrgsPlan(ctx context.Context, slug string, query url.Va
 // GetAdminOverview calls GET /api/admin/overview (Instance administration).
 func (c *Client) GetAdminOverview(ctx context.Context, query url.Values) (*Response, error) {
 	return c.Do(ctx, "GET", "/api/admin/overview", nil, query)
+}
+
+// GetAdminSecurity calls GET /api/admin/security (Instance administration).
+func (c *Client) GetAdminSecurity(ctx context.Context, query url.Values) (*Response, error) {
+	return c.Do(ctx, "GET", "/api/admin/security", nil, query)
 }
 
 // GetAdminSettings calls GET /api/admin/settings (Instance administration).

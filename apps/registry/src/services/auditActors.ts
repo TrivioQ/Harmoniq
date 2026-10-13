@@ -68,6 +68,24 @@ export async function resolveActors(tx: Tx, refs: Ref[], known: Actors = new Map
   return known;
 }
 
+/** INST-33: instance keys, which only the system client can read (instance logs). */
+export async function resolveInstanceKeys(db: Tx, refs: Ref[], known: Actors) {
+  const ids = [
+    ...new Set(
+      refs.filter((r) => r.actorType === 'apiKey' && !known.has(r.actorId)).map((r) => r.actorId)
+    ),
+  ];
+  if (!ids.length) return known;
+  const keys = await db.instanceApiKey.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true, prefix: true },
+  });
+  for (const k of keys) {
+    known.set(k.id, { type: 'apiKey', id: k.id, label: `${k.name} (${k.prefix})`, deleted: false });
+  }
+  return known;
+}
+
 /** The event's actor, or a placeholder when it could not be resolved. */
 export function actorOf(known: Actors, ref: Ref): Actor {
   const found = known.get(ref.actorId);

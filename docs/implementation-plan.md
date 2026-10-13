@@ -1055,10 +1055,10 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Replica heartbeat every 30 s; `GET /api/admin/health` adds version, commit, pending migrations (`_prisma_migrations` vs. the bundled list), replicas; `GET /api/admin/jobs` (schedules, last run, last success and failure per queue), `GET /api/admin/jobs/failed`, `POST /api/admin/jobs/:id/retry`, `POST /api/admin/jobs/:queue/run` for maintenance queues (INST-28) (build, migrations and replicas at `GET /api/admin/system`; the daily `ops.retention` job purges the email and sign-in logs)
 - [x] `GET /api/admin/workspaces/:slug` detail; list `status`, `plan`, `org`, `inactiveDays`, `sort` parameters (INST-29)
 - [x] `GET /api/admin/users/:id` detail with identities, memberships, sessions (`DELETE …/sessions/:id`), keys and activity; list filters; `POST /api/admin/users/:id/email` (verification email) and `POST /api/admin/users/:id/merge` (moves identities, memberships, keys; audited) (INST-30) (the email change waits for the new address to confirm: `POST /api/auth/email-change`)
-- [ ] `GET /api/admin/audit` filters (`action`, `actor`, `resource`, `from`, `to`) and actor labels; `GET /api/admin/audit/search?actor=` across workspace, org and instance logs, audited (INST-36)
+- [x] `GET /api/admin/audit` filters (`action`, `actor`, `resource`, `from`, `to`) and actor labels; `GET /api/admin/audit/search?actor=` across workspace, org and instance logs, audited (INST-36) (`resource`, `resourceType`; instance keys get readable labels)
 - [x] Maintenance mode: `PUT /api/admin/settings/maintenance` (`from`, `until`, `message`); writes `503 MAINTENANCE` with `Retry-After`, manifests and health served (INST-37) (`/api/admin`, `/api/auth`, `/api/me`, health reports and `/api/instance` stay writable)
 - [x] Mailer decorator recording `EmailDelivery`; per-template subject and intro overrides (INST-38)
-- [ ] `SignInEvent` written by every sign-in path; `GET /api/admin/security` (failed sign-ins by IP and email, rate-limited tenants from the limiter, revoked/expired key attempts, SCIM errors) (INST-39)
+- [x] `SignInEvent` written by every sign-in path; `GET /api/admin/security` (failed sign-ins by IP and email, rate-limited tenants from the limiter, revoked/expired key attempts, SCIM errors) (INST-39) (rejected keys are `api_key` events with the key prefix; 429s are counted per workspace in `UsageDaily.rateLimited`)
 
 #### Dashboard
 
@@ -1080,9 +1080,9 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 - [x] Jobs: failed job listed and retried, run-now limited to maintenance queues
 - [x] Replica heartbeats and pending-migration detection
 - [x] User email change and merge (identities, memberships, keys, sessions), audited
-- [ ] Audit filters and cross-tenant search permissions
+- [x] Audit filters and cross-tenant search permissions
 - [x] Maintenance mode: writes 503, reads and manifests served, scheduled start and end
-- [ ] Email delivery log and template overrides; sign-in events and security page aggregates
+- [x] Email delivery log and template overrides; sign-in events and security page aggregates
 - [x] CSV exports; announcement scheduling
 
 ### Deliverables

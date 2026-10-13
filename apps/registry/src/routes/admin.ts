@@ -61,7 +61,13 @@ import { verifyChain } from '../services/auditChain';
 import { changedPaths } from '../services/instanceSettings';
 import { RESEAL_QUEUE, resealAll, sealedValueReport } from '../services/reseal';
 import { reportDays, sendUsageCsv, usageTotals, workspaceUsage } from '../services/usageReport';
-import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
+import {
+  actorOf,
+  actorWhere,
+  parseDate,
+  resolveActors,
+  resolveInstanceKeys,
+} from '../services/auditActors';
 import { asAdminRole, capabilitiesOf } from '../services/adminAccess';
 import { formatInstanceApiKey, generateApiKeySecret } from '../auth/apiKeys';
 
@@ -1545,6 +1551,9 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       action?: string;
       actor?: string;
       resourceId?: string;
+      /** INST-36: the same as `resourceId`. */
+      resource?: string;
+      resourceType?: string;
       from?: string;
       to?: string;
     };
@@ -1557,13 +1566,18 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         ...cursorWhere(q.cursor),
         ...(await actorWhere(systemDb, q.actor)),
         ...(q.action && { action: { startsWith: q.action } }),
-        ...(q.resourceId && { resourceId: q.resourceId }),
+        ...((q.resourceId || q.resource) && { resourceId: q.resourceId || q.resource }),
+        ...(q.resourceType && { resourceType: q.resourceType }),
         ...((from || to) && { createdAt: { gte: from, lte: to } }),
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: PAGE,
     });
-    const actors = await resolveActors(systemDb, events);
+    const actors = await resolveInstanceKeys(
+      systemDb,
+      events,
+      await resolveActors(systemDb, events)
+    );
     return {
       events: events.map((e) => ({
         ...e,
