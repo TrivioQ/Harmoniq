@@ -11,6 +11,7 @@
 
 ```text
 Instance level (no RLS)      InstanceConfig · InstanceConfigVersion · InstanceAdmin · InstanceAdminInvitation · InstanceApiKey · InstanceAuditEvent
+                             SupportGrant · ReplicaHeartbeat · SignInEvent · EmailDelivery
                              User · Identity · RefreshToken · EmailLoginToken
 
 Organization (optional,      Organization ── OrganizationMember ── User
@@ -33,19 +34,20 @@ Workspace (RLS tenant) ── WorkspaceMember ── User
 
 ### `User`
 
-| Column                           | Type                   | Notes                                                   |
-| -------------------------------- | ---------------------- | ------------------------------------------------------- |
-| `id`                             | `CUID`                 | Primary key                                             |
-| `email`                          | `String`               | Unique                                                  |
-| `name`                           | `String?`              | Display name from OAuth                                 |
-| `avatarUrl`                      | `String?`              |                                                         |
-| `suspendedAt`, `suspendedReason` | `DateTime?`, `String?` | SES-04: set by an instance admin                        |
-| `mfaSecretSealed`                | `String?`              | SES-03: TOTP secret, sealed (`HARMONIQ_ENCRYPTION_KEY`) |
-| `mfaEnabledAt`                   | `DateTime?`            | MFA is on once set                                      |
-| `mfaRecoveryCodes`               | `String[]`             | sha256 of each unused recovery code                     |
-| `mfaLastStep`                    | `Int?`                 | Last TOTP time step accepted (no replay)                |
-| `createdAt`                      | `DateTime`             |                                                         |
-| `updatedAt`                      | `DateTime`             |                                                         |
+| Column                                                           | Type                                     | Notes                                                                                                                   |
+| ---------------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `id`                                                             | `CUID`                                   | Primary key                                                                                                             |
+| `email`                                                          | `String`                                 | Unique                                                                                                                  |
+| `name`                                                           | `String?`                                | Display name from OAuth                                                                                                 |
+| `avatarUrl`                                                      | `String?`                                |                                                                                                                         |
+| `suspendedAt`, `suspendedReason`                                 | `DateTime?`, `String?`                   | SES-04: set by an instance admin                                                                                        |
+| `mfaSecretSealed`                                                | `String?`                                | SES-03: TOTP secret, sealed (`HARMONIQ_ENCRYPTION_KEY`)                                                                 |
+| `mfaEnabledAt`                                                   | `DateTime?`                              | MFA is on once set                                                                                                      |
+| `mfaRecoveryCodes`                                               | `String[]`                               | sha256 of each unused recovery code                                                                                     |
+| `mfaLastStep`                                                    | `Int?`                                   | Last TOTP time step accepted (no replay)                                                                                |
+| `pendingEmail`, `pendingEmailTokenHash`, `pendingEmailExpiresAt` | `String?`, `String?` unique, `DateTime?` | INST-30: an email change an instance admin started; applied when the new address confirms it (sha256 of the link token) |
+| `createdAt`                                                      | `DateTime`                               |                                                                                                                         |
+| `updatedAt`                                                      | `DateTime`                               |                                                                                                                         |
 
 ### `Workspace`
 
@@ -291,7 +293,7 @@ CREATE POLICY workspace_isolation_version ON "ModuleVersion"
 | By `organizationId`, read also from its workspaces | `OrgPolicy` (separate `SELECT` and write policies)                                                                                                                                                                                                                                                                                                                                        |
 | Through the parent row                             | `Environment` (via `HostApp`), `DeploymentApproval` (via `DeploymentRequest`)                                                                                                                                                                                                                                                                                                             |
 | No RLS, revoked from `harmoniq_app`                | `Identity`, `EmailLoginToken`, `RefreshToken`                                                                                                                                                                                                                                                                                                                                             |
-| No RLS (global)                                    | `User` (accounts are shared across tenants), `InstanceConfig`, `InstanceConfigVersion`, `InstanceAdmin`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceAuditEvent`                                                                                                                                                                                                                |
+| No RLS (global)                                    | `User` (accounts are shared across tenants), `InstanceConfig`, `InstanceConfigVersion`, `InstanceAdmin`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceAuditEvent`, `SupportGrant`, `ReplicaHeartbeat`, `SignInEvent`, `EmailDelivery`                                                                                                                                            |
 
 Append-only for `harmoniq_app` (`REVOKE UPDATE, DELETE`): `AuditEvent`, `OrganizationAuditEvent`, `InstanceAuditEvent`. `AuditEvent` and `ScimAuditEvent` have no foreign key to `Workspace` (AUD-05): a deleted workspace's audit trail stays, still scoped by `workspaceId`, until GC removes events older than `HARMONIQ_AUDIT_RETENTION_DAYS`.
 
@@ -635,6 +637,7 @@ USG-01: one row per workspace and UTC day. Counters are added by every replica (
 | `storageBytes`     | `BigInt` | Snapshot: `sizeBytes` of versions not deleted       |
 | `members`          | `Int`    | Snapshot: joined members                            |
 | `apiKeys`          | `Int`    | Snapshot: active keys                               |
+| `rateLimited`      | `Int`    | INST-39: requests refused by a rate limit (429)     |
 
 **Index**: `day`. RLS as other workspace rows (the workspace, or the current organization's workspaces).
 
@@ -863,6 +866,72 @@ INST-33: keys for automation on `/api/admin` only (`hq_inst_<id>_<secret>`).
 
 ---
 
+### `SupportGrant`
+
+INST-20: read-only support access of one instance admin to one organization (and its workspaces) or workspace, at most 4 hours.
+
+| Column                           | Type                 | Notes                               |
+| -------------------------------- | -------------------- | ----------------------------------- |
+| `id`                             | `CUID`               | Primary key                         |
+| `adminUserId`                    | `CUID`               | The instance admin                  |
+| `organizationId` / `workspaceId` | `CUID?`              | Exactly one is set                  |
+| `reason`                         | `String`             | Written reason, shown to the tenant |
+| `expiresAt`                      | `DateTime`           |                                     |
+| `revokedAt`, `revokedBy`         | `DateTime?`, `CUID?` | Ended early                         |
+| `createdAt`                      | `DateTime`           |                                     |
+
+**Note**: NOT RLS-scoped (instance table). Recorded in the instance log and the tenant's audit log.
+
+---
+
+### `ReplicaHeartbeat`
+
+INST-28: one row per running registry, written every 30 seconds and removed on shutdown (rows not seen for a day are dropped).
+
+| Column                          | Type                           | Notes                                   |
+| ------------------------------- | ------------------------------ | --------------------------------------- |
+| `replicaId`                     | `String`                       | Primary key; random per process         |
+| `version`, `commit`, `hostname` | `String`, `String?`, `String?` | `HARMONIQ_VERSION`, `HARMONIQ_COMMIT`   |
+| `startedAt`, `lastSeenAt`       | `DateTime`                     |                                         |
+| `configLoadedAt`                | `DateTime?`                    | When it last read the instance settings |
+
+---
+
+### `SignInEvent`
+
+INST-39: sign-in attempts, kept 90 days (`ops.retention`). Uses of revoked or expired API keys are `api_key` events.
+
+| Column            | Type       | Notes                                                           |
+| ----------------- | ---------- | --------------------------------------------------------------- |
+| `id`              | `CUID`     | Primary key                                                     |
+| `userId`          | `CUID?`    | When known                                                      |
+| `email`           | `String?`  | Lower-cased                                                     |
+| `method`          | `String`   | `email`, `github`, `oidc:…`, `saml:…`, `mfa`, `dev`, `api_key`  |
+| `success`         | `Boolean`  |                                                                 |
+| `reason`          | `String?`  | Failure code, `mfa_required`, or `revoked` / `expired` for keys |
+| `ip`, `userAgent` | `String?`  |                                                                 |
+| `keyPrefix`       | `String?`  | For `api_key` events                                            |
+| `createdAt`       | `DateTime` | Indexed with `email` and `ip`                                   |
+
+---
+
+### `EmailDelivery`
+
+INST-38: each email sent, kept 30 days; never its body.
+
+| Column      | Type       | Notes                                                           |
+| ----------- | ---------- | --------------------------------------------------------------- |
+| `id`        | `CUID`     | Primary key                                                     |
+| `to`        | `String`   | Recipient                                                       |
+| `template`  | `String`   | `sign_in`, `invitation`, `notification`, `email_change`, `test` |
+| `status`    | `String`   | `sent` \| `failed`                                              |
+| `error`     | `String?`  |                                                                 |
+| `createdAt` | `DateTime` |                                                                 |
+
+**Note**: these four tables are NOT RLS-scoped; the app role has no access to them.
+
+---
+
 ### `InstanceConfigVersion`
 
 INST-35: every saved version of an instance setting.
@@ -886,20 +955,21 @@ INST-35: every saved version of an instance setting.
 
 Per-workspace BYOB storage adapter override (§18). When present, the registry routes all deploy I/O for that workspace to this adapter instead of the instance default.
 
-| Column                 | Type        | Notes                                                                                                                     |
-| ---------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `id`                   | `CUID`      | Primary key                                                                                                               |
-| `workspaceId`          | `CUID`      | Unique FK → Workspace                                                                                                     |
-| `provider`             | `String`    | `S3 \| GCS \| AZURE` (BYOB-02)                                                                                            |
-| `bucket`               | `String`    | Bucket or container name                                                                                                  |
-| `region`               | `String`    | Cloud region (e.g., `us-east-1`, `eu-west-1`)                                                                             |
-| `credentialsEncrypted` | `Json`      | AES-256-GCM: access keys or `roleArn` (+ `externalId`) for S3, `serviceAccountJson` for GCS, `connectionString` for Azure |
-| `endpoint`             | `String?`   | S3-compatible endpoint (MinIO, R2 …)                                                                                      |
-| `cdnPrefix`            | `String?`   | Optional CDN URL prefix (e.g., `https://cdn.acme.com/mfe`)                                                                |
-| `pathPrefix`           | `String?`   | Optional path prefix within the bucket (e.g., `harmoniq/`)                                                                |
-| `lastVerifiedAt`       | `DateTime?` | Timestamp of last successful canary write-read-delete cycle (BYOB-04)                                                     |
-| `createdAt`            | `DateTime`  |                                                                                                                           |
-| `updatedAt`            | `DateTime`  |                                                                                                                           |
+| Column                                  | Type                   | Notes                                                                                                                     |
+| --------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                    | `CUID`                 | Primary key                                                                                                               |
+| `workspaceId`                           | `CUID`                 | Unique FK → Workspace                                                                                                     |
+| `provider`                              | `String`               | `S3 \| GCS \| AZURE` (BYOB-02)                                                                                            |
+| `bucket`                                | `String`               | Bucket or container name                                                                                                  |
+| `region`                                | `String`               | Cloud region (e.g., `us-east-1`, `eu-west-1`)                                                                             |
+| `credentialsEncrypted`                  | `Json`                 | AES-256-GCM: access keys or `roleArn` (+ `externalId`) for S3, `serviceAccountJson` for GCS, `connectionString` for Azure |
+| `endpoint`                              | `String?`              | S3-compatible endpoint (MinIO, R2 …)                                                                                      |
+| `cdnPrefix`                             | `String?`              | Optional CDN URL prefix (e.g., `https://cdn.acme.com/mfe`)                                                                |
+| `pathPrefix`                            | `String?`              | Optional path prefix within the bucket (e.g., `harmoniq/`)                                                                |
+| `lastVerifiedAt`                        | `DateTime?`            | Timestamp of last successful canary write-read-delete cycle (BYOB-04)                                                     |
+| `lastVerifyError`, `lastVerifyFailedAt` | `String?`, `DateTime?` | INST-27: the last failed check (daily `storage.verify` or a test), cleared by a success                                   |
+| `createdAt`                             | `DateTime`             |                                                                                                                           |
+| `updatedAt`                             | `DateTime`             |                                                                                                                           |
 
 **Unique**: `workspaceId` (one BYOB config per workspace)  
 **RLS**: enabled, policy on `workspaceId`
@@ -985,14 +1055,15 @@ DOM-01..05 (migration `20261011120000_verified_domains`). A domain claimed by an
 
 > Not yet in `schema.prisma`. Designed in [features/tenant-administration.md](./features/tenant-administration.md) and tracked in [implementation-plan.md Phase 9](./implementation-plan.md). Move each entry into the sections above when its migration lands.
 
-| Change                                                                                     | Sub-phase | Requirements              |
-| ------------------------------------------------------------------------------------------ | --------- | ------------------------- |
-| `OrgApiKey.gracePeriodEnd`                                                                 | 9.4       | TAD-05                    |
-| `OrgPolicy`                                                                                | 9.5       | POL-01–POL-08             |
-| `UsageDaily`, `ModuleVersion.sizeBytes`, plan `overrides` / `planExpiresAt` / `basePlan`   | 9.6       | USG-01, PLN-04–06         |
-| `User.suspendedAt/suspendedReason/mfa*`; `RefreshToken.lastUsedAt/userAgent/ip`            | 9.7       | SES-01–SES-04             |
-| `AuditSink`, audit `prevHash`/`hash`, org webhooks, `NotificationChannel`                  | 9.8       | AUD-06, AUD-09, TAD-09/10 |
-| `SupportGrant`                                                                             | 9.10      | INST-20                   |
-| Sealed JSON envelopes gain `kid` (key id); no schema change                                | 9.9       | INST-26                   |
-| `InstanceAdmin.role`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceConfigVersion` | 9.9       | INST-31, INST-33, INST-35 |
-| `ReplicaHeartbeat`, `SignInEvent`, `EmailDelivery`                                         | 9.10      | INST-28, INST-38, INST-39 |
+| Change                                                                                                                               | Sub-phase | Requirements              |
+| ------------------------------------------------------------------------------------------------------------------------------------ | --------- | ------------------------- |
+| `OrgApiKey.gracePeriodEnd`                                                                                                           | 9.4       | TAD-05                    |
+| `OrgPolicy`                                                                                                                          | 9.5       | POL-01–POL-08             |
+| `UsageDaily`, `ModuleVersion.sizeBytes`, plan `overrides` / `planExpiresAt` / `basePlan`                                             | 9.6       | USG-01, PLN-04–06         |
+| `User.suspendedAt/suspendedReason/mfa*`; `RefreshToken.lastUsedAt/userAgent/ip`                                                      | 9.7       | SES-01–SES-04             |
+| `AuditSink`, audit `prevHash`/`hash`, org webhooks, `NotificationChannel`                                                            | 9.8       | AUD-06, AUD-09, TAD-09/10 |
+| `SupportGrant`                                                                                                                       | 9.10      | INST-20                   |
+| Sealed JSON envelopes gain `kid` (key id); no schema change                                                                          | 9.9       | INST-26                   |
+| `InstanceAdmin.role`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceConfigVersion`                                           | 9.9       | INST-31, INST-33, INST-35 |
+| `ReplicaHeartbeat`, `SignInEvent`, `EmailDelivery`                                                                                   | 9.10      | INST-28, INST-38, INST-39 |
+| `User.pendingEmail*`, `WorkspaceStorageConfig.lastVerifyError/lastVerifyFailedAt`, `UsageDaily.rateLimited`, `SignInEvent.keyPrefix` | 9.10      | INST-27, INST-30, INST-39 |

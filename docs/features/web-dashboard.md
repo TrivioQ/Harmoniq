@@ -38,6 +38,35 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 
 ## Change History
 
+### 2026-10-13 — System admin dashboard (Phase 9.10)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-19–INST-22, INST-27–INST-30, INST-36–INST-39
+
+#### What changed
+
+- `/admin`: counts, 30-day trend charts (`components/TrendBars.tsx`, server SVG), the needs-attention list linking to each item, and recent changes.
+- `/admin/health`: build, migrations and replicas. `/admin/jobs`: schedules, last runs, failed jobs with retry, run now.
+- `/admin/announcements`: announcement and maintenance windows (UTC). `components/InstanceBanner.tsx` in the root layout shows both on every page.
+- `/admin/email`: template wording and the delivery log. `/admin/security`: failures by address and email, rejected keys, rate limits, SCIM errors.
+- `/admin/audit`: a resource type filter, and "find a person in every log".
+- Lists: workspaces filter, sort and export CSV (`/api/admin-export`); users filter and export CSV; organizations search and pages.
+- Detail pages `/admin/workspaces/:slug` (the storage form moved to `…/storage`), `/admin/orgs/:slug` and `/admin/users/:id`. Delete, restore, suspend, email change and merge moved there.
+- Support access: `SupportAccessPanel` on the workspace and organization pages, and `components/SupportBanner.tsx` for the tenant's admins.
+- `/auth/email-change`: the new address confirms the change with a button, so link scanners can't.
+- `lib/branding.ts` reads `/api/instance` once per request for branding, the announcement and maintenance.
+- The `short` date format used across the dashboard is now defined in `i18n/request.ts`.
+- The nav adds Jobs, Announcements (owners) and Security.
+
+#### Testing
+
+Typecheck, lint, unit tests and the production build. Smoke tests against a local registry:
+
+- every new page in English and Spanish, and the CSV export;
+- the announcement banner, and the support banner for a workspace owner while a grant is active;
+- the billing role's navigation.
+
 ### 2026-10-12 — Admin roles, re-authentication, keys, settings and encryption (Phase 9.9)
 
 **Type:** feature  

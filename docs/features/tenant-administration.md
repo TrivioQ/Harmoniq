@@ -39,7 +39,7 @@ The audience is org admins (self-service tenant administration), security and co
 | `SES-01`–`SES-04`                                       | Session limits as instance settings, session list and revocation, TOTP MFA with recovery codes and org `requireMfa`, user suspension                                                                               | ✅ Done (9.7)                               |
 | `AUD-06`, `AUD-09`, `TAD-09`, `TAD-10`                  | Audit streaming to HTTPS and S3 sinks, hash-chained audit with verification, org notifications (email, Slack, Teams) and org webhooks                                                                              | ✅ Done (9.8)                               |
 | `INST-26`, `INST-31`–`INST-35`                          | Operator security and automation: encryption keyring, admin roles, step-up, instance API keys and Terraform, runtime settings with history and export (in [instance admin](./instance-admin-and-byob-storage.md))  | ✅ Done (Phase 9.9)                         |
-| `INST-19`–`INST-22`                                     | Operator tooling: org administration, support access, user/workspace CSV, announcements (with the rest of system administration in [instance admin](./instance-admin-and-byob-storage.md))                         | 📋 Planned (9.10)                           |
+| `INST-19`–`INST-22`                                     | Operator tooling: organization administration, support access, user and workspace CSV, announcements (with the rest of system administration in [instance admin](./instance-admin-and-byob-storage.md))            | ✅ Done (Phase 9.10)                        |
 
 See [`docs/requirements.md §19`](../requirements.md) for the full specification and [`implementation-plan.md` Phase 9](../implementation-plan.md) for the task checklists.
 
@@ -161,6 +161,24 @@ All API additions are additive. New org roles don't change the meaning of `org_a
 ---
 
 ## Change History
+
+### 2026-10-13 — Phase 9.10: system admin dashboard and operations
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-19–INST-22, INST-27–INST-30, INST-36–INST-39
+
+#### What changed
+
+- Instance-side work, described in [instance admin](./instance-admin-and-byob-storage.md#change-history).
+- What tenants see:
+  - Workspace owners and admins, and organization admins, see a banner while an instance admin has read-only support access. `GET /api/workspaces/:ws` and `GET /api/orgs/:org` list it in `supportAccess`, and their audit logs record `support.access_granted` and `support.access_revoked`.
+  - Every page shows the instance's announcement, and a maintenance window before and while it runs. During maintenance, changes answer `503 MAINTENANCE`.
+  - An email change started by an instance admin applies only once the new address confirms it.
+
+#### Testing
+
+See the instance admin entry.
 
 ### 2026-10-12 — Phase 9.9: operator security and automation
 

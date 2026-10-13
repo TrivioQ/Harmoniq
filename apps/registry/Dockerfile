@@ -14,6 +14,10 @@ RUN pnpm turbo run build --filter=@harmoniq/registry...
 
 FROM base AS runtime
 ENV NODE_ENV=production
+# INST-28: shown on the admin health page (e.g. --build-arg HARMONIQ_COMMIT=$(git rev-parse HEAD)).
+ARG HARMONIQ_VERSION=dev
+ARG HARMONIQ_COMMIT=
+ENV HARMONIQ_VERSION=$HARMONIQ_VERSION HARMONIQ_COMMIT=$HARMONIQ_COMMIT
 COPY --from=build --chown=node:node /repo /repo
 USER node
 WORKDIR /repo/apps/registry

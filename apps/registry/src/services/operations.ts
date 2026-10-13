@@ -24,8 +24,9 @@ const STARTED_AT = new Date();
 
 export function buildInfo() {
   return {
-    version: process.env.HARMONIQ_VERSION ?? process.env.npm_package_version ?? 'dev',
-    commit: process.env.HARMONIQ_COMMIT ?? process.env.GIT_COMMIT ?? null,
+    // Empty build arguments count as unset.
+    version: process.env.HARMONIQ_VERSION || process.env.npm_package_version || 'dev',
+    commit: process.env.HARMONIQ_COMMIT || process.env.GIT_COMMIT || null,
     node: process.version,
     startedAt: STARTED_AT.toISOString(),
   };
