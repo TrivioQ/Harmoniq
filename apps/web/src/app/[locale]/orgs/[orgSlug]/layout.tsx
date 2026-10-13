@@ -6,6 +6,8 @@ import { getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { Breadcrumbs, ContextSwitcher, UserMenu } from '@/components/AppShell';
 import { getMe } from '@/lib/registry';
+import { orgApi } from '@/lib/orgApi';
+import { SupportBanner } from '@/components/SupportBanner';
 
 /** ORG-15: `/orgs/:orgSlug/…`, next to the workspace routes. */
 export default async function OrgLayout(props: {
@@ -24,6 +26,13 @@ export default async function OrgLayout(props: {
   const reader = admin || org.role === 'org_auditor';
   // PPL-08: billing members read plan and usage.
   const billing = reader || org.role === 'org_billing';
+  // INST-20: org admins see who has support access to the organization.
+  const support = admin
+    ? await orgApi
+        .home(org.slug, { limit: '1' })
+        .then((h) => h.supportAccess)
+        .catch(() => undefined)
+    : undefined;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -92,6 +101,7 @@ export default async function OrgLayout(props: {
           </nav>
         </div>
       </header>
+      <SupportBanner grants={support} />
       <main className="flex-1 bg-muted/20">
         <div className="p-6 md:p-8 space-y-6 max-w-6xl">{props.children}</div>
       </main>

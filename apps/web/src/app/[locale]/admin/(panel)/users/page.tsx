@@ -6,7 +6,6 @@ import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
 import { adminApi } from '@/lib/adminApi';
 import {
-  deleteUserAction,
   resetMfaAction,
   revokeSessionsAction,
   suspendUserAction,
@@ -16,30 +15,67 @@ import {
 const th = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
 const td = 'px-4 py-3 text-sm text-gray-700 align-top';
 
-/** INST-10: every account, its memberships and last sign-in; end sessions or erase it. */
+type Filters = { query?: string; filter?: string; inactiveDays?: string };
+const qs = (f: Filters & { cursor?: string; kind?: string }) =>
+  new URLSearchParams(Object.entries(f).filter((e): e is [string, string] => !!e[1])).toString();
+/** A file download, not a page. */
+const EXPORT_URL = '/api/admin-export';
+
+/** INST-10, INST-21, INST-30: every account, filtered; details and changes per account. */
 export default async function AdminUsersPage(props: {
-  searchParams: Promise<{ query?: string; cursor?: string }>;
+  searchParams: Promise<Filters & { cursor?: string }>;
 }) {
-  const { query, cursor } = await props.searchParams;
+  const { cursor, ...filters } = await props.searchParams;
   const t = await getTranslations('AdminUsersPage');
   const format = await getFormatter();
-  const { users, nextCursor } = await adminApi.users({ query, cursor });
+  const { users, total, nextCursor } = await adminApi.users({ ...filters, cursor });
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
-      <form className="flex gap-2">
+      <form className="flex flex-wrap gap-2">
         <input
           name="query"
-          defaultValue={query}
+          defaultValue={filters.query}
           placeholder={t('search')}
           aria-label={t('search')}
           className="rounded-md border px-3 py-1.5 text-sm w-72"
         />
+        <select
+          name="filter"
+          defaultValue={filters.filter ?? ''}
+          aria-label={t('filter')}
+          className="rounded-md border px-2 py-1.5 text-sm bg-white"
+        >
+          <option value="">{t('everyone')}</option>
+          <option value="admins">{t('filterAdmins')}</option>
+          <option value="suspended">{t('filterSuspended')}</option>
+          <option value="never">{t('filterNever')}</option>
+          <option value="inactive">{t('filterInactive')}</option>
+        </select>
+        <input
+          name="inactiveDays"
+          type="number"
+          min={1}
+          defaultValue={filters.inactiveDays}
+          placeholder={t('inactiveDays')}
+          aria-label={t('inactiveDays')}
+          className="rounded-md border px-3 py-1.5 text-sm w-40"
+        />
         <button className="rounded-md border px-3 py-1.5 text-sm bg-white">
           {t('searchButton')}
         </button>
+        <a
+          href={`${EXPORT_URL}?${qs({ ...filters, kind: 'users' })}`}
+          download
+          className="rounded-md border px-3 py-1.5 text-sm bg-white"
+        >
+          {t('exportCsv')}
+        </a>
       </form>
+      {total !== undefined && (
+        <p className="text-xs text-gray-500">{t('total', { count: total })}</p>
+      )}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -55,7 +91,9 @@ export default async function AdminUsersPage(props: {
               <tr key={u.id}>
                 <td className={td}>
                   <div className="font-medium text-gray-900">
-                    {u.email}
+                    <Link href={`/admin/users/${u.id}`} className="text-indigo-700 hover:underline">
+                      {u.email}
+                    </Link>
                     {u.isInstanceAdmin && (
                       <span className="ml-2 text-xs text-indigo-700">{t('admin')}</span>
                     )}
@@ -75,6 +113,14 @@ export default async function AdminUsersPage(props: {
                   {u.workspaces.length
                     ? u.workspaces.map((w) => `${w.slug} (${w.role})`).join(', ')
                     : '—'}
+                  {/* INST-21 */}
+                  {!!u.organizations?.length && (
+                    <div className="text-xs text-gray-500">
+                      {t('orgs', {
+                        list: u.organizations.map((o) => `${o.slug} (${o.role})`).join(', '),
+                      })}
+                    </div>
+                  )}
                 </td>
                 <td className={td}>
                   {u.lastLoginAt ? format.dateTime(new Date(u.lastLoginAt), 'short') : t('never')}
@@ -119,21 +165,6 @@ export default async function AdminUsersPage(props: {
                     variant="outline"
                     confirm={t('revokeConfirm', { email: u.email })}
                   />
-                  <ActionForm
-                    action={deleteUserAction.bind(null, u.id)}
-                    submitLabel={t('delete')}
-                    variant="danger"
-                    confirm={t('deleteConfirm', { email: u.email })}
-                    className="flex gap-2 items-start"
-                  >
-                    <input
-                      name="confirm"
-                      required
-                      placeholder={u.email}
-                      aria-label={t('typeEmail')}
-                      className="rounded-md border px-2 py-1 text-xs"
-                    />
-                  </ActionForm>
                 </td>
               </tr>
             ))}
@@ -142,7 +173,7 @@ export default async function AdminUsersPage(props: {
       </div>
       {nextCursor && (
         <Link
-          href={`/admin/users?${new URLSearchParams({ ...(query && { query }), cursor: nextCursor })}`}
+          href={`/admin/users?${qs({ ...filters, cursor: nextCursor })}`}
           className="text-sm text-indigo-600"
         >
           {t('next')}

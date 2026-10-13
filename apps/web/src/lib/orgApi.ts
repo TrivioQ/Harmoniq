@@ -22,6 +22,8 @@ export interface OrgHome {
   role: OrgRole | null;
   /** TLC-04: suspended by the instance admin (read-only). */
   suspended?: boolean;
+  /** INST-20: instance admins with read-only support access right now. */
+  supportAccess?: Array<{ id: string; admin: string; reason: string; expiresAt: string }>;
   /** TAD-06: workspaces matching the search, and the cursor of the next page. */
   total?: number;
   nextCursor?: string | null;

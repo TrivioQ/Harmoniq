@@ -8,6 +8,7 @@ import { getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
 import { workspaceApi } from '@/lib/workspaceApi';
 import { nearLimits } from '@/lib/usage';
+import { SupportBanner } from '@/components/SupportBanner';
 
 export default async function WorkspaceLayout(props: {
   children: React.ReactNode;
@@ -38,6 +39,17 @@ export default async function WorkspaceLayout(props: {
           .then((u) => nearLimits(u.workspace))
           .catch(() => [])
       : [];
+
+  // INST-20: admins see who has support access to the workspace.
+  const support =
+    role === 'owner' || role === 'admin'
+      ? 'supportAccess' in workspace
+        ? workspace.supportAccess
+        : await workspaceApi
+            .get(workspace.slug)
+            .then((w) => w.supportAccess)
+            .catch(() => undefined)
+      : undefined;
 
   // TAD-08: the organization in the breadcrumbs, when you can see it.
   const orgSlug = me.workspaces.find((w) => w.slug === workspace.slug)?.organization;
@@ -99,6 +111,7 @@ export default async function WorkspaceLayout(props: {
           </Link>
         </div>
       )}
+      <SupportBanner grants={support} />
       {suspended && (
         <div role="status" className="bg-amber-50 text-amber-900 text-sm px-4 md:px-8 py-2">
           {t('suspended')}

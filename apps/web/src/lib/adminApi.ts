@@ -62,6 +62,8 @@ export interface AdminUser {
   isInstanceAdmin: boolean;
   activeSessions: number;
   workspaces: Array<{ slug: string; role: string }>;
+  /** INST-21 */
+  organizations?: Array<{ slug: string; role: string }>;
   /** SES-03/04 */
   mfaEnabled?: boolean;
   suspendedAt?: string | null;

@@ -3,6 +3,7 @@
 
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { ActionForm } from '@/components/ActionForm';
+import { Link } from '@/i18n/routing';
 import { adminApi } from '@/lib/adminApi';
 import { PlanForm } from '../PlanForm';
 import { restoreOrgAction, suspendOrgAction, unsuspendOrgAction } from '../actions';
@@ -10,16 +11,49 @@ import { restoreOrgAction, suspendOrgAction, unsuspendOrgAction } from '../actio
 const th = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
 const td = 'px-4 py-3 text-sm text-gray-700 align-top';
 
-/** PLN-01: organizations and their plans (a workspace gets its organization's when higher). */
-export default async function AdminOrgsPage() {
+type Filters = { query?: string; status?: string };
+const qs = (f: Filters & { cursor?: string }) =>
+  new URLSearchParams(Object.entries(f).filter((e): e is [string, string] => !!e[1])).toString();
+
+/** INST-19, PLN-01: organizations, searched and paged, with their plans and status. */
+export default async function AdminOrgsPage(props: {
+  searchParams: Promise<Filters & { cursor?: string }>;
+}) {
+  const { cursor, ...filters } = await props.searchParams;
   const t = await getTranslations('AdminOrgsPage');
   const format = await getFormatter();
-  const { organizations } = await adminApi.orgs();
+  const { organizations, total, nextCursor } = await adminApi.orgs({ ...filters, cursor });
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
       <p className="text-sm text-gray-600">{t('description')}</p>
+      <form className="flex flex-wrap gap-2">
+        <input
+          name="query"
+          defaultValue={filters.query}
+          placeholder={t('search')}
+          aria-label={t('search')}
+          className="rounded-md border px-3 py-1.5 text-sm w-64"
+        />
+        <select
+          name="status"
+          defaultValue={filters.status ?? ''}
+          aria-label={t('statusFilter')}
+          className="rounded-md border px-2 py-1.5 text-sm bg-white"
+        >
+          <option value="">{t('anyStatus')}</option>
+          <option value="active">{t('active')}</option>
+          <option value="suspended">{t('suspended')}</option>
+          <option value="deleted">{t('deleted')}</option>
+        </select>
+        <button className="rounded-md border px-3 py-1.5 text-sm bg-white">
+          {t('searchButton')}
+        </button>
+      </form>
+      {total !== undefined && (
+        <p className="text-xs text-gray-500">{t('total', { count: total })}</p>
+      )}
       {organizations.length === 0 ? (
         <p className="text-sm text-gray-500">{t('empty')}</p>
       ) : (
@@ -37,7 +71,12 @@ export default async function AdminOrgsPage() {
               {organizations.map((o) => (
                 <tr key={o.slug}>
                   <td className={td}>
-                    <div className="font-medium text-gray-900">{o.name}</div>
+                    <Link
+                      href={`/admin/orgs/${o.slug}`}
+                      className="font-medium text-indigo-700 hover:underline"
+                    >
+                      {o.name}
+                    </Link>
                     <div className="text-xs text-gray-500">{o.slug}</div>
                   </td>
                   <td className={td}>
@@ -103,6 +142,14 @@ export default async function AdminOrgsPage() {
             </tbody>
           </table>
         </div>
+      )}
+      {nextCursor && (
+        <Link
+          href={`/admin/orgs?${qs({ ...filters, cursor: nextCursor })}`}
+          className="text-sm text-indigo-600"
+        >
+          {t('next')}
+        </Link>
       )}
     </div>
   );
