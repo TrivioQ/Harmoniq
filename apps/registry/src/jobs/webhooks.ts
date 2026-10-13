@@ -8,6 +8,12 @@ import { ILogger } from '@harmoniq/core/dist/ports/ILogger';
 import { PgBoss } from 'pg-boss';
 import { openSecret } from '../services/crypto';
 import { checkPublicUrl, createSafeFetch } from '../services/outbound';
+import {
+  NOTIFY_QUEUE,
+  type NotifyJobData,
+  ORG_WEBHOOK_QUEUE,
+  handleOrgWebhookDelivery,
+} from '../services/orgEvents';
 
 export type WebhookJobData = {
   workspaceId: string;
@@ -182,6 +188,28 @@ export async function registerWebhookJobs(fastify: FastifyInstance) {
 
   const allowHttp = !fastify.config.isProduction;
   const safeFetch = createSafeFetch({ allowHttp });
+  // TAD-09/10: organization webhooks (same engine) and notification channels.
+  await boss.createQueue(ORG_WEBHOOK_QUEUE);
+  await boss.createQueue(NOTIFY_QUEUE);
+  boss.work<WebhookJobData>(ORG_WEBHOOK_QUEUE, (jobs) =>
+    Promise.all(
+      (Array.isArray(jobs) ? jobs : [jobs]).map((job) =>
+        handleOrgWebhookDelivery(job, db, logger, boss, {
+          encryptionKey: fastify.config.encryptionKey,
+          checkUrl: (url) => checkPublicUrl(url, { allowHttp }),
+          fetchImpl: safeFetch,
+        })
+      )
+    )
+  );
+  boss.work<NotifyJobData>(NOTIFY_QUEUE, (jobs) =>
+    Promise.all(
+      (Array.isArray(jobs) ? jobs : [jobs]).map((job) =>
+        fastify.container.orgEvents.notify(job.data)
+      )
+    )
+  );
+
   boss.work<WebhookJobData>('webhook.deliver', (jobs) => {
     const jobList = Array.isArray(jobs) ? jobs : [jobs];
     return Promise.all(

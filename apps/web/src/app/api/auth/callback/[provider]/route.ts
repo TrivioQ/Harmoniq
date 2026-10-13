@@ -3,16 +3,11 @@
 
 import { createHash, timingSafeEqual } from 'crypto';
 import { NextRequest } from 'next/server';
-import type { SessionResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
+import type { SignInResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
 import { getAppUrl } from '@/lib/env';
-import { loginErrorRedirect, redirectTo } from '@/lib/http';
+import { loginErrorRedirect, signInResponse } from '@/lib/http';
 import { RegistryError, registryFetch } from '@/lib/registry';
-import {
-  OAUTH_STATE_COOKIE,
-  OAUTH_VERIFIER_COOKIE,
-  clearOAuthCookies,
-  setSessionCookies,
-} from '@/lib/session';
+import { OAUTH_STATE_COOKIE, OAUTH_VERIFIER_COOKIE, clearOAuthCookies } from '@/lib/session';
 
 const sameValue = (a: string, b: string) => {
   const ha = createHash('sha256').update(a).digest();
@@ -43,9 +38,9 @@ export async function GET(
     return fail('invalid_state');
   }
 
-  let session: SessionResponse;
+  let session: SignInResponse;
   try {
-    session = await registryFetch<SessionResponse>(
+    session = await registryFetch<SignInResponse>(
       `/api/auth/${encodeURIComponent(provider)}/callback`,
       {
         body: {
@@ -59,8 +54,7 @@ export async function GET(
     return fail(err instanceof RegistryError ? err.code.toLowerCase() : 'sign_in_failed');
   }
 
-  const response = redirectTo('/');
-  setSessionCookies(response.cookies, session);
+  const response = signInResponse(session);
   clearOAuthCookies(response.cookies);
   return response;
 }

@@ -7,6 +7,7 @@ import type { TenantTx } from '@harmoniq/db';
 import { BadRequestError, ValidationError } from '@harmoniq/core/dist/errors/AppError';
 import type { GitOpsChange, GitOpsConfig } from '@harmoniq/core/dist/schemas/GitOpsConfigSchema';
 import { openSecret, sealSecret } from './crypto';
+import { approvalDefaultFor, orgPolicyFor, weakerThan } from './policy';
 
 /*
  * IaC-09..12: reconciles a workspace with its `harmoniq.yaml`. Declared resources are
@@ -24,6 +25,13 @@ const json = (value: unknown) =>
     ? (null as unknown as Prisma.InputJsonValue)
     : (value as Prisma.InputJsonValue);
 const LIVE = { status: { in: ['active' as const, 'canary' as const] }, deletedAt: null };
+
+/** What a reconcile would add (negative: remove), for the plan's quotas. */
+export interface QuotaGrowth {
+  modules: number;
+  webhooks: number;
+  environments: Array<{ hostAppId: string | null; delta: number }>;
+}
 
 export interface GitOpsOutcome {
   changes: GitOpsChange[];
@@ -44,6 +52,8 @@ export async function reconcile(
     encryptionKey: Buffer;
     dryRun: boolean;
     prune: boolean;
+    /** PLN-04: checked with what the plan adds, before anything changes (plans too). */
+    checkQuotas?: (growth: QuotaGrowth) => Promise<void>;
   },
   config: GitOpsConfig
 ): Promise<GitOpsOutcome> {
@@ -135,6 +145,24 @@ export async function reconcile(
       problems.push(
         `alert rule "${r.name}": no environment ${r.environment} in ${key.split('/')[0]}`
       );
+    }
+  }
+  // POL-02: approval policies weaker than the organization's defaults, shown by the plan.
+  const { organizationId } = await tx.workspace.findUniqueOrThrow({
+    where: { id: workspaceId },
+    select: { organizationId: true },
+  });
+  const orgPolicy = await orgPolicyFor(tx, organizationId);
+  for (const h of config.hostApps ?? []) {
+    for (const e of h.environments ?? []) {
+      const floor = approvalDefaultFor(orgPolicy, e.slug);
+      if (!floor || e.approvalPolicy === undefined) continue;
+      const reasons = e.approvalPolicy
+        ? weakerThan({ ...e.approvalPolicy, ticketUrlPattern: null }, floor)
+        : [];
+      for (const reason of reasons) {
+        problems.push(`${h.slug}/${e.slug}: approval policy ${reason} (organization policy)`);
+      }
     }
   }
   if (problems.length) throw new ValidationError('The configuration has problems', { problems });
@@ -615,6 +643,30 @@ export async function reconcile(
         });
       }
     }
+  }
+
+  if (ctx.checkQuotas) {
+    const net = (type: string, filter: (key: string) => boolean = () => true) =>
+      [...ops, ...deletes].reduce(
+        (n, op) =>
+          op.change.blocked || op.change.type !== type || !filter(op.change.key)
+            ? n
+            : n + (op.change.action === 'create' ? 1 : op.change.action === 'delete' ? -1 : 0),
+        0
+      );
+    const hosts = new Set(
+      [...ops, ...deletes]
+        .filter((op) => op.change.type === 'environment')
+        .map((op) => op.change.key.split('/')[0])
+    );
+    await ctx.checkQuotas({
+      modules: net('module'),
+      webhooks: net('webhook'),
+      environments: [...hosts].map((host) => ({
+        hostAppId: hostApps.find((h) => h.slug === host)?.id ?? null,
+        delta: net('environment', (key) => key.startsWith(`${host}/`)),
+      })),
+    });
   }
 
   // ─── Apply ───────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
-import { createDbClients, withTenant, DbClients, Workspace } from '../index';
+import { createDbClients, withOrg, withTenant, DbClients, Workspace } from '../index';
 
 describe('Row-Level Security', () => {
   let clients: DbClients;
@@ -124,5 +124,151 @@ describe('Row-Level Security', () => {
       where: { workspaceId: { in: [ws1.id, ws2.id] } },
     });
     expect(found).toHaveLength(2);
+  });
+});
+
+// MT-07/08 (ADR-010): an organization transaction sees its own rows and its workspaces'.
+describe('Organization-scoped Row-Level Security', () => {
+  let clients: DbClients;
+  const run = randomUUID().slice(0, 8);
+  const ids = { orgA: '', orgB: '', a1: '', a2: '', b: '', solo: '', user: '' };
+
+  beforeAll(async () => {
+    clients = createDbClients();
+    const { systemDb } = clients;
+    const orgA = await systemDb.organization.create({ data: { slug: `orls-a-${run}`, name: 'A' } });
+    const orgB = await systemDb.organization.create({ data: { slug: `orls-b-${run}`, name: 'B' } });
+    const ws = (slug: string, organizationId?: string) =>
+      systemDb.workspace.create({
+        data: {
+          slug: `orls-${slug}-${run}`,
+          name: slug,
+          organizationId,
+          HostApps: { create: { name: slug, slug: 'app' } },
+        },
+      });
+    const [a1, a2, b, solo] = await Promise.all([
+      ws('a1', orgA.id),
+      ws('a2', orgA.id),
+      ws('b', orgB.id),
+      ws('solo'),
+    ]);
+    const user = await systemDb.user.create({ data: { email: `orls-${run}@test.local` } });
+    Object.assign(ids, {
+      orgA: orgA.id,
+      orgB: orgB.id,
+      a1: a1.id,
+      a2: a2.id,
+      b: b.id,
+      solo: solo.id,
+      user: user.id,
+    });
+    for (const org of [orgA, orgB]) {
+      await systemDb.organizationMember.create({
+        data: { organizationId: org.id, userId: user.id, role: 'org_member' },
+      });
+      await systemDb.scimUser.create({
+        data: { organizationId: org.id, userId: user.id, userName: `u-${org.slug}` },
+      });
+    }
+  });
+
+  afterAll(async () => {
+    const { systemDb } = clients;
+    await systemDb.workspace.deleteMany({
+      where: { id: { in: [ids.a1, ids.a2, ids.b, ids.solo] } },
+    });
+    await systemDb.organization.deleteMany({ where: { id: { in: [ids.orgA, ids.orgB] } } });
+    await systemDb.user.deleteMany({ where: { id: ids.user } });
+    await Promise.all([clients.db.$disconnect(), clients.systemDb.$disconnect()]);
+  });
+
+  it('protects every table that has an organizationId', async () => {
+    const unprotected = await clients.systemDb.$queryRaw<Array<{ table: string }>>`
+      SELECT c.relname AS table
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
+       WHERE c.relkind = 'r'
+         AND EXISTS (SELECT 1 FROM information_schema.columns col
+                      WHERE col.table_schema = 'public' AND col.table_name = c.relname
+                        AND col.column_name = 'organizationId')
+         AND c.relname <> 'Workspace'
+         AND (NOT c.relrowsecurity
+              OR NOT EXISTS (SELECT 1 FROM pg_policies p
+                              WHERE p.schemaname = 'public' AND p.tablename = c.relname
+                                AND p.qual LIKE '%app.current_org_id%'))`;
+    expect(unprotected.map((r) => r.table)).toEqual([]);
+  });
+
+  it("sees the organization's workspaces and their rows, nothing else", async () => {
+    const seen = await withOrg(clients.db, ids.orgA, async (tx) => ({
+      workspaces: (await tx.workspace.findMany()).map((w) => w.id).sort(),
+      hostApps: (await tx.hostApp.findMany()).map((h) => h.workspaceId).sort(),
+      environments: await tx.environment.count(),
+    }));
+    expect(seen.workspaces).toEqual([ids.a1, ids.a2].sort());
+    expect(seen.hostApps).toEqual([ids.a1, ids.a2].sort());
+    expect(seen.environments).toBe(0);
+  });
+
+  it("sees the organization's own rows only", async () => {
+    const seen = await withOrg(clients.db, ids.orgA, async (tx) => ({
+      orgs: (await tx.organization.findMany()).map((o) => o.id),
+      members: (await tx.organizationMember.findMany()).map((m) => m.organizationId),
+      scim: (await tx.scimUser.findMany()).map((u) => u.organizationId),
+    }));
+    expect(seen).toEqual({ orgs: [ids.orgA], members: [ids.orgA], scim: [ids.orgA] });
+  });
+
+  it('rejects writes into another organization or its workspaces', async () => {
+    await expect(
+      withOrg(clients.db, ids.orgA, (tx) =>
+        tx.organizationAuditEvent.create({
+          data: {
+            organizationId: ids.orgB,
+            actorType: 'user',
+            actorId: 'x',
+            action: 'sneaky',
+            resourceType: 'organization',
+            resourceId: ids.orgB,
+          },
+        })
+      )
+    ).rejects.toThrow();
+    await expect(
+      withOrg(clients.db, ids.orgA, (tx) =>
+        tx.hostApp.create({ data: { workspaceId: ids.b, name: 'x', slug: 'sneaky' } })
+      )
+    ).rejects.toThrow();
+  });
+
+  it('keeps organization rows out of workspace and unscoped queries', async () => {
+    expect(await clients.db.organization.findMany()).toEqual([]);
+    const inWorkspace = await withTenant(clients.db, ids.a1, async (tx) => ({
+      orgs: await tx.organization.count(),
+      members: await tx.organizationMember.count(),
+      siblings: await tx.workspace.count(),
+    }));
+    expect(inWorkspace).toEqual({ orgs: 0, members: 0, siblings: 1 });
+  });
+
+  it('does not leak the organization context to later queries on the pool', async () => {
+    await withOrg(clients.db, ids.orgA, (tx) => tx.workspace.findMany());
+    expect(await clients.db.workspace.findMany()).toEqual([]);
+    expect(await clients.db.organizationMember.findMany()).toEqual([]);
+  });
+
+  it('can detach one of its workspaces (the row leaves the organization)', async () => {
+    const extra = await clients.systemDb.workspace.create({
+      data: { slug: `orls-x-${run}`, name: 'x', organizationId: ids.orgA },
+    });
+    try {
+      const updated = await withOrg(clients.db, ids.orgA, (tx) =>
+        tx.workspace.update({ where: { id: extra.id }, data: { organizationId: null } })
+      );
+      expect(updated.organizationId).toBeNull();
+    } finally {
+      await clients.systemDb.workspace.delete({ where: { id: extra.id } });
+    }
   });
 });

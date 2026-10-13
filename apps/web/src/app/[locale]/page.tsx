@@ -6,14 +6,32 @@ import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
 import { createWorkspaceAction } from './w/[workspaceSlug]/actions';
 import { createOrgAction } from './orgs/actions';
-import { getTranslations } from 'next-intl/server';
+import {
+  acceptTransferAction,
+  cancelTransferAction,
+  restoreWorkspaceAction,
+} from './lifecycleActions';
+import { authedFetch } from '@/lib/registry';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
 
 export default async function WorkspaceSelector() {
   const t = await getTranslations('WorkspaceSelector');
+  const format = await getFormatter();
   const me = await getMe();
   if (!me) redirect('/auth/login');
   const { workspaces, organizations } = me;
+  const deleted = me.deletedWorkspaces ?? [];
+  // TLC-06: handovers waiting for you.
+  const transfers = await authedFetch<{
+    incoming: Array<{
+      id: string;
+      from: string | null;
+      expiresAt: string;
+      workspace?: { slug: string; name: string } | null;
+      organization?: { slug: string; name: string } | null;
+    }>;
+  }>('/api/transfers').catch(() => ({ incoming: [] }));
 
   return (
     <div className="flex flex-col min-h-screen items-center p-6 md:p-24 bg-muted/30">
@@ -60,6 +78,65 @@ export default async function WorkspaceSelector() {
             </div>
           )}
         </div>
+
+        {transfers.incoming.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-sm font-medium text-muted-foreground">{t('transfers')}</h2>
+            <ul className="rounded-xl border bg-card divide-y">
+              {transfers.incoming.map((tr) => (
+                <li key={tr.id} className="p-4 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm">
+                    {t(tr.organization ? 'transferOrg' : 'transferWorkspace', {
+                      from: tr.from ?? '?',
+                      name: tr.workspace?.name ?? tr.organization?.name ?? '?',
+                    })}
+                    <div className="text-xs text-muted-foreground">
+                      {t('transferExpires', {
+                        date: format.dateTime(new Date(tr.expiresAt), 'short'),
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <ActionForm
+                      action={acceptTransferAction.bind(null, tr.id)}
+                      submitLabel={t('accept')}
+                    />
+                    <ActionForm
+                      action={cancelTransferAction.bind(null, tr.id)}
+                      submitLabel={t('decline')}
+                      variant="outline"
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {deleted.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-sm font-medium text-muted-foreground">{t('recentlyDeleted')}</h2>
+            <ul className="rounded-xl border bg-card divide-y">
+              {deleted.map((ws) => (
+                <li key={ws.slug} className="p-4 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-medium">{ws.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {ws.purgeAfter
+                        ? t('purgedOn', { date: format.dateTime(new Date(ws.purgeAfter), 'short') })
+                        : ws.slug}
+                    </div>
+                  </div>
+                  <ActionForm
+                    action={restoreWorkspaceAction.bind(null, ws.slug)}
+                    submitLabel={t('restore')}
+                    variant="outline"
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="rounded-xl border bg-card p-6 space-y-3">
           <h2 className="font-semibold">{t('createWorkspace')}</h2>

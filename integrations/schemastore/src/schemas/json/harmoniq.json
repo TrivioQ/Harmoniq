@@ -252,7 +252,10 @@
                     "schedule.executed",
                     "schedule.failed",
                     "env.frozen",
-                    "env.unfrozen"
+                    "env.unfrozen",
+                    "plan.changed",
+                    "quota.warning",
+                    "quota.exceeded"
                   ]
                 },
                 {

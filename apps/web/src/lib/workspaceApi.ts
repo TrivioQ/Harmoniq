@@ -3,6 +3,8 @@
 
 import type { Manifest } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import { authedFetch } from './registry';
+import type { WorkspaceUsage } from './usage';
+import type { ChainReport } from './orgApi';
 
 // Typed reads for dashboard pages. Shapes mirror the registry responses
 // (docs/api-reference.md); every call runs as the signed-in user.
@@ -44,6 +46,12 @@ export interface WorkspaceDetail {
   suspendedAt?: string | null;
   suspendedReason?: string | null;
   role: Role | null;
+  /** TLC-05: the caller administers this workspace as an org admin. */
+  viaOrgAdmin?: boolean;
+  /** INST-20: the caller reads through their support grant (read-only). */
+  support?: boolean;
+  /** INST-20: instance admins with read-only support access right now. */
+  supportAccess?: Array<{ id: string; admin: string; reason: string; expiresAt: string }>;
   hostApps: Array<{
     slug: string;
     name: string;
@@ -138,6 +146,8 @@ export interface AuditEvent {
   action: string;
   actorId: string;
   actorType: 'user' | 'apiKey' | 'system';
+  /** AUD-07: email, key name and prefix, or `deleted user #…`. */
+  actor?: { type: 'user' | 'apiKey' | 'system'; id: string; label: string; deleted: boolean };
   resourceType: string;
   resourceId: string;
   metadata: Record<string, unknown> | null;
@@ -174,13 +184,37 @@ export interface ApiKeySummary {
   expiresAt: string | null;
   revokedAt: string | null;
   gracePeriodEnd: string | null;
+  /** POL-03: how the key breaks the organization's key policy (it keeps working). */
+  policyViolations?: string[];
 }
 
 export interface Member {
-  id: string;
+  /** Null for org admins, who administer the workspace without a membership (PPL-06). */
+  id: string | null;
   role: Role;
   status: 'active' | 'invited';
+  source?: 'member' | 'org_rules' | 'org_admin';
   user: { id: string; email: string; name: string | null };
+}
+
+/** PPL-01: a pending (or past) invitation. */
+export interface InvitationSummary {
+  id: string;
+  email: string;
+  role: string;
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  expiresAt: string;
+  lastSentAt: string | null;
+  createdAt: string;
+}
+
+/** PPL-07: someone from the organization asking to join. */
+export interface AccessRequestSummary {
+  id: string;
+  role: Role;
+  message: string | null;
+  createdAt: string;
+  user: { id: string; email: string; name: string | null } | null;
 }
 
 export interface WebhookEndpointSummary {
@@ -373,8 +407,55 @@ export interface ScimEvent {
   createdAt: string;
 }
 
+/** POL-09: what the workspace enforces and where each value comes from. */
+export interface EffectivePolicy {
+  organization: { id: string } | null;
+  retentionDays: {
+    value: number;
+    workspace: number;
+    minimum: number | null;
+    source: 'organization' | 'workspace';
+  };
+  approvals: Array<{
+    hostApp: string;
+    environment: string;
+    policy: {
+      requiredApprovers: number;
+      eligibleRoles: string[];
+      requireChangeTicket: boolean;
+      expiryHours: number;
+    } | null;
+    source: 'organization' | 'workspace' | null;
+    locked: boolean;
+  }>;
+  freezes: Array<{
+    hostApp: string;
+    environment: string;
+    windowId: string;
+    reason: string;
+    until: string | null;
+    override: { until: string; reason: string } | null;
+  }>;
+  apiKeys: {
+    maxDays: { value: number | null; source: 'organization' | null };
+    allowedScopes: { value: string[]; source: 'organization' | null };
+  };
+  sso: { locked: boolean; ownConfigured: boolean; source: 'organization' | 'workspace' };
+  session: {
+    maxHours: { value: number | null; source: 'organization' | null };
+    idleTimeoutMinutes: { value: number | null; source: 'organization' | null };
+  };
+  ipAllowlist: { value: string[]; manifests: boolean; source: 'organization' | null };
+}
+
 export const workspaceApi = {
   get: (slug: string) => authedFetch<WorkspaceDetail>(ws(slug)),
+  policy: (slug: string) => authedFetch<EffectivePolicy>(`${ws(slug)}/policy`),
+  /** AUD-09 (admins). */
+  verifyAudit: (slug: string) => authedFetch<ChainReport>(`${ws(slug)}/audit/verify`),
+  /** USG-03 (workspace admins). */
+  usage: (slug: string, days = 30) =>
+    authedFetch<{ days: number; workspace: WorkspaceUsage }>(`${ws(slug)}/usage?days=${days}`),
   modules: (slug: string) => authedFetch<{ modules: ModuleSummary[] }>(`${ws(slug)}/modules`),
   module: (slug: string, ref: string) =>
     authedFetch<ModuleDetail>(`${ws(slug)}/modules/${enc(ref)}`),
@@ -399,7 +480,10 @@ export const workspaceApi = {
       `/api/manifest/${enc(slug)}/${enc(host)}/${enc(env)}/diff?from=${enc(from)}&to=${enc(to)}`
     ),
   apiKeys: (slug: string) => authedFetch<{ keys: ApiKeySummary[] }>(`${ws(slug)}/api-keys`),
-  members: (slug: string) => authedFetch<{ members: Member[] }>(`${ws(slug)}/members`),
+  members: (slug: string) =>
+    authedFetch<{ members: Member[]; invitations?: InvitationSummary[] }>(`${ws(slug)}/members`),
+  accessRequests: (slug: string) =>
+    authedFetch<{ requests: AccessRequestSummary[] }>(`${ws(slug)}/access-requests`),
   webhooks: (slug: string) =>
     authedFetch<{ endpoints: WebhookEndpointSummary[] }>(`${ws(slug)}/webhooks`),
   deadLetters: (slug: string) =>

@@ -5,6 +5,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../app';
 import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
+import { RecordingMailer } from '../services/emailLog';
 import { Fixtures, bearer } from './helpers/fixtures';
 
 describe('Instance settings (M4.8b, INST-11..18)', () => {
@@ -61,14 +62,29 @@ describe('Instance settings (M4.8b, INST-11..18)', () => {
     expect((await put('nope', {})).statusCode).toBe(404);
     expect((await api(null, 'GET', '/api/instance')).json()).toEqual({
       branding: { name: 'Harmoniq' },
+      announcement: null,
+      maintenance: null,
     });
   });
 
   it('turns sign-in methods off for everyone (INST-13)', async () => {
     expect(await providers()).toContain('email');
+    // The admin keeps a way in (INST-23): GitHub, which they have signed in with.
+    const rootUser = await app.container.systemDb.user.findUniqueOrThrow({
+      where: { email: rootEmail },
+    });
+    await app.container.systemDb.identity.create({
+      data: {
+        userId: rootUser.id,
+        provider: 'github',
+        providerUserId: rootUser.id,
+        email: rootEmail,
+      },
+    });
     const saved = await put('auth', {
       email: { enabled: false },
       saml: { enabled: false },
+      github: { enabled: true, clientId: 'gh-id', clientSecret: 'gh-secret' },
     });
     expect(saved.statusCode).toBe(200);
     expect(await providers()).not.toContain('email');
@@ -155,13 +171,13 @@ describe('Instance settings (M4.8b, INST-11..18)', () => {
 
   it('sends mail through the configured SMTP; Send Test Email reports failures (INST-12)', async () => {
     await put('email', { host: '127.0.0.1', port: 9, security: 'none', from: 'Ops <ops@x.test>' });
-    expect(app.container.mailer).not.toBeInstanceOf(ConsoleMailer);
+    expect((app.container.mailer as RecordingMailer).inner).not.toBeInstanceOf(ConsoleMailer);
     const failed = await api(root, 'POST', '/api/admin/settings/email/test');
     expect(failed.statusCode).toBe(400);
     expect(failed.json().error.message).toContain('Sending failed');
 
     await api(root, 'DELETE', '/api/admin/settings/email');
-    const mailer = app.container.mailer as ConsoleMailer;
+    const mailer = (app.container.mailer as RecordingMailer).inner as ConsoleMailer;
     expect(mailer).toBeInstanceOf(ConsoleMailer);
     const ok = await api(root, 'POST', '/api/admin/settings/email/test');
     expect(ok.json()).toEqual({ sentTo: rootEmail });
@@ -185,7 +201,9 @@ describe('Instance settings (M4.8b, INST-11..18)', () => {
       redirectUri: 'http://localhost:3000/auth/verify',
       nonce: 'n'.repeat(16),
     });
-    const sent = (app.container.mailer as ConsoleMailer).sent.find((m) => m.to === email);
+    const sent = ((app.container.mailer as RecordingMailer).inner as ConsoleMailer).sent.find(
+      (m) => m.to === email
+    );
     expect(sent?.subject).toContain('Acme Deploy');
     await app.container.systemDb.emailLoginToken.deleteMany({ where: { email } });
   });

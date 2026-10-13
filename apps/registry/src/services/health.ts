@@ -55,9 +55,10 @@ export class LiveVersionsCache {
   private async load(ws: string, host: string, env: string): Promise<LiveVersions | null> {
     const workspace = await this.systemDb.workspace.findUnique({
       where: { slug: ws },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
-    if (!workspace) return null;
+    // TLC-02: a deleted workspace takes no health reports.
+    if (!workspace || workspace.deletedAt) return null;
     return this.withTenant(workspace.id, async (tx) => {
       const environment = await tx.environment.findFirst({
         where: { slug: env, hostApp: { slug: host } },

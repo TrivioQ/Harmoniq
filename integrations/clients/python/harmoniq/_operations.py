@@ -11,25 +11,77 @@ from ._core import BaseClient, Response, quote_segment as _q
 class Client(BaseClient):
     """Harmoniq registry client: one method per REST operation (see BaseClient)."""
 
+    def delete_admin_admin_invitations_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/admin-invitations/{id} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/admin-invitations/" + _q(id), None, query)
+
     def delete_admin_admins_by_user_id(self, user_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/admins/{userId} (Instance administration)."""
         return self.request("DELETE", "/api/admin/admins/" + _q(user_id), None, query)
+
+    def delete_admin_api_keys_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/api-keys/{id} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/api-keys/" + _q(id), None, query)
+
+    def delete_admin_domains_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/domains/{id} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/domains/" + _q(id), None, query)
+
+    def delete_admin_orgs_by_slug(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/orgs/{slug} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/orgs/" + _q(slug), None, query)
 
     def delete_admin_settings_by_key(self, key, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/settings/{key} (Instance administration)."""
         return self.request("DELETE", "/api/admin/settings/" + _q(key), None, query)
 
+    def delete_admin_support_grants_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/support-grants/{id} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/support-grants/" + _q(id), None, query)
+
     def delete_admin_users_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/users/{id} (Instance administration)."""
         return self.request("DELETE", "/api/admin/users/" + _q(id), None, query)
+
+    def delete_admin_users_mfa(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/users/{id}/mfa (Instance administration)."""
+        return self.request("DELETE", "/api/admin/users/" + _q(id) + "/mfa", None, query)
+
+    def delete_admin_users_sessions_by_session_id(self, id, session_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/admin/users/{id}/sessions/{sessionId} (Instance administration)."""
+        return self.request("DELETE", "/api/admin/users/" + _q(id) + "/sessions/" + _q(session_id), None, query)
 
     def delete_admin_workspaces_by_slug(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/admin/workspaces/{slug} (Instance administration)."""
         return self.request("DELETE", "/api/admin/workspaces/" + _q(slug), None, query)
 
+    def delete_me_mfa(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/me/mfa (Service)."""
+        return self.request("DELETE", "/api/me/mfa", None, query)
+
+    def delete_me_sessions(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/me/sessions (Service)."""
+        return self.request("DELETE", "/api/me/sessions", None, query)
+
+    def delete_me_sessions_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/me/sessions/{id} (Service)."""
+        return self.request("DELETE", "/api/me/sessions/" + _q(id), None, query)
+
+    def delete_orgs_audit_sinks_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/audit-sinks/{id} (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id), None, query)
+
     def delete_orgs_by_org_slug(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug} (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug), None, query)
+
+    def delete_orgs_domains_by_domain(self, org_slug, domain, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/domains/{domain} (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/domains/" + _q(domain), None, query)
+
+    def delete_orgs_invitations_by_invitation_id(self, org_slug, invitation_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/invitations/{invitationId} (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/invitations/" + _q(invitation_id), None, query)
 
     def delete_orgs_keys_by_key_id(self, org_slug, key_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug}/keys/{keyId} (Organizations)."""
@@ -38,6 +90,14 @@ class Client(BaseClient):
     def delete_orgs_members_by_member_id(self, org_slug, member_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug}/members/{memberId} (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/members/" + _q(member_id), None, query)
+
+    def delete_orgs_notifications_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/notifications/{id} (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/notifications/" + _q(id), None, query)
+
+    def delete_orgs_policy_freeze_windows_override(self, org_slug, window_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/policy/freeze-windows/" + _q(window_id) + "/override", None, query)
 
     def delete_orgs_scim(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug}/scim (Organizations)."""
@@ -51,6 +111,10 @@ class Client(BaseClient):
         """DELETE /api/orgs/{orgSlug}/sso/saml (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/sso/saml", None, query)
 
+    def delete_orgs_webhooks_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/orgs/{orgSlug}/webhooks/{id} (Organizations)."""
+        return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/webhooks/" + _q(id), None, query)
+
     def delete_orgs_workspaces_by_workspace_slug(self, org_slug, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/orgs/{orgSlug}/workspaces/{workspaceSlug} (Organizations)."""
         return self.request("DELETE", "/api/orgs/" + _q(org_slug) + "/workspaces/" + _q(workspace_slug), None, query)
@@ -62,6 +126,14 @@ class Client(BaseClient):
     def delete_workspaces_api_keys_by_key_id(self, workspace_slug, key_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/workspaces/{workspaceSlug}/api-keys/{keyId} (API keys and members)."""
         return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug) + "/api-keys/" + _q(key_id), None, query)
+
+    def delete_workspaces_by_workspace_slug(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/workspaces/{workspaceSlug} (Workspaces)."""
+        return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug), None, query)
+
+    def delete_workspaces_domains_by_domain(self, workspace_slug, domain, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/workspaces/{workspaceSlug}/domains/{domain} (Workspaces)."""
+        return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug) + "/domains/" + _q(domain), None, query)
 
     def delete_workspaces_host_apps_by_host_app_slug(self, workspace_slug, host_app_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/workspaces/{workspaceSlug}/host-apps/{hostAppSlug} (Host apps and environments)."""
@@ -82,6 +154,10 @@ class Client(BaseClient):
     def delete_workspaces_host_apps_environments_freeze_override(self, workspace_slug, host_app_slug, env_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/workspaces/{workspaceSlug}/host-apps/{hostAppSlug}/environments/{envSlug}/freeze/override (Host apps and environments)."""
         return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug) + "/host-apps/" + _q(host_app_slug) + "/environments/" + _q(env_slug) + "/freeze/override", None, query)
+
+    def delete_workspaces_invitations_by_invitation_id(self, workspace_slug, invitation_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """DELETE /api/workspaces/{workspaceSlug}/invitations/{invitationId} (Workspaces)."""
+        return self.request("DELETE", "/api/workspaces/" + _q(workspace_slug) + "/invitations/" + _q(invitation_id), None, query)
 
     def delete_workspaces_members_by_member_id(self, workspace_slug, member_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """DELETE /api/workspaces/{workspaceSlug}/members/{memberId} (API keys and members)."""
@@ -119,6 +195,10 @@ class Client(BaseClient):
         """GET /api/admin/admins (Instance administration)."""
         return self.request("GET", "/api/admin/admins", None, query)
 
+    def get_admin_api_keys(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/api-keys (Instance administration)."""
+        return self.request("GET", "/api/admin/api-keys", None, query)
+
     def get_admin_audit(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/audit (Instance administration)."""
         return self.request("GET", "/api/admin/audit", None, query)
@@ -127,29 +207,109 @@ class Client(BaseClient):
         """GET /api/admin/audit/export (Instance administration)."""
         return self.request("GET", "/api/admin/audit/export", None, query)
 
+    def get_admin_audit_search(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/audit/search (Instance administration)."""
+        return self.request("GET", "/api/admin/audit/search", None, query)
+
+    def get_admin_audit_verify(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/audit/verify (Instance administration)."""
+        return self.request("GET", "/api/admin/audit/verify", None, query)
+
+    def get_admin_domains(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/domains (Instance administration)."""
+        return self.request("GET", "/api/admin/domains", None, query)
+
+    def get_admin_email_deliveries(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/email/deliveries (Instance administration)."""
+        return self.request("GET", "/api/admin/email/deliveries", None, query)
+
+    def get_admin_encryption(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/encryption (Instance administration)."""
+        return self.request("GET", "/api/admin/encryption", None, query)
+
     def get_admin_health(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/health (Instance administration)."""
         return self.request("GET", "/api/admin/health", None, query)
+
+    def get_admin_jobs(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/jobs (Instance administration)."""
+        return self.request("GET", "/api/admin/jobs", None, query)
+
+    def get_admin_jobs_failed(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/jobs/failed (Instance administration)."""
+        return self.request("GET", "/api/admin/jobs/failed", None, query)
 
     def get_admin_orgs(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/orgs (Instance administration)."""
         return self.request("GET", "/api/admin/orgs", None, query)
 
+    def get_admin_orgs_by_slug(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/orgs/{slug} (Instance administration)."""
+        return self.request("GET", "/api/admin/orgs/" + _q(slug), None, query)
+
+    def get_admin_orgs_plan(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/orgs/{slug}/plan (Instance administration)."""
+        return self.request("GET", "/api/admin/orgs/" + _q(slug) + "/plan", None, query)
+
+    def get_admin_overview(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/overview (Instance administration)."""
+        return self.request("GET", "/api/admin/overview", None, query)
+
+    def get_admin_security(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/security (Instance administration)."""
+        return self.request("GET", "/api/admin/security", None, query)
+
     def get_admin_settings(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/settings (Instance administration)."""
         return self.request("GET", "/api/admin/settings", None, query)
+
+    def get_admin_settings_export(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/settings/export (Instance administration)."""
+        return self.request("GET", "/api/admin/settings/export", None, query)
+
+    def get_admin_settings_history(self, key, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/settings/{key}/history (Instance administration)."""
+        return self.request("GET", "/api/admin/settings/" + _q(key) + "/history", None, query)
 
     def get_admin_setup(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/setup (Instance administration)."""
         return self.request("GET", "/api/admin/setup", None, query)
 
+    def get_admin_support_grants(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/support-grants (Instance administration)."""
+        return self.request("GET", "/api/admin/support-grants", None, query)
+
+    def get_admin_system(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/system (Instance administration)."""
+        return self.request("GET", "/api/admin/system", None, query)
+
+    def get_admin_usage(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/usage (Instance administration)."""
+        return self.request("GET", "/api/admin/usage", None, query)
+
     def get_admin_users(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/users (Instance administration)."""
         return self.request("GET", "/api/admin/users", None, query)
 
+    def get_admin_users_by_id(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/users/{id} (Instance administration)."""
+        return self.request("GET", "/api/admin/users/" + _q(id), None, query)
+
+    def get_admin_workspace_audit_export(self, workspace_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/workspace-audit/{workspaceId}/export (Instance administration)."""
+        return self.request("GET", "/api/admin/workspace-audit/" + _q(workspace_id) + "/export", None, query)
+
     def get_admin_workspaces(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/admin/workspaces (Instance administration)."""
         return self.request("GET", "/api/admin/workspaces", None, query)
+
+    def get_admin_workspaces_by_slug(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/workspaces/{slug} (Instance administration)."""
+        return self.request("GET", "/api/admin/workspaces/" + _q(slug), None, query)
+
+    def get_admin_workspaces_plan(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/admin/workspaces/{slug}/plan (Instance administration)."""
+        return self.request("GET", "/api/admin/workspaces/" + _q(slug) + "/plan", None, query)
 
     def get_federation_manifest_by_workspace_slug_and_host_app_slug_and_env(self, workspace_slug, host_app_slug, env, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/federation-manifest/{workspaceSlug}/{hostAppSlug}/{env} (Manifests)."""
@@ -162,6 +322,10 @@ class Client(BaseClient):
     def get_instance(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/instance (Instance administration)."""
         return self.request("GET", "/api/instance", None, query)
+
+    def get_invitations_by_token(self, token, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/invitations/{token} (Service)."""
+        return self.request("GET", "/api/invitations/" + _q(token), None, query)
 
     def get_manifest_by_workspace_slug_and_env(self, workspace_slug, env, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/manifest/{workspaceSlug}/{env} (Manifests)."""
@@ -187,6 +351,14 @@ class Client(BaseClient):
         """GET /api/me (Sign-in)."""
         return self.request("GET", "/api/me", None, query)
 
+    def get_me_mfa(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/me/mfa (Service)."""
+        return self.request("GET", "/api/me/mfa", None, query)
+
+    def get_me_sessions(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/me/sessions (Service)."""
+        return self.request("GET", "/api/me/sessions", None, query)
+
     def get_orgs(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs (Organizations)."""
         return self.request("GET", "/api/orgs", None, query)
@@ -199,9 +371,33 @@ class Client(BaseClient):
         """GET /api/orgs/{orgSlug}/audit/export (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/audit/export", None, query)
 
+    def get_orgs_audit_sinks(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/audit-sinks (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/audit-sinks", None, query)
+
+    def get_orgs_audit_sinks_dead_letters(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/audit-sinks/{id}/dead-letters (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id) + "/dead-letters", None, query)
+
+    def get_orgs_audit_verify(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/audit/verify (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/audit/verify", None, query)
+
     def get_orgs_by_org_slug(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug} (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug), None, query)
+
+    def get_orgs_domains(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/domains (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/domains", None, query)
+
+    def get_orgs_export(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/export (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/export", None, query)
+
+    def get_orgs_invitations(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/invitations (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/invitations", None, query)
 
     def get_orgs_keys(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/keys (Organizations)."""
@@ -214,6 +410,22 @@ class Client(BaseClient):
     def get_orgs_modules(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/modules (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/modules", None, query)
+
+    def get_orgs_modules_consumers(self, org_slug, module_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/modules/{moduleId}/consumers (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/modules/" + _q(module_id) + "/consumers", None, query)
+
+    def get_orgs_notifications(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/notifications (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/notifications", None, query)
+
+    def get_orgs_people(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/people (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/people", None, query)
+
+    def get_orgs_policy(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/policy (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/policy", None, query)
 
     def get_orgs_provisioning(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/orgs/{orgSlug}/provisioning (Organizations)."""
@@ -243,6 +455,22 @@ class Client(BaseClient):
         """GET /api/orgs/{orgSlug}/sso/saml/test/{testId} (Organizations)."""
         return self.request("GET", "/api/orgs/" + _q(org_slug) + "/sso/saml/test/" + _q(test_id), None, query)
 
+    def get_orgs_usage(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/usage (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/usage", None, query)
+
+    def get_orgs_webhooks(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/webhooks (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/webhooks", None, query)
+
+    def get_orgs_webhooks_dead_letters(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/webhooks-dead-letters (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/webhooks-dead-letters", None, query)
+
+    def get_orgs_webhooks_deliveries(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/orgs/{orgSlug}/webhooks/{id}/deliveries (Organizations)."""
+        return self.request("GET", "/api/orgs/" + _q(org_slug) + "/webhooks/" + _q(id) + "/deliveries", None, query)
+
     def get_schema_harmoniq_json(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/schema/harmoniq.json (Manifests)."""
         return self.request("GET", "/api/schema/harmoniq.json", None, query)
@@ -250,6 +478,14 @@ class Client(BaseClient):
     def get_schema_manifest_json(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/schema/manifest.json (Manifests)."""
         return self.request("GET", "/api/schema/manifest.json", None, query)
+
+    def get_transfers(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/transfers (Service)."""
+        return self.request("GET", "/api/transfers", None, query)
+
+    def get_workspaces_access_requests(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/access-requests (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/access-requests", None, query)
 
     def get_workspaces_alerts(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/alerts (Alerts)."""
@@ -279,6 +515,10 @@ class Client(BaseClient):
         """GET /api/workspaces/{workspaceSlug}/audit/export (Audit)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/audit/export", None, query)
 
+    def get_workspaces_audit_verify(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/audit/verify (Audit)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/audit/verify", None, query)
+
     def get_workspaces_by_workspace_slug(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug} (Workspaces)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug), None, query)
@@ -287,6 +527,14 @@ class Client(BaseClient):
         """GET /api/workspaces/{workspaceSlug}/config (Workspace as code)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/config", None, query)
 
+    def get_workspaces_domains(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/domains (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/domains", None, query)
+
+    def get_workspaces_export(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/export (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/export", None, query)
+
     def get_workspaces_health(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/health (Workspaces)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/health", None, query)
@@ -294,6 +542,10 @@ class Client(BaseClient):
     def get_workspaces_host_apps_environments_dependencies(self, workspace_slug, host_app_slug, env_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/host-apps/{hostAppSlug}/environments/{envSlug}/dependencies (Host apps and environments)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/host-apps/" + _q(host_app_slug) + "/environments/" + _q(env_slug) + "/dependencies", None, query)
+
+    def get_workspaces_invitations(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/invitations (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/invitations", None, query)
 
     def get_workspaces_members(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/members (API keys and members)."""
@@ -318,6 +570,10 @@ class Client(BaseClient):
     def get_workspaces_modules_versions(self, workspace_slug, module_ref, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/modules/{moduleRef}/versions (Modules and versions)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/modules/" + _q(module_ref) + "/versions", None, query)
+
+    def get_workspaces_policy(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/policy (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/policy", None, query)
 
     def get_workspaces_scheduled_operations(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/scheduled-operations (Scheduled operations)."""
@@ -347,6 +603,10 @@ class Client(BaseClient):
         """GET /api/workspaces/{workspaceSlug}/storage (Storage)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/storage", None, query)
 
+    def get_workspaces_usage(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """GET /api/workspaces/{workspaceSlug}/usage (Workspaces)."""
+        return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/usage", None, query)
+
     def get_workspaces_webhooks(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """GET /api/workspaces/{workspaceSlug}/webhooks (Webhooks)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/webhooks", None, query)
@@ -359,6 +619,14 @@ class Client(BaseClient):
         """GET /api/workspaces/{workspaceSlug}/webhooks/{endpointId}/deliveries (Webhooks)."""
         return self.request("GET", "/api/workspaces/" + _q(workspace_slug) + "/webhooks/" + _q(endpoint_id) + "/deliveries", None, query)
 
+    def patch_admin_admins_by_user_id(self, user_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PATCH /api/admin/admins/{userId} (Instance administration)."""
+        return self.request("PATCH", "/api/admin/admins/" + _q(user_id), None, query)
+
+    def patch_orgs_audit_sinks_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PATCH /api/orgs/{orgSlug}/audit-sinks/{id} (Organizations)."""
+        return self.request("PATCH", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id), None, query)
+
     def patch_orgs_by_org_slug(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PATCH /api/orgs/{orgSlug} (Organizations)."""
         return self.request("PATCH", "/api/orgs/" + _q(org_slug), body, query)
@@ -366,6 +634,14 @@ class Client(BaseClient):
     def patch_orgs_members_by_member_id(self, org_slug, member_id, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PATCH /api/orgs/{orgSlug}/members/{memberId} (Organizations)."""
         return self.request("PATCH", "/api/orgs/" + _q(org_slug) + "/members/" + _q(member_id), body, query)
+
+    def patch_orgs_notifications_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PATCH /api/orgs/{orgSlug}/notifications/{id} (Organizations)."""
+        return self.request("PATCH", "/api/orgs/" + _q(org_slug) + "/notifications/" + _q(id), None, query)
+
+    def patch_orgs_webhooks_by_id(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PATCH /api/orgs/{orgSlug}/webhooks/{id} (Organizations)."""
+        return self.request("PATCH", "/api/orgs/" + _q(org_slug) + "/webhooks/" + _q(id), None, query)
 
     def patch_workspaces_alerts_by_rule_id(self, workspace_slug, rule_id, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PATCH /api/workspaces/{workspaceSlug}/alerts/{ruleId} (Alerts)."""
@@ -399,9 +675,41 @@ class Client(BaseClient):
         """POST /api/admin/admins (Instance administration)."""
         return self.request("POST", "/api/admin/admins", body, query)
 
+    def post_admin_api_keys(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/api-keys (Instance administration)."""
+        return self.request("POST", "/api/admin/api-keys", None, query)
+
+    def post_admin_encryption_reseal(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/encryption/reseal (Instance administration)."""
+        return self.request("POST", "/api/admin/encryption/reseal", None, query)
+
+    def post_admin_jobs_retry(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/jobs/{id}/retry (Instance administration)."""
+        return self.request("POST", "/api/admin/jobs/" + _q(id) + "/retry", None, query)
+
+    def post_admin_jobs_run(self, queue, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/jobs/{queue}/run (Instance administration)."""
+        return self.request("POST", "/api/admin/jobs/" + _q(queue) + "/run", None, query)
+
+    def post_admin_orgs_restore(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/orgs/{slug}/restore (Instance administration)."""
+        return self.request("POST", "/api/admin/orgs/" + _q(slug) + "/restore", None, query)
+
+    def post_admin_orgs_suspend(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/orgs/{slug}/suspend (Instance administration)."""
+        return self.request("POST", "/api/admin/orgs/" + _q(slug) + "/suspend", None, query)
+
+    def post_admin_orgs_unsuspend(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/orgs/{slug}/unsuspend (Instance administration)."""
+        return self.request("POST", "/api/admin/orgs/" + _q(slug) + "/unsuspend", None, query)
+
     def post_admin_settings_email_test(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/settings/email/test (Instance administration)."""
         return self.request("POST", "/api/admin/settings/email/test", None, query)
+
+    def post_admin_settings_history_restore(self, key, version, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/settings/{key}/history/{version}/restore (Instance administration)."""
+        return self.request("POST", "/api/admin/settings/" + _q(key) + "/history/" + _q(version) + "/restore", None, query)
 
     def post_admin_settings_storage_test(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/settings/storage/test (Instance administration)."""
@@ -419,9 +727,33 @@ class Client(BaseClient):
         """POST /api/admin/setup/storage (Instance administration)."""
         return self.request("POST", "/api/admin/setup/storage", None, query)
 
+    def post_admin_support_grants(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/support-grants (Instance administration)."""
+        return self.request("POST", "/api/admin/support-grants", None, query)
+
+    def post_admin_users_email(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/users/{id}/email (Instance administration)."""
+        return self.request("POST", "/api/admin/users/" + _q(id) + "/email", None, query)
+
+    def post_admin_users_merge(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/users/{id}/merge (Instance administration)."""
+        return self.request("POST", "/api/admin/users/" + _q(id) + "/merge", None, query)
+
     def post_admin_users_revoke_sessions(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/users/{id}/revoke-sessions (Instance administration)."""
         return self.request("POST", "/api/admin/users/" + _q(id) + "/revoke-sessions", None, query)
+
+    def post_admin_users_suspend(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/users/{id}/suspend (Instance administration)."""
+        return self.request("POST", "/api/admin/users/" + _q(id) + "/suspend", None, query)
+
+    def post_admin_users_unsuspend(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/users/{id}/unsuspend (Instance administration)."""
+        return self.request("POST", "/api/admin/users/" + _q(id) + "/unsuspend", None, query)
+
+    def post_admin_workspaces_restore(self, slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/admin/workspaces/{slug}/restore (Instance administration)."""
+        return self.request("POST", "/api/admin/workspaces/" + _q(slug) + "/restore", None, query)
 
     def post_admin_workspaces_suspend(self, slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/admin/workspaces/{slug}/suspend (Instance administration)."""
@@ -435,17 +767,77 @@ class Client(BaseClient):
         """POST /api/health/{workspaceSlug}/{hostAppSlug}/{env} (Health ingest)."""
         return self.request("POST", "/api/health/" + _q(workspace_slug) + "/" + _q(host_app_slug) + "/" + _q(env), body, query)
 
+    def post_invitations_accept(self, token, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/invitations/{token}/accept (Service)."""
+        return self.request("POST", "/api/invitations/" + _q(token) + "/accept", None, query)
+
+    def post_me_mfa_enable(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/me/mfa/enable (Service)."""
+        return self.request("POST", "/api/me/mfa/enable", None, query)
+
+    def post_me_mfa_recovery_codes(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/me/mfa/recovery-codes (Service)."""
+        return self.request("POST", "/api/me/mfa/recovery-codes", None, query)
+
+    def post_me_mfa_setup(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/me/mfa/setup (Service)."""
+        return self.request("POST", "/api/me/mfa/setup", None, query)
+
     def post_orgs(self, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs (Organizations)."""
         return self.request("POST", "/api/orgs", body, query)
+
+    def post_orgs_audit_sinks(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/audit-sinks (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/audit-sinks", None, query)
+
+    def post_orgs_audit_sinks_dead_letters_retry(self, org_slug, id, letter_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/audit-sinks/{id}/dead-letters/{letterId}/retry (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id) + "/dead-letters/" + _q(letter_id) + "/retry", None, query)
+
+    def post_orgs_audit_sinks_test(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/audit-sinks/{id}/test (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/audit-sinks/" + _q(id) + "/test", None, query)
+
+    def post_orgs_domains(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/domains (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/domains", None, query)
+
+    def post_orgs_domains_verify(self, org_slug, domain, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/domains/{domain}/verify (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/domains/" + _q(domain) + "/verify", None, query)
+
+    def post_orgs_invitations(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/invitations (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/invitations", None, query)
+
+    def post_orgs_invitations_resend(self, org_slug, invitation_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/invitations/{invitationId}/resend (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/invitations/" + _q(invitation_id) + "/resend", None, query)
 
     def post_orgs_keys(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/keys (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/keys", body, query)
 
+    def post_orgs_keys_rotate(self, org_slug, key_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/keys/{keyId}/rotate (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/keys/" + _q(key_id) + "/rotate", None, query)
+
     def post_orgs_members(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/members (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/members", body, query)
+
+    def post_orgs_notifications(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/notifications (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/notifications", None, query)
+
+    def post_orgs_notifications_test(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/notifications/{id}/test (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/notifications/" + _q(id) + "/test", None, query)
+
+    def post_orgs_policy_freeze_windows_override(self, org_slug, window_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/policy/freeze-windows/" + _q(window_id) + "/override", None, query)
 
     def post_orgs_scim_token(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/scim/token (Organizations)."""
@@ -459,6 +851,18 @@ class Client(BaseClient):
         """POST /api/orgs/{orgSlug}/sso/saml/test (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/sso/saml/test", None, query)
 
+    def post_orgs_transfer(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/transfer (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/transfer", None, query)
+
+    def post_orgs_webhooks(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/webhooks (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/webhooks", None, query)
+
+    def post_orgs_webhooks_dead_letters_retry(self, org_slug, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/orgs/{orgSlug}/webhooks-dead-letters/{id}/retry (Organizations)."""
+        return self.request("POST", "/api/orgs/" + _q(org_slug) + "/webhooks-dead-letters/" + _q(id) + "/retry", None, query)
+
     def post_orgs_workspaces(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/orgs/{orgSlug}/workspaces (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/workspaces", body, query)
@@ -467,9 +871,29 @@ class Client(BaseClient):
         """POST /api/orgs/{orgSlug}/workspaces/{workspaceSlug}/attach (Organizations)."""
         return self.request("POST", "/api/orgs/" + _q(org_slug) + "/workspaces/" + _q(workspace_slug) + "/attach", None, query)
 
+    def post_transfers_accept(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/transfers/{id}/accept (Service)."""
+        return self.request("POST", "/api/transfers/" + _q(id) + "/accept", None, query)
+
+    def post_transfers_cancel(self, id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/transfers/{id}/cancel (Service)."""
+        return self.request("POST", "/api/transfers/" + _q(id) + "/cancel", None, query)
+
     def post_workspaces(self, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces (Workspaces)."""
         return self.request("POST", "/api/workspaces", body, query)
+
+    def post_workspaces_access_requests(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/access-requests (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/access-requests", None, query)
+
+    def post_workspaces_access_requests_approve(self, workspace_slug, request_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/access-requests/{requestId}/approve (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/access-requests/" + _q(request_id) + "/approve", None, query)
+
+    def post_workspaces_access_requests_deny(self, workspace_slug, request_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/access-requests/{requestId}/deny (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/access-requests/" + _q(request_id) + "/deny", None, query)
 
     def post_workspaces_alerts(self, workspace_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/alerts (Alerts)."""
@@ -499,6 +923,14 @@ class Client(BaseClient):
         """POST /api/workspaces/{workspaceSlug}/approvals/{requestId}/reject (Approvals)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/approvals/" + _q(request_id) + "/reject", body, query)
 
+    def post_workspaces_domains(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/domains (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/domains", None, query)
+
+    def post_workspaces_domains_verify(self, workspace_slug, domain, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/domains/{domain}/verify (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/domains/" + _q(domain) + "/verify", None, query)
+
     def post_workspaces_host_apps(self, workspace_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/host-apps (Host apps and environments)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/host-apps", body, query)
@@ -514,6 +946,14 @@ class Client(BaseClient):
     def post_workspaces_host_apps_environments_publish(self, workspace_slug, host_app_slug, env_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/host-apps/{hostAppSlug}/environments/{envSlug}/publish (Host apps and environments)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/host-apps/" + _q(host_app_slug) + "/environments/" + _q(env_slug) + "/publish", None, query)
+
+    def post_workspaces_invitations(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/invitations (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/invitations", None, query)
+
+    def post_workspaces_invitations_resend(self, workspace_slug, invitation_id, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/invitations/{invitationId}/resend (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/invitations/" + _q(invitation_id) + "/resend", None, query)
 
     def post_workspaces_members(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/members (API keys and members)."""
@@ -551,6 +991,10 @@ class Client(BaseClient):
         """POST /api/workspaces/{workspaceSlug}/modules/{moduleRef}/upload-url (Modules and versions)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/modules/" + _q(module_ref) + "/upload-url", None, query)
 
+    def post_workspaces_restore(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/restore (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/restore", None, query)
+
     def post_workspaces_scheduled_operations(self, workspace_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/scheduled-operations (Scheduled operations)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/scheduled-operations", body, query)
@@ -575,6 +1019,10 @@ class Client(BaseClient):
         """POST /api/workspaces/{workspaceSlug}/storage/test (Storage)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/storage/test", None, query)
 
+    def post_workspaces_transfer(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """POST /api/workspaces/{workspaceSlug}/transfer (Workspaces)."""
+        return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/transfer", None, query)
+
     def post_workspaces_webhooks(self, workspace_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
         """POST /api/workspaces/{workspaceSlug}/webhooks (Webhooks)."""
         return self.request("POST", "/api/workspaces/" + _q(workspace_slug) + "/webhooks", None, query)
@@ -591,9 +1039,17 @@ class Client(BaseClient):
         """PUT /api/admin/settings/{key} (Instance administration)."""
         return self.request("PUT", "/api/admin/settings/" + _q(key), None, query)
 
+    def put_admin_settings_import(self, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PUT /api/admin/settings/import (Instance administration)."""
+        return self.request("PUT", "/api/admin/settings/import", None, query)
+
     def put_admin_workspaces_plan(self, slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PUT /api/admin/workspaces/{slug}/plan (Instance administration)."""
         return self.request("PUT", "/api/admin/workspaces/" + _q(slug) + "/plan", body, query)
+
+    def put_orgs_policy(self, org_slug, *, query: Optional[Mapping[str, Any]] = None) -> Response:
+        """PUT /api/orgs/{orgSlug}/policy (Organizations)."""
+        return self.request("PUT", "/api/orgs/" + _q(org_slug) + "/policy", None, query)
 
     def put_orgs_provisioning(self, org_slug, *, body: Any = None, query: Optional[Mapping[str, Any]] = None) -> Response:
         """PUT /api/orgs/{orgSlug}/provisioning (Organizations)."""

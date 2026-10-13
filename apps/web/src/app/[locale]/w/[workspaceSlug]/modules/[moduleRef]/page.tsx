@@ -349,7 +349,8 @@ export default async function ModuleDetailPage(props: {
             <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
               <legend className="sr-only">{t('ownersTitle')}</legend>
               {members
-                .filter((m) => m.status === 'active')
+                // Owners are memberships; org admins (PPL-06) have none.
+                .flatMap((m) => (m.status === 'active' && m.id ? [{ ...m, id: m.id }] : []))
                 .map((m) => (
                   <label key={m.id} className="flex items-center gap-1">
                     <input

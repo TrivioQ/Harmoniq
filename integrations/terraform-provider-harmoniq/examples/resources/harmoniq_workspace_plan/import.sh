@@ -1,0 +1,1 @@
+terraform import harmoniq_workspace_plan.checkout_team checkout-team

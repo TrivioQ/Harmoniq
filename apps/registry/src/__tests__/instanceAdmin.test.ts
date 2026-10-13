@@ -129,9 +129,13 @@ describe('Instance administration (M4.8, INST-05..10, 18)', () => {
 
   it('grants and revokes instance admin (INST-07)', async () => {
     const u = await fx.user();
+    // INST-31: an email without an account is invited.
+    const invited = await api(root, 'POST', '/api/admin/admins', { email: 'nobody@x.test' });
+    expect(invited.statusCode).toBe(202);
+    expect(invited.json()).toMatchObject({ invited: true, role: 'instance_owner' });
     expect(
-      (await api(root, 'POST', '/api/admin/admins', { email: 'nobody@x.test' })).statusCode
-    ).toBe(404);
+      (await api(root, 'DELETE', `/api/admin/admin-invitations/${invited.json().id}`)).statusCode
+    ).toBe(204);
     expect((await api(root, 'POST', '/api/admin/admins', { email: u.email })).statusCode).toBe(201);
     const session = await fx.session(u);
     expect((await api(session, 'GET', '/api/admin/users')).statusCode).toBe(200);
@@ -162,13 +166,14 @@ describe('Instance administration (M4.8, INST-05..10, 18)', () => {
     expect(JSON.stringify(deletion)).not.toContain(ownerUser.email);
   });
 
-  it('hard-deletes a workspace with confirmation (INST-09)', async () => {
+  it('deletes a workspace with confirmation (INST-09, restorable: TLC-02)', async () => {
     const { workspace } = await fx.workspace();
     const url = `/api/admin/workspaces/${workspace.slug}`;
     expect((await api(root, 'DELETE', url)).statusCode).toBe(400);
     expect((await api(root, 'DELETE', `${url}?confirm=${workspace.slug}`)).statusCode).toBe(204);
     expect(
-      await app.container.systemDb.workspace.findUnique({ where: { id: workspace.id } })
-    ).toBeNull();
+      (await app.container.systemDb.workspace.findUniqueOrThrow({ where: { id: workspace.id } }))
+        .deletedAt
+    ).not.toBeNull();
   });
 });

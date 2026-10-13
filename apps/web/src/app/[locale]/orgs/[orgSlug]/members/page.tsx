@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { getTranslations } from 'next-intl/server';
+import { Link } from '@/i18n/routing';
 import { ActionForm } from '@/components/ActionForm';
 import { orgApi } from '@/lib/orgApi';
 import { getMe } from '@/lib/registry';
@@ -12,7 +13,7 @@ import {
 } from '../../actions';
 
 const input = 'rounded-md border px-3 py-1.5 text-sm';
-const ROLES = ['org_member', 'org_admin'] as const;
+const ROLES = ['org_member', 'org_admin', 'org_auditor', 'org_billing'] as const;
 
 /** ORG-04/08: organization members. Org admins administer every workspace in the org. */
 export default async function OrgMembersPage(props: { params: Promise<{ orgSlug: string }> }) {
@@ -60,7 +61,14 @@ export default async function OrgMembersPage(props: { params: Promise<{ orgSlug:
                   submitLabel={t('remove')}
                   confirm={t('removeConfirm', { email: m.user.email })}
                   variant="danger"
-                />
+                  className="flex items-center gap-2"
+                >
+                  {/* PPL-04: their API keys in the org are revoked unless kept. */}
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <input type="checkbox" name="keepKeys" />
+                    {t('keepKeys')}
+                  </label>
+                </ActionForm>
               </div>
             ) : (
               <span className="text-sm text-muted-foreground">{t(m.role)}</span>
@@ -93,6 +101,17 @@ export default async function OrgMembersPage(props: { params: Promise<{ orgSlug:
             </select>
           </ActionForm>
         </section>
+      )}
+      {admin && (
+        <p className="text-xs text-muted-foreground">
+          {t.rich('transferMoved', {
+            link: (chunks) => (
+              <Link href={`/orgs/${orgSlug}/settings`} className="underline">
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
       )}
     </>
   );

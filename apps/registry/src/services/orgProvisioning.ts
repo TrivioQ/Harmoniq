@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Prisma, Role } from '@prisma/client';
 import { IdentityError, type IdentityUserInfo } from '@harmoniq/core/dist/ports/IdentityProvider';
 import { OrgProvisioning, OrgProvisioningSchema } from '@harmoniq/core/dist/schemas/SsoSchema';
-import { audit } from './audit';
+import { AuditActor, audit } from './audit';
 
 type Tx = Prisma.TransactionClient;
 
@@ -43,7 +43,8 @@ export interface OrgSyncInput {
  * organization and every membership in the managed workspaces, with their API keys;
  * the last org admin and a workspace's last owner are kept.
  *
- * Runs with the system client: it spans the organization's workspaces.
+ * Runs in an organization-scoped transaction (`withOrg`): it spans the organization's
+ * workspaces, and RLS keeps it inside them.
  */
 export async function syncOrgMember(
   tx: Tx,
@@ -105,32 +106,12 @@ export async function syncOrgMember(
         orgRemoved = true;
       }
     }
-    const removed: string[] = [];
-    for (const ws of workspaces) {
-      const member = await tx.workspaceMember.findUnique({
-        where: { workspaceId_userId: { workspaceId: ws.id, userId } },
-      });
-      if (!member) continue;
-      if (member.role === 'owner') {
-        const owners = await tx.workspaceMember.count({
-          where: { workspaceId: ws.id, role: 'owner' },
-        });
-        if (owners <= 1) {
-          await wsEvent(ws.id, 'org.deprovision_skipped', { reason: 'last_owner' });
-          continue;
-        }
-      }
-      await tx.workspaceMember.delete({ where: { id: member.id } });
-      const keys = await tx.apiKey.updateMany({
-        where: { workspaceId: ws.id, createdBy: userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-      await wsEvent(ws.id, 'org.member_deprovisioned', {
-        role: member.role,
-        apiKeysRevoked: keys.count,
-      });
-      removed.push(ws.slug);
-    }
+    const { removed } = await removeFromWorkspaces(tx, workspaces, userId, {
+      revokeKeys: true,
+      removedAction: 'org.member_deprovisioned',
+      skippedAction: 'org.deprovision_skipped',
+      event: wsEvent,
+    });
     const orgKeys = orgRemoved
       ? await tx.orgApiKey.updateMany({
           where: { organizationId: org.id, createdBy: userId, revokedAt: null },
@@ -198,6 +179,101 @@ export async function syncOrgMember(
   return { deprovisioned: false, member: true };
 }
 
+/**
+ * Removes a user from these workspaces with the API keys they created there (unless
+ * `revokeKeys` is false). A workspace's last owner is kept, with a `skippedAction` event.
+ */
+async function removeFromWorkspaces(
+  tx: Tx,
+  workspaces: Array<{ id: string; slug: string }>,
+  userId: string,
+  opts: {
+    revokeKeys: boolean;
+    removedAction: string;
+    skippedAction: string;
+    event: (workspaceId: string, action: string, metadata: Record<string, unknown>) => unknown;
+  }
+) {
+  const removed: string[] = [];
+  const keptAsLastOwner: string[] = [];
+  let apiKeysRevoked = 0;
+  for (const ws of workspaces) {
+    const member = await tx.workspaceMember.findUnique({
+      where: { workspaceId_userId: { workspaceId: ws.id, userId } },
+    });
+    if (!member) continue;
+    if (member.role === 'owner') {
+      const owners = await tx.workspaceMember.count({
+        where: { workspaceId: ws.id, role: 'owner' },
+      });
+      if (owners <= 1) {
+        await opts.event(ws.id, opts.skippedAction, { reason: 'last_owner' });
+        keptAsLastOwner.push(ws.slug);
+        continue;
+      }
+    }
+    await tx.workspaceMember.delete({ where: { id: member.id } });
+    const keys = opts.revokeKeys
+      ? await tx.apiKey.updateMany({
+          where: { workspaceId: ws.id, createdBy: userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        })
+      : { count: 0 };
+    apiKeysRevoked += keys.count;
+    await opts.event(ws.id, opts.removedAction, {
+      role: member.role,
+      apiKeysRevoked: keys.count,
+    });
+    removed.push(ws.slug);
+  }
+  return { removed, keptAsLastOwner, apiKeysRevoked };
+}
+
+/**
+ * PPL-04: an org admin removes someone from the organization. Unlike deprovisioning by
+ * the IdP, this covers every workspace of the organization (also those with their own
+ * SSO or SCIM): leaving the organization means leaving its workspaces. API keys the user
+ * created there (workspace and org keys) are revoked unless `revokeKeys` is false. The
+ * caller ends the user's org-SSO sessions after the commit and keeps the last org admin.
+ */
+export async function offboardOrgMember(
+  tx: Tx,
+  org: { id: string; slug: string },
+  member: { id: string; userId: string },
+  opts: { revokeKeys: boolean; actor: AuditActor }
+) {
+  const workspaces = await tx.workspace.findMany({
+    where: { organizationId: org.id },
+    select: { id: true, slug: true },
+    orderBy: { slug: 'asc' },
+  });
+  await tx.organizationMember.delete({ where: { id: member.id } });
+  const result = await removeFromWorkspaces(tx, workspaces, member.userId, {
+    revokeKeys: opts.revokeKeys,
+    removedAction: 'member.remove',
+    skippedAction: 'member.remove_skipped',
+    event: (workspaceId, action, metadata) =>
+      audit(tx, workspaceId, opts.actor, {
+        action,
+        resourceType: 'user',
+        resourceId: member.userId,
+        metadata: { organization: org.slug, reason: 'org_member_removed', ...metadata },
+      }),
+  });
+  const orgKeys = opts.revokeKeys
+    ? await tx.orgApiKey.updateMany({
+        where: { organizationId: org.id, createdBy: member.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      })
+    : { count: 0 };
+  return {
+    workspacesLeft: result.removed,
+    keptAsLastOwner: result.keptAsLastOwner,
+    apiKeysRevoked: result.apiKeysRevoked,
+    orgKeysRevoked: orgKeys.count,
+  };
+}
+
 /** SSO must not re-add someone the organization's IdP deprovisioned. */
 export async function isOrgDeprovisioned(tx: Tx, organizationId: string, userId: string) {
   const user = await tx.scimUser.findUnique({
@@ -220,11 +296,12 @@ export async function provisionOrgSsoMember(
   info: IdentityUserInfo,
   ip?: string
 ) {
-  const { systemDb } = app.container;
+  const { systemDb, withOrg } = app.container;
+  // Tenant resolution; the provisioning itself runs in the organization's scope (MT-08).
   const org = await systemDb.organization.findFirstOrThrow({
     where: { slug: orgSlug, deletedAt: null },
   });
-  return systemDb.$transaction(async (tx) => {
+  return withOrg(org.id, async (tx) => {
     if (await isOrgDeprovisioned(tx, org.id, userId)) {
       throw new IdentityError('access_denied', 'Your access to this organization was removed');
     }

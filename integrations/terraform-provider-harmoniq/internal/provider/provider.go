@@ -102,6 +102,9 @@ func (p *harmoniqProvider) Resources(_ context.Context) []func() resource.Resour
 		NewWebhookEndpointResource,
 		NewAlertRuleResource,
 		NewApprovalPolicyResource,
+		NewInstanceSettingResource,
+		NewWorkspacePlanResource,
+		NewOrganizationPlanResource,
 	}
 }
 

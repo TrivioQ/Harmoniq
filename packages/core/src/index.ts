@@ -29,3 +29,5 @@ export * from './manifest/diff';
 export * from './validation/bundle';
 export * from './schemas/ResourceSchemas';
 export * from './manifest/formats';
+export * from './schemas/OrgPolicySchema';
+export * from './schemas/OrgEventsSchema';

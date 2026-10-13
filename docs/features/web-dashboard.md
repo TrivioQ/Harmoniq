@@ -6,23 +6,30 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 
 ## Requirements
 
-| Requirement ID | Description                          | Status |
-| -------------- | ------------------------------------ | ------ |
-| DASH-01        | Scaffold Next.js application         | Done   |
-| DASH-02        | GitHub OAuth Authentication Flow     | Done   |
-| DASH-03        | Edge middleware for JWT Verification | Done   |
-| DASH-04        | Workspace Selector                   | Done   |
-| DASH-05        | Dashboard Overview Page              | Done   |
-| DASH-06        | Modules Management Page              | Done   |
-| DASH-07        | Environments Configuration Page      | Done   |
-| DASH-08        | Dashboard Integration Tests          | Done   |
+| Requirement ID        | Description                                                                                                                                                                    | Status      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| DASH-01               | Scaffold Next.js application                                                                                                                                                   | Done        |
+| DASH-02               | GitHub OAuth Authentication Flow                                                                                                                                               | Done        |
+| DASH-03               | Edge middleware for JWT Verification                                                                                                                                           | Done        |
+| DASH-04               | Workspace Selector                                                                                                                                                             | Done        |
+| DASH-05               | Dashboard Overview Page                                                                                                                                                        | Done        |
+| DASH-06               | Modules Management Page                                                                                                                                                        | Done        |
+| DASH-07               | Environments Configuration Page                                                                                                                                                | Done        |
+| DASH-08               | Dashboard Integration Tests                                                                                                                                                    | Done        |
+| ORG-14, ORG-15        | Organization pages (`/orgs/:org`: overview, catalog, audit, members, keys, SSO, provisioning)                                                                                  | Done (M4.7) |
+| INST-01–INST-14       | Instance admin panel (`/admin/*`) and setup wizard                                                                                                                             | Done (M4.8) |
+| TAD-01, TAD-04–TAD-08 | Tenant admin dashboard: org settings, people, key parity, org home and catalog search, readable audit, shared navigation ([tenant administration](./tenant-administration.md)) | Done (9.4)  |
+| TAD-03                | Org policies page; workspace settings show what the organization imposes                                                                                                       | Done (9.5)  |
+| TAD-02                | Org usage page; workspace usage card and 80% banner; admin usage page and plan trials                                                                                          | Done (9.6)  |
+| TAD-09, TAD-10        | Org integrations page: notifications, webhooks, audit streams; audit trail verification                                                                                        | Done (9.8)  |
 
 ## Architecture Notes
 
 - Next.js 16 (App Router). `src/proxy.ts` (formerly middleware) does an optimistic session check and transparent refresh; see [authentication](./authentication.md).
 - **All data comes from the registry API** (`src/lib/registry.ts`, typed reads in `src/lib/workspaceApi.ts`). The dashboard has no database access; authorization, audit and tenant isolation live in the registry.
-- Mutations are server actions (`[workspaceSlug]/actions.ts`) rendered through `components/ActionForm.tsx`, which shows results, confirmations and one-time secrets.
+- Mutations are server actions (`w/[workspaceSlug]/actions.ts`, `orgs/actions.ts`, `admin/(panel)/actions.ts`) rendered through `components/ActionForm.tsx`, which shows results, confirmations and one-time secrets.
 - Role checks in the UI only hide controls; the registry enforces permissions on every call.
+- Route areas: `/w/:workspaceSlug/…` (workspace), `/orgs/:orgSlug/…` (organization), `/admin/…` (instance admin). Their layouts share `components/AppShell.tsx` (TAD-08): breadcrumbs (organization, workspace), an organization and workspace switcher and a user menu (instance admin link, sign-out), as `<details>` menus that work without client JavaScript. Org pages a role can't use answer 404 (`orgApi` turns the registry's 403 into `notFound()`).
 - Copy lives in `messages/en.json` and `messages/es.json` (next-intl); both locales must have the same keys.
 
 ## Breaking Changes
@@ -30,6 +37,186 @@ The Web Dashboard is a Next.js App Router application that provides the primary 
 - N/A (Initial implementation)
 
 ## Change History
+
+### 2026-10-13 — Tenant pages through support access (Phase 9.10)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-20
+
+#### What changed
+
+- An instance admin with an active support grant can open the organization (`/orgs/:org/…`) or workspace (`/w/:ws/…`) pages without being a member. They see what the tenant's admins see, including settings, keys and integrations, with a banner saying it is read-only until the grant ends.
+- `components/ReadOnly.tsx`: inside it, every `ActionForm` is disabled (the registry refuses changes anyway: `403 SUPPORT_READ_ONLY`).
+- The registry's `support` flag on `GET /api/workspaces/:ws` and `GET /api/orgs/:org` tells the layouts when to use it.
+- The admin's support panel links to the tenant's pages while their own grant is active.
+
+#### Testing
+
+- `supportGrants.test.ts` checks the `support` flag for the grant holder, the tenant owner and after expiry.
+- Against a local registry, as an instance owner who isn't a member:
+  - Organization and workspace pages return 404 without a grant.
+  - With a grant, they render with the banner and disabled forms, and return 404 again once the grant is ended.
+  - A real org admin still gets editable pages.
+
+### 2026-10-13 — System admin dashboard (Phase 9.10)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-19–INST-22, INST-27–INST-30, INST-36–INST-39
+
+#### What changed
+
+- `/admin`: counts, 30-day trend charts (`components/TrendBars.tsx`, server SVG), the needs-attention list linking to each item, and recent changes.
+- `/admin/health`: build, migrations and replicas. `/admin/jobs`: schedules, last runs, failed jobs with retry, run now.
+- `/admin/announcements`: announcement and maintenance windows (UTC). `components/InstanceBanner.tsx` in the root layout shows both on every page.
+- `/admin/email`: template wording and the delivery log. `/admin/security`: failures by address and email, rejected keys, rate limits, SCIM errors.
+- `/admin/audit`: a resource type filter, and "find a person in every log".
+- Lists: workspaces filter, sort and export CSV (`/api/admin-export`); users filter and export CSV; organizations search and pages.
+- Detail pages `/admin/workspaces/:slug` (the storage form moved to `…/storage`), `/admin/orgs/:slug` and `/admin/users/:id`. Delete, restore, suspend, email change and merge moved there.
+- Support access: `SupportAccessPanel` on the workspace and organization pages, and `components/SupportBanner.tsx` for the tenant's admins.
+- `/auth/email-change`: the new address confirms the change with a button, so link scanners can't.
+- `lib/branding.ts` reads `/api/instance` once per request for branding, the announcement and maintenance.
+- The `short` date format used across the dashboard is now defined in `i18n/request.ts`.
+- The nav adds Jobs, Announcements (owners) and Security.
+
+#### Testing
+
+Typecheck, lint, unit tests and the production build. Smoke tests against a local registry:
+
+- every new page in English and Spanish, and the CSV export;
+- the announcement banner, and the support banner for a workspace owner while a grant is active;
+- the billing role's navigation.
+
+### 2026-10-12 — Admin roles, re-authentication, keys, settings and encryption (Phase 9.9)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-26, INST-31–INST-35
+
+#### What changed
+
+- `/admin/admins`: a role picker for grants and invitations, role and "no MFA" badges, role changes, and pending invitations.
+- The admin nav hides owner-only pages from other roles (from `/api/me` → `instanceAdmin`).
+- `ActionForm`: a `REAUTH_REQUIRED` refusal shows `ReauthPrompt` (a TOTP or recovery code, through `reauthAction`, which sets the new session cookies). The action is then submitted again. Without MFA: sign in again.
+- `/admin/api-keys`: create (shown once), list and revoke instance keys.
+- `/admin/settings`: every setting with its source badge, YAML export (`/api/settings-export`) and import (dry run unless "apply" is ticked).
+- `/admin/settings/:key`: a JSON editor for `plans`, `rateLimits`, `gc` and `bundles`, and for every setting its versions with changed fields and restore. Each setting page links to its history.
+- `/admin/encryption`: keys with value counts, legacy and unknown keys, "Re-seal now".
+
+#### Testing
+
+Typecheck, lint and unit tests. Against a local registry: each new page renders for an owner (English and Spanish); the export downloads; an unknown setting is a 404; a billing admin's nav shows only the read pages.
+
+### 2026-10-12 — Integrations and audit verification (Phase 9.8)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** TAD-09, TAD-10, AUD-06, AUD-09
+
+#### What changed
+
+- `/orgs/:org/integrations` (org admins, in the org nav):
+  - Notification channels: email, Slack or Teams, with a test button and the last error.
+  - Webhooks: last delivery, pause and resume; the secret is shown once.
+  - Audit streams (HTTPS or S3): cursor and failure state, dead-letter count, test, turn on and off, backfill option.
+- `components/ChainCheck.tsx`: "Verify the audit trail" on the org, workspace (admins) and instance audit pages, with each chain's head and its first problem.
+
+#### Testing
+
+Typecheck, lint, unit tests and the production build. Against a local registry: the integrations page for an org admin (the email and sink listed, no secrets in the page) and a member (404), and an intact trail on all three audit pages.
+
+### 2026-10-12 — Account, MFA and suspension pages (Phase 9.7)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** SES-01–SES-04, TAD-08
+
+#### What changed
+
+- `/account`:
+  - Sessions: browser and OS from the user agent, IP, provider, MFA badge. End one, or sign out everywhere else.
+  - MFA: set up, new recovery codes and turn off, each with a code.
+- `/account/mfa`: a QR code (SVG from `qrcode`, rendered on the server) and the key. The secret waits in an HttpOnly cookie for 10 minutes.
+- `/auth/mfa` and `POST /api/auth/mfa`: sign-in routes send MFA users there with the challenge in an HttpOnly cookie (`lib/http.ts`, `signInResponse`).
+- The user menu links to the account. Login shows `account_suspended` and `mfa_expired`.
+- Admin: suspend with a reason, unsuspend, reset MFA, badges; session limits in auth settings.
+- Org policies: `requireMfa`.
+
+#### Testing
+
+Typecheck, lint, unit tests and the production build. Against a local registry: the account page (Chrome on macOS detected), enrolment, a dev sign-in redirected to `/auth/mfa`, a wrong code back to the form, the right code signing in and clearing the cookie, the session shown as verified, the setup QR code, and the admin users and auth pages.
+
+### 2026-10-12 — Usage pages (Phase 9.6)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** TAD-02, USG-03, PLN-05, PLN-06
+
+#### What changed
+
+- `components/UsageMeters.tsx`: quota bars (amber from 80%, red at the limit) and daily trends as inline SVG. `lib/usage.ts` holds the types and helpers.
+- `/orgs/:org/usage` for org admins, billing members and auditors (nav link). `/api/usage-export` proxies the CSV with the session.
+- Workspace settings: a usage card for admins. The workspace layout shows a banner when a quota is at 80% or more.
+- Admin: `/admin/usage`, storage in the workspace list, and trial end, fallback plan and JSON overrides on the plan form.
+
+#### Testing
+
+Typecheck, lint, unit tests and the production build. The pages were fetched against a local registry with enforcement on and low limits: admin and billing see the usage, members get 404, the settings card and the banner show, and the CSV downloads.
+
+### 2026-10-12 — Organization policies page (Phase 9.5)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** TAD-03, POL-01–POL-09
+
+#### What changed
+
+- `/orgs/:org/policies`: one form with a section per policy. List rows (approval defaults, freeze windows) are numbered fields with one spare row, and clearing a pattern removes its row. Freeze times are entered in UTC. Auditors see it read-only. Below the form: freezes in force with override and end, and the workspaces that go further than the organization (the first 50).
+- Workspace settings: "Set by your organization" lists retention, approvals, freezes, key limits, locked SSO, session limits and the allowlist.
+- Workspace and org key pages show policy violations.
+
+#### Testing
+
+Typecheck, lint, unit tests and the production build. The pages were fetched against a local registry as org admin (form and override), auditor (read-only, no buttons) and member (404).
+
+### 2026-10-11 — Tenant admin dashboard (Phase 9.4)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** TAD-01, TAD-05–TAD-08, AUD-07, AUD-08, PPL-07
+
+#### What changed
+
+- `components/AppShell.tsx`: breadcrumbs, org and workspace switcher and user menu in the org, workspace and admin layouts.
+- `/orgs/:org/settings` (org admins): rename, plan, verified domains (moved from the SSO page), export, and a danger zone with the admin-seat transfer (moved from Members) and deletion with the slug typed back.
+- Org keys: status (replaced keys show until when they work), creator, last use, expiry, 90-day unused warning; rotate with a grace period; module scope and expiry when creating.
+- Org home: search, pagination, suspended, frozen and pending-approval badges, and a panel of approvals waiting across the organization.
+- Catalog: search, team, environment and sharing filters, pagination, "who loads it" for shared modules (`?consumers=`), and request access to a team you're not in.
+- `components/AuditView.tsx`: workspace, org and instance audit pages show readable actors, filter by actor email, action and dates, and show event details.
+
+#### Testing
+
+Typecheck, lint, web unit tests and `next build`. Every org page was fetched for `org_admin`, `org_member`, `org_auditor` and `org_billing` against a local registry and `next dev`: admins get every page, auditors get audit, people, SSO and provisioning, the others get 404 on admin pages. The workspace and instance audit pages were fetched with filters.
+
+### 2026-10-11 — Requirements table brought up to date
+
+**Type:** docs  
+**PR / Branch:** —  
+**Refs:** ORG-14, ORG-15, INST-01–INST-14, TAD-01–TAD-10
+
+#### What changed
+
+- Listed the organization pages and the instance admin panel, which the table was missing, and the planned tenant admin dashboard (Phase 9).
+- Corrected the server action paths after the move to `/w/:workspaceSlug` (ORG-15).
+
+#### Why
+
+Part of the documentation update for the [multi-tenancy gap analysis](../multi-tenancy-gap-analysis.md).
+
+#### Testing
+
+Docs only.
 
 ### 2026-10-09 — Integrate (quickstart) page
 

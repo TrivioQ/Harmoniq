@@ -5,27 +5,31 @@ import { getFormatter, getTranslations } from 'next-intl/server';
 import { Link } from '@/i18n/routing';
 import { orgApi } from '@/lib/orgApi';
 import { AuditExportLinks } from '@/components/AuditExportLinks';
+import { ChainCheck } from '@/components/ChainCheck';
+import {
+  AuditActorLabel,
+  AuditFilters,
+  AuditMetadata,
+  type AuditQuery,
+  auditHref,
+  auditRange,
+} from '@/components/AuditView';
 
-const input = 'rounded-md border px-3 py-1.5 text-sm';
-
-/** ORG-09: one audit log across the organization's workspaces. */
+/** ORG-09, AUD-07/08: one audit log across the organization's workspaces. */
 export default async function OrgAuditPage(props: {
   params: Promise<{ orgSlug: string }>;
-  searchParams: Promise<{ workspace?: string; action?: string; cursor?: string }>;
+  searchParams: Promise<AuditQuery & { verify?: string }>;
 }) {
   const { orgSlug } = await props.params;
   const query = await props.searchParams;
   const t = await getTranslations('OrgAudit');
   const format = await getFormatter();
   const [{ events, nextCursor }, home] = await Promise.all([
-    orgApi.audit(orgSlug, { ...query, limit: '50' }),
-    orgApi.home(orgSlug),
+    orgApi.audit(orgSlug, { ...query, verify: undefined, ...auditRange(query), limit: '50' }),
+    orgApi.home(orgSlug, { limit: '200' }),
   ]);
-  const next = new URLSearchParams(
-    Object.entries({ ...query, cursor: nextCursor ?? undefined }).filter(
-      (e): e is [string, string] => !!e[1]
-    )
-  );
+  // AUD-09: checked only when asked (it reads every row).
+  const chain = query.verify ? await orgApi.verifyAudit(orgSlug) : null;
 
   return (
     <>
@@ -36,31 +40,24 @@ export default async function OrgAuditPage(props: {
         action={query.action}
         workspace={query.workspace}
       />
-      <form className="flex flex-wrap gap-2" method="get">
-        <select
-          name="workspace"
-          defaultValue={query.workspace ?? ''}
-          className={input}
-          aria-label={t('workspace')}
-        >
-          <option value="">{t('allWorkspaces')}</option>
-          {home.workspaces.map((w) => (
-            <option key={w.slug} value={w.slug}>
-              {w.name}
-            </option>
-          ))}
-        </select>
-        <input
-          name="action"
-          defaultValue={query.action}
-          placeholder="module.deploy"
-          aria-label={t('action')}
-          className={`${input} font-mono`}
-        />
-        <button type="submit" className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted">
-          {t('filter')}
-        </button>
-      </form>
+      {/* TLC-07: the organization and its live workspaces, everything, as JSON Lines. */}
+      <a
+        href={`/api/tenant-export?${new URLSearchParams({ scope: 'org', slug: orgSlug })}`}
+        className="text-sm underline hover:text-primary"
+        download
+      >
+        {t('fullExport')}
+      </a>
+      <ChainCheck
+        href={`/orgs/${orgSlug}/audit?verify=1`}
+        reports={
+          chain && [
+            { label: t('organization'), ...chain.organization },
+            ...chain.workspaces.map((w) => ({ label: w.slug, ...w })),
+          ]
+        }
+      />
+      <AuditFilters query={query} workspaces={home.workspaces} />
       <section className="rounded-xl border bg-card">
         <table className="w-full text-sm">
           <tbody>
@@ -70,9 +67,15 @@ export default async function OrgAuditPage(props: {
                   {format.dateTime(new Date(e.createdAt), 'short')}
                 </td>
                 <td className="p-3">{e.workspace ?? <em>{t('organization')}</em>}</td>
-                <td className="p-3 font-mono">{e.action}</td>
-                <td className="p-3 text-xs text-muted-foreground">
-                  {e.actorType}:{e.actorId}
+                <td className="p-3">
+                  <span className="font-mono">{e.action}</span>
+                  <AuditMetadata
+                    metadata={e.metadata}
+                    resource={`${e.resourceType} ${e.resourceId}`}
+                  />
+                </td>
+                <td className="p-3 text-xs">
+                  <AuditActorLabel {...e} />
                 </td>
               </tr>
             ))}
@@ -85,7 +88,10 @@ export default async function OrgAuditPage(props: {
         </table>
       </section>
       {nextCursor && (
-        <Link href={`/orgs/${orgSlug}/audit?${next}`} className="text-sm hover:text-primary">
+        <Link
+          href={auditHref(`/orgs/${orgSlug}/audit`, { ...query, cursor: nextCursor })}
+          className="text-sm hover:text-primary"
+        >
           {t('older')} →
         </Link>
       )}

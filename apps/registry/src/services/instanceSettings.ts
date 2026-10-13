@@ -13,7 +13,19 @@ import {
   InstanceSettingSchemas,
   INSTANCE_SETTING_KEYS,
   StorageSettings,
+  TenancySettings,
+  TenancySettingsSchema,
+  PlansSettingsSchema,
+  RateLimitSettingsSchema,
+  GcSettingsSchema,
+  BundleSettingsSchema,
+  type AnnouncementSettings,
+  type EmailTemplate,
+  type EmailTemplateSettings,
+  type MaintenanceSettings,
 } from '@harmoniq/core/dist/schemas/InstanceSettingsSchemas';
+import type { Plan, PlanFeature, PlanLimits } from '@harmoniq/core/dist/schemas/AdminSchemas';
+import YAML from 'yaml';
 import type { AuthMethod, Config } from '../config';
 import {
   StorageTarget,
@@ -21,6 +33,7 @@ import {
   storageTargetFromSettings,
 } from '../adapters/storage/createStorage';
 import { SmtpMailer } from '../adapters/mail/SmtpMailer';
+import { RecordingMailer } from './emailLog';
 import { maskSecret, openSecret, sealSecret } from './crypto';
 
 /** Write-only fields per setting, sealed at rest (INST-15). */
@@ -29,6 +42,14 @@ const SECRETS: Record<InstanceSettingKey, string[]> = {
   email: ['password'],
   auth: ['github.clientSecret'],
   branding: [],
+  tenancy: [],
+  plans: [],
+  rateLimits: [],
+  gc: [],
+  bundles: [],
+  announcement: [],
+  maintenance: [],
+  emailTemplates: [],
 };
 
 const RELOAD_MS = 60_000;
@@ -130,10 +151,14 @@ export class InstanceSettings {
     return this.version;
   }
 
+  /** INST-28: when this replica last read the settings (shown per replica in health). */
+  loadedAt: Date | null = null;
+
   async reload() {
     const rows = await this.deps.systemDb.instanceConfig.findMany({
       where: { key: { in: INSTANCE_SETTING_KEYS.map(rowKey) } },
     });
+    this.loadedAt = new Date();
     const next: Partial<Record<InstanceSettingKey, Json>> = {};
     for (const row of rows)
       next[row.key.slice('settings.'.length) as InstanceSettingKey] = row.value as Json;
@@ -188,28 +213,48 @@ export class InstanceSettings {
   /** INST-12: outbound email, or null when none is configured in production. */
   mailer(): IMailer | null {
     return this.memo('mailer', () => {
-      const value = this.plain('email') as EmailSettings | null;
-      if (value) {
-        return new SmtpMailer(
-          {
-            host: value.host,
-            port: value.port,
-            secure: value.security === 'tls',
-            requireTLS: value.security === 'starttls',
-            ignoreTLS: value.security === 'none',
-            ...(value.username && { auth: { user: value.username, pass: value.password ?? '' } }),
-          },
-          value.from
-        );
-      }
-      const { mail } = this.deps.config;
-      return mail.smtpUrl ? new SmtpMailer(mail.smtpUrl, mail.from) : this.deps.fallbackMailer;
+      const inner = this.baseMailer();
+      // INST-38: template overrides and the delivery log.
+      return inner
+        ? new RecordingMailer(inner, {
+            systemDb: this.deps.systemDb,
+            override: (template) => this.emailTemplate(template),
+          })
+        : null;
     }) as IMailer | null;
+  }
+
+  private baseMailer(): IMailer | null {
+    const value = this.plain('email') as EmailSettings | null;
+    if (value) {
+      return new SmtpMailer(
+        {
+          host: value.host,
+          port: value.port,
+          secure: value.security === 'tls',
+          requireTLS: value.security === 'starttls',
+          ignoreTLS: value.security === 'none',
+          ...(value.username && { auth: { user: value.username, pass: value.password ?? '' } }),
+        },
+        value.from
+      );
+    }
+    const { mail } = this.deps.config;
+    return mail.smtpUrl ? new SmtpMailer(mail.smtpUrl, mail.from) : this.deps.fallbackMailer;
   }
 
   /** INST-13: which sign-in methods the instance allows. */
   auth(): EffectiveAuth {
-    const stored = this.plain('auth');
+    return this.resolveAuth(this.plain('auth'));
+  }
+
+  /** SES-01: the instance's session lifetime and idle timeout. */
+  session(): { maxDays: number; idleMinutes: number | null } {
+    return AuthSettingsSchema.parse(this.plain('auth') ?? {}).session;
+  }
+
+  /** The effective sign-in methods for an `auth` value (stored, or about to be). */
+  private resolveAuth(stored: Json | null): EffectiveAuth {
     const value = AuthSettingsSchema.parse(stored ?? {});
     const { config } = this.deps;
     const allowed = (m: AuthMethod) => config.authMethods.allowed.includes(m);
@@ -255,6 +300,34 @@ export class InstanceSettings {
   }
 
   /**
+   * INST-23: which instance admins could still sign in to the admin panel if `candidate`
+   * (a plain `auth` value) were saved. Admin sessions can't come from a workspace's or
+   * organization's SSO (`requireInstanceAdmin`), so only instance-wide methods count:
+   * email and dev sign-in work for any account, GitHub and the instance OIDC only for
+   * admins who have signed in with them before.
+   */
+  async adminSignInAfter(
+    candidate: Json
+  ): Promise<{ admins: Array<{ id: string; email: string; canSignIn: boolean }> }> {
+    const next = this.resolveAuth(candidate);
+    const anyAccount = (next.email && !!this.mailer()) || next.dev;
+    const grants = await this.deps.systemDb.instanceAdmin.findMany({
+      where: { revokedAt: null },
+      include: { user: { include: { Identities: { select: { provider: true } } } } },
+    });
+    return {
+      admins: grants.map(({ user }) => {
+        const providers = new Set(user.Identities.map((i) => i.provider));
+        const canSignIn =
+          anyAccount ||
+          (!!next.github && providers.has('github')) ||
+          (next.instanceOidc && providers.has('oidc'));
+        return { id: user.id, email: user.email, canSignIn };
+      }),
+    };
+  }
+
+  /**
    * Admin-panel switches the environment forbids (`HARMONIQ_AUTH_METHODS`), so the panel
    * shows them as locked and refuses to turn them on.
    */
@@ -289,6 +362,94 @@ export class InstanceSettings {
     return warnings;
   }
 
+  /** TLC-08: who may create organizations and standalone workspaces. */
+  tenancy(): TenancySettings {
+    return TenancySettingsSchema.parse(this.plain('tenancy') ?? {});
+  }
+
+  // ─── INST-34: database over environment ───────────────────────────────────
+
+  /** PLN-02..05: enforcement, features and quotas per plan. */
+  plans(): {
+    enforced: boolean;
+    features: Record<Plan, PlanFeature[]>;
+    limits: Record<Plan, PlanLimits>;
+  } {
+    const env = this.deps.config.plans;
+    const stored = PlansSettingsSchema.parse(this.plain('plans') ?? {});
+    const plans: Plan[] = ['hobby', 'startup', 'enterprise'];
+    return {
+      enforced: stored.enforced ?? env.enforced,
+      features: Object.fromEntries(
+        plans.map((p) => [p, stored.features?.[p] ?? env.features[p]])
+      ) as Record<Plan, PlanFeature[]>,
+      limits: Object.fromEntries(
+        plans.map((p) => [p, { ...env.limits[p], ...(stored.limits?.[p] ?? {}) }])
+      ) as Record<Plan, PlanLimits>,
+    };
+  }
+
+  /** RL-01..04, MT-12: requests per minute. */
+  rateLimits() {
+    const { config } = this.deps;
+    const stored = RateLimitSettingsSchema.parse(this.plain('rateLimits') ?? {});
+    const tier = (env: Record<Plan, number>, over?: Partial<Record<Plan, number>>) =>
+      ({
+        ...env,
+        ...Object.fromEntries(Object.entries(over ?? {}).filter(([, v]) => v !== undefined)),
+      }) as Record<Plan, number>;
+    return {
+      manifest: tier(config.manifestRateLimits, stored.manifest),
+      write: stored.write ?? config.writeRateLimit,
+      api: tier(config.apiRateLimits, stored.api),
+      deploy: tier(config.deployRateLimits, stored.deploy),
+      health: tier(config.healthRateLimits, stored.health),
+    };
+  }
+
+  /** GC-03/06 and health-event retention. */
+  gc() {
+    const stored = GcSettingsSchema.parse(this.plain('gc') ?? {});
+    return {
+      keepVersions: stored.keepVersions ?? this.deps.config.gcKeepVersions,
+      defaultRetentionDays: stored.defaultRetentionDays ?? 90,
+      healthEventRetentionHours: stored.healthEventRetentionHours ?? 24,
+      healthRollupRetentionDays: stored.healthRollupRetentionDays ?? 30,
+    };
+  }
+
+  /** VAL-02/03. */
+  bundles() {
+    const stored = BundleSettingsSchema.parse(this.plain('bundles') ?? {});
+    return { validate: stored.validate ?? this.deps.config.validateBundles };
+  }
+
+  /** INST-22: the announcement to show now, if any. */
+  announcement(now = new Date()): AnnouncementSettings | null {
+    const a = this.plain('announcement') as AnnouncementSettings | null;
+    if (!a?.message) return null;
+    if (a.startsAt && new Date(a.startsAt) > now) return null;
+    if (a.endsAt && new Date(a.endsAt) <= now) return null;
+    return { ...a, level: a.level ?? 'info' };
+  }
+
+  /**
+   * INST-37: the maintenance window, if one is saved and not over: `active` while it runs,
+   * otherwise upcoming.
+   */
+  maintenance(now = new Date()): (MaintenanceSettings & { active: boolean }) | null {
+    const m = this.plain('maintenance') as MaintenanceSettings | null;
+    if (!m) return null;
+    if (m.until && new Date(m.until) <= now) return null;
+    return { ...m, active: !m.from || new Date(m.from) <= now };
+  }
+
+  /** INST-38: an email template's subject and intro overrides. */
+  emailTemplate(template: EmailTemplate | string) {
+    const all = (this.plain('emailTemplates') as EmailTemplateSettings | null) ?? {};
+    return all[template as EmailTemplate] ?? {};
+  }
+
   /** INST-14. */
   branding(): BrandingSettings {
     return (this.plain('branding') as BrandingSettings | null) ?? { name: 'Harmoniq' };
@@ -320,6 +481,29 @@ export class InstanceSettings {
         saml: { enabled: true },
       },
       branding: { name: 'Harmoniq' },
+      tenancy: { creation: 'anyone', allowedDomains: [] },
+      // INST-34: what applies without a database value.
+      plans: (() => {
+        const { enforced, features, limits } = config.plans;
+        return { enforced, features, limits } as unknown as Json;
+      })(),
+      rateLimits: {
+        manifest: config.manifestRateLimits,
+        write: config.writeRateLimit,
+        api: config.apiRateLimits,
+        deploy: config.deployRateLimits,
+        health: config.healthRateLimits,
+      },
+      gc: {
+        keepVersions: config.gcKeepVersions,
+        defaultRetentionDays: 90,
+        healthEventRetentionHours: 24,
+        healthRollupRetentionDays: 30,
+      },
+      bundles: { validate: config.validateBundles },
+      announcement: {},
+      maintenance: {},
+      emailTemplates: {},
     };
     const locked = this.lockedAuthSettings();
     const view = Object.fromEntries(
@@ -386,21 +570,165 @@ export class InstanceSettings {
     return { plain, stored, fields };
   }
 
-  async save(key: InstanceSettingKey, stored: Json, actorId: string) {
-    await this.deps.systemDb.instanceConfig.upsert({
-      where: { key: rowKey(key) },
-      create: { key: rowKey(key), value: stored as Prisma.InputJsonValue, updatedBy: actorId },
-      update: { value: stored as Prisma.InputJsonValue, updatedBy: actorId },
-    });
+  async save(
+    key: InstanceSettingKey,
+    stored: Json,
+    actorId: string,
+    source: 'save' | 'restore' | 'import' = 'save'
+  ) {
+    const { systemDb } = this.deps;
+    await systemDb.$transaction([
+      systemDb.instanceConfig.upsert({
+        where: { key: rowKey(key) },
+        create: { key: rowKey(key), value: stored as Prisma.InputJsonValue, updatedBy: actorId },
+        update: { value: stored as Prisma.InputJsonValue, updatedBy: actorId },
+      }),
+    ]);
+    await this.recordVersion(key, stored, actorId, source);
     await this.reload();
   }
 
   /** Back to the environment's defaults. */
-  async reset(key: InstanceSettingKey) {
+  async reset(key: InstanceSettingKey, actorId = 'system') {
     const { count } = await this.deps.systemDb.instanceConfig.deleteMany({
       where: { key: rowKey(key) },
     });
+    if (count) await this.recordVersion(key, {}, actorId, 'reset');
     await this.reload();
     return count > 0;
   }
+
+  // ─── INST-35: versions, export and import ─────────────────────────────────
+
+  private async recordVersion(
+    key: InstanceSettingKey,
+    stored: Json,
+    actorId: string,
+    source: 'save' | 'restore' | 'import' | 'reset'
+  ) {
+    const { systemDb } = this.deps;
+    // Two saves at once: the unique (key, version) makes one retry with the next number.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const last = await systemDb.instanceConfigVersion.findFirst({
+        where: { key },
+        orderBy: { version: 'desc' },
+        select: { version: true },
+      });
+      try {
+        await systemDb.instanceConfigVersion.create({
+          data: {
+            key,
+            version: (last?.version ?? 0) + 1,
+            value: stored as Prisma.InputJsonValue,
+            createdBy: actorId,
+            source,
+          },
+        });
+        return;
+      } catch (err) {
+        if (attempt === 2) throw err;
+      }
+    }
+  }
+
+  /** A stored (sealed) value in plain form. */
+  openStored(key: InstanceSettingKey, stored: Json): Json {
+    const value = structuredClone(stored);
+    for (const path of SECRETS[key]) {
+      const sealed = getPath(value, path);
+      if (typeof sealed === 'string') {
+        setPath(value, path, openSecret(sealed, this.deps.config.encryptionKey));
+      }
+    }
+    return value;
+  }
+
+  /** Secrets out (for history views and exports). */
+  withoutSecrets(key: InstanceSettingKey, value: Json): Json {
+    const copy = structuredClone(value);
+    for (const path of SECRETS[key]) {
+      if (getPath(copy, path) !== undefined) setPath(copy, path, undefined);
+    }
+    return copy;
+  }
+
+  /** The versions of a setting, newest first, secrets left out, with what each changed. */
+  async history(key: InstanceSettingKey) {
+    const versions = await this.deps.systemDb.instanceConfigVersion.findMany({
+      where: { key },
+      orderBy: { version: 'desc' },
+      take: 100,
+    });
+    return versions.map((v, i) => {
+      const value = this.withoutSecrets(key, v.value as Json);
+      const before = versions[i + 1] ? this.withoutSecrets(key, versions[i + 1].value as Json) : {};
+      return {
+        version: v.version,
+        source: v.source,
+        createdAt: v.createdAt.toISOString(),
+        createdBy: v.createdBy,
+        value,
+        changed: changedPaths(before, value),
+        // Secret fields changed too (never shown).
+        secretsChanged: SECRETS[key].some(
+          (path) =>
+            JSON.stringify(getPath(v.value as Json, path)) !==
+            JSON.stringify(
+              versions[i + 1] ? getPath(versions[i + 1].value as Json, path) : undefined
+            )
+        ),
+      };
+    });
+  }
+
+  async savedVersion(key: InstanceSettingKey, version: number) {
+    return this.deps.systemDb.instanceConfigVersion.findUnique({
+      where: { key_version: { key, version } },
+    });
+  }
+
+  /** Every setting stored in the database, secrets left out, as YAML. */
+  exportYaml() {
+    const settings = Object.fromEntries(
+      INSTANCE_SETTING_KEYS.filter((k) => this.rows[k]).map((k) => [
+        k,
+        this.withoutSecrets(k, this.plain(k)!),
+      ])
+    );
+    return YAML.stringify({
+      harmoniq: 'instance-settings/v1',
+      exportedAt: new Date().toISOString(),
+      settings,
+    });
+  }
+
+  /** Parses an export: the settings it holds, by key (unknown keys refused). */
+  parseImport(text: string): Partial<Record<InstanceSettingKey, Json>> {
+    let doc: { harmoniq?: string; settings?: Record<string, unknown> };
+    try {
+      doc = YAML.parse(text) ?? {};
+    } catch (err) {
+      throw new BadRequestError(`Not valid YAML: ${(err as Error).message}`);
+    }
+    if (doc.harmoniq !== 'instance-settings/v1' || typeof doc.settings !== 'object') {
+      throw new BadRequestError('Not a Harmoniq settings export (harmoniq: instance-settings/v1)');
+    }
+    const unknown = Object.keys(doc.settings ?? {}).filter(
+      (k) => !(INSTANCE_SETTING_KEYS as readonly string[]).includes(k)
+    );
+    if (unknown.length) throw new BadRequestError(`Unknown settings: ${unknown.join(', ')}`);
+    return doc.settings as Partial<Record<InstanceSettingKey, Json>>;
+  }
+}
+
+/** Dotted paths whose values differ between two objects (for a version's diff). */
+export function changedPaths(before: unknown, after: unknown, prefix = ''): string[] {
+  const isObject = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v);
+  if (isObject(before) && isObject(after)) {
+    const keys = new Set([...Object.keys(before as Json), ...Object.keys(after as Json)]);
+    return [...keys].flatMap((k) =>
+      changedPaths((before as Json)[k], (after as Json)[k], prefix ? `${prefix}.${k}` : k)
+    );
+  }
+  return JSON.stringify(before) === JSON.stringify(after) ? [] : [prefix || '(value)'];
 }

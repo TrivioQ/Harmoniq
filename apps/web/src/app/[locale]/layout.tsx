@@ -9,6 +9,7 @@ import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '../../i18n/routing';
 import { getBranding } from '@/lib/branding';
+import { InstanceBanner } from '@/components/InstanceBanner';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -52,7 +53,10 @@ export default async function RootLayout({
         className="min-h-full flex flex-col"
         style={accentColor ? ({ '--brand-accent': accentColor } as React.CSSProperties) : undefined}
       >
-        <NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider>
+        <NextIntlClientProvider messages={messages}>
+          <InstanceBanner />
+          {children}
+        </NextIntlClientProvider>
       </body>
     </html>
   );

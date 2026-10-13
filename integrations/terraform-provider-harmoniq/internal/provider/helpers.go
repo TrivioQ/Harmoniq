@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -90,6 +91,14 @@ func stringMap(values map[string]string) types.Map {
 		elems[k] = types.StringValue(v)
 	}
 	return types.MapValueMust(types.StringType, elems)
+}
+
+// errOr is err, or an error with msg when err is nil.
+func errOr(err error, msg string) error {
+	if err != nil {
+		return err
+	}
+	return errors.New(msg)
 }
 
 func apiErrorDetail(action string, err error) (string, string) {

@@ -55,6 +55,16 @@ export default async function OrgSsoPage(props: {
           </table>
         )}
       </section>
+      {/* TAD-01: verified domains moved to the organization's settings. */}
+      <p className="text-sm text-muted-foreground">
+        {t.rich('domainsMoved', {
+          link: (chunks) => (
+            <Link href={`/orgs/${orgSlug}/settings`} className="underline">
+              {chunks}
+            </Link>
+          ),
+        })}
+      </p>
       <SsoSettings
         owner={{ kind: 'organization', slug: orgSlug }}
         oidc={oidc}

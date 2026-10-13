@@ -30,6 +30,10 @@ export const WebhookEventNameSchema = z.enum([
   'schedule.failed',
   'env.frozen',
   'env.unfrozen',
+  // USG-04
+  'plan.changed',
+  'quota.warning',
+  'quota.exceeded',
 ]);
 export type WebhookEventName = z.infer<typeof WebhookEventNameSchema>;
 

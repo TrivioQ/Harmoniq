@@ -172,6 +172,9 @@ describe('Infrastructure-as-code lifecycle (IaC-01/02)', () => {
       (await api(key, 'DELETE', `/api/orgs/${org}/workspaces/${ws}?delete=true&confirm=${ws}`))
         .statusCode
     ).toBe(204);
-    expect(await app.container.systemDb.workspace.findUnique({ where: { slug: ws } })).toBeNull();
+    // TLC-02: deleted (restorable until purged).
+    expect(
+      (await app.container.systemDb.workspace.findUniqueOrThrow({ where: { slug: ws } })).deletedAt
+    ).not.toBeNull();
   });
 });

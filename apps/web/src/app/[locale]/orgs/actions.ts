@@ -4,6 +4,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import type { ActionResult } from '@/lib/actionResult';
 import { RegistryError, authedFetch } from '@/lib/registry';
@@ -67,6 +68,24 @@ export async function attachWorkspaceAction(
   );
 }
 
+/** TLC-02: deletes a workspace of the organization (restorable until the purge). */
+export async function deleteOrgWorkspaceAction(
+  orgSlug: string,
+  workspace: string,
+  _prev: ActionResult,
+  form: FormData
+) {
+  const confirm = field(form, 'confirm');
+  return run(
+    () =>
+      authedFetch(
+        org(orgSlug, `/workspaces/${enc(workspace)}?delete=true&confirm=${enc(confirm)}`),
+        { method: 'DELETE' }
+      ),
+    (t) => ({ status: 'success', message: t('workspaceDeleted', { workspace }) })
+  );
+}
+
 export async function detachWorkspaceAction(
   orgSlug: string,
   workspace: string,
@@ -111,11 +130,95 @@ export async function changeOrgMemberRoleAction(
 export async function removeOrgMemberAction(
   orgSlug: string,
   memberId: string,
-  _prev: ActionResult
+  _prev: ActionResult,
+  form?: FormData
 ) {
+  // PPL-04: the registry removes them from the org's workspaces too; report what it did.
+  const keepKeys = form?.get('keepKeys') === 'on' ? '?keepKeys=true' : '';
   return run(
-    () => authedFetch(org(orgSlug, `/members/${enc(memberId)}`), { method: 'DELETE' }),
-    (t) => ({ status: 'success', message: t('memberRemoved') })
+    () =>
+      authedFetch<{
+        workspacesLeft: string[];
+        keptAsLastOwner: string[];
+        apiKeysRevoked: number;
+        orgKeysRevoked: number;
+      }>(org(orgSlug, `/members/${enc(memberId)}${keepKeys}`), { method: 'DELETE' }),
+    (t, r) => {
+      const result = r as {
+        workspacesLeft: string[];
+        keptAsLastOwner: string[];
+        apiKeysRevoked: number;
+        orgKeysRevoked: number;
+      };
+      return {
+        status: 'success',
+        message: t('orgMemberRemoved', {
+          workspaces: result.workspacesLeft.length,
+          keys: result.apiKeysRevoked + result.orgKeysRevoked,
+          lastOwner: result.keptAsLastOwner.join(', ') || '—',
+        }),
+      };
+    }
+  );
+}
+
+/** PPL-01: invites someone to the organization; the link is shown either way. */
+export async function inviteOrgMemberAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  return run(
+    () =>
+      authedFetch<{ acceptUrl: string; emailed: boolean }>(org(orgSlug, '/invitations'), {
+        body: { email: field(form, 'email'), role: field(form, 'role') || 'org_member' },
+      }),
+    (t, r) => {
+      const { acceptUrl, emailed } = r as { acceptUrl: string; emailed: boolean };
+      return {
+        status: 'success',
+        message: t(emailed ? 'invitationEmailed' : 'invitationLinkOnly'),
+        secret: acceptUrl,
+      };
+    }
+  );
+}
+
+export async function resendOrgInvitationAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () =>
+      authedFetch<{ acceptUrl: string; emailed: boolean }>(
+        org(orgSlug, `/invitations/${enc(id)}/resend`),
+        { method: 'POST', body: {} }
+      ),
+    (t, r) => {
+      const { acceptUrl, emailed } = r as { acceptUrl: string; emailed: boolean };
+      return {
+        status: 'success',
+        message: t(emailed ? 'invitationEmailed' : 'invitationLinkOnly'),
+        secret: acceptUrl,
+      };
+    }
+  );
+}
+
+export async function revokeOrgInvitationAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(org(orgSlug, `/invitations/${enc(id)}`), { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('invitationRevoked') })
+  );
+}
+
+/** PPL-07: an org member asks to join one of the organization's workspaces. */
+export async function requestAccessAction(workspace: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/workspaces/${enc(workspace)}/access-requests`, { body: {} }),
+    (t) => ({ status: 'success', message: t('accessRequested') })
+  );
+}
+
+/** TLC-06: an org admin hands the admin seat to a member, who must accept. */
+export async function transferOrgAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  const email = field(form, 'email');
+  return run(
+    () => authedFetch(org(orgSlug, '/transfer'), { body: { email } }),
+    (t) => ({ status: 'success', message: t('orgTransferProposed', { email }) })
   );
 }
 
@@ -134,10 +237,62 @@ export async function createOrgKeyAction(
           name: field(form, 'name'),
           scopes: form.getAll('scopes').map(String),
           workspaces,
+          // TAD-05: module scope and expiry, as for workspace keys.
+          moduleIds: form.getAll('moduleIds').map(String).filter(Boolean),
+          ...(field(form, 'expiresAt') && {
+            expiresAt: new Date(`${field(form, 'expiresAt')}T23:59:59.999Z`).toISOString(),
+          }),
         },
       }),
     (t, r) => ({ status: 'success', message: t('keyCreated'), secret: (r as { key: string }).key })
   );
+}
+
+/** TAD-05: a new secret; the old one keeps working for the grace period. */
+export async function rotateOrgKeyAction(
+  orgSlug: string,
+  keyId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const hours = Number(field(form, 'gracePeriodHours') || 24);
+  return run(
+    () =>
+      authedFetch<{ key: string }>(org(orgSlug, `/keys/${enc(keyId)}/rotate`), {
+        body: { gracePeriodHours: hours },
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: t('orgKeyRotated', { hours }),
+      secret: (r as { key: string }).key,
+    })
+  );
+}
+
+/** TAD-01: rename the organization. */
+export async function renameOrgAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  return run(
+    () => authedFetch(org(orgSlug), { method: 'PATCH', body: { name: field(form, 'name') } }),
+    (t) => ({ status: 'success', message: t('orgRenamed') })
+  );
+}
+
+/** TAD-01: delete the organization (its slug typed back). An instance admin can restore it. */
+export async function deleteOrgAction(
+  orgSlug: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const t = await getTranslations('Actions');
+  if (field(form, 'confirm') !== orgSlug) {
+    return { status: 'error', message: t('typeSlugToConfirm', { slug: orgSlug }) };
+  }
+  const result = await run(
+    () => authedFetch(org(orgSlug), { method: 'DELETE' }),
+    (tr) => ({ status: 'success', message: tr('orgDeleted') })
+  );
+  if (result.status === 'success') redirect('/');
+  return result;
 }
 
 export async function revokeOrgKeyAction(orgSlug: string, keyId: string, _prev: ActionResult) {
@@ -169,5 +324,250 @@ export async function saveOrgProvisioningAction(
         body: { rules, adminGroups },
       }),
     (t) => ({ status: 'success', message: t('provisioningSaved') })
+  );
+}
+
+// ─── Policy (POL-01..08) ────────────────────────────────────────────────────
+
+const optionalInt = (form: FormData, name: string) => {
+  const value = field(form, name);
+  return value ? Number(value) : null;
+};
+/** A `datetime-local` value, read as UTC (the form says so). */
+const utc = (value: string) =>
+  new Date(`${value.length === 16 ? `${value}:00` : value}Z`).toISOString();
+const lines = (value: string) =>
+  value
+    .split(/[\n,]+/)
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+/**
+ * Saves the whole policy from the form. List rows are numbered (`ad_<i>_…`, `fw_<i>_…`);
+ * a row with an empty pattern is dropped, so clearing it removes the rule.
+ */
+export async function saveOrgPolicyAction(
+  orgSlug: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const rows = (prefix: string) => Number(field(form, `${prefix}_count`) || 0);
+  const approvalDefaults = Array.from({ length: rows('ad') }, (_, i) => ({
+    environmentPattern: field(form, `ad_${i}_pattern`),
+    requiredApprovers: Number(field(form, `ad_${i}_approvers`) || 1),
+    eligibleRoles: form.getAll(`ad_${i}_roles`).map(String),
+    requireChangeTicket: form.get(`ad_${i}_ticket`) === 'on',
+    ...(field(form, `ad_${i}_ticketUrl`) && { ticketUrlPattern: field(form, `ad_${i}_ticketUrl`) }),
+    expiryHours: Number(field(form, `ad_${i}_expiry`) || 24),
+  })).filter((r) => r.environmentPattern);
+  const freezeWindows = Array.from({ length: rows('fw') }, (_, i) => ({
+    ...(field(form, `fw_${i}_id`) && { id: field(form, `fw_${i}_id`) }),
+    environmentPattern: field(form, `fw_${i}_pattern`),
+    reason: field(form, `fw_${i}_reason`),
+    ...(field(form, `fw_${i}_from`) && { from: utc(field(form, `fw_${i}_from`)) }),
+    ...(field(form, `fw_${i}_until`) && { until: utc(field(form, `fw_${i}_until`)) }),
+  })).filter((w) => w.environmentPattern);
+  const body = {
+    approvalDefaults,
+    maxApiKeyDays: optionalInt(form, 'maxApiKeyDays'),
+    allowedKeyScopes: form.getAll('allowedKeyScopes').map(String),
+    minRetentionDays: optionalInt(form, 'minRetentionDays'),
+    freezeWindows,
+    lockSso: form.get('lockSso') === 'on',
+    requireMfa: form.get('requireMfa') === 'on',
+    sessionMaxHours: optionalInt(form, 'sessionMaxHours'),
+    idleTimeoutMinutes: optionalInt(form, 'idleTimeoutMinutes'),
+    ipAllowlist: lines(field(form, 'ipAllowlist')),
+    ipAllowlistManifests: form.get('ipAllowlistManifests') === 'on',
+  };
+  return run(
+    () => authedFetch(org(orgSlug, '/policy'), { method: 'PUT', body }),
+    (t) => ({ status: 'success', message: t('policySaved') })
+  );
+}
+
+/** POL-05: lets changes through an org freeze window until a time, for a reason. */
+export async function overrideOrgFreezeAction(
+  orgSlug: string,
+  windowId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const hours = Number(field(form, 'hours') || 1);
+  return run(
+    () =>
+      authedFetch(org(orgSlug, `/policy/freeze-windows/${enc(windowId)}/override`), {
+        body: {
+          until: new Date(Date.now() + hours * 3_600_000).toISOString(),
+          reason: field(form, 'reason'),
+        },
+      }),
+    (t) => ({ status: 'success', message: t('freezeOverridden', { hours }) })
+  );
+}
+
+export async function endOrgFreezeOverrideAction(
+  orgSlug: string,
+  windowId: string,
+  _prev: ActionResult
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(org(orgSlug, `/policy/freeze-windows/${enc(windowId)}/override`), {
+        method: 'DELETE',
+      }),
+    (t) => ({ status: 'success', message: t('freezeOverrideEnded') })
+  );
+}
+
+// ─── Integrations (TAD-09/10, AUD-06) ───────────────────────────────────────
+
+const events = (form: FormData) => {
+  const picked = form.getAll('events').map(String);
+  return picked.includes('*') || !picked.length ? ['*'] : picked;
+};
+
+export async function createOrgWebhookAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  return run(
+    () =>
+      authedFetch<{ secret: string }>(org(orgSlug, '/webhooks'), {
+        body: { url: field(form, 'url'), events: events(form) },
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: t('webhookCreated'),
+      secret: (r as { secret: string }).secret,
+    })
+  );
+}
+
+export async function toggleOrgWebhookAction(
+  orgSlug: string,
+  id: string,
+  paused: boolean,
+  _prev: ActionResult
+) {
+  return run(
+    () => authedFetch(org(orgSlug, `/webhooks/${enc(id)}`), { method: 'PATCH', body: { paused } }),
+    (t) => ({ status: 'success', message: t(paused ? 'webhookPaused' : 'webhookResumed') })
+  );
+}
+
+export async function deleteOrgWebhookAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(org(orgSlug, `/webhooks/${enc(id)}`), { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('webhookDeleted') })
+  );
+}
+
+export async function createNotificationAction(
+  orgSlug: string,
+  _prev: ActionResult,
+  form: FormData
+) {
+  const kind = field(form, 'kind');
+  const body =
+    kind === 'email'
+      ? {
+          kind,
+          name: field(form, 'name'),
+          emails: lines(field(form, 'target')),
+          events: events(form),
+        }
+      : { kind, name: field(form, 'name'), url: field(form, 'target'), events: events(form) };
+  return run(
+    () => authedFetch(org(orgSlug, '/notifications'), { body }),
+    (t) => ({ status: 'success', message: t('channelCreated') })
+  );
+}
+
+export async function testNotificationAction(orgSlug: string, id: string, _prev: ActionResult) {
+  const t = await getTranslations('Actions');
+  try {
+    const r = await authedFetch<{ ok: boolean; error?: string }>(
+      org(orgSlug, `/notifications/${enc(id)}/test`),
+      { body: {} }
+    );
+    revalidatePath('/', 'layout');
+    return r.ok
+      ? { status: 'success' as const, message: t('testSent') }
+      : { status: 'error' as const, message: t('testFailed', { error: r.error ?? '' }) };
+  } catch (err) {
+    return {
+      status: 'error' as const,
+      message: err instanceof RegistryError ? err.message : t('unexpectedError'),
+    };
+  }
+}
+
+export async function deleteNotificationAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(org(orgSlug, `/notifications/${enc(id)}`), { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('channelDeleted') })
+  );
+}
+
+export async function createAuditSinkAction(orgSlug: string, _prev: ActionResult, form: FormData) {
+  const kind = field(form, 'kind');
+  const backfill = form.get('backfill') === 'on';
+  const body =
+    kind === 'https'
+      ? { kind, name: field(form, 'name'), url: field(form, 'url'), backfill }
+      : {
+          kind,
+          name: field(form, 'name'),
+          bucket: field(form, 'bucket'),
+          region: field(form, 'region'),
+          ...(field(form, 'endpoint') && { endpoint: field(form, 'endpoint') }),
+          ...(field(form, 'prefix') && { prefix: field(form, 'prefix') }),
+          accessKeyId: field(form, 'accessKeyId'),
+          secretAccessKey: field(form, 'secretAccessKey'),
+          backfill,
+        };
+  return run(
+    () => authedFetch<{ secret?: string }>(org(orgSlug, '/audit-sinks'), { body }),
+    (t, r) => ({
+      status: 'success',
+      message: t('sinkCreated'),
+      ...((r as { secret?: string }).secret && { secret: (r as { secret: string }).secret }),
+    })
+  );
+}
+
+export async function testAuditSinkAction(orgSlug: string, id: string, _prev: ActionResult) {
+  const t = await getTranslations('Actions');
+  try {
+    const r = await authedFetch<{ ok: boolean; error?: string }>(
+      org(orgSlug, `/audit-sinks/${enc(id)}/test`),
+      { body: {} }
+    );
+    return r.ok
+      ? { status: 'success' as const, message: t('testSent') }
+      : { status: 'error' as const, message: t('testFailed', { error: r.error ?? '' }) };
+  } catch (err) {
+    return {
+      status: 'error' as const,
+      message: err instanceof RegistryError ? err.message : t('unexpectedError'),
+    };
+  }
+}
+
+export async function toggleAuditSinkAction(
+  orgSlug: string,
+  id: string,
+  enabled: boolean,
+  _prev: ActionResult
+) {
+  return run(
+    () =>
+      authedFetch(org(orgSlug, `/audit-sinks/${enc(id)}`), { method: 'PATCH', body: { enabled } }),
+    (t) => ({ status: 'success', message: t(enabled ? 'sinkEnabled' : 'sinkDisabled') })
+  );
+}
+
+export async function deleteAuditSinkAction(orgSlug: string, id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(org(orgSlug, `/audit-sinks/${enc(id)}`), { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('sinkDeleted') })
   );
 }

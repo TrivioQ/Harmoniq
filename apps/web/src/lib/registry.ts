@@ -39,12 +39,23 @@ async function forwardedFor(): Promise<string | undefined> {
   }
 }
 
+async function userAgent(): Promise<string | undefined> {
+  try {
+    return (await requestHeaders()).get('user-agent') ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function registryFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
   const clientIp = await forwardedFor();
   if (clientIp) headers['X-Forwarded-For'] = clientIp;
+  // SES-02: the session list shows the browser a session was used from.
+  const agent = await userAgent();
+  if (agent) headers['User-Agent'] = agent;
 
   const res = await fetch(`${getRegistryUrl()}${path}`, {
     method: opts.method ?? (opts.body === undefined ? 'GET' : 'POST'),

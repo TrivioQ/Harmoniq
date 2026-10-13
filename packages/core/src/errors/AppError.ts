@@ -63,6 +63,13 @@ export class BadRequestError extends AppError {
   }
 }
 
+/** TLC-02: the resource was deleted (restorable for a while, then purged). */
+export class GoneError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('GONE', message, 410, metadata);
+  }
+}
+
 /** BYOB-09: a workspace's own bucket failed; the registry never falls back to shared storage. */
 export class StorageUnavailableError extends AppError {
   constructor(message: string, metadata?: Record<string, unknown>) {
@@ -74,5 +81,19 @@ export class StorageUnavailableError extends AppError {
 export class PlanRequiredError extends AppError {
   constructor(message: string, metadata?: Record<string, unknown>) {
     super('PLAN_REQUIRED', message, 402, metadata);
+  }
+}
+
+/** POL-01..08: the change is weaker than the organization's policy allows. */
+export class PolicyViolationError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('POLICY_VIOLATION', message, 409, metadata);
+  }
+}
+
+/** PLN-05: the create would exceed a plan quota (`metadata`: quota, limit, current usage). */
+export class QuotaExceededError extends AppError {
+  constructor(message: string, metadata?: Record<string, unknown>) {
+    super('QUOTA_EXCEEDED', message, 402, metadata);
   }
 }

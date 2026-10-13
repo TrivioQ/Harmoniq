@@ -8,6 +8,7 @@ import { buildApp } from '../app';
 import { AuthService } from '../services/authService';
 import { signAccessToken } from '../auth/tokens';
 import { Fixtures, bearer } from './helpers/fixtures';
+import type { SessionResponse } from '@harmoniq/core/dist/schemas/AuthSchemas';
 
 /** HARMONIQ_AUTH_METHODS: the environment decides which sign-in methods exist at all. */
 describe('Sign-in methods from the environment', () => {
@@ -80,14 +81,22 @@ describe('Sign-in methods from the environment', () => {
     expect(refused.json().error.message).toContain('github, saml');
     expect(await providerIds()).not.toContain('github');
 
-    // Turning allowed methods off still works.
+    // Turning allowed methods off still works...
     const off = await api(root, 'PUT', '/api/admin/settings/auth', {
-      email: { enabled: false },
+      oidc: { enabled: false },
       github: { enabled: false },
       saml: { enabled: false },
     });
     expect(off.statusCode).toBe(200);
-    expect(await providerIds()).toEqual([]);
+    // ...but not the admins' last way in (INST-23): email is the only one left.
+    const lockout = await api(root, 'PUT', '/api/admin/settings/auth', {
+      email: { enabled: false },
+      oidc: { enabled: false },
+      github: { enabled: false },
+      saml: { enabled: false },
+    });
+    expect(lockout.statusCode).toBe(409);
+    expect(await providerIds()).toContain('email');
     await resetSettings();
   });
 
@@ -112,10 +121,10 @@ describe('Sign-in methods from the environment', () => {
       app.container.logger
     );
     const email = `gh-${randomUUID().slice(0, 8)}@example.com`;
-    const session = await auth.completeLogin(
+    const session = (await auth.completeLogin(
       { providerUserId: randomUUID(), email, emailVerified: true },
       'github'
-    );
+    )) as SessionResponse;
     const res = await app.inject({
       method: 'POST',
       url: '/api/auth/refresh',

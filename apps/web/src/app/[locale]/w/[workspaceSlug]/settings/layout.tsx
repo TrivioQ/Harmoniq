@@ -20,7 +20,8 @@ export default async function SettingsLayout(props: {
         <h2 className="text-3xl font-bold tracking-tight">{t('title')}</h2>
         <p className="text-muted-foreground mt-2">{t('description')}</p>
       </div>
-      {roleAtLeast(workspace.role, 'admin') ? (
+      {/* INST-20: read through support access too (the workspace layout makes it read-only). */}
+      {roleAtLeast(workspace.role, 'admin') || workspace.support ? (
         <div className="grid md:grid-cols-[180px_1fr] gap-8">
           <SettingsNav
             workspaceSlug={workspaceSlug}

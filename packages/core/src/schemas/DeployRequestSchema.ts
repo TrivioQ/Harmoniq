@@ -17,6 +17,11 @@ export const DeployRequestSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
   /** Bucket object key when the bundle was uploaded via `upload-url`. */
   storagePath: z.string().max(1024).optional(),
+  /**
+   * USG-02: the bundle's size, as the uploader measured it. Server-side validation, when it
+   * runs, measures it instead.
+   */
+  sizeBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
   dryRun: z.boolean().optional().default(false),
   /** DEP-03: deploy despite dependency conflicts or removed exposes (audited). */
   force: z.boolean().optional(),

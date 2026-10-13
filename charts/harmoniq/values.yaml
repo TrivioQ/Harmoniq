@@ -20,6 +20,10 @@ registry:
   # More than one replica needs Redis (env.CACHE_ADAPTER=redis), so caches agree.
   replicaCount: 2
   port: 4000
+  # INST-25: serve /metrics on this port only (inside the cluster; the ingress routes the
+  # API port). Empty: /metrics on the API port. For a scrape token, add
+  # HARMONIQ_METRICS_TOKEN to a Secret and reference it with extraEnvFrom.
+  metricsPort: ""
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { memory: 512Mi }

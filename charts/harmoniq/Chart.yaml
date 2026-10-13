@@ -2,6 +2,6 @@ apiVersion: v2
 name: harmoniq
 description: Harmoniq micro frontend control plane (registry and dashboard)
 type: application
-version: 0.2.0
+version: 0.3.0
 appVersion: "1.0.0"
 keywords: [micro-frontends, module-federation, registry]

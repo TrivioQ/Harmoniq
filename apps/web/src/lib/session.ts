@@ -12,6 +12,10 @@ export const OAUTH_STATE_COOKIE = 'hq_oauth_state';
 export const OAUTH_VERIFIER_COOKIE = 'hq_oauth_verifier';
 /** Binds an emailed sign-in link to the browser that requested it. */
 export const EMAIL_NONCE_COOKIE = 'hq_email_nonce';
+/** SES-03: the challenge between the first factor and the code (5 minutes). */
+export const MFA_COOKIE = 'hq_mfa';
+/** SES-03: the secret being enrolled, between the setup and the first code (10 minutes). */
+export const MFA_SETUP_COOKIE = 'hq_mfa_setup';
 
 // Must match apps/registry/src/auth/tokens.ts.
 const SESSION_AUDIENCE = 'harmoniq-session';
@@ -37,6 +41,14 @@ export function setSessionCookies(store: CookieWriter, session: SessionResponse)
     ...baseCookie(),
     expires: new Date(session.refreshTokenExpiresAt),
   });
+}
+
+export function setMfaCookie(store: CookieWriter, challenge: string) {
+  store.set(MFA_COOKIE, challenge, { ...baseCookie(), maxAge: 5 * 60 });
+}
+
+export function clearMfaCookie(store: CookieWriter) {
+  store.set(MFA_COOKIE, '', { ...baseCookie(), maxAge: 0 });
 }
 
 export function clearSessionCookies(store: CookieWriter) {

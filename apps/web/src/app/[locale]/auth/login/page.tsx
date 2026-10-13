@@ -17,6 +17,8 @@ const KNOWN_ERRORS = [
   'invalid_token',
   'invalid_code',
   'other_browser',
+  'account_suspended',
+  'mfa_expired',
 ] as const;
 
 const linkButton =

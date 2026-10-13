@@ -11,7 +11,7 @@ This directory contains **one Markdown file per product feature**. Each file ser
 | AI agents must piece together history | One file gives complete context                         |
 | Grows indefinitely                    | Files grow in-place; history is inside each file        |
 
-**Release versioning and semver** are handled by [Changesets](../.changeset/) — that is separate from this directory.
+**Release versioning and semver** are handled by [Changesets](../../.changeset/) — that is separate from this directory.
 
 ## Structure of each feature file
 
@@ -42,17 +42,18 @@ This directory contains **one Markdown file per product feature**. Each file ser
 
 ## Files
 
-| File | Feature | Description | PRs / Status |
-|---------|-------------|--------------|
-| [Enterprise Governance](./enterprise-governance.md) | Org-level controls, SSO mappings, audit logs, approval policies | Active |
-| [Authentication](./authentication.md) | Sign-in (GitHub, dev, email, OIDC, SAML), sessions, API keys, instance admin | Implemented |
-| [Manifest Delivery](./manifest-delivery.md) | Published manifests (CDN), import maps, Native Federation | Implemented |
-| [Progressive Delivery](./progressive-delivery.md) | Canary releases, health, alerts, staged rollouts, targeting | Implemented |
-| [Registry Core](./registry-core.md) | Manifest generation, deploy routes, caching, and auth middleware | Active |
-| [Web Dashboard](./web-dashboard.md) | Next.js Dashboard UI and OAuth flow | Active |
-| [SDK and CLI](./sdk-and-cli.md) | `@harmoniq/client` SDK and `@harmoniq/cli` developer tooling | Active |
-| [Garbage Collection & Webhooks](./gc-and-webhooks.md) | Background jobs, data retention, and event webhooks via `pg-boss` | Active |
-| [Hardening, Observability & Docs](./hardening-observability-docs.md) | Security, OTel metrics, performance, and documentation | Active |
-| [Workspace as Code](./gitops.md) | `harmoniq.yaml` with `harmoniq plan`, `apply` and `import` | Implemented |
-| [Instance Admin & BYOB Storage](./instance-admin-and-byob-storage.md) | Global system settings and tenant-provided storage (S3/GCS/Azure) | Implemented |
-| [`_template.md`](./_template.md) | Template — copy to start a new feature doc | — |
+| File                                                                  | Description                                                                                    | Status            |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------- |
+| [Enterprise Governance](./enterprise-governance.md)                   | Org-level controls, SSO mappings, audit logs, approval policies                                | Active            |
+| [Authentication](./authentication.md)                                 | Sign-in (GitHub, dev, email, OIDC, SAML), sessions, API keys, instance admin                   | Implemented       |
+| [Manifest Delivery](./manifest-delivery.md)                           | Published manifests (CDN), import maps, Native Federation                                      | Implemented       |
+| [Progressive Delivery](./progressive-delivery.md)                     | Canary releases, health, alerts, staged rollouts, targeting                                    | Implemented       |
+| [Registry Core](./registry-core.md)                                   | Manifest generation, deploy routes, caching, and auth middleware                               | Active            |
+| [Web Dashboard](./web-dashboard.md)                                   | Next.js Dashboard UI and OAuth flow                                                            | Active            |
+| [SDK and CLI](./sdk-and-cli.md)                                       | `@harmoniq/client` SDK and `@harmoniq/cli` developer tooling                                   | Active            |
+| [Garbage Collection & Webhooks](./gc-and-webhooks.md)                 | Background jobs, data retention, and event webhooks via `pg-boss`                              | Active            |
+| [Hardening, Observability & Docs](./hardening-observability-docs.md)  | Security, OTel metrics, performance, and documentation                                         | Active            |
+| [Workspace as Code](./gitops.md)                                      | `harmoniq.yaml` with `harmoniq plan`, `apply` and `import`                                     | Implemented       |
+| [Instance Admin & BYOB Storage](./instance-admin-and-byob-storage.md) | Global system settings and tenant-provided storage (S3/GCS/Azure)                              | Implemented       |
+| [Tenant Lifecycle & Administration](./tenant-administration.md)       | Tenant lifecycle, people and invitations, org policy, usage and quotas, tenant admin dashboard | Planned (Phase 9) |
+| [`_template.md`](./_template.md)                                      | Template — copy to start a new feature doc                                                     | —                 |

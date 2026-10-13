@@ -1,7 +1,7 @@
 # Harmoniq — Database Schema Reference
 
 > **Version**: 1.0.0  
-> **Last Updated**: 2026-09-13  
+> **Last Updated**: 2026-10-11  
 > **ORM**: Prisma  
 > **Database**: PostgreSQL 15+
 
@@ -9,18 +9,23 @@
 
 ## Entity Relationship Overview
 
-```
-User ─────────────────── WorkspaceMember ─────────── Workspace
-                                                          │
-                    ┌─────────────────────────────────────┼──────────────────────────────┐
-                    │                    │                 │                │              │
-               HostApp            ApiKey         WebhookEndpoint      AuditEvent   WorkspaceConfig
-                    │                                 │
-              Environment               WebhookDelivery
-                    │
-             RemoteModule
-                    │
-             ModuleVersion
+```text
+Instance level (no RLS)      InstanceConfig · InstanceConfigVersion · InstanceAdmin · InstanceAdminInvitation · InstanceApiKey · InstanceAuditEvent
+                             SupportGrant · ReplicaHeartbeat · SignInEvent · EmailDelivery
+                             User · Identity · RefreshToken · EmailLoginToken
+
+Organization (optional,      Organization ── OrganizationMember ── User
+no RLS today, ADR-010)            │       ── OrgApiKey · OrganizationAuditEvent
+                                  │       ── ScimUser / ScimGroup / ScimAuditEvent (org-scoped rows)
+                                  ▼ organizationId (nullable)
+Workspace (RLS tenant) ── WorkspaceMember ── User
+     │
+     ├── WorkspaceConfig · WorkspaceStorageConfig · ApiKey · AuditEvent
+     ├── WebhookEndpoint ── WebhookDelivery · WebhookDeadLetter
+     ├── ApprovalPolicy · DeploymentRequest ── DeploymentApproval · ScheduledOperation
+     ├── AlertRule · ModuleHealthEvent · ModuleHealthRollup · ModuleEnvState
+     └── HostApp ── Environment ── ManifestSnapshot
+                └── RemoteModule ── ModuleVersion · ModuleOwnership
 ```
 
 ---
@@ -29,14 +34,20 @@ User ─────────────────── WorkspaceMember �
 
 ### `User`
 
-| Column      | Type       | Notes                   |
-| ----------- | ---------- | ----------------------- |
-| `id`        | `CUID`     | Primary key             |
-| `email`     | `String`   | Unique                  |
-| `name`      | `String?`  | Display name from OAuth |
-| `avatarUrl` | `String?`  |                         |
-| `createdAt` | `DateTime` |                         |
-| `updatedAt` | `DateTime` |                         |
+| Column                                                           | Type                                     | Notes                                                                                                                   |
+| ---------------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `id`                                                             | `CUID`                                   | Primary key                                                                                                             |
+| `email`                                                          | `String`                                 | Unique                                                                                                                  |
+| `name`                                                           | `String?`                                | Display name from OAuth                                                                                                 |
+| `avatarUrl`                                                      | `String?`                                |                                                                                                                         |
+| `suspendedAt`, `suspendedReason`                                 | `DateTime?`, `String?`                   | SES-04: set by an instance admin                                                                                        |
+| `mfaSecretSealed`                                                | `String?`                                | SES-03: TOTP secret, sealed (`HARMONIQ_ENCRYPTION_KEY`)                                                                 |
+| `mfaEnabledAt`                                                   | `DateTime?`                              | MFA is on once set                                                                                                      |
+| `mfaRecoveryCodes`                                               | `String[]`                               | sha256 of each unused recovery code                                                                                     |
+| `mfaLastStep`                                                    | `Int?`                                   | Last TOTP time step accepted (no replay)                                                                                |
+| `pendingEmail`, `pendingEmailTokenHash`, `pendingEmailExpiresAt` | `String?`, `String?` unique, `DateTime?` | INST-30: an email change an instance admin started; applied when the new address confirms it (sha256 of the link token) |
+| `createdAt`                                                      | `DateTime`                               |                                                                                                                         |
+| `updatedAt`                                                      | `DateTime`                               |                                                                                                                         |
 
 ### `Workspace`
 
@@ -126,6 +137,7 @@ User ─────────────────── WorkspaceMember �
 | `deployedBy`     | `String`    | User ID or API key ID                                                                     |
 | `deployedByType` | `Enum`      | `user \| apiKey`                                                                          |
 | `commitSha`      | `String?`   | Optional git commit reference                                                             |
+| `sizeBytes`      | `BigInt?`   | USG-02: bundle size, measured by validation or reported by the uploader (null: unknown)   |
 | `metadata`       | `Json?`     | Arbitrary key-value pairs                                                                 |
 | `deployedAt`     | `DateTime`  |                                                                                           |
 | `activatedAt`    | `DateTime?` | Last time it became active; null for aborted canaries, which "rollback to previous" skips |
@@ -158,15 +170,20 @@ User ─────────────────── WorkspaceMember �
 
 ### `RefreshToken`
 
-| Column      | Type        | Notes                                   |
-| ----------- | ----------- | --------------------------------------- |
-| `id`        | `CUID`      | Primary key                             |
-| `userId`    | `CUID`      | FK → User                               |
-| `tokenHash` | `String`    | bcrypt hash of opaque token             |
-| `expiresAt` | `DateTime`  | Default: 30 days                        |
-| `usedAt`    | `DateTime?` | Set on rotation (invalidates after use) |
-| `revokedAt` | `DateTime?` | Set on logout                           |
-| `createdAt` | `DateTime`  |                                         |
+| Column            | Type        | Notes                                                                          |
+| ----------------- | ----------- | ------------------------------------------------------------------------------ |
+| `id`              | `CUID`      | Primary key                                                                    |
+| `userId`          | `CUID`      | FK → User                                                                      |
+| `tokenHash`       | `String`    | sha256 of the opaque token                                                     |
+| `familyId`        | `String`    | The session; reuse of a rotated token revokes the family                       |
+| `expiresAt`       | `DateTime`  | SES-01: the earlier of the session's maximum and the idle timeout              |
+| `provider`        | `String?`   | How the session signed in                                                      |
+| `mfaVerified`     | `Boolean`   | SES-03: the session passed a second factor                                     |
+| `ip`, `userAgent` | `String?`   | SES-02: where it was used from                                                 |
+| `reauthAt`        | `DateTime?` | INST-32: last sign-in or re-authentication; carried into access tokens (`rat`) |
+| `usedAt`          | `DateTime?` | Set on rotation (invalidates after use)                                        |
+| `revokedAt`       | `DateTime?` | Set on logout                                                                  |
+| `createdAt`       | `DateTime`  |                                                                                |
 
 ### `WebhookEndpoint`
 
@@ -199,18 +216,18 @@ User ─────────────────── WorkspaceMember �
 
 ### `AuditEvent`
 
-| Column         | Type       | Notes                                                   |
-| -------------- | ---------- | ------------------------------------------------------- |
-| `id`           | `CUID`     | Primary key                                             |
-| `workspaceId`  | `CUID`     | FK → Workspace (RLS key)                                |
-| `actorId`      | `String`   | User ID or ApiKey ID                                    |
-| `actorType`    | `Enum`     | `user \| apiKey \| system` (jobs such as auto-rollback) |
-| `action`       | `String`   | e.g. `module.deploy`, `key.revoke`                      |
-| `resourceType` | `String`   | e.g. `ModuleVersion`, `ApiKey`                          |
-| `resourceId`   | `String`   | ID of the affected resource                             |
-| `metadata`     | `Json?`    | Contextual data (version, env, etc.)                    |
-| `ip`           | `String?`  | Requester IP                                            |
-| `createdAt`    | `DateTime` | Immutable                                               |
+| Column         | Type       | Notes                                                                             |
+| -------------- | ---------- | --------------------------------------------------------------------------------- |
+| `id`           | `CUID`     | Primary key                                                                       |
+| `workspaceId`  | `CUID`     | Workspace id (RLS key); no FK, so the trail outlives a deleted workspace (AUD-05) |
+| `actorId`      | `String`   | User ID or ApiKey ID                                                              |
+| `actorType`    | `Enum`     | `user \| apiKey \| system` (jobs such as auto-rollback)                           |
+| `action`       | `String`   | e.g. `module.deploy`, `key.revoke`                                                |
+| `resourceType` | `String`   | e.g. `ModuleVersion`, `ApiKey`                                                    |
+| `resourceId`   | `String`   | ID of the affected resource                                                       |
+| `metadata`     | `Json?`    | Contextual data (version, env, etc.)                                              |
+| `ip`           | `String?`  | Requester IP                                                                      |
+| `createdAt`    | `DateTime` | Immutable                                                                         |
 
 **RLS**: enabled, policy on `workspaceId`  
 **No soft-delete**: this table is append-only and has no `deletedAt` column.  
@@ -218,53 +235,76 @@ User ─────────────────── WorkspaceMember �
 
 ### `WorkspaceConfig`
 
-| Column            | Type       | Notes                                     |
-| ----------------- | ---------- | ----------------------------------------- |
-| `id`              | `CUID`     | Primary key                               |
-| `workspaceId`     | `CUID`     | Unique FK → Workspace (one per workspace) |
-| `oauthProvider`   | `String`   | `github \| google`                        |
-| `oauthConfig`     | `Json`     | Encrypted provider-specific config        |
-| `storageProvider` | `String`   | `local \| s3 \| gcs`                      |
-| `storageConfig`   | `Json`     | Encrypted provider-specific config        |
-| `logProvider`     | `String`   | `console \| otel`                         |
-| `logConfig`       | `Json`     | Provider-specific config                  |
-| `updatedAt`       | `DateTime` |                                           |
+| Column                      | Type                   | Notes                                                    |
+| --------------------------- | ---------------------- | -------------------------------------------------------- |
+| `id`                        | `CUID`                 | Primary key                                              |
+| `workspaceId`               | `CUID`                 | Unique FK → Workspace (one per workspace)                |
+| `oauthProvider`             | `String`               | `github \| google`                                       |
+| `oauthConfig`               | `Json`                 | Encrypted provider-specific config                       |
+| `storageProvider`           | `String`               | `local \| s3 \| gcs`                                     |
+| `storageConfig`             | `Json`                 | Encrypted provider-specific config                       |
+| `logProvider`               | `String`               | `console \| otel`                                        |
+| `logConfig`                 | `Json`                 | Provider-specific config                                 |
+| `plan`                      | `String`               | PLN-01: `hobby \| startup \| enterprise`                 |
+| `planOverrides`             | `Json?`                | PLN-06: `{ features?, limits? }` set by instance admins  |
+| `planExpiresAt`, `basePlan` | `DateTime?`, `String?` | PLN-06: a trial; `plans.expire` falls back to `basePlan` |
+| `updatedAt`                 | `DateTime`             |                                                          |
 
 ---
 
 ## Row-Level Security Policies
 
-The following RLS is applied to all tables marked with **RLS: enabled**.
+See [ADR-003](./architecture.md#adr-003-postgresql-row-level-security-for-multi-tenancy) and [ADR-010](./architecture.md#adr-010-organization-scoped-row-level-security). The registry connects with two roles:
 
-```sql
--- Enable RLS
-ALTER TABLE "ModuleVersion" ENABLE ROW LEVEL SECURITY;
+| Role           | Connection            | Used for                                                                                                     | RLS              |
+| -------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `harmoniq`     | `SYSTEM_DATABASE_URL` | Migrations (schema owner); `systemDb` for tenant resolution, creating tenants, sign-in, jobs, instance admin | Bypassed (owner) |
+| `harmoniq_app` | `DATABASE_URL`        | Everything done for a tenant (`withTenant`, `withOrg`)                                                       | Always applies   |
 
--- Create policy
-CREATE POLICY workspace_isolation ON "ModuleVersion"
-  USING (
-    "workspaceId" = current_setting('app.current_workspace_id', TRUE)::TEXT
-  );
-
--- App role cannot bypass RLS
-ALTER ROLE harmoniq_app NOINHERIT;
-```
-
-The Prisma client middleware sets the session variable at the start of every request:
+Work for a workspace runs inside `withTenant`; work for an organization (its routes, SCIM and SSO provisioning, cross-workspace reads such as the org home, catalog, audit and shared modules) inside `withOrg`:
 
 ```typescript
-prisma.$use(async (params, next) => {
-  await prisma.$executeRaw`SET LOCAL app.current_workspace_id = ${workspaceId}`;
-  return next(params);
+// packages/db/src/index.ts
+await client.$transaction(async (tx) => {
+  await tx.$executeRaw`SELECT set_config('app.current_workspace_id', ${workspaceId}, true)`;
+  return fn(tx);
 });
+
+// withOrg: the organization, and its workspaces resolved inside the same transaction.
+await tx.$executeRaw`SELECT set_config('app.current_org_id', ${organizationId}, true)`;
+await tx.$executeRaw`SELECT set_config('app.current_org_workspace_ids',
+  coalesce((SELECT string_agg("id", ',') FROM "Workspace" WHERE "organizationId" = ${organizationId}), ''), true)`;
 ```
+
+Policies are created in the migrations themselves. A workspace-scoped table admits its workspace, or one of the current organization's workspaces:
+
+```sql
+CREATE POLICY workspace_isolation_version ON "ModuleVersion"
+  USING ("workspaceId" = current_setting('app.current_workspace_id', TRUE)
+      OR "workspaceId" = ANY (string_to_array(current_setting('app.current_org_workspace_ids', TRUE), ',')));
+```
+
+| Scope                                              | Tables                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| By `workspaceId` (workspace or its org)            | `WorkspaceMember`, `HostApp`, `RemoteModule`, `ModuleVersion`, `ApiKey`, `WebhookEndpoint`, `WebhookDelivery`, `WebhookDeadLetter`, `AuditEvent`, `ModuleOwnership`, `AlertRule`, `ManifestSnapshot`, `ModuleHealthEvent`, `ModuleHealthRollup`, `ModuleEnvState`, `ScheduledOperation`, `ApprovalPolicy`, `DeploymentRequest`, `WorkspaceConfig`, `WorkspaceStorageConfig`, `UsageDaily` |
+| By `workspaceId` or `organizationId`               | `ScimUser`, `ScimGroup`, `ScimAuditEvent`, `VerifiedDomain`, `OwnershipTransfer`, `Invitation` (rows of a workspace or of an organization)                                                                                                                                                                                                                                                |
+| `Workspace`                                        | Its `id` is the current workspace or one of the organization's, or its `organizationId` is the current organization                                                                                                                                                                                                                                                                       |
+| By `organizationId`                                | `OrganizationMember`, `OrgApiKey`, `OrganizationAuditEvent`; `Organization` by `id`                                                                                                                                                                                                                                                                                                       |
+| By `organizationId`, read also from its workspaces | `OrgPolicy` (separate `SELECT` and write policies)                                                                                                                                                                                                                                                                                                                                        |
+| Through the parent row                             | `Environment` (via `HostApp`), `DeploymentApproval` (via `DeploymentRequest`)                                                                                                                                                                                                                                                                                                             |
+| No RLS, revoked from `harmoniq_app`                | `Identity`, `EmailLoginToken`, `RefreshToken`                                                                                                                                                                                                                                                                                                                                             |
+| No RLS (global)                                    | `User` (accounts are shared across tenants), `InstanceConfig`, `InstanceConfigVersion`, `InstanceAdmin`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceAuditEvent`, `SupportGrant`, `ReplicaHeartbeat`, `SignInEvent`, `EmailDelivery`                                                                                                                                            |
+
+Append-only for `harmoniq_app` (`REVOKE UPDATE, DELETE`): `AuditEvent`, `OrganizationAuditEvent`, `InstanceAuditEvent`. `AuditEvent` and `ScimAuditEvent` have no foreign key to `Workspace` (AUD-05): a deleted workspace's audit trail stays, still scoped by `workspaceId`, until GC removes events older than `HARMONIQ_AUDIT_RETENTION_DAYS`.
+
+MT-09: registry routes may not use `systemDb` (ESLint `no-restricted-syntax` on `apps/registry/src/routes`); each allowed use is marked with its reason. `packages/db/src/__tests__/rls.test.ts` checks both scopes (no rows without a context, nothing of another workspace or organization, no context left on pooled connections), and `apps/registry/src/__tests__/tenantIsolation.test.ts` calls every GET route as one organization and checks no response mentions another (MT-10).
 
 ---
 
 ## Migration Strategy
 
 - Migrations are managed by Prisma (`prisma migrate dev` / `prisma migrate deploy`).
-- Post-migration SQL hooks (RLS policies, roles) are applied via a custom `db:migrate` script that runs `prisma migrate deploy` followed by `psql` with the RLS SQL file.
+- RLS policies, grants and revokes are part of the migration SQL files. Roles are created before the first migration (`docker/init.sql` or `apps/registry/scripts/bootstrap-db.ts`; see [self-hosting](./self-hosting.md)).
 - All migration files are committed to `packages/db/prisma/migrations/`.
 - **Never use `prisma db push` in production**.
 
@@ -554,6 +594,7 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 | `slug`                                                        | `String`    | Unique, URL-safe (e.g., `acme-corp`)                                                         |
 | `name`                                                        | `String`    | Display name                                                                                 |
 | `plan`                                                        | `String`    | `hobby \| startup \| enterprise`                                                             |
+| `planOverrides`, `planExpiresAt`, `basePlan`                  |             | PLN-06: as for workspaces                                                                    |
 | `oidcConfig`                                                  | `Json?`     | ORG-05: org-level OIDC (client secret sealed), inherited by workspaces without their own SSO |
 | `samlConfig`                                                  | `Json?`     | ORG-05/06: org-level SAML 2.0 (SP private key sealed)                                        |
 | `forceSso`                                                    | `Boolean`   | Forced SSO for the inheriting workspaces                                                     |
@@ -582,23 +623,78 @@ Hourly totals per module, environment and variant, upserted from raw events ever
 
 ---
 
+### `UsageDaily`
+
+USG-01: one row per workspace and UTC day. Counters are added by every replica (`ON CONFLICT DO UPDATE SET x = x + excluded.x`, ADR-012); levels come from the nightly `usage.snapshot`, which also drops rows older than 13 months. No foreign key: history doesn't depend on the workspace row.
+
+| Column             | Type     | Notes                                               |
+| ------------------ | -------- | --------------------------------------------------- |
+| `workspaceId`      | `CUID`   | Primary key with `day`                              |
+| `day`              | `Date`   | UTC                                                 |
+| `manifestRequests` | `BigInt` | Served manifests (200 and 304, cache hits included) |
+| `deploys`          | `Int`    | Deploys and promotes                                |
+| `healthEvents`     | `Int`    | Accepted health events                              |
+| `storageBytes`     | `BigInt` | Snapshot: `sizeBytes` of versions not deleted       |
+| `members`          | `Int`    | Snapshot: joined members                            |
+| `apiKeys`          | `Int`    | Snapshot: active keys                               |
+| `rateLimited`      | `Int`    | INST-39: requests refused by a rate limit (429)     |
+
+**Index**: `day`. RLS as other workspace rows (the workspace, or the current organization's workspaces).
+
+### Audit chain columns (AUD-09)
+
+`AuditEvent`, `OrganizationAuditEvent` and `InstanceAuditEvent` have `chainSeq` (`BigInt`), `prevHash` and `hash` (`String`), set by the `harmoniq_audit_chain` `BEFORE INSERT` trigger. It takes a transaction-level advisory lock per scope (workspace, organization or instance), so concurrent inserts can't fork a chain, and it hashes with `harmoniq_audit_hash()`, which the verify endpoints use too. Indexes: `(workspaceId, chainSeq)`, `(organizationId, chainSeq)`, `(chainSeq)`.
+
+### `OrgWebhookEndpoint`, `OrgWebhookDelivery`, `OrgWebhookDeadLetter`
+
+TAD-10: like the workspace webhook tables, keyed by `organizationId` (org RLS); `secret` is sealed.
+
+### `NotificationChannel`
+
+TAD-09: `organizationId`, `kind` (`email` \| `slack` \| `teams`), `name`, `target` (comma-separated emails, or the sealed incoming-webhook URL), `events[]`, `active`, `lastSentAt`, `lastError`. Org RLS.
+
+### `AuditSink`, `AuditSinkDeadLetter`
+
+AUD-06: `AuditSink` has `organizationId`, `kind` (`https` \| `s3`), `name`, `config` (sealed JSON with the URL and secret, or the bucket and credentials), `enabled`, the cursor `cursorAt`/`cursorId` (the last event delivered), `failures`, `lastError`, `lastDeliveredAt`. `AuditSinkDeadLetter` records a batch given up on (`fromAt`/`fromId` to `toAt`/`toId`, `events`, `error`, `retriedAt`). Org RLS.
+
+### `OrgPolicy`
+
+POL-01..08: one row per organization (`organizationId` is the key; deleted with it). Readable in the organization's scope and in its workspaces' (enforcement runs in workspace transactions), written only in the organization's scope.
+
+| Column                   | Type                  | Notes                                                                                                            |
+| ------------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `organizationId`         | `CUID`                | Primary key, FK → Organization                                                                                   |
+| `approvalDefaults`       | `Json`                | `[{ environmentPattern, requiredApprovers, eligibleRoles, requireChangeTicket, ticketUrlPattern, expiryHours }]` |
+| `maxApiKeyDays`          | `Int?`                | Keys must expire within this many days                                                                           |
+| `allowedKeyScopes`       | `String[]`            | Empty: every scope                                                                                               |
+| `minRetentionDays`       | `Int?`                | Retention floor (PATCH and GC)                                                                                   |
+| `freezeWindows`          | `Json`                | `[{ id, environmentPattern, from, until, reason, override: { until, reason, by } }]`                             |
+| `lockSso`                | `Boolean`             | Workspace SSO ignored and refused                                                                                |
+| `requireMfa`             | `Boolean`             | SES-03: members signing in without SSO need MFA                                                                  |
+| `sessionMaxHours`        | `Int?`                | Checked at refresh                                                                                               |
+| `idleTimeoutMinutes`     | `Int?`                | Checked at refresh                                                                                               |
+| `ipAllowlist`            | `String[]`            | CIDR blocks or addresses                                                                                         |
+| `ipAllowlistManifests`   | `Boolean`             | The allowlist also covers manifests and health                                                                   |
+| `updatedAt`, `updatedBy` | `DateTime`, `String?` |                                                                                                                  |
+
 ### `OrgApiKey`
 
-| Column           | Type        | Notes                        |
-| ---------------- | ----------- | ---------------------------- |
-| `id`             | `CUID`      | Primary key                  |
-| `organizationId` | `CUID`      | FK → Organization            |
-| `keyHash`        | `String`    | argon2id hash of the raw key |
-| `name`           | `String`    | Human-readable label         |
-| `prefix`         | `String`    | Display prefix `hq_org_…`    |
-| `scopes`         | `String[]`  | As workspace keys            |
-| `workspaceScope` | `String[]`  | Workspace ids; empty = all   |
-| `moduleScope`    | `String[]`  | Module ids; empty = all      |
-| `expiresAt`      | `DateTime?` |                              |
-| `lastUsedAt`     | `DateTime?` |                              |
-| `createdBy`      | `String?`   | User id                      |
-| `createdAt`      | `DateTime`  |                              |
-| `revokedAt`      | `DateTime?` | Null = active                |
+| Column           | Type        | Notes                                       |
+| ---------------- | ----------- | ------------------------------------------- |
+| `id`             | `CUID`      | Primary key                                 |
+| `organizationId` | `CUID`      | FK → Organization                           |
+| `keyHash`        | `String`    | argon2id hash of the raw key                |
+| `name`           | `String`    | Human-readable label                        |
+| `prefix`         | `String`    | Display prefix `hq_org_…`                   |
+| `scopes`         | `String[]`  | As workspace keys                           |
+| `workspaceScope` | `String[]`  | Workspace ids; empty = all                  |
+| `moduleScope`    | `String[]`  | Module ids; empty = all                     |
+| `expiresAt`      | `DateTime?` |                                             |
+| `gracePeriodEnd` | `DateTime?` | Set on the old key during rotation (TAD-05) |
+| `lastUsedAt`     | `DateTime?` |                                             |
+| `createdBy`      | `String?`   | User id (null when an org key issued it)    |
+| `createdAt`      | `DateTime`  |                                             |
+| `revokedAt`      | `DateTime?` | Null = active                               |
 
 ### `InstanceAuditEvent`
 
@@ -719,16 +815,139 @@ Key-value store for all runtime instance configuration. Used by the admin panel 
 
 Grants `InstanceAdmin` privileges to a `User`. Entirely separate from workspace roles.
 
-| Column      | Type        | Notes                                                             |
-| ----------- | ----------- | ----------------------------------------------------------------- |
-| `id`        | `CUID`      | Primary key                                                       |
-| `userId`    | `CUID`      | Unique FK → User                                                  |
-| `grantedBy` | `CUID?`     | FK → User (the admin who granted this role; null for first setup) |
-| `createdAt` | `DateTime`  |                                                                   |
-| `revokedAt` | `DateTime?` | Null = active; set to now() on revocation                         |
+| Column      | Type        | Notes                                                                                                                   |
+| ----------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `id`        | `CUID`      | Primary key                                                                                                             |
+| `userId`    | `CUID`      | Unique FK → User                                                                                                        |
+| `grantedBy` | `CUID?`     | FK → User (the admin who granted this role; null for first setup)                                                       |
+| `role`      | `String`    | INST-31: `instance_owner` (default; existing grants) \| `instance_operator` \| `instance_support` \| `instance_billing` |
+| `createdAt` | `DateTime`  |                                                                                                                         |
+| `revokedAt` | `DateTime?` | Null = active; set to now() on revocation                                                                               |
 
 **Unique**: `userId`  
 **Note**: NOT RLS-scoped. Instance-wide table.
+
+---
+
+### `InstanceAdminInvitation`
+
+INST-31: an email invited to administer the instance before it has an account. The next sign-in with that email that isn't through a tenant's SSO, before `expiresAt` (7 days), accepts it.
+
+| Column                    | Type        | Notes                          |
+| ------------------------- | ----------- | ------------------------------ |
+| `id`                      | `CUID`      | Primary key                    |
+| `email`                   | `String`    | Lower-cased                    |
+| `role`                    | `String`    | The role granted on acceptance |
+| `invitedBy`               | `CUID`      | The instance owner             |
+| `expiresAt`               | `DateTime`  |                                |
+| `acceptedAt`, `revokedAt` | `DateTime?` |                                |
+| `createdAt`               | `DateTime`  |                                |
+
+**Note**: NOT RLS-scoped.
+
+---
+
+### `InstanceApiKey`
+
+INST-33: keys for automation on `/api/admin` only (`hq_inst_<id>_<secret>`).
+
+| Column                                 | Type        | Notes                               |
+| -------------------------------------- | ----------- | ----------------------------------- |
+| `id`                                   | `CUID`      | Primary key; part of the key        |
+| `name`                                 | `String`    |                                     |
+| `keyHash`                              | `String`    | bcrypt of the secret                |
+| `prefix`                               | `String`    | Shown in lists                      |
+| `scopes`                               | `String[]`  | `instance:read` \| `instance:admin` |
+| `expiresAt`, `lastUsedAt`, `revokedAt` | `DateTime?` |                                     |
+| `createdBy`                            | `CUID`      | The instance owner                  |
+| `createdAt`                            | `DateTime`  |                                     |
+
+**Note**: NOT RLS-scoped.
+
+---
+
+### `SupportGrant`
+
+INST-20: read-only support access of one instance admin to one organization (and its workspaces) or workspace, at most 4 hours.
+
+| Column                           | Type                 | Notes                               |
+| -------------------------------- | -------------------- | ----------------------------------- |
+| `id`                             | `CUID`               | Primary key                         |
+| `adminUserId`                    | `CUID`               | The instance admin                  |
+| `organizationId` / `workspaceId` | `CUID?`              | Exactly one is set                  |
+| `reason`                         | `String`             | Written reason, shown to the tenant |
+| `expiresAt`                      | `DateTime`           |                                     |
+| `revokedAt`, `revokedBy`         | `DateTime?`, `CUID?` | Ended early                         |
+| `createdAt`                      | `DateTime`           |                                     |
+
+**Note**: NOT RLS-scoped (instance table). Recorded in the instance log and the tenant's audit log.
+
+---
+
+### `ReplicaHeartbeat`
+
+INST-28: one row per running registry, written every 30 seconds and removed on shutdown (rows not seen for a day are dropped).
+
+| Column                          | Type                           | Notes                                   |
+| ------------------------------- | ------------------------------ | --------------------------------------- |
+| `replicaId`                     | `String`                       | Primary key; random per process         |
+| `version`, `commit`, `hostname` | `String`, `String?`, `String?` | `HARMONIQ_VERSION`, `HARMONIQ_COMMIT`   |
+| `startedAt`, `lastSeenAt`       | `DateTime`                     |                                         |
+| `configLoadedAt`                | `DateTime?`                    | When it last read the instance settings |
+
+---
+
+### `SignInEvent`
+
+INST-39: sign-in attempts, kept 90 days (`ops.retention`). Uses of revoked or expired API keys are `api_key` events.
+
+| Column            | Type       | Notes                                                           |
+| ----------------- | ---------- | --------------------------------------------------------------- |
+| `id`              | `CUID`     | Primary key                                                     |
+| `userId`          | `CUID?`    | When known                                                      |
+| `email`           | `String?`  | Lower-cased                                                     |
+| `method`          | `String`   | `email`, `github`, `oidc:…`, `saml:…`, `mfa`, `dev`, `api_key`  |
+| `success`         | `Boolean`  |                                                                 |
+| `reason`          | `String?`  | Failure code, `mfa_required`, or `revoked` / `expired` for keys |
+| `ip`, `userAgent` | `String?`  |                                                                 |
+| `keyPrefix`       | `String?`  | For `api_key` events                                            |
+| `createdAt`       | `DateTime` | Indexed with `email` and `ip`                                   |
+
+---
+
+### `EmailDelivery`
+
+INST-38: each email sent, kept 30 days; never its body.
+
+| Column      | Type       | Notes                                                           |
+| ----------- | ---------- | --------------------------------------------------------------- |
+| `id`        | `CUID`     | Primary key                                                     |
+| `to`        | `String`   | Recipient                                                       |
+| `template`  | `String`   | `sign_in`, `invitation`, `notification`, `email_change`, `test` |
+| `status`    | `String`   | `sent` \| `failed`                                              |
+| `error`     | `String?`  |                                                                 |
+| `createdAt` | `DateTime` |                                                                 |
+
+**Note**: these four tables are NOT RLS-scoped; the app role has no access to them.
+
+---
+
+### `InstanceConfigVersion`
+
+INST-35: every saved version of an instance setting.
+
+| Column      | Type       | Notes                                                            |
+| ----------- | ---------- | ---------------------------------------------------------------- |
+| `id`        | `CUID`     | Primary key                                                      |
+| `key`       | `String`   | The setting                                                      |
+| `version`   | `Int`      | 1, 2, … per key                                                  |
+| `value`     | `Json`     | As stored in `InstanceConfig` (secrets sealed); `{}` for a reset |
+| `source`    | `String`   | `save` \| `restore` \| `import` \| `reset`                       |
+| `createdBy` | `CUID?`    |                                                                  |
+| `createdAt` | `DateTime` |                                                                  |
+
+**Unique**: `(key, version)`  
+**Note**: NOT RLS-scoped.
 
 ---
 
@@ -736,20 +955,21 @@ Grants `InstanceAdmin` privileges to a `User`. Entirely separate from workspace 
 
 Per-workspace BYOB storage adapter override (§18). When present, the registry routes all deploy I/O for that workspace to this adapter instead of the instance default.
 
-| Column                 | Type        | Notes                                                                                                                     |
-| ---------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `id`                   | `CUID`      | Primary key                                                                                                               |
-| `workspaceId`          | `CUID`      | Unique FK → Workspace                                                                                                     |
-| `provider`             | `String`    | `S3 \| GCS \| AZURE` (BYOB-02)                                                                                            |
-| `bucket`               | `String`    | Bucket or container name                                                                                                  |
-| `region`               | `String`    | Cloud region (e.g., `us-east-1`, `eu-west-1`)                                                                             |
-| `credentialsEncrypted` | `Json`      | AES-256-GCM: access keys or `roleArn` (+ `externalId`) for S3, `serviceAccountJson` for GCS, `connectionString` for Azure |
-| `endpoint`             | `String?`   | S3-compatible endpoint (MinIO, R2 …)                                                                                      |
-| `cdnPrefix`            | `String?`   | Optional CDN URL prefix (e.g., `https://cdn.acme.com/mfe`)                                                                |
-| `pathPrefix`           | `String?`   | Optional path prefix within the bucket (e.g., `harmoniq/`)                                                                |
-| `lastVerifiedAt`       | `DateTime?` | Timestamp of last successful canary write-read-delete cycle (BYOB-04)                                                     |
-| `createdAt`            | `DateTime`  |                                                                                                                           |
-| `updatedAt`            | `DateTime`  |                                                                                                                           |
+| Column                                  | Type                   | Notes                                                                                                                     |
+| --------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `id`                                    | `CUID`                 | Primary key                                                                                                               |
+| `workspaceId`                           | `CUID`                 | Unique FK → Workspace                                                                                                     |
+| `provider`                              | `String`               | `S3 \| GCS \| AZURE` (BYOB-02)                                                                                            |
+| `bucket`                                | `String`               | Bucket or container name                                                                                                  |
+| `region`                                | `String`               | Cloud region (e.g., `us-east-1`, `eu-west-1`)                                                                             |
+| `credentialsEncrypted`                  | `Json`                 | AES-256-GCM: access keys or `roleArn` (+ `externalId`) for S3, `serviceAccountJson` for GCS, `connectionString` for Azure |
+| `endpoint`                              | `String?`              | S3-compatible endpoint (MinIO, R2 …)                                                                                      |
+| `cdnPrefix`                             | `String?`              | Optional CDN URL prefix (e.g., `https://cdn.acme.com/mfe`)                                                                |
+| `pathPrefix`                            | `String?`              | Optional path prefix within the bucket (e.g., `harmoniq/`)                                                                |
+| `lastVerifiedAt`                        | `DateTime?`            | Timestamp of last successful canary write-read-delete cycle (BYOB-04)                                                     |
+| `lastVerifyError`, `lastVerifyFailedAt` | `String?`, `DateTime?` | INST-27: the last failed check (daily `storage.verify` or a test), cleared by a success                                   |
+| `createdAt`                             | `DateTime`             |                                                                                                                           |
+| `updatedAt`                             | `DateTime`             |                                                                                                                           |
 
 **Unique**: `workspaceId` (one BYOB config per workspace)  
 **RLS**: enabled, policy on `workspaceId`
@@ -758,3 +978,92 @@ Per-workspace BYOB storage adapter override (§18). When present, the registry r
 > `WorkspaceStorageConfig` present → use workspace adapter  
 > No `WorkspaceStorageConfig` → use `InstanceConfig["storage.adapter"]`  
 > No `InstanceConfig` entry → use `STORAGE_ADAPTER` env var (bootstrap default)
+
+---
+
+## New Tables (Phase 9 — Tenant Administration)
+
+### Column additions (migration `20261011150000_tenant_lifecycle`)
+
+| Model          | Columns                                                   | Notes                                                                                      |
+| -------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `Workspace`    | `deletedAt?`, `deletedBy?`, `purgeAfter?` (index)         | TLC-02/03: deleted, restorable until `purgeAfter`, then purged by `tenant.purge`           |
+| `Organization` | `purgeAfter?` (index), `suspendedAt?`, `suspendedReason?` | TLC-02/03/04: restore window after `deletedAt`; suspension makes every workspace read-only |
+
+`OrganizationAuditEvent` and `ScimAuditEvent` no longer have foreign keys to `Organization` (AUD-05): a purged organization's trail stays.
+
+### `Invitation`
+
+PPL-01/02 (migration `20261011170000_invitations_access_requests`). Pending invitations grant nothing; accepting creates the membership. Replaces `WorkspaceMember` rows with `joinedAt = null` (migrated).
+
+| Column                                                   | Type                    | Notes                                                     |
+| -------------------------------------------------------- | ----------------------- | --------------------------------------------------------- |
+| `id`                                                     | `CUID`                  | Primary key                                               |
+| `workspaceId`                                            | `CUID?`                 | Exactly one of the two (CHECK); RLS like SCIM rows; no FK |
+| `organizationId`                                         | `CUID?`                 |                                                           |
+| `email`                                                  | `String`                | Lowercase; indexed                                        |
+| `role`                                                   | `String`                | Workspace role or org role                                |
+| `tokenHash`                                              | `String`                | Unique; sha256 of the emailed token                       |
+| `invitedBy`                                              | `String`                | `user:<id>`, `apiKey:<id>` or `system:<what>`             |
+| `expiresAt`                                              | `DateTime`              | 7 days; renewed by resend                                 |
+| `acceptedAt` / `acceptedBy` / `revokedAt` / `lastSentAt` | `DateTime?` / `String?` |                                                           |
+| `createdAt`                                              | `DateTime`              |                                                           |
+
+### `AccessRequest`
+
+PPL-07. An org member asks to join a workspace: `workspaceId`, `userId`, `role` (default `viewer`), `message?`, `status` (`pending`, `approved`, `denied`), `decidedBy?`, `decidedAt?`, `createdAt`. RLS by `workspaceId` (also the organization's workspaces).
+
+### `OwnershipTransfer`
+
+TLC-06 (migration `20261011160000_ownership_transfers`). A pending handover of a workspace's ownership or an organization's admin seat.
+
+| Column           | Type        | Notes                                                            |
+| ---------------- | ----------- | ---------------------------------------------------------------- |
+| `id`             | `CUID`      | Primary key                                                      |
+| `workspaceId`    | `CUID?`     | Exactly one of the two is set (CHECK); RLS like SCIM rows; no FK |
+| `organizationId` | `CUID?`     |                                                                  |
+| `fromUserId`     | `CUID`      | Steps down when the transfer is accepted                         |
+| `toUserId`       | `CUID`      | The recipient; indexed                                           |
+| `expiresAt`      | `DateTime`  | 7 days after proposal                                            |
+| `acceptedAt`     | `DateTime?` |                                                                  |
+| `cancelledAt`    | `DateTime?` | Withdrawn, declined, or replaced by a newer proposal             |
+| `createdAt`      | `DateTime`  |                                                                  |
+
+### `VerifiedDomain`
+
+DOM-01..05 (migration `20261011120000_verified_domains`). A domain claimed by an organization or a workspace, proven with the DNS TXT record `_harmoniq-challenge.<domain>` = `harmoniq-verification=<token>`. Many tenants may claim a domain; only one can verify it.
+
+| Column           | Type        | Notes                                                                                          |
+| ---------------- | ----------- | ---------------------------------------------------------------------------------------------- |
+| `id`             | `CUID`      | Primary key                                                                                    |
+| `domain`         | `String`    | Lowercase; indexed. Unique per owner (`[domain, organizationId]`, `[domain, workspaceId]`)     |
+| `organizationId` | `CUID?`     | FK → Organization (cascade). Exactly one of the two is set (CHECK)                             |
+| `workspaceId`    | `CUID?`     | FK → Workspace (cascade); RLS key (organization claims are invisible to the tenant role)       |
+| `token`          | `String`    | The TXT value's token (not a secret: DNS is public)                                            |
+| `verifiedAt`     | `DateTime?` | Set by a successful check                                                                      |
+| `verifiedDomain` | `String?`   | **Unique.** Equals `domain` while verified (CHECK), so a domain has at most one verified owner |
+| `lastCheckedAt`  | `DateTime?` | DOM-05 re-checks                                                                               |
+| `failingSince`   | `DateTime?` | Record missing since; unverified after 14 days                                                 |
+| `createdBy`      | `String`    | User or key that claimed it                                                                    |
+| `createdAt`      | `DateTime`  |                                                                                                |
+
+`InstanceConfig` key `domains.graceUntil` holds the end of the DOM-04 transition period, fixed at the first start with domain verification.
+
+---
+
+## Planned Changes (Phase 9 — Tenant Administration)
+
+> Not yet in `schema.prisma`. Designed in [features/tenant-administration.md](./features/tenant-administration.md) and tracked in [implementation-plan.md Phase 9](./implementation-plan.md). Move each entry into the sections above when its migration lands.
+
+| Change                                                                                                                               | Sub-phase | Requirements              |
+| ------------------------------------------------------------------------------------------------------------------------------------ | --------- | ------------------------- |
+| `OrgApiKey.gracePeriodEnd`                                                                                                           | 9.4       | TAD-05                    |
+| `OrgPolicy`                                                                                                                          | 9.5       | POL-01–POL-08             |
+| `UsageDaily`, `ModuleVersion.sizeBytes`, plan `overrides` / `planExpiresAt` / `basePlan`                                             | 9.6       | USG-01, PLN-04–06         |
+| `User.suspendedAt/suspendedReason/mfa*`; `RefreshToken.lastUsedAt/userAgent/ip`                                                      | 9.7       | SES-01–SES-04             |
+| `AuditSink`, audit `prevHash`/`hash`, org webhooks, `NotificationChannel`                                                            | 9.8       | AUD-06, AUD-09, TAD-09/10 |
+| `SupportGrant`                                                                                                                       | 9.10      | INST-20                   |
+| Sealed JSON envelopes gain `kid` (key id); no schema change                                                                          | 9.9       | INST-26                   |
+| `InstanceAdmin.role`, `InstanceAdminInvitation`, `InstanceApiKey`, `InstanceConfigVersion`                                           | 9.9       | INST-31, INST-33, INST-35 |
+| `ReplicaHeartbeat`, `SignInEvent`, `EmailDelivery`                                                                                   | 9.10      | INST-28, INST-38, INST-39 |
+| `User.pendingEmail*`, `WorkspaceStorageConfig.lastVerifyError/lastVerifyFailedAt`, `UsageDaily.rateLimited`, `SignInEvent.keyPrefix` | 9.10      | INST-27, INST-30, INST-39 |

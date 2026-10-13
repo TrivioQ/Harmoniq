@@ -174,9 +174,11 @@ chore(root): configure Turborepo pipeline for test task
 - Never use `prisma db push` in any environment.
 - All schema changes require a Prisma migration file.
 - Every new table that is tenant-scoped MUST have:
-  - A `workspaceId` column with a FK to `Workspace`
+  - A `workspaceId` column with a FK to `Workspace` (audit tables keep the id without a FK, so history outlives the workspace)
   - An `@@index([workspaceId])` in the Prisma model
-  - RLS enabled (add to the RLS SQL migration hook)
+  - RLS enabled in its migration, with the standard policy: the current workspace **or** one of the current organization's workspaces (`app.current_org_workspace_ids`, see `docs/database-schema.md`)
+- Every new organization-scoped table MUST have an `organizationId` column and an RLS policy on `app.current_org_id` (ADR-010); `packages/db/src/__tests__/rls.test.ts` fails otherwise.
+- Registry routes MUST NOT use `systemDb` (the RLS-bypassing client): use `withTenant` / `withOrg`. ESLint enforces it (MT-09); for tenant resolution, creating tenants or system tables, mark the use with `// eslint-disable-next-line no-restricted-syntax -- MT-09: <reason>`.
 - GC-eligible tables MUST have a `deletedAt DateTime?` column.
 
 ### Port Interfaces

@@ -6,31 +6,38 @@ import { Link } from '@/i18n/routing';
 import { workspaceApi } from '@/lib/workspaceApi';
 import { AuditLine } from '../AuditLine';
 import { AuditExportLinks } from '@/components/AuditExportLinks';
+import { ChainCheck } from '@/components/ChainCheck';
+import {
+  AuditActorLabel,
+  AuditFilters,
+  AuditMetadata,
+  type AuditQuery,
+  auditHref,
+  auditRange,
+} from '@/components/AuditView';
 
 const FILTERS = ['', 'module.', 'env.', 'apiKey.', 'member.', 'webhook.'] as const;
 
-/** AUD-03: filterable, paginated audit log. */
+/** AUD-03, AUD-07/08: filterable, paginated audit log with readable actors. */
 export default async function AuditPage(props: {
   params: Promise<{ workspaceSlug: string }>;
-  searchParams: Promise<{ action?: string; cursor?: string }>;
+  searchParams: Promise<AuditQuery & { verify?: string }>;
 }) {
   const { workspaceSlug } = await props.params;
-  const { action, cursor } = await props.searchParams;
+  const query = await props.searchParams;
+  const { action, actor, from, to, cursor } = query;
   const t = await getTranslations('AuditPage');
   const format = await getFormatter();
   const { role } = await workspaceApi.get(workspaceSlug);
   const { events, nextCursor } = await workspaceApi.audit(workspaceSlug, {
     action,
+    actor,
+    ...auditRange(query),
     cursor,
     limit: '50',
   });
 
-  const href = (params: Record<string, string | undefined>) => {
-    const qs = new URLSearchParams(
-      Object.entries(params).filter(([, v]) => v) as [string, string][]
-    );
-    return `/w/${workspaceSlug}/audit${qs.size ? `?${qs}` : ''}`;
-  };
+  const href = (params: AuditQuery) => auditHref(`/w/${workspaceSlug}/audit`, params);
 
   return (
     <div className="container p-6 md:p-10 max-w-5xl space-y-6">
@@ -39,25 +46,45 @@ export default async function AuditPage(props: {
         <p className="text-muted-foreground mt-2">{t('description')}</p>
       </div>
       {(role === 'admin' || role === 'owner') && (
-        <AuditExportLinks scope="workspace" slug={workspaceSlug} action={action} />
+        <>
+          <AuditExportLinks scope="workspace" slug={workspaceSlug} action={action} />
+          <ChainCheck
+            href={`/w/${workspaceSlug}/audit?verify=1`}
+            reports={
+              query.verify
+                ? [{ label: workspaceSlug, ...(await workspaceApi.verifyAudit(workspaceSlug)) }]
+                : null
+            }
+          />
+        </>
       )}
 
       <nav className="flex flex-wrap gap-2" aria-label={t('filter')}>
         {FILTERS.map((f) => (
           <Link
             key={f}
-            href={href({ action: f || undefined })}
+            href={href({ actor, from, to, action: f || undefined })}
             className={`rounded-full border px-3 py-1 text-sm ${(action ?? '') === f ? 'bg-primary text-primary-foreground' : 'bg-background'}`}
           >
             {t(`filters.${f ? f.replace('.', '') : 'all'}`)}
           </Link>
         ))}
       </nav>
+      <AuditFilters query={query} />
 
       <ul className="rounded-xl border bg-card divide-y">
         {events.map((event) => (
           <li key={event.id} className="px-5 py-3 flex justify-between gap-4 text-sm">
-            <AuditLine event={event} />
+            <div className="space-y-1 min-w-0">
+              <AuditLine event={event} />
+              <div className="text-xs">
+                <AuditActorLabel {...event} />
+              </div>
+              <AuditMetadata
+                metadata={event.metadata}
+                resource={`${event.resourceType} ${event.resourceId}`}
+              />
+            </div>
             <time className="text-muted-foreground whitespace-nowrap" dateTime={event.createdAt}>
               {format.dateTime(new Date(event.createdAt), {
                 dateStyle: 'medium',
@@ -71,7 +98,7 @@ export default async function AuditPage(props: {
 
       {nextCursor && (
         <Link
-          href={href({ action, cursor: nextCursor })}
+          href={href({ ...query, cursor: nextCursor })}
           className="text-sm text-primary hover:underline"
         >
           {t('older')}

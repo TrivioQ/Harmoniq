@@ -577,6 +577,11 @@
                     "type": "string",
                     "maxLength": 1024
                   },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
                   "dryRun": {
                     "type": "boolean",
                     "default": false
@@ -1560,6 +1565,11 @@
                               "storagePath": {
                                 "type": "string",
                                 "maxLength": 1024
+                              },
+                              "sizeBytes": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
                               },
                               "dryRun": {
                                 "type": "boolean",
@@ -3859,7 +3869,7 @@
                   },
                   "role": {
                     "type": "string",
-                    "enum": ["org_admin", "org_member"],
+                    "enum": ["org_admin", "org_member", "org_billing", "org_auditor"],
                     "default": "org_member"
                   }
                 },
@@ -3903,7 +3913,7 @@
                 "properties": {
                   "role": {
                     "type": "string",
-                    "enum": ["org_admin", "org_member"]
+                    "enum": ["org_admin", "org_member", "org_billing", "org_auditor"]
                   }
                 },
                 "required": ["role"],
@@ -3963,6 +3973,170 @@
             },
             "in": "path",
             "name": "memberId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/transfer": {
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/invitations": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/invitations/{invitationId}/resend": {
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "invitationId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/invitations/{invitationId}": {
+      "delete": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "invitationId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/people": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
             "required": true
           }
         ],
@@ -4112,7 +4286,57 @@
         }
       }
     },
+    "/api/orgs/{orgSlug}/audit/verify": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/orgs/{orgSlug}/audit/export": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/export": {
       "get": {
         "tags": ["Organizations"],
         "security": [
@@ -4152,6 +4376,39 @@
             },
             "in": "path",
             "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/modules/{moduleId}/consumers": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "moduleId",
             "required": true
           }
         ],
@@ -4283,6 +4540,39 @@
             },
             "in": "path",
             "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/keys/{keyId}/rotate": {
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "keyId",
             "required": true
           }
         ],
@@ -4897,6 +5187,824 @@
         }
       }
     },
+    "/api/orgs/{orgSlug}/domains": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/domains/{domain}/verify": {
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "domain",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/domains/{domain}": {
+      "delete": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "domain",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/policy": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/policy/freeze-windows/{windowId}/override": {
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "windowId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "windowId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/webhooks": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/webhooks/{id}": {
+      "patch": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/webhooks/{id}/deliveries": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/webhooks-dead-letters": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/webhooks-dead-letters/{id}/retry": {
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/notifications": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/notifications/{id}": {
+      "patch": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/notifications/{id}/test": {
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/audit-sinks": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/audit-sinks/{id}": {
+      "patch": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/audit-sinks/{id}/test": {
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/audit-sinks/{id}/dead-letters": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/audit-sinks/{id}/dead-letters/{letterId}/retry": {
+      "post": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "letterId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/orgs/{orgSlug}/usage": {
+      "get": {
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "orgSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/workspaces": {
       "post": {
         "tags": ["Workspaces"],
@@ -4959,6 +6067,29 @@
           }
         }
       },
+      "delete": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
       "patch": {
         "tags": ["Workspaces"],
         "requestBody": {
@@ -4987,6 +6118,31 @@
             }
           }
         },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/restore": {
+      "post": {
+        "tags": ["Workspaces"],
         "security": [
           {
             "bearerAuth": []
@@ -5650,6 +6806,31 @@
         }
       }
     },
+    "/api/workspaces/{workspaceSlug}/audit/verify": {
+      "get": {
+        "tags": ["Audit"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/workspaces/{workspaceSlug}/audit/export": {
       "get": {
         "tags": ["Audit"],
@@ -5983,6 +7164,120 @@
             },
             "in": "path",
             "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/invitations": {
+      "post": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/invitations/{invitationId}/resend": {
+      "post": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "invitationId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/invitations/{invitationId}": {
+      "delete": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "invitationId",
             "required": true
           }
         ],
@@ -6349,12 +7644,160 @@
         }
       }
     },
-    "/api/admin/workspaces": {
+    "/api/admin/overview": {
       "get": {
         "tags": ["Instance administration"],
         "security": [
           {
             "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/support-grants": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/support-grants/{id}": {
+      "delete": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/system": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/jobs": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/jobs/failed": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/jobs/{id}/retry": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/jobs/{queue}/run": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "queue",
+            "required": true
           }
         ],
         "responses": {
@@ -6454,9 +7897,80 @@
             "description": "Default Response"
           }
         }
+      },
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/workspaces/{slug}/restore": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
       }
     },
     "/api/admin/workspaces/{slug}/plan": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
       "put": {
         "tags": ["Instance administration"],
         "requestBody": {
@@ -6467,6 +7981,91 @@
                 "type": "object",
                 "properties": {
                   "plan": {
+                    "type": "string",
+                    "enum": ["hobby", "startup", "enterprise"]
+                  },
+                  "overrides": {
+                    "type": "object",
+                    "properties": {
+                      "features": {
+                        "type": "object",
+                        "required": ["byob", "approvals", "saml", "scim"],
+                        "properties": {
+                          "byob": {
+                            "type": "boolean"
+                          },
+                          "approvals": {
+                            "type": "boolean"
+                          },
+                          "saml": {
+                            "type": "boolean"
+                          },
+                          "scim": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "limits": {
+                        "type": "object",
+                        "required": [
+                          "workspaces",
+                          "members",
+                          "modules",
+                          "environmentsPerHostApp",
+                          "storageGb",
+                          "deploysPerMonth",
+                          "webhooks"
+                        ],
+                        "properties": {
+                          "workspaces": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "members": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "modules": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "environmentsPerHostApp": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "storageGb": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "deploysPerMonth": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "webhooks": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false,
+                    "nullable": true
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "basePlan": {
                     "type": "string",
                     "enum": ["hobby", "startup", "enterprise"]
                   }
@@ -6499,12 +8098,72 @@
         }
       }
     },
-    "/api/admin/orgs": {
-      "get": {
+    "/api/admin/orgs/{slug}/suspend": {
+      "post": {
         "tags": ["Instance administration"],
         "security": [
           {
             "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/orgs/{slug}/unsuspend": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/orgs/{slug}/restore": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
           }
         ],
         "responses": {
@@ -6515,6 +8174,29 @@
       }
     },
     "/api/admin/orgs/{slug}/plan": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
       "put": {
         "tags": ["Instance administration"],
         "requestBody": {
@@ -6525,6 +8207,91 @@
                 "type": "object",
                 "properties": {
                   "plan": {
+                    "type": "string",
+                    "enum": ["hobby", "startup", "enterprise"]
+                  },
+                  "overrides": {
+                    "type": "object",
+                    "properties": {
+                      "features": {
+                        "type": "object",
+                        "required": ["byob", "approvals", "saml", "scim"],
+                        "properties": {
+                          "byob": {
+                            "type": "boolean"
+                          },
+                          "approvals": {
+                            "type": "boolean"
+                          },
+                          "saml": {
+                            "type": "boolean"
+                          },
+                          "scim": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "limits": {
+                        "type": "object",
+                        "required": [
+                          "workspaces",
+                          "members",
+                          "modules",
+                          "environmentsPerHostApp",
+                          "storageGb",
+                          "deploysPerMonth",
+                          "webhooks"
+                        ],
+                        "properties": {
+                          "workspaces": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "members": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "modules": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "environmentsPerHostApp": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "storageGb": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "deploysPerMonth": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          },
+                          "webhooks": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "nullable": true
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false,
+                    "nullable": true
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true
+                  },
+                  "basePlan": {
                     "type": "string",
                     "enum": ["hobby", "startup", "enterprise"]
                   }
@@ -6557,7 +8324,7 @@
         }
       }
     },
-    "/api/admin/users": {
+    "/api/admin/usage": {
       "get": {
         "tags": ["Instance administration"],
         "security": [
@@ -6597,8 +8364,106 @@
         }
       }
     },
+    "/api/admin/users/{id}/suspend": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/unsuspend": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/mfa": {
+      "delete": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/admin/users/{id}": {
       "delete": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
         "tags": ["Instance administration"],
         "security": [
           {
@@ -6648,6 +8513,16 @@
                   "email": {
                     "type": "string",
                     "format": "email"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "instance_owner",
+                      "instance_operator",
+                      "instance_support",
+                      "instance_billing"
+                    ],
+                    "default": "instance_owner"
                   }
                 },
                 "required": ["email"],
@@ -6669,6 +8544,29 @@
       }
     },
     "/api/admin/admins/{userId}": {
+      "patch": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "userId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
       "delete": {
         "tags": ["Instance administration"],
         "security": [
@@ -6683,6 +8581,84 @@
             },
             "in": "path",
             "name": "userId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/admin-invitations/{id}": {
+      "delete": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/api-keys": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/api-keys/{id}": {
+      "delete": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
             "required": true
           }
         ],
@@ -6756,6 +8732,94 @@
         }
       }
     },
+    "/api/admin/settings/{key}/history": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "key",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/settings/{key}/history/{version}/restore": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "key",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "version",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/settings/export": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/settings/import": {
+      "put": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/admin/settings/storage/test": {
       "post": {
         "tags": ["Instance administration"],
@@ -6786,6 +8850,51 @@
         }
       }
     },
+    "/api/admin/encryption": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/encryption/reseal": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/audit/verify": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/admin/audit/export": {
       "get": {
         "tags": ["Instance administration"],
@@ -6801,12 +8910,318 @@
         }
       }
     },
+    "/api/admin/workspace-audit/{workspaceId}/export": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/admin/audit": {
       "get": {
         "tags": ["Instance administration"],
         "security": [
           {
             "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/workspaces": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/orgs": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/orgs/{slug}": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "slug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/email/deliveries": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/sessions/{sessionId}": {
+      "delete": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "sessionId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/email": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/auth/email-change": {
+      "post": {
+        "tags": ["Sign-in"],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/merge": {
+      "post": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/audit/search": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/security": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/policy": {
+      "get": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/usage": {
+      "get": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
           }
         ],
         "responses": {
@@ -6960,6 +9375,439 @@
         }
       }
     },
+    "/api/workspaces/{workspaceSlug}/domains": {
+      "get": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/domains/{domain}/verify": {
+      "post": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "domain",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/domains/{domain}": {
+      "delete": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "domain",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/domains": {
+      "get": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/admin/domains/{id}": {
+      "delete": {
+        "tags": ["Instance administration"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/transfer": {
+      "post": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/transfers": {
+      "get": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/transfers/{id}/accept": {
+      "post": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/transfers/{id}/cancel": {
+      "post": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/export": {
+      "get": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/invitations/{token}": {
+      "get": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "token",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/invitations/{token}/accept": {
+      "post": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "token",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/access-requests": {
+      "post": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "get": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/access-requests/{requestId}/approve": {
+      "post": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "requestId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceSlug}/access-requests/{requestId}/deny": {
+      "post": {
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "workspaceSlug",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "requestId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/workspaces/{workspaceSlug}/apply": {
       "post": {
         "tags": ["Workspace as code"],
@@ -7033,6 +9881,152 @@
             "in": "path",
             "name": "workspaceSlug",
             "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/auth/mfa/verify": {
+      "post": {
+        "tags": ["Sign-in"],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/me/sessions": {
+      "get": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/me/sessions/{id}": {
+      "delete": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/auth/reauth": {
+      "post": {
+        "tags": ["Sign-in"],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/me/mfa": {
+      "get": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/me/mfa/setup": {
+      "post": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/me/mfa/enable": {
+      "post": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/me/mfa/recovery-codes": {
+      "post": {
+        "tags": ["Service"],
+        "security": [
+          {
+            "bearerAuth": []
           }
         ],
         "responses": {

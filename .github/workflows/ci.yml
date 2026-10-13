@@ -109,6 +109,8 @@ jobs:
           NODE_ENV: development
           HARMONIQ_DEV_LOGIN: '1'
           STORAGE_ADAPTER: local
+          # The Terraform acceptance tests complete the first-boot setup with it.
+          HARMONIQ_SETUP_TOKEN: ci-setup-token
         run: |
           (cd apps/registry && node dist/index.js > "$RUNNER_TEMP/registry.log" 2>&1 &)
           for i in $(seq 1 30); do curl -sf http://localhost:4000/health && break; sleep 1; done
@@ -125,6 +127,8 @@ jobs:
           terraform_wrapper: false
       - name: Terraform provider acceptance tests
         working-directory: integrations/terraform-provider-harmoniq
+        env:
+          HARMONIQ_SETUP_TOKEN: ci-setup-token
         run: |
           eval "$(scripts/acc-env.sh http://localhost:4000)"
           TF_ACC=1 go test ./internal/provider -run TestAcc -count=1 -v

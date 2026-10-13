@@ -16,7 +16,7 @@ type Params = { workspaceSlug: string };
 
 // IaC-09..12: `harmoniq plan` / `apply` / `import` (workspace admins and admin keys).
 const gitopsRoutes: FastifyPluginAsync = async (fastify) => {
-  const { withTenant, systemDb, cache, publisher, webhooks } = fastify.container;
+  const { withTenant, cache, publisher, webhooks } = fastify.container;
   const admin = { preHandler: fastify.requireWorkspace('workspace:admin') };
 
   fastify.post<{ Params: Params }>(
@@ -47,6 +47,20 @@ const gitopsRoutes: FastifyPluginAsync = async (fastify) => {
               encryptionKey: fastify.config.encryptionKey,
               dryRun: body.dryRun,
               prune: body.prune,
+              checkQuotas: async (growth) => {
+                const { quotas } = fastify.container;
+                const target = { workspaceId: workspace.id };
+                if (growth.modules > 0) await quotas.require(target, 'modules', growth.modules);
+                if (growth.webhooks > 0) await quotas.require(target, 'webhooks', growth.webhooks);
+                for (const e of growth.environments) {
+                  if (e.delta <= 0) continue;
+                  await quotas.require(
+                    { ...target, ...(e.hostAppId && { hostAppId: e.hostAppId }) },
+                    'environmentsPerHostApp',
+                    e.delta
+                  );
+                }
+              },
             },
             parsed.data
           );
@@ -77,9 +91,9 @@ const gitopsRoutes: FastifyPluginAsync = async (fastify) => {
         }
         // Manifests and import maps of changed host apps (e.g. a new specifier).
         for (const slug of outcome.touchedHostApps) {
-          const envs = await systemDb.environment.findMany({
-            where: { hostApp: { workspaceId: workspace.id, slug } },
-          });
+          const envs = await withTenant(workspace.id, (tx) =>
+            tx.environment.findMany({ where: { hostApp: { workspaceId: workspace.id, slug } } })
+          );
           for (const env of envs) {
             await invalidateManifest(cache, workspace.slug, slug, env.slug);
             await publisher.publish(env.id).catch(() => undefined); // recorded on the environment

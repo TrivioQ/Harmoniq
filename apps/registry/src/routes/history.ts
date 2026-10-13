@@ -7,6 +7,8 @@ import { BadRequestError, NotFoundError } from '@harmoniq/core/dist/errors/AppEr
 import type { Manifest } from '@harmoniq/core/dist/schemas/ManifestSchema';
 import { diffManifests } from '@harmoniq/core/dist/manifest/diff';
 import { audit } from '../services/audit';
+import { verifyChain } from '../services/auditChain';
+import { actorOf, actorWhere, parseDate, resolveActors } from '../services/auditActors';
 import {
   NEWEST_FIRST,
   afterWhere,
@@ -22,7 +24,7 @@ type EnvParams = WsParams & { hostAppSlug: string; env: string };
 const pageSize = (raw?: string) => Math.min(Math.max(Number(raw) || 50, 1), 200);
 
 const historyRoutes: FastifyPluginAsync = async (fastify) => {
-  const { withTenant } = fastify.container;
+  const { withTenant, withOrg } = fastify.container;
 
   // ─── Audit log (AUD-03) ───────────────────────────────────────────────────
 
@@ -43,27 +45,30 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const q = request.query;
       const limit = pageSize(q.limit);
-      const where: Prisma.AuditEventWhereInput = {
-        ...(q.actor && { actorId: q.actor }),
-        // `module.` matches every module action; an exact name matches one.
-        ...(q.action &&
-          (q.action.endsWith('.') ? { action: { startsWith: q.action } } : { action: q.action })),
-        ...(q.resourceId && { resourceId: q.resourceId }),
-        ...((q.from || q.to) && {
-          createdAt: {
-            ...(q.from && { gte: new Date(q.from) }),
-            ...(q.to && { lte: new Date(q.to) }),
-          },
-        }),
-      };
-      const events = await withTenant(request.workspace!.id, (tx) =>
-        tx.auditEvent.findMany({
+      const workspace = request.workspace!;
+      const from = parseDate(q.from);
+      const to = parseDate(q.to);
+      const { events, actors } = await withTenant(workspace.id, async (tx) => {
+        const where: Prisma.AuditEventWhereInput = {
+          ...(await actorWhere(tx, q.actor)),
+          // `module.` matches every module action; an exact name matches one.
+          ...(q.action &&
+            (q.action.endsWith('.') ? { action: { startsWith: q.action } } : { action: q.action })),
+          ...(q.resourceId && { resourceId: q.resourceId }),
+          ...((from || to) && { createdAt: { gte: from, lte: to } }),
+        };
+        const events = await tx.auditEvent.findMany({
           where,
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: limit + 1,
           ...(q.cursor && { cursor: { id: q.cursor }, skip: 1 }),
-        })
-      );
+        });
+        return { events, actors: await resolveActors(tx, events) };
+      });
+      // AUD-07: keys of the workspace's organization act here too.
+      if (workspace.organizationId && events.some((e) => !actors.has(e.actorId))) {
+        await withOrg(workspace.organizationId, (tx) => resolveActors(tx, events, actors));
+      }
       const page = events.slice(0, limit);
       return {
         events: page.map((e) => ({
@@ -71,6 +76,7 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
           action: e.action,
           actorId: e.actorId,
           actorType: e.actorType,
+          actor: actorOf(actors, e),
           resourceType: e.resourceType,
           resourceId: e.resourceId,
           metadata: e.metadata,
@@ -79,6 +85,18 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
         })),
         nextCursor: events.length > limit ? page[page.length - 1].id : null,
       };
+    }
+  );
+
+  /** AUD-09: checks the workspace's audit hash chain (admins). */
+  fastify.get<{ Params: WsParams }>(
+    '/api/workspaces/:workspaceSlug/audit/verify',
+    { preHandler: fastify.requireWorkspace('workspace:admin') },
+    async (request) => {
+      const workspace = request.workspace!;
+      return withTenant(workspace.id, (tx) =>
+        verifyChain(tx, { kind: 'workspace', id: workspace.id })
+      );
     }
   );
 
@@ -95,7 +113,7 @@ const historyRoutes: FastifyPluginAsync = async (fastify) => {
       const format = exportFormat(q.format);
       const where: Prisma.AuditEventWhereInput = {
         workspaceId: workspace.id,
-        ...(q.actor && { actorId: q.actor }),
+        ...(await withTenant(workspace.id, (tx) => actorWhere(tx, q.actor))),
         ...(q.action &&
           (q.action.endsWith('.') ? { action: { startsWith: q.action } } : { action: q.action })),
         ...dateRange(q),

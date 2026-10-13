@@ -7,6 +7,7 @@ import { BadRequestError, NotFoundError } from '@harmoniq/core/dist/errors/AppEr
 import { CHANGE_TICKET_HEADER } from '@harmoniq/core/dist/schemas/ApprovalPolicySchema';
 import { audit } from './audit';
 import { approvalsUrl } from './links';
+import { approvalDefaultFor, effectiveApproval, orgPolicyFor } from './policy';
 
 /** Marks the in-process execution of an approved request (trusted only when `internal`). */
 export const APPROVED_REQUEST_HEADER = 'x-harmoniq-approved-request';
@@ -35,6 +36,25 @@ export interface PendingApproval {
   changeTicket: { id: string; url: string | null } | null;
   /** The dashboard's approval queue. */
   approvalUrl: string;
+}
+
+/**
+ * APR-01, POL-02: the rule an environment enforces: its own policy tightened by the
+ * organization's default for its slug (or the default alone). Null: no approval needed.
+ */
+export async function approvalRuleFor(
+  tx: Prisma.TransactionClient,
+  workspace: { id: string; organizationId: string | null },
+  environmentId: string,
+  environmentSlug: string
+) {
+  const [own, org] = await Promise.all([
+    tx.approvalPolicy.findUnique({
+      where: { workspaceId_environmentId: { workspaceId: workspace.id, environmentId } },
+    }),
+    orgPolicyFor(tx, workspace.organizationId),
+  ]);
+  return effectiveApproval(own, approvalDefaultFor(org, environmentSlug))?.rule ?? null;
 }
 
 const header = (request: FastifyRequest, name: string) => {
@@ -78,14 +98,7 @@ export async function interceptForApproval(
   }
 
   const policy = await withTenant(workspace.id, (tx) =>
-    tx.approvalPolicy.findUnique({
-      where: {
-        workspaceId_environmentId: {
-          workspaceId: workspace.id,
-          environmentId: change.environmentId,
-        },
-      },
-    })
+    approvalRuleFor(tx, workspace, change.environmentId, change.environment)
   );
   if (!policy) return null;
 
@@ -139,6 +152,17 @@ export async function interceptForApproval(
     return created;
   });
 
+  // TAD-09: the organization's channels hear of it too.
+  if (workspace.organizationId) {
+    await app.container.orgEvents.emit(workspace.organizationId, 'deploy.approval_requested', {
+      workspace: workspace.slug,
+      requestId: created.id,
+      type: change.type,
+      environment: change.environment,
+      requiredApprovers: policy.requiredApprovers,
+    });
+  }
+
   // APR-17: eligible approvers are told through webhooks.
   await webhooks.dispatch(workspace.id, 'deploy.approval_requested', {
     requestId: created.id,
@@ -177,11 +201,11 @@ export async function decisionEligibility(
   }
   const workspace = request.workspace!;
   return app.container.withTenant(workspace.id, async (tx) => {
-    const policy = await tx.approvalPolicy.findUnique({
-      where: {
-        workspaceId_environmentId: { workspaceId: workspace.id, environmentId: dr.environmentId },
-      },
+    const env = await tx.environment.findUnique({
+      where: { id: dr.environmentId },
+      select: { slug: true },
     });
+    const policy = await approvalRuleFor(tx, workspace, dr.environmentId, env?.slug ?? '');
     const role = request.workspaceRole;
     if (!role || !(policy?.eligibleRoles ?? ['admin', 'owner']).includes(role)) {
       return { eligible: false, reason: 'Your role is not eligible to approve here' };

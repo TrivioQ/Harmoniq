@@ -3,14 +3,19 @@
 
 import { getTranslations } from 'next-intl/server';
 import { ActionForm } from '@/components/ActionForm';
+import { Link } from '@/i18n/routing';
+import type { SettingKey } from '@/lib/adminApi';
 import { resetSettingAction } from './actions';
 
-/** Where a setting comes from, and a way back to the environment's defaults (INST-16). */
+/**
+ * Where a setting comes from, a way back to the environment's defaults (INST-16) and its
+ * saved versions (INST-35).
+ */
 export async function SettingSource({
   settingKey,
   source,
 }: {
-  settingKey: 'storage' | 'email' | 'auth' | 'branding';
+  settingKey: SettingKey;
   source: 'database' | 'environment';
 }) {
   const t = await getTranslations('AdminSettings');
@@ -25,6 +30,9 @@ export async function SettingSource({
           confirm={t('resetConfirm')}
         />
       )}
+      <Link href={`/admin/settings/${settingKey}`} className="text-indigo-700 hover:underline">
+        {t('history')}
+      </Link>
     </div>
   );
 }

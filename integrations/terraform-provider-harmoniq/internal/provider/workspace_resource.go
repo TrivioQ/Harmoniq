@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -33,6 +34,7 @@ type workspaceModel struct {
 	Name                       types.String `tfsdk:"name"`
 	RetentionDays              types.Int64  `tfsdk:"retention_days"`
 	AllowEphemeralEnvironments types.Bool   `tfsdk:"allow_ephemeral_environments"`
+	Owners                     types.Set    `tfsdk:"owners"`
 }
 
 func (r *workspaceResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -75,6 +77,15 @@ func (r *workspaceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				Computed:            true,
 				MarkdownDescription: "Whether deploys may create preview environments (e.g. `pr-123`).",
 			},
+			"owners": schema.SetAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				MarkdownDescription: "Emails invited as the workspace's owners when it is created; their first sign-in " +
+					"accepts the invitation. Until one has joined, the organization's admins act as owners. " +
+					"Only applied at creation: organization API keys don't manage members, so later changes are " +
+					"made in the dashboard and this attribute is not refreshed.",
+				PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
+			},
 		},
 	}
 }
@@ -101,7 +112,14 @@ func (r *workspaceResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 	slug := plan.Slug.ValueString()
-	if err := r.client.CreateWorkspace(ctx, plan.Organization.ValueString(), slug, plan.Name.ValueString()); err != nil {
+	var owners []string
+	if !plan.Owners.IsNull() && !plan.Owners.IsUnknown() {
+		resp.Diagnostics.Append(plan.Owners.ElementsAs(ctx, &owners, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+	if err := r.client.CreateWorkspace(ctx, plan.Organization.ValueString(), slug, plan.Name.ValueString(), owners); err != nil {
 		resp.Diagnostics.AddError(apiErrorDetail("creating workspace", err))
 		return
 	}

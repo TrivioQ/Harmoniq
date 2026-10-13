@@ -7,6 +7,7 @@ import { registerGcJobs } from '../jobs/gc';
 import { registerWebhookJobs } from '../jobs/webhooks';
 import { registerAlertJobs } from '../jobs/alerts';
 import { registerPublishJobs } from '../jobs/publish';
+import { registerDomainJobs } from '../jobs/domains';
 
 const jobsPlugin: FastifyPluginAsync = async (fastify, _options) => {
   if (process.env.NODE_ENV !== 'test') {
@@ -14,6 +15,7 @@ const jobsPlugin: FastifyPluginAsync = async (fastify, _options) => {
     await registerWebhookJobs(fastify);
     await registerAlertJobs(fastify);
     await registerPublishJobs(fastify);
+    await registerDomainJobs(fastify);
 
     fastify.container.logger.info('Background jobs registered');
   }

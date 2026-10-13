@@ -3,16 +3,20 @@
 
 import { notFound, redirect } from 'next/navigation';
 import { Link } from '@/i18n/routing';
-import { BrandMark } from '@/components/BrandMark';
-import { getTranslations } from 'next-intl/server';
+import { Breadcrumbs, ContextSwitcher, UserMenu, type ShellContext } from '@/components/AppShell';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { getMe } from '@/lib/registry';
 import { workspaceApi } from '@/lib/workspaceApi';
+import { nearLimits } from '@/lib/usage';
+import { SupportBanner } from '@/components/SupportBanner';
+import { ReadOnly } from '@/components/ReadOnly';
 
 export default async function WorkspaceLayout(props: {
   children: React.ReactNode;
   params: Promise<{ workspaceSlug: string }>;
 }) {
   const t = await getTranslations('WorkspaceLayout');
+  const format = await getFormatter();
   const params = await props.params;
   const me = await getMe();
   if (!me) redirect('/auth/login');
@@ -28,16 +32,52 @@ export default async function WorkspaceLayout(props: {
     ('suspended' in workspace && !!workspace.suspended) ||
     ('suspendedAt' in workspace && !!workspace.suspendedAt);
 
+  // PLN-05: admins see quotas at 80% or more on every page (usage is admin-only).
+  const role = me.workspaces.find((w) => w.slug === workspace.slug)?.role;
+  const near =
+    role === 'owner' || role === 'admin'
+      ? await workspaceApi
+          .usage(workspace.slug, 1)
+          .then((u) => nearLimits(u.workspace))
+          .catch(() => [])
+      : [];
+
+  // INST-20: admins see who has support access to the workspace.
+  const support =
+    role === 'owner' || role === 'admin'
+      ? 'supportAccess' in workspace
+        ? workspace.supportAccess
+        : await workspaceApi
+            .get(workspace.slug)
+            .then((w) => w.supportAccess)
+            .catch(() => undefined)
+      : undefined;
+
+  // INST-20: an instance admin reading through their support grant: read-only.
+  const supportMode = 'support' in workspace && !!workspace.support;
+  const myGrant =
+    supportMode && 'supportAccess' in workspace
+      ? workspace.supportAccess?.find((g) => g.admin === me.user.email)
+      : undefined;
+
+  // TAD-08: the organization in the breadcrumbs, when you can see it.
+  const orgSlug = me.workspaces.find((w) => w.slug === workspace.slug)?.organization;
+  const org = orgSlug ? me.organizations.find((o) => o.slug === orgSlug) : undefined;
+  const context: ShellContext = {
+    kind: 'workspace',
+    slug: workspace.slug,
+    name: workspace.name,
+    ...(org && { org: { slug: org.slug, name: org.name } }),
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center px-4 md:px-8">
-          <div className="flex flex-1 items-center gap-4">
-            <BrandMark />
-            <span className="text-muted-foreground text-sm">/</span>
-            <span className="font-medium text-sm">{workspace.name}</span>
+          <div className="flex flex-1 items-center gap-4 min-w-0">
+            <Breadcrumbs context={context} />
           </div>
-          <nav className="flex items-center gap-6 text-sm font-medium">
+          <nav className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-medium">
             <Link href={`/w/${workspace.slug}`} className="hover:text-primary">
               {t('overview')}
             </Link>
@@ -65,20 +105,37 @@ export default async function WorkspaceLayout(props: {
             >
               {t('settings')}
             </Link>
-            <form action="/api/auth/logout" method="post">
-              <button type="submit" className="text-muted-foreground hover:text-primary">
-                {t('signOut')}
-              </button>
-            </form>
+            <ContextSwitcher me={me} context={context} />
+            <UserMenu me={me} />
           </nav>
         </div>
       </header>
+      {near.length > 0 && (
+        <div role="status" className="bg-amber-50 text-amber-900 text-sm px-4 md:px-8 py-2">
+          {t('quotaWarning', {
+            quotas: near.map((q) => t(`quotaName.${q.quota}`)).join(', '),
+          })}{' '}
+          <Link href={`/w/${workspace.slug}/settings`} className="underline">
+            {t('quotaDetails')}
+          </Link>
+        </div>
+      )}
+      <SupportBanner grants={support} />
+      {supportMode && (
+        <div role="status" className="bg-blue-50 text-blue-900 text-sm px-4 md:px-8 py-2">
+          {myGrant
+            ? t('supportView', { until: format.dateTime(new Date(myGrant.expiresAt), 'short') })
+            : t('supportViewShort')}
+        </div>
+      )}
       {suspended && (
         <div role="status" className="bg-amber-50 text-amber-900 text-sm px-4 md:px-8 py-2">
           {t('suspended')}
         </div>
       )}
-      <main className="flex-1 bg-muted/20">{props.children}</main>
+      <main className="flex-1 bg-muted/20">
+        <ReadOnly reason={supportMode ? t('supportReadOnly') : null}>{props.children}</ReadOnly>
+      </main>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 
 import { withSpan } from '../services/tracing';
 import { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
-import { NotFoundError } from '@harmoniq/core/dist/errors/AppError';
+import { GoneError, NotFoundError } from '@harmoniq/core/dist/errors/AppError';
 import { toFederationManifest, toImportMap } from '@harmoniq/core/dist/manifest/formats';
 import { BuiltManifest, buildManifest } from '../services/manifestBuilder';
 import { manifestJsonSchema } from '../services/manifestJsonSchema';
@@ -43,10 +43,20 @@ function etagMatches(header: string | undefined, etag: string): boolean {
 }
 
 const manifestRoutes: FastifyPluginAsync = async (fastify) => {
+  // Public manifests resolve the workspace by slug; everything after runs in withTenant.
+  // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
   const { cache, systemDb, withTenant, logger, orgShared } = fastify.container;
   const { isProduction } = fastify.config;
 
   const { manifestMissLimit, manifestRateLimits } = fastify.config;
+
+  // USG-01: every served manifest counts, cache hits and 304s included (not errors).
+  fastify.addHook('onResponse', async (request, reply) => {
+    const { workspaceSlug } = request.params as { workspaceSlug?: string };
+    if (workspaceSlug && (reply.statusCode === 200 || reply.statusCode === 304)) {
+      fastify.container.usage.manifestServed(workspaceSlug);
+    }
+  });
 
   // Per-IP count of not-found responses, across all workspaces: the rate limit below is
   // keyed by workspace slug, so made-up slugs would each get a fresh quota. Per replica.
@@ -129,6 +139,7 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     envSlug: string,
     canaryModuleIds?: string[]
   ) {
+    // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
     const workspace = await systemDb.workspace.findUnique({
       where: { slug: workspaceSlug },
       include: {
@@ -138,6 +149,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
         },
       },
     });
+    // TLC-02: a deleted workspace's manifests are gone (restorable until the purge).
+    if (workspace?.deletedAt) throw new GoneError('This workspace was deleted');
     const hostApp = workspace?.HostApps[0];
     const environment = hostApp?.Environments[0];
     if (!workspace || !hostApp || !environment) {
@@ -176,18 +189,22 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
     }
     let host: string;
     try {
+      // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
       const workspace = await systemDb.workspace.findUnique({
         where: { slug: workspaceSlug },
         select: {
+          deletedAt: true,
           HostApps: {
             select: { slug: true, isDefault: true },
             orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
           },
         },
       });
+      if (workspace?.deletedAt) throw new GoneError('This workspace was deleted');
       const hosts = workspace?.HostApps ?? [];
       host = hosts.find((h) => h.isDefault)?.slug ?? (hosts.length === 1 ? hosts[0].slug : '');
     } catch (err) {
+      if (err instanceof GoneError) throw err;
       const lkg = await cache.get(lastKnownDefaultHostKey(workspaceSlug));
       if (lkg) return lkg;
       throw err;
@@ -241,6 +258,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
           );
           throw err;
         }
+        // Never a last-known-good copy of a deleted workspace.
+        if (err instanceof GoneError) throw err;
         const lkg = await cache.get(lastKnownGoodKey(workspaceSlug, host, envSlug));
         if (!lkg) throw err;
         logger.error('Serving last-known-good manifest after build failure', err as Error);
@@ -386,7 +405,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   // HST-01: canonical endpoint. Public (MAN-05).
   fastify.get<{ Params: CanonicalParams; Querystring: { pretty?: string } }>(
     '/api/manifest/:workspaceSlug/:hostAppSlug/:env',
-    { config: rateLimit },
+    // POL-08: the organization's allowlist, when it includes manifests.
+    { config: rateLimit, preHandler: fastify.requireDeliveryIp },
     (request, reply) =>
       serve(
         request,
@@ -400,7 +420,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   // HST-02: legacy endpoint, resolves to the workspace's default host app.
   fastify.get<{ Params: LegacyParams; Querystring: { pretty?: string } }>(
     '/api/manifest/:workspaceSlug/:env',
-    { config: rateLimit },
+    // POL-08: the organization's allowlist, when it includes manifests.
+    { config: rateLimit, preHandler: fastify.requireDeliveryIp },
     (request, reply) =>
       serve(request, reply, request.params.workspaceSlug, null, request.params.env)
   );
@@ -408,7 +429,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   // IMP-01..06: standards-compliant import map (also valid for SystemJS).
   fastify.get<{ Params: CanonicalParams; Querystring: { format?: string } }>(
     '/api/importmap/:workspaceSlug/:hostAppSlug/:env',
-    { config: rateLimit },
+    // POL-08: the organization's allowlist, when it includes manifests.
+    { config: rateLimit, preHandler: fastify.requireDeliveryIp },
     (request, reply) =>
       serveDerived(
         request,
@@ -424,7 +446,8 @@ const manifestRoutes: FastifyPluginAsync = async (fastify) => {
   // Native Federation (`@angular-architects/native-federation`): { name: remoteEntry URL }.
   fastify.get<{ Params: CanonicalParams }>(
     '/api/federation-manifest/:workspaceSlug/:hostAppSlug/:env',
-    { config: rateLimit },
+    // POL-08: the organization's allowlist, when it includes manifests.
+    { config: rateLimit, preHandler: fastify.requireDeliveryIp },
     (request, reply) =>
       serveDerived(request, reply, 'federation', 'application/json', toFederationManifest)
   );

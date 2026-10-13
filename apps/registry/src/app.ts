@@ -9,6 +9,7 @@ import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import Redis from 'ioredis';
 import containerPlugin from './plugins/container';
+import { startHeartbeat } from './services/operations';
 import authenticatePlugin from './plugins/authenticate';
 import manifestRoutes from './routes/manifest';
 import moduleRoutes from './routes/modules';
@@ -27,8 +28,17 @@ import accessRoutes from './routes/access';
 import staticRoutes from './routes/static';
 import webhookRoutes from './routes/webhooks';
 import adminRoutes from './routes/admin';
+import adminDirectoryRoutes from './routes/adminDirectory';
+import adminSecurityRoutes from './routes/adminSecurity';
+import domainRoutes from './routes/domains';
+import transferRoutes from './routes/transfers';
+import exportRoutes from './routes/exports';
+import invitationRoutes from './routes/invitations';
+import accessRequestRoutes from './routes/accessRequests';
 import workspaceRoutes from './routes/workspaces';
 import gitopsRoutes from './routes/gitops';
+import workspacePolicyRoutes from './routes/policy';
+import usageRoutes from './routes/usage';
 import authRoutes from './routes/auth';
 import jobsPlugin from './plugins/jobs';
 import metricsPlugin from './plugins/metrics';
@@ -183,16 +193,38 @@ export async function buildApp() {
     route.config = route.config ?? {};
     const routeConfig = route.config as { rateLimit?: unknown };
     if (routeConfig.rateLimit !== undefined) return;
-    routeConfig.rateLimit = {
-      max: config.writeRateLimit,
-      timeWindow: '1 minute',
-      keyGenerator: (request: { headers: Record<string, unknown>; ip: string }) => {
-        const auth = request.headers.authorization;
-        return typeof auth === 'string' && auth
-          ? `w:${createHash('sha256').update(auth).digest('hex').slice(0, 32)}`
-          : `w:${request.ip}`;
-      },
-    };
+    // MT-12: writes to a workspace or an organization share that tenant's budget (by plan,
+    // RL-04), whoever makes them; other writes are limited per credential.
+    const tenant = route.url.includes(':workspaceSlug')
+      ? 'workspaceSlug'
+      : route.url.includes(':orgSlug')
+        ? 'orgSlug'
+        : null;
+    routeConfig.rateLimit = tenant
+      ? {
+          timeWindow: '1 minute',
+          keyGenerator: (request: { params: unknown }) =>
+            `t:${tenant === 'workspaceSlug' ? 'ws' : 'org'}:${(request.params as Record<string, string>)[tenant]}`,
+          max: async (request: { params: unknown }) => {
+            const slug = (request.params as Record<string, string>)[tenant];
+            const plan =
+              tenant === 'workspaceSlug'
+                ? await app.container.plans.planOf({ slug })
+                : await app.container.plans.planOfOrgSlug(slug);
+            return app.container.settings.rateLimits().api[plan];
+          },
+        }
+      : {
+          // INST-34: read per request, so a change in the admin panel applies at once.
+          max: () => app.container.settings.rateLimits().write,
+          timeWindow: '1 minute',
+          keyGenerator: (request: { headers: Record<string, unknown>; ip: string }) => {
+            const auth = request.headers.authorization;
+            return typeof auth === 'string' && auth
+              ? `w:${createHash('sha256').update(auth).digest('hex').slice(0, 32)}`
+              : `w:${request.ip}`;
+          },
+        };
   });
   // RL-03: with Redis, every replica counts against the same limits.
   const rateLimitRedis =
@@ -235,6 +267,49 @@ export async function buildApp() {
   // Register local plugins
   await app.register(metricsPlugin);
   await app.register(containerPlugin);
+  // INST-28: this replica's version and liveness, for the admin health page.
+  const stopHeartbeat = startHeartbeat(
+    app.container.systemDb,
+    () => app.container.settings.loadedAt
+  );
+  app.addHook('onClose', stopHeartbeat);
+
+  // INST-39: requests refused by a rate limit, per workspace, for the security page.
+  app.addHook('onResponse', async (request, reply) => {
+    if (reply.statusCode !== 429) return;
+    const slug = (request.params as { workspaceSlug?: string } | undefined)?.workspaceSlug;
+    if (slug) app.container.usage.rateLimited(slug);
+  });
+
+  // INST-37: maintenance mode makes the instance read-only. Reads, manifests, health
+  // reports, sign-in and the admin API (to end it) keep working.
+  const MAINTENANCE_OPEN = [
+    '/api/admin/',
+    '/api/auth/',
+    '/api/me/',
+    '/api/health/',
+    '/api/instance',
+  ];
+  app.addHook('onRequest', async (request, reply) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return;
+    const maintenance = app.container.settings.maintenance();
+    if (!maintenance?.active) return;
+    const path = request.url.split('?')[0];
+    if (MAINTENANCE_OPEN.some((prefix) => path.startsWith(prefix))) return;
+    const retryAfter = maintenance.until
+      ? Math.max(1, Math.ceil((new Date(maintenance.until).getTime() - Date.now()) / 1000))
+      : 300;
+    return reply
+      .code(503)
+      .header('Retry-After', String(retryAfter))
+      .send({
+        error: {
+          code: 'MAINTENANCE',
+          message: maintenance.message || 'The registry is in maintenance; changes are paused.',
+          ...(maintenance.until && { until: maintenance.until }),
+        },
+      });
+  });
   await app.register(authenticatePlugin);
   await app.register(jobsPlugin);
 
@@ -256,7 +331,16 @@ export async function buildApp() {
   await app.register(staticRoutes);
   await app.register(webhookRoutes);
   await app.register(adminRoutes);
+  await app.register(adminDirectoryRoutes);
+  await app.register(adminSecurityRoutes);
+  await app.register(workspacePolicyRoutes);
+  await app.register(usageRoutes);
   await app.register(workspaceRoutes);
+  await app.register(domainRoutes);
+  await app.register(transferRoutes);
+  await app.register(exportRoutes);
+  await app.register(invitationRoutes);
+  await app.register(accessRequestRoutes);
   await app.register(gitopsRoutes);
   await app.register(authRoutes);
 

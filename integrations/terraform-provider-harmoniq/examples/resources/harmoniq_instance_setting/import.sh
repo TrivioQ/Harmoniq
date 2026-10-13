@@ -1,0 +1,1 @@
+terraform import harmoniq_instance_setting.gc gc

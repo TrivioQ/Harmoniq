@@ -18,7 +18,10 @@ import {
 type IngestParams = { workspaceSlug: string; hostAppSlug: string; env: string };
 
 const healthRoutes: FastifyPluginAsync = async (fastify) => {
+  // Public health ingest resolves the workspace by slug before any tenant scope exists.
+  // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
   const { systemDb, withTenant } = fastify.container;
+  // eslint-disable-next-line no-restricted-syntax -- MT-09: tenant resolution
   const live = new LiveVersionsCache(systemDb, withTenant);
 
   // HLT-01: public, like the manifest. Browsers send it with navigator.sendBeacon as
@@ -27,12 +30,20 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
     '/api/health/:workspaceSlug/:hostAppSlug/:env',
     {
       bodyLimit: 64 * 1024,
+      // POL-08: the organization's allowlist, when it includes manifests and health.
+      preHandler: fastify.requireDeliveryIp,
       config: {
+        // MT-12: per workspace, by plan (browsers of all its users share the budget).
         rateLimit: {
-          max: 120,
           timeWindow: '1 minute',
           keyGenerator: (req: FastifyRequest) =>
-            `health:${(req.params as IngestParams).workspaceSlug}:${req.ip}`,
+            `health:${(req.params as IngestParams).workspaceSlug}`,
+          max: async (req: FastifyRequest) =>
+            fastify.container.settings.rateLimits().health[
+              await fastify.container.plans.planOf({
+                slug: (req.params as IngestParams).workspaceSlug,
+              })
+            ],
         },
       },
     },
@@ -61,6 +72,8 @@ const healthRoutes: FastifyPluginAsync = async (fastify) => {
           tx.moduleHealthEvent.createMany({ data: rows })
         );
       }
+      // USG-01
+      fastify.container.usage.healthEvents(workspaceSlug, rows.length);
       return reply.code(202).send({ accepted: rows.length, rejected });
     }
   );

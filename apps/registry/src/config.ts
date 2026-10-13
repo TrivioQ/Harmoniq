@@ -6,8 +6,11 @@ import {
   Plan,
   PlanFeature,
   PlanFeatureSchema,
+  PlanLimits,
+  PlanLimitsByPlanSchema,
   PlanSchema,
 } from '@harmoniq/core/dist/schemas/AdminSchemas';
+import { keyId, registerKeyring } from './services/crypto';
 
 // Secrets that have shipped in examples, charts or code. Never acceptable in production.
 const KNOWN_DEFAULT_SECRETS = new Set([
@@ -33,11 +36,29 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   JWT_SECRET: z.string().optional(),
   HARMONIQ_ENCRYPTION_KEY: z.string().optional(),
+  HARMONIQ_ENCRYPTION_KEYS: z.string().optional(),
+  /** INST-32: instance admins must sign in with MFA (or the instance's OIDC). */
+  HARMONIQ_ADMIN_REQUIRE_MFA: z.string().optional(),
+  /** INST-32: CIDR blocks allowed to reach `/api/admin` (comma-separated). */
+  HARMONIQ_ADMIN_IP_ALLOWLIST: z.string().optional(),
   WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
   CACHE_ADAPTER: z.string().default('memory'),
   REDIS_URL: z.string().optional(),
   HARMONIQ_SETUP_TOKEN: z.string().optional(),
+  // Empty (as in .env.example) means unset.
+  HARMONIQ_METRICS_TOKEN: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(16, 'HARMONIQ_METRICS_TOKEN must be at least 16 characters').optional()
+  ),
+  HARMONIQ_METRICS_TENANT_LABELS: z.string().optional(),
+  HARMONIQ_METRICS_PORT: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().min(0).max(65_535).optional()
+  ),
   HARMONIQ_GC_KEEP_VERSIONS: z.coerce.number().int().min(1).default(10),
+  HARMONIQ_DOMAIN_GRACE_DAYS: z.coerce.number().int().min(0).max(365).default(30),
+  HARMONIQ_AUDIT_RETENTION_DAYS: z.coerce.number().int().min(1).default(400),
+  HARMONIQ_TENANT_RESTORE_DAYS: z.coerce.number().int().min(0).max(365).default(30),
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   HARMONIQ_DEV_LOGIN: z.string().optional(),
@@ -65,6 +86,18 @@ const EnvSchema = z.object({
   HARMONIQ_PLAN_ENFORCEMENT: z.string().optional(),
   /** PLN-02: JSON `{ "hobby": ["approvals"], … }` replacing the features of those plans. */
   HARMONIQ_PLAN_FEATURES: z.string().optional(),
+  /** PLN-04: quotas by plan, JSON. */
+  HARMONIQ_PLAN_LIMITS: z.string().optional(),
+  /** MT-12: per-tenant budgets (per minute); the per-credential write limit still applies. */
+  HARMONIQ_API_RATE_LIMIT: z.coerce.number().int().positive().default(1200),
+  HARMONIQ_API_RATE_LIMIT_STARTUP: z.coerce.number().int().positive().default(6000),
+  HARMONIQ_API_RATE_LIMIT_ENTERPRISE: z.coerce.number().int().positive().default(30000),
+  HARMONIQ_DEPLOY_RATE_LIMIT: z.coerce.number().int().positive().default(30),
+  HARMONIQ_DEPLOY_RATE_LIMIT_STARTUP: z.coerce.number().int().positive().default(120),
+  HARMONIQ_DEPLOY_RATE_LIMIT_ENTERPRISE: z.coerce.number().int().positive().default(600),
+  HARMONIQ_HEALTH_RATE_LIMIT: z.coerce.number().int().positive().default(6000),
+  HARMONIQ_HEALTH_RATE_LIMIT_STARTUP: z.coerce.number().int().positive().default(30000),
+  HARMONIQ_HEALTH_RATE_LIMIT_ENTERPRISE: z.coerce.number().int().positive().default(120000),
   TRUST_PROXY: z.string().optional(),
   OIDC_ISSUER: z.string().url().optional(),
   OIDC_CLIENT_ID: z.string().optional(),
@@ -84,14 +117,36 @@ export interface Config {
   trustProxy: boolean | string;
   port: number;
   jwtSecret: string;
-  /** Raw 32-byte key for AES-256-GCM. */
+  /** INST-32: admin access needs MFA or instance OIDC (default: on in production). */
+  adminRequireMfa: boolean;
+  /** INST-32: when set, `/api/admin` answers only these networks. */
+  adminIpAllowlist: string[];
+  /**
+   * The active 32-byte AES-256-GCM key; its keyring (INST-26, `keyringOf`) opens values
+   * sealed with older keys.
+   */
   encryptionKey: Buffer;
   webOrigin: string;
   cacheAdapter: 'redis' | 'memory';
   redisUrl?: string;
   setupToken?: string;
+  /**
+   * INST-25: `/metrics` requires `Authorization: Bearer <token>` when set. Workspace slugs
+   * appear as metric labels only with `tenantLabels` (they name the instance's tenants).
+   * With `port`, metrics are served on that port only, not on the API port.
+   */
+  metrics: { token?: string; tenantLabels: boolean; port?: number };
   /** Newest versions kept per module+environment regardless of age, so rollback always works. */
   gcKeepVersions: number;
+  /**
+   * DOM-04: days after the first start with domain verification during which unverified
+   * trusted domains still work for SSO sign-in (never for discovery). 0 enforces at once.
+   */
+  domainGraceDays: number;
+  /** AUD-05: days a deleted workspace's audit events are kept (counted from each event). */
+  auditRetentionDays: number;
+  /** TLC-02: days a deleted workspace or organization can be restored; 0 purges at once. */
+  tenantRestoreDays: number;
   github?: { clientId: string; clientSecret: string };
   /** SSO-03: instance-wide OIDC sign-in from env vars (provider id `oidc`). */
   oidc?: { issuer: string; clientId: string; clientSecret: string; displayName: string };
@@ -122,7 +177,17 @@ export interface Config {
   /** HTTP/2 over TLS (HTTP/1.1 still accepted) when both files are set. */
   tls?: { certFile: string; keyFile: string };
   /** PLN-02/03: enforce plan features; the feature matrix (overridable). */
-  plans: { enforced: boolean; features: Record<Plan, PlanFeature[]> };
+  plans: {
+    enforced: boolean;
+    features: Record<Plan, PlanFeature[]>;
+    limits: Record<Plan, PlanLimits>;
+  };
+  /** MT-12: management API writes per minute, per workspace or organization, by plan. */
+  apiRateLimits: Record<Plan, number>;
+  /** MT-12: deploys per minute per workspace, by plan. */
+  deployRateLimits: Record<Plan, number>;
+  /** MT-12: health reports per minute per workspace, by plan. */
+  healthRateLimits: Record<Plan, number>;
   /** Outbound email. Without SMTP in production, email sign-in is unavailable. */
   mail: { smtpUrl?: string; from: string };
   /** Where the `local` storage adapter keeps objects (also when chosen in the admin panel). */
@@ -171,6 +236,58 @@ function planFeatures(json: string | undefined): Record<Plan, PlanFeature[]> {
     throw new ConfigError(`HARMONIQ_PLAN_FEATURES: ${result.error.issues[0].message}`);
   }
   return { ...DEFAULT_PLAN_FEATURES, ...result.data };
+}
+
+/** PLN-04 defaults; `null` is unlimited. Without plan enforcement nothing is limited. */
+export const DEFAULT_PLAN_LIMITS: Record<Plan, PlanLimits> = {
+  hobby: {
+    workspaces: 3,
+    members: 5,
+    modules: 20,
+    environmentsPerHostApp: 5,
+    storageGb: 1,
+    deploysPerMonth: 500,
+    webhooks: 5,
+  },
+  startup: {
+    workspaces: 20,
+    members: 50,
+    modules: 200,
+    environmentsPerHostApp: 20,
+    storageGb: 50,
+    deploysPerMonth: 10_000,
+    webhooks: 25,
+  },
+  enterprise: {
+    workspaces: null,
+    members: null,
+    modules: null,
+    environmentsPerHostApp: null,
+    storageGb: null,
+    deploysPerMonth: null,
+    webhooks: null,
+  },
+};
+
+/** `HARMONIQ_PLAN_LIMITS`: JSON by plan, merged over the defaults per quota. */
+function planLimits(json: string | undefined): Record<Plan, PlanLimits> {
+  if (!json) return DEFAULT_PLAN_LIMITS;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new ConfigError('HARMONIQ_PLAN_LIMITS must be JSON, e.g. {"hobby":{"members":10}}');
+  }
+  const result = PlanLimitsByPlanSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ConfigError(`HARMONIQ_PLAN_LIMITS: ${result.error.issues[0].message}`);
+  }
+  return Object.fromEntries(
+    (Object.keys(DEFAULT_PLAN_LIMITS) as Plan[]).map((plan) => [
+      plan,
+      { ...DEFAULT_PLAN_LIMITS[plan], ...(result.data[plan] ?? {}) },
+    ])
+  ) as Record<Plan, PlanLimits>;
 }
 
 /** `HARMONIQ_AUTH_METHODS`: a comma-separated allowlist; unset or blank keeps the defaults. */
@@ -247,19 +364,43 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     jwtSecret ||= DEV_JWT_SECRET;
   }
 
-  let encryptionKeyB64 = e.HARMONIQ_ENCRYPTION_KEY;
-  if (!encryptionKeyB64) {
-    if (isProduction) {
-      throw new ConfigError(
-        'HARMONIQ_ENCRYPTION_KEY must be set in production (32 random bytes, base64-encoded)'
-      );
+  // INST-26: `HARMONIQ_ENCRYPTION_KEYS=label:base64,…` (the first seals new values; the
+  // others still open old ones), or the single-key `HARMONIQ_ENCRYPTION_KEY`.
+  const listed = (e.HARMONIQ_ENCRYPTION_KEYS ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry, i) => {
+      const at = entry.indexOf(':');
+      return at > 0
+        ? { label: entry.slice(0, at), b64: entry.slice(at + 1) }
+        : { label: `key${i + 1}`, b64: entry };
+    });
+  if (!listed.length) {
+    let single = e.HARMONIQ_ENCRYPTION_KEY;
+    if (!single) {
+      if (isProduction) {
+        throw new ConfigError(
+          'HARMONIQ_ENCRYPTION_KEY must be set in production (32 random bytes, base64-encoded)'
+        );
+      }
+      single = DEV_ENCRYPTION_KEY;
     }
-    encryptionKeyB64 = DEV_ENCRYPTION_KEY;
+    listed.push({ label: 'default', b64: single });
+  } else if (e.HARMONIQ_ENCRYPTION_KEY) {
+    // Values sealed with the single key keep opening after the switch to a list.
+    listed.push({ label: 'previous', b64: e.HARMONIQ_ENCRYPTION_KEY });
   }
-  const encryptionKey = Buffer.from(encryptionKeyB64, 'base64');
-  if (encryptionKey.length !== 32) {
-    throw new ConfigError('HARMONIQ_ENCRYPTION_KEY must decode to exactly 32 bytes');
+  const ring = new Map<string, { key: Buffer; label: string }>();
+  for (const { label, b64 } of listed) {
+    const key = Buffer.from(b64, 'base64');
+    if (key.length !== 32) {
+      throw new ConfigError(`Encryption key "${label}" must decode to exactly 32 bytes`);
+    }
+    if (!ring.has(keyId(key))) ring.set(keyId(key), { key, label });
   }
+  const encryptionKey = [...ring.values()][0].key;
+  registerKeyring({ active: encryptionKey, keys: ring });
 
   const devLoginFlag = e.HARMONIQ_DEV_LOGIN === '1' || e.HARMONIQ_DEV_LOGIN === 'true';
   const authMethods = parseAuthMethods(e.HARMONIQ_AUTH_METHODS, devLoginFlag);
@@ -293,11 +434,28 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     port: e.PORT,
     jwtSecret,
     encryptionKey,
+    adminRequireMfa:
+      e.HARMONIQ_ADMIN_REQUIRE_MFA === undefined
+        ? isProduction
+        : e.HARMONIQ_ADMIN_REQUIRE_MFA === '1' || e.HARMONIQ_ADMIN_REQUIRE_MFA === 'true',
+    adminIpAllowlist: (e.HARMONIQ_ADMIN_IP_ALLOWLIST ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean),
     webOrigin: e.WEB_ORIGIN,
     cacheAdapter,
     redisUrl: e.REDIS_URL,
     setupToken: e.HARMONIQ_SETUP_TOKEN,
+    metrics: {
+      token: e.HARMONIQ_METRICS_TOKEN,
+      tenantLabels:
+        e.HARMONIQ_METRICS_TENANT_LABELS === '1' || e.HARMONIQ_METRICS_TENANT_LABELS === 'true',
+      port: e.HARMONIQ_METRICS_PORT,
+    },
     gcKeepVersions: e.HARMONIQ_GC_KEEP_VERSIONS,
+    domainGraceDays: e.HARMONIQ_DOMAIN_GRACE_DAYS,
+    auditRetentionDays: e.HARMONIQ_AUDIT_RETENTION_DAYS,
+    tenantRestoreDays: e.HARMONIQ_TENANT_RESTORE_DAYS,
     github:
       e.GITHUB_CLIENT_ID && e.GITHUB_CLIENT_SECRET
         ? { clientId: e.GITHUB_CLIENT_ID, clientSecret: e.GITHUB_CLIENT_SECRET }
@@ -319,6 +477,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     plans: {
       enforced: e.HARMONIQ_PLAN_ENFORCEMENT === '1' || e.HARMONIQ_PLAN_ENFORCEMENT === 'true',
       features: planFeatures(e.HARMONIQ_PLAN_FEATURES),
+      limits: planLimits(e.HARMONIQ_PLAN_LIMITS),
+    },
+    apiRateLimits: {
+      hobby: e.HARMONIQ_API_RATE_LIMIT,
+      startup: e.HARMONIQ_API_RATE_LIMIT_STARTUP,
+      enterprise: e.HARMONIQ_API_RATE_LIMIT_ENTERPRISE,
+    },
+    deployRateLimits: {
+      hobby: e.HARMONIQ_DEPLOY_RATE_LIMIT,
+      startup: e.HARMONIQ_DEPLOY_RATE_LIMIT_STARTUP,
+      enterprise: e.HARMONIQ_DEPLOY_RATE_LIMIT_ENTERPRISE,
+    },
+    healthRateLimits: {
+      hobby: e.HARMONIQ_HEALTH_RATE_LIMIT,
+      startup: e.HARMONIQ_HEALTH_RATE_LIMIT_STARTUP,
+      enterprise: e.HARMONIQ_HEALTH_RATE_LIMIT_ENTERPRISE,
     },
     oidc:
       e.OIDC_ISSUER && e.OIDC_CLIENT_ID && e.OIDC_CLIENT_SECRET

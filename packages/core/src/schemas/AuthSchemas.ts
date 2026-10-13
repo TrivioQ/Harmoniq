@@ -47,6 +47,37 @@ export const SessionResponseSchema = z.object({
 });
 export type SessionResponse = z.infer<typeof SessionResponseSchema>;
 
+/**
+ * SES-03: a sign-in by a user with MFA, without SSO, answers with a challenge instead of a
+ * session; `POST /api/auth/mfa/verify` with it and a code gives the session.
+ */
+export const MfaChallengeResponseSchema = z.object({
+  mfaRequired: z.literal(true),
+  challenge: z.string(),
+  expiresAt: z.string().datetime(),
+});
+export type MfaChallengeResponse = z.infer<typeof MfaChallengeResponseSchema>;
+export type SignInResponse = SessionResponse | MfaChallengeResponse;
+
+export const MfaVerifyRequestSchema = z.object({
+  challenge: z.string().min(1).max(2000),
+  /** A 6-digit code from the authenticator app, or a recovery code. */
+  code: z.string().trim().min(6).max(32),
+});
+
+/** SES-02: one signed-in session (a refresh-token family). */
+export interface SessionSummary {
+  id: string;
+  provider: string | null;
+  createdAt: string;
+  lastActiveAt: string;
+  expiresAt: string;
+  ip: string | null;
+  userAgent: string | null;
+  mfa: boolean;
+  current: boolean;
+}
+
 export const AuthProviderSummarySchema = z.object({
   id: z.string(),
   kind: z.enum(['redirect', 'token', 'email', 'dev']),
@@ -69,9 +100,24 @@ export const MeResponseSchema = z.object({
   ),
   organizations: z
     .array(
-      z.object({ slug: z.string(), name: z.string(), role: z.enum(['org_admin', 'org_member']) })
+      z.object({
+        slug: z.string(),
+        name: z.string(),
+        role: z.enum(['org_admin', 'org_member', 'org_billing', 'org_auditor']),
+      })
     )
     .default([]),
+  /** TLC-02: deleted workspaces you own, restorable until `purgeAfter`. */
+  deletedWorkspaces: z
+    .array(z.object({ slug: z.string(), name: z.string(), purgeAfter: z.string().nullable() }))
+    .default([]),
+  /** INST-31: an instance admin's role and what it may do (absent for everyone else). */
+  instanceAdmin: z
+    .object({
+      role: z.enum(['instance_owner', 'instance_operator', 'instance_support', 'instance_billing']),
+      capabilities: z.array(z.string()),
+    })
+    .optional(),
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
 

@@ -1,6 +1,7 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { activeGrantsOn } from '../services/supportGrants';
 import { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { Prisma } from '@prisma/client';
 import type { Environment } from '@prisma/client';
@@ -25,7 +26,10 @@ import {
   FreezeRequestSchema,
 } from '@harmoniq/core/dist/schemas/RollbackRequestSchema';
 import { audit } from '../services/audit';
+import { assertRetention, orgPolicyFor } from '../services/policy';
 import { createWorkspace } from '../services/workspaces';
+import { assertMayCreateTenant } from '../services/tenancyPolicy';
+import { restoreWorkspace, softDeleteWorkspace } from '../services/tenantLifecycle';
 import { ssoScope } from '../plugins/authenticate';
 import { isFrozen } from '../services/manifestMutation';
 import { publishedPaths } from '../services/manifestPublisher';
@@ -37,6 +41,7 @@ type EnvParams = WsParams & { hostAppSlug: string; envSlug: string };
 const titleCase = (slug: string) => slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ');
 
 const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
+  // eslint-disable-next-line no-restricted-syntax -- MT-09: creates new tenants (POST /api/workspaces)
   const { systemDb, withTenant, webhooks, publisher } = fastify.container;
   const actor = (request: FastifyRequest) => ({ principal: request.principal!, ip: request.ip });
 
@@ -52,9 +57,11 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
       );
     }
     const body = CreateWorkspaceSchema.parse(request.body);
+    await assertMayCreateTenant(fastify.container, principal, 'workspace');
     const workspace = await createWorkspace(
+      // eslint-disable-next-line no-restricted-syntax -- MT-09: creates a new tenant
       systemDb,
-      body,
+      { ...body, retentionDays: fastify.container.settings.gc().defaultRetentionDays },
       { userId: principal.id, ip: request.ip },
       fastify.container.cache
     );
@@ -67,7 +74,7 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     async (request) => {
       const workspace = request.workspace!;
       const publishTarget = await publisher.targetFor(workspace.id);
-      const plan = await fastify.container.plans.planOf({ id: workspace.id });
+      const entitlements = await fastify.container.plans.forWorkspace({ id: workspace.id });
       const hostApps = await withTenant(workspace.id, (tx) =>
         tx.hostApp.findMany({
           orderBy: [{ isDefault: 'desc' }, { slug: 'asc' }],
@@ -86,9 +93,21 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
         suspendedAt: workspace.suspendedAt,
         suspendedReason: workspace.suspendedReason,
         // PLN-01..03: what the workspace's plan allows (everything when not enforced).
-        plan,
-        features: fastify.container.plans.features(plan),
+        plan: entitlements.plan,
+        features: entitlements.features,
+        // PLN-04: quotas (null: unlimited).
+        limits: entitlements.limits,
         role: request.workspaceRole ?? null,
+        // TLC-05: org admins may manage owners even when they aren't owners themselves.
+        viaOrgAdmin: request.viaOrgAdmin ?? false,
+        // INST-20: an instance admin reading through their support grant (read-only).
+        support: !!request.supportGrant,
+        // INST-20: instance admins with support access right now (on it or its org).
+        // eslint-disable-next-line no-restricted-syntax -- MT-09: grants are instance rows
+        supportAccess: await activeGrantsOn(fastify.container.systemDb, {
+          workspaceId: workspace.id,
+          organizationId: workspace.organizationId,
+        }),
         hostApps: hostApps.map((h) => ({
           slug: h.slug,
           name: h.name,
@@ -136,6 +155,76 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  /**
+   * TLC-01/02: an owner deletes the workspace (`?confirm=<slug>`). It can be restored by an
+   * owner or an org admin for HARMONIQ_TENANT_RESTORE_DAYS, then it is purged.
+   */
+  fastify.delete<{ Params: WsParams; Querystring: { confirm?: string } }>(
+    '/api/workspaces/:workspaceSlug',
+    { preHandler: fastify.requireWorkspace('workspace:owner') },
+    async (request, reply) => {
+      const workspace = request.workspace!;
+      if (request.principal!.type !== 'user') {
+        throw new ForbiddenError(
+          'Workspaces are deleted by people (or with an org key through the organization)'
+        );
+      }
+      if (request.query.confirm !== workspace.slug) {
+        throw new BadRequestError('Confirm the deletion with ?confirm=<workspace slug>');
+      }
+      // Recorded first: the workspace's own log is where its owners look.
+      await withTenant(workspace.id, (tx) =>
+        audit(
+          tx,
+          workspace.id,
+          { principal: request.principal!, ip: request.ip },
+          {
+            action: 'workspace.delete',
+            resourceType: 'workspace',
+            resourceId: workspace.id,
+            metadata: { restoreDays: fastify.config.tenantRestoreDays },
+          }
+        )
+      );
+      await softDeleteWorkspace(
+        fastify.container,
+        workspace,
+        { type: 'user', id: request.principal!.id },
+        fastify.config.tenantRestoreDays
+      );
+      return reply.code(204).send();
+    }
+  );
+
+  /** TLC-02: undoes a deletion before the purge (owners and org admins). */
+  fastify.post<{ Params: WsParams }>(
+    '/api/workspaces/:workspaceSlug/restore',
+    { preHandler: fastify.requireWorkspace('workspace:admin', { allowDeleted: true }) },
+    async (request) => {
+      const workspace = request.workspace!;
+      if (request.workspaceRole !== 'owner' && !request.viaOrgAdmin) {
+        throw new ForbiddenError('Only owners and organization admins can restore a workspace');
+      }
+      if (!workspace.deletedAt) throw new ConflictError('The workspace is not deleted');
+      await restoreWorkspace(fastify.container, workspace);
+      await withTenant(workspace.id, (tx) =>
+        audit(
+          tx,
+          workspace.id,
+          { principal: request.principal!, ip: request.ip },
+          { action: 'workspace.restore', resourceType: 'workspace', resourceId: workspace.id }
+        )
+      );
+      if (workspace.organizationId) {
+        await fastify.container.orgEvents.emit(workspace.organizationId, 'org.workspace.restored', {
+          workspace: workspace.slug,
+          workspaceId: workspace.id,
+        });
+      }
+      return { slug: workspace.slug, deletedAt: null };
+    }
+  );
+
   fastify.patch<{ Params: WsParams }>(
     '/api/workspaces/:workspaceSlug',
     { preHandler: fastify.requireWorkspace('workspace:admin') },
@@ -143,6 +232,9 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
       const body = UpdateWorkspaceSchema.parse(request.body);
       const workspace = request.workspace!;
       const updated = await withTenant(workspace.id, async (tx) => {
+        if (body.retentionDays !== undefined) {
+          assertRetention(await orgPolicyFor(tx, workspace.organizationId), body.retentionDays);
+        }
         const ws = await tx.workspace.update({ where: { id: workspace.id }, data: body });
         await audit(tx, workspace.id, actor(request), {
           action: 'workspace.update',
@@ -271,6 +363,11 @@ const hostAppRoutes: FastifyPluginAsync = async (fastify) => {
           where: { hostAppId_slug: { hostAppId: hostApp.id, slug: body.slug } },
         });
         if (exists) throw new ConflictError(`Environment "${body.slug}" already exists`);
+        // PLN-04 (preview environments, which expire, don't count against it).
+        await fastify.container.quotas.require(
+          { workspaceId: workspace.id, hostAppId: hostApp.id },
+          'environmentsPerHostApp'
+        );
         const created = await tx.environment.create({
           data: { hostAppId: hostApp.id, name: body.name, slug: body.slug },
         });

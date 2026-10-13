@@ -12,7 +12,8 @@ const input = 'block w-full rounded-md border px-3 py-1.5 text-sm';
 /** INST-13: sign-in methods for the whole instance. */
 export default async function AdminAuthPage() {
   const t = await getTranslations('AdminSettings');
-  const { auth } = await adminApi.settings();
+  const { auth, tenancy } = await adminApi.settings();
+  const creation = tenancy?.value.creation ?? 'anyone';
   const v = auth.value;
   const locked = new Set<string>(auth.locked ?? []);
   // A locked switch is disabled, so the form posts it as off, as the registry requires.
@@ -70,6 +71,66 @@ export default async function AdminAuthPage() {
           </fieldset>
           {toggle('oidc', t('authOidc'), v.oidc?.enabled)}
           {toggle('saml', t('authSaml'), v.saml?.enabled)}
+          {/* SES-01: organizations can only shorten these (POL-07). */}
+          <fieldset className="grid gap-3 sm:grid-cols-2 border rounded-md p-3">
+            <legend className="text-sm font-medium px-1">{t('sessionLegend')}</legend>
+            <label className="text-sm space-y-1 block">
+              <span>{t('sessionMaxDays')}</span>
+              <input
+                name="sessionMaxDays"
+                type="number"
+                min={1}
+                max={365}
+                defaultValue={v.session?.maxDays ?? 30}
+                className={input}
+              />
+            </label>
+            <label className="text-sm space-y-1 block">
+              <span>{t('sessionIdleMinutes')}</span>
+              <input
+                name="sessionIdleMinutes"
+                type="number"
+                min={5}
+                max={129600}
+                defaultValue={v.session?.idleMinutes ?? ''}
+                placeholder={t('noIdleLimit')}
+                className={input}
+              />
+            </label>
+          </fieldset>
+        </ActionForm>
+      </section>
+
+      {/* TLC-08: who may create organizations and standalone workspaces. */}
+      <h2 className="text-lg font-semibold text-gray-900">{t('tenancyTitle')}</h2>
+      <p className="text-sm text-gray-600">{t('tenancyDescription')}</p>
+      {tenancy && <SettingSource settingKey="tenancy" source={tenancy.source} />}
+      <section className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+        <ActionForm
+          action={saveSettingAction.bind(null, 'tenancy')}
+          submitLabel={t('save')}
+          className="space-y-3"
+        >
+          {(['anyone', 'verified_domains', 'instance_admins'] as const).map((value) => (
+            <label key={value} className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="creation"
+                value={value}
+                defaultChecked={creation === value}
+              />
+              {t(`tenancy_${value}`)}
+            </label>
+          ))}
+          <label className="text-sm space-y-1 block">
+            <span>{t('tenancyAllowedDomains')}</span>
+            <input
+              name="allowedDomains"
+              defaultValue={(tenancy?.value.allowedDomains ?? []).join(', ')}
+              placeholder="acme.com, acme.co.uk"
+              className={input}
+            />
+          </label>
         </ActionForm>
       </section>
     </div>

@@ -4,9 +4,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import type { ActionResult } from '@/lib/actionResult';
 import { RegistryError, authedFetch } from '@/lib/registry';
+import type { SettingKey } from '@/lib/adminApi';
 
 // INST-07..10: every change goes through the registry's admin API, which checks the
 // instance admin and records it (INST-18).
@@ -27,6 +29,8 @@ async function run(
     return {
       status: 'error',
       message: err instanceof RegistryError ? err.message : t('unexpectedError'),
+      // INST-32: ActionForm then asks for a code and the action is submitted again.
+      ...(err instanceof RegistryError && err.code === 'REAUTH_REQUIRED' && { reauth: true }),
     };
   }
 }
@@ -49,6 +53,45 @@ export async function unsuspendWorkspaceAction(slug: string, _prev: ActionResult
   return run(
     () => authedFetch(`/api/admin/workspaces/${enc(slug)}/unsuspend`, { method: 'POST' }),
     (t) => ({ status: 'success', message: t('workspaceUnsuspended') })
+  );
+}
+
+/** TLC-02: undoes a deletion before the purge. */
+export async function restoreWorkspaceAction(slug: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/workspaces/${enc(slug)}/restore`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('workspaceRestored', { workspace: slug }) })
+  );
+}
+
+/** TLC-04: every workspace of the organization becomes read-only. */
+export async function suspendOrgAction(
+  slug: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const reason = field(form, 'reason');
+  return run(
+    () =>
+      authedFetch(`/api/admin/orgs/${enc(slug)}/suspend`, {
+        body: reason ? { reason } : {},
+      }),
+    (t) => ({ status: 'success', message: t('orgSuspended') })
+  );
+}
+
+export async function unsuspendOrgAction(slug: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/orgs/${enc(slug)}/unsuspend`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('orgUnsuspended') })
+  );
+}
+
+/** TLC-02: an organization its admins deleted, back before the purge. */
+export async function restoreOrgAction(slug: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/orgs/${enc(slug)}/restore`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('orgRestored') })
   );
 }
 
@@ -76,6 +119,32 @@ export async function revokeSessionsAction(userId: string, _prev: ActionResult) 
   );
 }
 
+/** SES-04 */
+export async function suspendUserAction(userId: string, _prev: ActionResult, form: FormData) {
+  return run(
+    () =>
+      authedFetch(`/api/admin/users/${enc(userId)}/suspend`, {
+        body: { reason: field(form, 'reason') || undefined },
+      }),
+    (t) => ({ status: 'success', message: t('userSuspended') })
+  );
+}
+
+export async function unsuspendUserAction(userId: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/users/${enc(userId)}/unsuspend`, { method: 'POST', body: {} }),
+    (t) => ({ status: 'success', message: t('userUnsuspended') })
+  );
+}
+
+/** SES-03: a lost device and lost recovery codes. */
+export async function resetMfaAction(userId: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/users/${enc(userId)}/mfa`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('mfaReset') })
+  );
+}
+
 export async function deleteUserAction(
   userId: string,
   _prev: ActionResult,
@@ -90,10 +159,88 @@ export async function deleteUserAction(
   );
 }
 
+/** INST-31: grants a role, or invites an email that hasn't signed in yet. */
 export async function grantAdminAction(_prev: ActionResult, form: FormData) {
   return run(
-    () => authedFetch('/api/admin/admins', { body: { email: field(form, 'email') } }),
-    (t) => ({ status: 'success', message: t('adminGranted') })
+    () =>
+      authedFetch<{ invited?: boolean }>('/api/admin/admins', {
+        body: { email: field(form, 'email'), role: field(form, 'role') || 'instance_owner' },
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: (r as { invited?: boolean }).invited ? t('adminInvited') : t('adminGranted'),
+    })
+  );
+}
+
+export async function changeAdminRoleAction(
+  userId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(`/api/admin/admins/${enc(userId)}`, {
+        method: 'PATCH',
+        body: { role: field(form, 'role') },
+      }),
+    (t) => ({ status: 'success', message: t('adminRoleChanged') })
+  );
+}
+
+export async function revokeAdminInvitationAction(id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/admin-invitations/${enc(id)}`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('invitationRevoked') })
+  );
+}
+
+// ─── Instance API keys (INST-33) ─────────────────────────────────────────────
+
+export async function createInstanceKeyAction(
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const expires = field(form, 'expiresAt');
+  return run(
+    () =>
+      authedFetch<{ key: string }>('/api/admin/api-keys', {
+        body: {
+          name: field(form, 'name'),
+          scopes: [field(form, 'scope') === 'instance:admin' ? 'instance:admin' : 'instance:read'],
+          ...(expires && { expiresAt: new Date(`${expires}T23:59:59.999Z`).toISOString() }),
+        },
+      }),
+    (t, r) => ({
+      status: 'success',
+      message: t('instanceKeyCreated'),
+      secret: (r as { key: string }).key,
+    })
+  );
+}
+
+export async function revokeInstanceKeyAction(id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/api-keys/${enc(id)}`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('keyRevoked') })
+  );
+}
+
+// ─── Encryption (INST-26) ────────────────────────────────────────────────────
+
+export async function resealAction(_prev: ActionResult) {
+  return run(
+    () =>
+      authedFetch<{ queued: boolean; resealed?: number }>('/api/admin/encryption/reseal', {
+        method: 'POST',
+      }),
+    (t, r) => {
+      const result = r as { queued: boolean; resealed?: number };
+      return {
+        status: 'success',
+        message: result.queued ? t('resealQueued') : t('resealed', { count: result.resealed ?? 0 }),
+      };
+    }
   );
 }
 
@@ -106,12 +253,12 @@ export async function revokeAdminAction(userId: string, _prev: ActionResult) {
 
 // ─── Instance settings (INST-11..14) ─────────────────────────────────────────
 
-type SettingKey = 'storage' | 'email' | 'auth' | 'branding';
+type FormSettingKey = 'storage' | 'email' | 'auth' | 'branding' | 'tenancy';
 const optional = (form: FormData, name: string) => field(form, name) || undefined;
 const checked = (form: FormData, name: string) => form.get(name) === 'on';
 
 /** The setting's body from its form; empty secrets keep the stored ones. */
-function settingBody(key: SettingKey, form: FormData) {
+function settingBody(key: FormSettingKey, form: FormData) {
   switch (key) {
     case 'storage': {
       const adapter = field(form, 'adapter');
@@ -165,6 +312,21 @@ function settingBody(key: SettingKey, form: FormData) {
         },
         oidc: { enabled: checked(form, 'oidc') },
         saml: { enabled: checked(form, 'saml') },
+        // SES-01: blank idle timeout means none.
+        session: {
+          maxDays: Number(field(form, 'sessionMaxDays') || 30),
+          idleMinutes: field(form, 'sessionIdleMinutes')
+            ? Number(field(form, 'sessionIdleMinutes'))
+            : null,
+        },
+      };
+    case 'tenancy':
+      return {
+        creation: field(form, 'creation') || 'anyone',
+        allowedDomains: field(form, 'allowedDomains')
+          .split(/[\s,]+/)
+          .map((d) => d.trim())
+          .filter(Boolean),
       };
     case 'branding':
       return {
@@ -177,14 +339,26 @@ function settingBody(key: SettingKey, form: FormData) {
 }
 
 export async function saveSettingAction(
-  key: SettingKey,
+  key: FormSettingKey,
   _prev: ActionResult,
   form: FormData
 ): Promise<ActionResult> {
   return run(
     () =>
-      authedFetch(`/api/admin/settings/${key}`, { method: 'PUT', body: settingBody(key, form) }),
-    (t) => ({ status: 'success', message: t('settingSaved') })
+      authedFetch<{ adminsLockedOut?: string[] }>(`/api/admin/settings/${key}`, {
+        method: 'PUT',
+        body: settingBody(key, form),
+      }),
+    (t, r) => {
+      // INST-23: saved, but these admins have no sign-in method left.
+      const lockedOut = (r as { adminsLockedOut?: string[] }).adminsLockedOut;
+      return {
+        status: 'success',
+        message: lockedOut?.length
+          ? t('settingSavedAdminsLockedOut', { admins: lockedOut.join(', ') })
+          : t('settingSaved'),
+      };
+    }
   );
 }
 
@@ -192,6 +366,64 @@ export async function resetSettingAction(key: SettingKey, _prev: ActionResult) {
   return run(
     () => authedFetch(`/api/admin/settings/${key}`, { method: 'DELETE' }),
     (t) => ({ status: 'success', message: t('settingReset') })
+  );
+}
+
+/** INST-34: settings edited as JSON (plans, rate limits, GC, bundles). */
+export async function saveSettingJsonAction(
+  key: SettingKey,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  let value: unknown;
+  try {
+    value = JSON.parse(field(form, 'value') || '{}');
+  } catch {
+    const t = await getTranslations('Actions');
+    return { status: 'error', message: t('settingNotJson') };
+  }
+  return run(
+    () => authedFetch(`/api/admin/settings/${key}`, { method: 'PUT', body: value }),
+    (t) => ({ status: 'success', message: t('settingSaved') })
+  );
+}
+
+/** INST-35: a saved version becomes the current value (recorded as a new version). */
+export async function restoreSettingVersionAction(
+  key: SettingKey,
+  version: number,
+  _prev: ActionResult
+) {
+  return run(
+    () => authedFetch(`/api/admin/settings/${key}/history/${version}/restore`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('settingRestored', { version }) })
+  );
+}
+
+/** INST-35: an export, checked first (dry run); applied when `apply` is ticked. */
+export async function importSettingsAction(
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const apply = checked(form, 'apply');
+  return run(
+    () =>
+      authedFetch<{ settings: Array<{ key: string; changed: string[] }> }>(
+        '/api/admin/settings/import',
+        { method: 'PUT', body: { yaml: String(form.get('yaml') ?? ''), dryRun: !apply } }
+      ),
+    (t, r) => {
+      const changes = (r as { settings: Array<{ key: string; changed: string[] }> }).settings
+        .filter((s) => s.changed.length)
+        .map((s) => `${s.key}: ${s.changed.join(', ')}`);
+      if (!changes.length) return { status: 'success', message: t('importNoChanges') };
+      return {
+        status: 'success',
+        message: apply
+          ? t('importApplied', { changes: changes.join('; ') })
+          : t('importPreview', { changes: changes.join('; ') }),
+      };
+    }
   );
 }
 
@@ -232,8 +464,201 @@ export async function setPlanAction(
     target.kind === 'workspace'
       ? `/api/admin/workspaces/${enc(target.slug)}/plan`
       : `/api/admin/orgs/${enc(target.slug)}/plan`;
+  // PLN-06: a trial ends at the end of the chosen day (UTC); empty overrides clear them.
+  const expires = field(form, 'expiresAt');
+  const rawOverrides = field(form, 'overrides');
+  let overrides: unknown = null;
+  if (rawOverrides) {
+    try {
+      overrides = JSON.parse(rawOverrides);
+    } catch {
+      const t = await getTranslations('Actions');
+      return { status: 'error', message: t('overridesNotJson') };
+    }
+  }
+  const body = {
+    plan: field(form, 'plan'),
+    expiresAt: expires ? new Date(`${expires}T23:59:59.999Z`).toISOString() : null,
+    ...(field(form, 'basePlan') && { basePlan: field(form, 'basePlan') }),
+    overrides,
+  };
   return run(
-    () => authedFetch(path, { method: 'PUT', body: { plan: field(form, 'plan') } }),
+    () => authedFetch(path, { method: 'PUT', body }),
     (t) => ({ status: 'success', message: t('planSet') })
+  );
+}
+
+// ─── Phase 9.10: operations (INST-22, 28, 37, 38) ────────────────────────────
+
+/** A `datetime-local` value, read as UTC (the forms say so). */
+const utc = (form: FormData, name: string) => {
+  const v = field(form, name);
+  return v ? new Date(`${v}:00Z`).toISOString() : undefined;
+};
+
+export async function retryJobAction(id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/jobs/${enc(id)}/retry`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('jobRetried') })
+  );
+}
+
+export async function runJobAction(queue: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/jobs/${enc(queue)}/run`, { method: 'POST' }),
+    (t) => ({ status: 'success', message: t('jobStarted', { queue }) })
+  );
+}
+
+export async function saveAnnouncementAction(
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch('/api/admin/settings/announcement', {
+        method: 'PUT',
+        body: {
+          message: field(form, 'message'),
+          level: field(form, 'level') || 'info',
+          startsAt: utc(form, 'startsAt'),
+          endsAt: utc(form, 'endsAt'),
+        },
+      }),
+    (t) => ({ status: 'success', message: t('settingSaved') })
+  );
+}
+
+export async function saveMaintenanceAction(
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch('/api/admin/settings/maintenance', {
+        method: 'PUT',
+        body: {
+          from: utc(form, 'from'),
+          until: utc(form, 'until'),
+          message: optional(form, 'message'),
+        },
+      }),
+    (t) => ({ status: 'success', message: t('maintenanceSaved') })
+  );
+}
+
+export async function saveEmailTemplatesAction(
+  templates: readonly string[],
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const body = Object.fromEntries(
+    templates.flatMap((name) => {
+      const subject = optional(form, `${name}.subject`);
+      const intro = optional(form, `${name}.intro`);
+      return subject || intro ? [[name, { subject, intro }]] : [];
+    })
+  );
+  return run(
+    () => authedFetch('/api/admin/settings/emailTemplates', { method: 'PUT', body }),
+    (t) => ({ status: 'success', message: t('settingSaved') })
+  );
+}
+
+// ─── Tenants and users (INST-19, 20, 29, 30) ─────────────────────────────────
+
+/** INST-20: read-only access to a workspace or organization, for 1–4 hours. */
+export async function openSupportGrantAction(
+  target: { kind: 'workspace' | 'organization'; slug: string },
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch('/api/admin/support-grants', {
+        body: {
+          [target.kind]: target.slug,
+          reason: field(form, 'reason'),
+          hours: Number(field(form, 'hours') || 1),
+        },
+      }),
+    (t) => ({ status: 'success', message: t('supportGranted') })
+  );
+}
+
+export async function endSupportGrantAction(id: string, _prev: ActionResult) {
+  return run(
+    () => authedFetch(`/api/admin/support-grants/${enc(id)}`, { method: 'DELETE' }),
+    (t) => ({ status: 'success', message: t('supportEnded') })
+  );
+}
+
+export async function endUserSessionAction(userId: string, sessionId: string, _prev: ActionResult) {
+  return run(
+    () =>
+      authedFetch(`/api/admin/users/${enc(userId)}/sessions/${enc(sessionId)}`, {
+        method: 'DELETE',
+      }),
+    (t) => ({ status: 'success', message: t('sessionEnded') })
+  );
+}
+
+export async function changeUserEmailAction(
+  userId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(`/api/admin/users/${enc(userId)}/email`, {
+        body: { email: field(form, 'email') },
+      }),
+    (t) => ({ status: 'success', message: t('emailChangeSent', { email: field(form, 'email') }) })
+  );
+}
+
+/** INST-30: this account goes into the one with `into` (an email); then to that one. */
+export async function mergeUserAction(
+  userId: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const t = await getTranslations('Actions');
+  const email = field(form, 'into').toLowerCase();
+  const found = await authedFetch<{ users: Array<{ id: string; email: string }> }>(
+    `/api/admin/users?query=${enc(email)}`
+  ).catch(() => ({ users: [] }));
+  const target = found.users.find((u) => u.email.toLowerCase() === email);
+  if (!target) return { status: 'error', message: t('mergeTargetNotFound', { email }) };
+  const result = await run(
+    () => authedFetch(`/api/admin/users/${enc(userId)}/merge`, { body: { into: target.id } }),
+    (tr) => ({ status: 'success', message: tr('usersMerged') })
+  );
+  if (result.status === 'success') redirect(`/admin/users/${target.id}`);
+  return result;
+}
+
+/** Deletion from a detail page: back to the list afterwards. */
+export async function deleteUserAndReturnAction(
+  userId: string,
+  prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  const result = await deleteUserAction(userId, prev, form);
+  if (result.status === 'success') redirect('/admin/users');
+  return result;
+}
+
+export async function deleteOrgAction(
+  slug: string,
+  _prev: ActionResult,
+  form: FormData
+): Promise<ActionResult> {
+  return run(
+    () =>
+      authedFetch(`/api/admin/orgs/${enc(slug)}?confirm=${enc(field(form, 'confirm'))}`, {
+        method: 'DELETE',
+      }),
+    (t) => ({ status: 'success', message: t('orgDeleted') })
   );
 }

@@ -47,3 +47,29 @@ export function withTenant<T>(
     return fn(tx);
   }, options);
 }
+
+/**
+ * MT-07/08 (ADR-010): runs `fn` in a transaction scoped to one organization. Queries see
+ * the organization's own rows (members, keys, audit, SCIM, domains) and the rows of its
+ * workspaces, nothing of other organizations or standalone workspaces (enforced by RLS).
+ * The workspace list is resolved inside the transaction, so it is consistent with it.
+ * Deleted workspaces (TLC-02) are left out: their data is not part of the organization's
+ * views while they wait for a restore or the purge.
+ */
+export function withOrg<T>(
+  client: PrismaClient,
+  organizationId: string,
+  fn: (tx: TenantTx) => Promise<T>,
+  options?: { timeout?: number; maxWait?: number }
+): Promise<T> {
+  return client.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_org_id', ${organizationId}, true)`;
+    // The "Workspace" policy admits the organization's workspaces by `organizationId`.
+    await tx.$executeRaw`SELECT set_config(
+      'app.current_org_workspace_ids',
+      coalesce((SELECT string_agg("id", ',') FROM "Workspace"
+                  WHERE "organizationId" = ${organizationId} AND "deletedAt" IS NULL), ''),
+      true)`;
+    return fn(tx);
+  }, options);
+}

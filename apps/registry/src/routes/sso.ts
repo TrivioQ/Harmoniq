@@ -13,6 +13,8 @@ import {
   disabledProtocol as disabled,
   workspaceProviderId,
 } from '../services/sso';
+import { PolicyViolationError } from '@harmoniq/core/dist/errors/AppError';
+import { orgPolicyFor } from '../services/policy';
 
 // SSO-03: a workspace's OIDC settings (admins). The client secret is write-only and
 // stored sealed (AES-256-GCM).
@@ -49,6 +51,14 @@ const ssoRoutes: FastifyPluginAsync = async (fastify) => {
       if (!fastify.ssoProviders.protocolEnabled('oidc')) throw disabled('oidc');
       const body = OidcConfigSchema.parse(request.body);
       const workspace = request.workspace!;
+      // POL-06: a locked organization's workspaces use the organization's SSO only.
+      await withTenant(workspace.id, async (tx) => {
+        if ((await orgPolicyFor(tx, workspace.organizationId))?.lockSso) {
+          throw new PolicyViolationError(
+            "The organization locks single sign-on: its workspaces use the organization's"
+          );
+        }
+      });
       const current = await withTenant(workspace.id, (tx) =>
         tx.workspaceConfig.findUnique({ where: { workspaceId: workspace.id } })
       );

@@ -1,6 +1,8 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+/* eslint-disable no-restricted-syntax -- MT-09: SCIM authenticates by token, which resolves the tenant; users and sessions are system tables. Tenant data runs in withTenant / withOrg */
+
 import { createHash, randomBytes } from 'crypto';
 import { FastifyError, FastifyInstance, FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { Prisma, PrismaClient, ScimUser } from '@prisma/client';
@@ -109,19 +111,21 @@ function workspaceScim(fastify: FastifyInstance, workspace: { id: string; slug: 
 
 /**
  * ORG-07: an organization's SCIM. Users join the organization; its group rules assign
- * them to workspaces. Spans workspaces, so it runs with the system client.
+ * them to workspaces. Spans the organization's workspaces, so it runs in the organization's
+ * scope (`withOrg`, MT-08); only sessions (system tables) use the system client.
  */
 function orgScim(
   fastify: FastifyInstance,
   org: { id: string; slug: string; provisioning: unknown }
 ) {
-  const { systemDb } = fastify.container;
+  const { systemDb, withOrg } = fastify.container;
   const context: ScimContext = {
     scope: { organizationId: org.id },
     baseUrl: `${fastify.config.publicUrl}/scim/v2/orgs/${encodeURIComponent(org.slug)}`,
     async transaction(fn) {
       const deprovisioned = new Set<string>();
-      const result = await systemDb.$transaction(
+      const result = await withOrg(
+        org.id,
         (tx) =>
           fn(tx, {
             sync: async (user) => {
@@ -161,7 +165,9 @@ function orgScim(
       return result;
     },
     async record(event) {
-      await systemDb.scimAuditEvent.create({ data: { organizationId: org.id, ...event } });
+      await withOrg(org.id, (tx) =>
+        tx.scimAuditEvent.create({ data: { organizationId: org.id, ...event } })
+      );
     },
   };
   return context;

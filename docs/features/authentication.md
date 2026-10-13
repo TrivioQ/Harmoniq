@@ -18,17 +18,18 @@ How people and CI systems prove who they are to Harmoniq. Identity providers onl
 
 ## Requirements
 
-| ID            | Requirement                                      | Status                                                       |
-| ------------- | ------------------------------------------------ | ------------------------------------------------------------ |
-| `SSO-06`      | JIT user provisioning on first sign-in           | ✅ Done                                                      |
-| `SSO-22`      | Pending invitations accepted on sign-in          | ✅ Done (auto-accept)                                        |
-| `INST-01`     | First-boot setup wizard                          | ✅ Done                                                      |
-| `INST-04`     | Setup token single use                           | ✅ Done                                                      |
-| `INST-05/06`  | Admin panel only for instance admins             | ✅ Done                                                      |
-| —             | GitHub OAuth (PKCE, verified primary email only) | ✅ Done                                                      |
-| —             | Passwordless email (magic link + code)           | ✅ Done (M1.3)                                               |
-| `SSO-01`–`08` | OIDC                                             | ✅ Done (M4.4; see [governance](./enterprise-governance.md)) |
-| `SSO-09`–`20` | SAML                                             | ✅ Done (M4.5; see [governance](./enterprise-governance.md)) |
+| ID            | Requirement                                             | Status                                                                 |
+| ------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `SSO-06`      | JIT user provisioning on first sign-in                  | ✅ Done                                                                |
+| `SSO-22`      | Pending invitations accepted on sign-in                 | ✅ Done (auto-accept)                                                  |
+| `INST-01`     | First-boot setup wizard                                 | ✅ Done                                                                |
+| `INST-04`     | Setup token single use                                  | ✅ Done                                                                |
+| `INST-05/06`  | Admin panel only for instance admins                    | ✅ Done                                                                |
+| —             | GitHub OAuth (PKCE, verified primary email only)        | ✅ Done                                                                |
+| —             | Passwordless email (magic link + code)                  | ✅ Done (M1.3)                                                         |
+| `SSO-01`–`08` | OIDC                                                    | ✅ Done (M4.4; see [governance](./enterprise-governance.md))           |
+| `SSO-09`–`20` | SAML                                                    | ✅ Done (M4.5; see [governance](./enterprise-governance.md))           |
+| `SES-01`–`04` | Session limits, session list, TOTP MFA, user suspension | ✅ Done (9.7; see [tenant administration](./tenant-administration.md)) |
 
 See [`docs/requirements.md §5.21`](../requirements.md).
 
@@ -50,6 +51,14 @@ The registry only accepts `redirectUri` values on `WEB_ORIGIN`, so codes cannot 
 
 **Dashboard.** `src/proxy.ts` (Next.js 16 Proxy) does an optimistic JWT check and refreshes expired sessions transparently. It writes the new tokens onto the incoming request so pages and server actions render with them in the same round trip. It never clears cookies when a refresh fails, because a parallel request may have won the rotation race. All data comes from the registry through `src/lib/registry.ts`. Logout is POST-only and same-origin.
 
+**Session limits (SES-01).** The instance setting `auth.session` (`maxDays`, default 30, and `idleMinutes`, default none) bounds every session; organization policy only shortens it for its members. A refresh token expires at the earlier of the session's start plus the maximum and now plus the idle timeout, and each refresh checks both against the current limits.
+
+**Sessions (SES-02).** A session is a refresh-token family. Access tokens carry its id (`sid`), and the registry rejects tokens of an ended session (checked at most every 15 seconds per replica). Users see their sessions (provider, IP, browser, MFA) and end one or all others on `/account`.
+
+**Multi-factor authentication (SES-03).** TOTP (RFC 6238, 30-second steps, one step of drift each way, a used step never accepted again) with ten single-use recovery codes stored as sha256. A sign-in by a user with MFA that doesn't go through tenant SSO returns a 5-minute challenge (a JWT with `aud: harmoniq-mfa`) instead of tokens; the dashboard keeps it in an HttpOnly cookie, shows `/auth/mfa`, and exchanges it with the code at `POST /api/auth/mfa/verify`. Such sessions carry `amr: ["mfa"]`. An organization's `requireMfa` refuses (`403 MFA_REQUIRED`) sessions of its members that signed in without SSO and without a second factor; enrolling upgrades the current session. Instance admins can reset a lost factor.
+
+**Suspension (SES-04).** A suspended user's sign-ins are refused after the identity check, refreshes end the session, access tokens are rejected on their next request, and API keys they created stop (the key cache is cleared on suspend).
+
 **Instance admin.** `/admin/setup` creates the first admin for an email; that person then signs in normally. The admin panel lives under the `(panel)` route group, which requires an instance-admin session (others get 404).
 
 **Dev login.** `HARMONIQ_DEV_LOGIN=1` exposes `POST /api/auth/dev/login` (sign in as any email). The registry refuses to start with it in production.
@@ -63,6 +72,14 @@ YES — see the change history entry below.
 ---
 
 ## Change History
+
+### 2026-10-12 — Session limits, sessions, MFA and suspension (Phase 9.7)
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** SES-01, SES-02, SES-03, SES-04
+
+See the architecture notes above and [tenant administration](./tenant-administration.md). Sign-in responses may now be an MFA challenge: clients of `POST /api/auth/:provider/callback`, `/api/auth/email/verify` and `/api/auth/dev/login` must handle `mfaRequired` (the dashboard does). Tests: `identitySecurity.test.ts`.
 
 ### 2026-10-10 — Sign-in methods controlled by the environment
 

@@ -1,6 +1,7 @@
 // Copyright The Harmoniq Authors
 // SPDX-License-Identifier: Apache-2.0
 
+import { Domains } from '../services/domains';
 import fp from 'fastify-plugin';
 import { FastifyPluginAsync } from 'fastify';
 import { ICache } from '@harmoniq/core/dist/ports/ICache';
@@ -9,7 +10,7 @@ import { PinoLogger } from '../adapters/PinoLogger';
 import { RedisCache } from '../adapters/RedisCache';
 import { InMemoryLRUCache } from '../adapters/InMemoryLRUCache';
 import { PrismaClient } from '@prisma/client';
-import { createDbClients, withTenant, TenantTx } from '@harmoniq/db';
+import { createDbClients, withOrg, withTenant, TenantTx } from '@harmoniq/db';
 import { PgBoss } from 'pg-boss';
 import { WebhookDispatcher, createWebhookDispatcher } from '../services/webhookDispatcher';
 import { OrgSharedModules } from '../services/orgShared';
@@ -21,6 +22,10 @@ import { ConsoleMailer } from '../adapters/mail/ConsoleMailer';
 import { InstanceSettings } from '../services/instanceSettings';
 import { withSpan } from '../services/tracing';
 import { Plans } from '../services/plans';
+import { Quotas } from '../services/quotas';
+import { UsageMeter } from '../services/usage';
+import { OrgEvents } from '../services/orgEvents';
+import { checkPublicUrl, createSafeFetch } from '../services/outbound';
 
 export interface AppContainer {
   cache: ICache;
@@ -31,6 +36,15 @@ export interface AppContainer {
   systemDb: PrismaClient;
   withTenant: <T>(
     workspaceId: string,
+    fn: (tx: TenantTx) => Promise<T>,
+    options?: { timeout?: number }
+  ) => Promise<T>;
+  /**
+   * MT-07/08: a transaction scoped to an organization: its own rows and its workspaces'
+   * (RLS). For organization routes and cross-workspace reads within one organization.
+   */
+  withOrg: <T>(
+    organizationId: string,
     fn: (tx: TenantTx) => Promise<T>,
     options?: { timeout?: number }
   ) => Promise<T>;
@@ -52,6 +66,14 @@ export interface AppContainer {
   publisher: ManifestPublisher;
   /** ORG-10/11: modules shared across an organization's workspaces. */
   orgShared: OrgSharedModules;
+  /** DOM-01..05: domains proven by DNS. */
+  domains: Domains;
+  /** PLN-04/05: usage against plan quotas. */
+  quotas: Quotas;
+  /** USG-01: request counters, flushed to `UsageDaily` every minute. */
+  usage: UsageMeter;
+  /** TAD-09/10: organization events to org webhooks and notification channels. */
+  orgEvents: OrgEvents;
 }
 
 declare module 'fastify' {
@@ -105,6 +127,8 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
 
   const tenant: AppContainer['withTenant'] = (workspaceId, fn, options) =>
     withTenant(db, workspaceId, fn, options);
+  const org: AppContainer['withOrg'] = (organizationId, fn, options) =>
+    withOrg(db, organizationId, fn, options);
   const webhooks = createWebhookDispatcher({ boss, logger, withTenant: tenant });
 
   const settings = new InstanceSettings({
@@ -151,12 +175,43 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
       await publisher.publish(environment.id).catch(() => undefined); // recorded on the environment
     }
   };
-  orgShared = new OrgSharedModules({ systemDb, cache, logger, republish: enqueuePublish });
+  orgShared = new OrgSharedModules({
+    systemDb,
+    withOrg: org,
+    cache,
+    logger,
+    republish: enqueuePublish,
+  });
   // Siblings in the organization see this workspace's shared modules (ORG-11).
   const onCommitted = async (target: MutationTarget) => {
     await enqueuePublish(target.environment.id);
     await orgShared.fanOut(target.workspace.id, target.environment.slug);
   };
+
+  const plans = new Plans({
+    systemDb,
+    config: fastify.config,
+    live: () => ({
+      plans: { ...fastify.config.plans, ...settings.plans() },
+      manifestRateLimits: settings.rateLimits().manifest,
+    }),
+  });
+  // A plan setting changed (here or on another replica): entitlements are recomputed.
+  settings.onChange(() => plans.forget());
+  const usage = new UsageMeter({ systemDb, logger });
+  const orgEvents = new OrgEvents({
+    systemDb,
+    boss,
+    logger,
+    encryptionKey: fastify.config.encryptionKey,
+    mailer: () => settings.mailer(),
+    instanceName: () => settings.branding().name,
+    webOrigin: fastify.config.webOrigin,
+    fetchImpl: createSafeFetch({ allowHttp: !fastify.config.isProduction }),
+    checkUrl: (url) => checkPublicUrl(url, { allowHttp: !fastify.config.isProduction }),
+  });
+
+  usage.start();
 
   fastify.decorate('container', {
     cache,
@@ -164,6 +219,7 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     db,
     systemDb,
     withTenant: tenant,
+    withOrg: org,
     boss,
     webhooks,
     mutations: new ManifestMutations({
@@ -177,7 +233,11 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
     publisher,
     orgShared,
     settings,
-    plans: new Plans({ systemDb, config: fastify.config }),
+    plans,
+    quotas: new Quotas({ systemDb, plans, webhooks, logger, orgEvents }),
+    usage,
+    orgEvents,
+    domains: new Domains({ systemDb, config: fastify.config }),
     get instanceStorage() {
       return settings.storage();
     },
@@ -188,6 +248,7 @@ const containerPlugin: FastifyPluginAsync = async (fastify, _options) => {
 
   fastify.addHook('onClose', async (instance) => {
     instance.container.settings.stop();
+    await instance.container.usage.stop().catch(() => undefined);
     if (instance.container.boss) {
       await instance.container.boss.stop();
     }

@@ -1,6 +1,6 @@
 # Feature: Instance Admin UI & BYOB Storage
 
-> **Requirement IDs:** `INST-01`–`INST-18`, `BYOB-01`–`BYOB-14`  
+> **Requirement IDs:** `INST-01`–`INST-39`, `BYOB-01`–`BYOB-14`  
 > **Status:** `implemented`  
 > **Phase:** Phase 7 (§7.4 + §7.5)
 
@@ -17,13 +17,18 @@ Self-hosted enterprise deployments have two distinct operator roles — the _ser
 
 ## Requirements
 
-| ID                  | Requirement                                                                                                                  | Status                                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `INST-01`–`INST-18` | Instance Admin UI                                                                                                            | ✅ Done (M4.8; see [enterprise governance](./enterprise-governance.md)) |
-| `BYOB-02`–`BYOB-14` | Bring-Your-Own-Bucket Storage: S3 (keys or IAM role, S3-compatible endpoints), GCS, Azure; verification, fail-closed deploys | ✅ Done (M4.9)                                                          |
-| `BYOB-01`           | Plan gating (startup / enterprise only, with plan enforcement)                                                               | ✅ Done (M4.11)                                                         |
+| ID                                                            | Requirement                                                                                                                                                            | Status                                                                           |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `INST-01`–`INST-08`, `INST-10`–`INST-18`                      | Instance Admin UI                                                                                                                                                      | ✅ Done (M4.8; see [enterprise governance](./enterprise-governance.md))          |
+| `INST-09`                                                     | Workspaces list, suspend, unsuspend, delete: done; "storage bytes used" is not reported yet (`USG-02`)                                                                 | 🔄 Partial (rest Phase 9.6, [tenant administration](./tenant-administration.md)) |
+| `BYOB-02`–`BYOB-12`, `BYOB-14`                                | Bring-Your-Own-Bucket Storage: S3 (keys or IAM role, S3-compatible endpoints), GCS, Azure; verification, fail-closed deploys                                           | ✅ Done (M4.9)                                                                   |
+| `BYOB-13`                                                     | Deleting a workspace removes its storage config and the objects in its bucket (bundles, published manifests)                                                           | ✅ Done (Phase 9, best effort; failures counted in the deletion's audit event)   |
+| `BYOB-01`                                                     | Plan gating (startup / enterprise only, with plan enforcement)                                                                                                         | ✅ Done (M4.11)                                                                  |
+| `INST-23`–`INST-25`                                           | Safety: no admin lockout through sign-in settings, recovery CLI, `/metrics` token, separate metrics port, tenant labels opt-in                                         | ✅ Done (Phase 9.1)                                                              |
+| `INST-26`, `INST-31`–`INST-35`                                | Encryption keyring and re-seal, admin roles and invitations, step-up and admin session limits, instance API keys, more runtime settings, settings history and export   | ✅ Done (Phase 9.9)                                                              |
+| `INST-19`–`INST-22`, `INST-27`–`INST-30`, `INST-36`–`INST-39` | Organizations, support access, overview with attention list, system info and jobs, workspace and user detail, audit search, maintenance mode, email log, security page | ✅ Done (Phase 9.10)                                                             |
 
-See [`docs/requirements.md §17`](../requirements.md) and [`§18`](../requirements.md) for the full specification.
+See [`docs/requirements.md §17`](../requirements.md), [`§18`](../requirements.md) and [`§19.9`](../requirements.md) for the full specification, and [the gap analysis §8](../multi-tenancy-gap-analysis.md#8-system-instance-administration) for the review behind the planned items.
 
 ## Architecture Notes
 
@@ -53,6 +58,18 @@ See [`docs/requirements.md §17`](../requirements.md) and [`§18`](../requiremen
 
 See [`docs/database-schema.md`](../database-schema.md) for full schema.
 
+### System administration (Phase 9.1, 9.9, 9.10)
+
+- **No lockout (INST-23/24).** `InstanceSettings.prepare('auth')` checks each active instance admin's `Identity` providers against the methods that would remain enabled. The `harmoniq-admin` CLI runs inside the registry image with `SYSTEM_DATABASE_URL`, which works when no one can sign in. Its commands are the break-glass path, so they write system-actor audit events.
+- **Keyring (INST-26, ADR-013).** Envelopes record `kid`. Values without one belong to the legacy single key, so existing data needs no migration before the first rotation. Re-sealing is a job, not a migration, because it needs the keys, which the migration runner doesn't have.
+- **Capabilities, not role checks (INST-31).** `services/adminAccess.ts` maps each admin write (`METHOD route`) to a capability: `tenants`, `plans`, `sessions`, `users`, `jobs`, or `owner`. Reads need none. A write that isn't listed is owner-only, so a new route is safe by default. Roles are capability sets. Instance API keys use their scope instead (`instance:read` for reads, `instance:admin` for writes). They never manage admins or keys, so automation can't escalate (INST-33).
+- **Step-up (INST-32).** A sign-in, or `POST /api/auth/reauth` with a TOTP or recovery code, stamps `RefreshToken.reauthAt`. Access tokens carry it as `rat`. Destructive routes need it within 10 minutes. A stolen long-lived refresh token can't delete tenants, because refreshing keeps the old stamp.
+- **Settings versions (INST-35).** Each save, restore, import and reset writes an `InstanceConfigVersion` with the stored (sealed) value. History, export and import never show secrets. A restore re-seals the stored value. An import that leaves a secret out keeps the current one.
+- **Operations data (INST-27/28).** Replicas write heartbeats (version, commit, start time, settings load time). The overview reads signals the registry already keeps: `Environment.lastPublishError`, dead letters, pg-boss's failed jobs, `AlertRule.lastError`, SAML certificate dates, `quota.exceeded` audit events and failing domains. The one addition is a daily `storage.verify` job, which stores `WorkspaceStorageConfig.lastVerifyError`. Jobs are read from pg-boss's own tables.
+- **Support access (INST-20).** Grants are rows, not roles. `requireWorkspace` and the org guard admit an instance admin with an active grant for GET requests only, without a tenant role (`request.supportGrant`). Changes answer `403 SUPPORT_READ_ONLY`. The dashboard opens the tenant's own pages for the grant holder, read-only (`support: true` on the tenant APIs, `components/ReadOnly.tsx`).
+- **Maintenance (INST-37)** is a setting that every replica reads on each request. A window is planned with `from` and `until` and takes effect at those times without a reload.
+- **Email (INST-38).** `InstanceSettings.mailer()` wraps the transport in `RecordingMailer`. It applies the template overrides and records each delivery, so every email path is covered without changes at the call sites (beyond naming the template).
+
 ## Breaking Changes
 
 None. `STORAGE_ADAPTER` env var continues to work as the bootstrap default. Existing workspaces without `WorkspaceStorageConfig` continue using the instance default adapter unchanged.
@@ -60,6 +77,150 @@ None. `STORAGE_ADAPTER` env var continues to work as the bootstrap default. Exis
 ---
 
 ## Change History
+
+### 2026-10-13 — Phase 9.10: system admin dashboard and operations
+
+**Type:** feature  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-19, INST-20, INST-21, INST-22, INST-27, INST-28, INST-29, INST-30, INST-36, INST-37, INST-38, INST-39
+
+#### What changed
+
+- **Migrations:**
+  - `20261013090000_admin_operations`: `SupportGrant`, `ReplicaHeartbeat`, `SignInEvent`, `EmailDelivery`.
+  - `20261013100000_user_email_change`: `User.pendingEmail*`.
+  - `20261013110000_storage_verify_error`: `WorkspaceStorageConfig.lastVerify*`.
+  - `20261013120000_security_signals`: `UsageDaily.rateLimited`, `SignInEvent.keyPrefix`.
+- **INST-19, 21, 29, 30** (`routes/adminDirectory.ts`):
+  - Workspace, organization and user lists with filters, sorting, offset paging and CSV.
+  - Detail endpoints.
+  - Organization deletion, ending a single session, email change confirmed by the new address, account merge.
+- **INST-20:** support grants, a `support` capability for owners, operators and support, read-only admission in the tenant guards, and `supportAccess` on the workspace and organization APIs.
+- **INST-22, 37, 38:** `announcement`, `maintenance` and `emailTemplates` settings, `/api/instance` with the banner data, the maintenance write guard, `RecordingMailer` and the email log.
+- **INST-27, 28:**
+  - `GET /api/admin/overview` (trends and attention list), `GET /api/admin/system` (build, migrations, replicas).
+  - The jobs API (list, failed, retry, run now) and the `storage.verify` and `ops.retention` jobs.
+  - The registry image takes `HARMONIQ_VERSION` and `HARMONIQ_COMMIT` build arguments.
+- **INST-36, 39** (`routes/adminSecurity.ts`):
+  - Audit search across logs (itself audited) and resource filters on the instance log.
+  - Sign-in events from every sign-in route, rejected-key events, 429 counts per workspace, and the security report.
+- **Dashboard:**
+  - Overview with trend charts and the attention list; system info on the health page; jobs, announcements, security, and email log and templates.
+  - Detail pages for workspaces, organizations and users; support access with a tenant banner; email-change confirmation.
+
+#### Testing
+
+- `operations.test.ts`: replicas and pending migrations; failed jobs listed and retried; run-now limited to maintenance queues; announcement scheduling; maintenance mode; the email log and template overrides; retention.
+- `supportGrants.test.ts`: read-only, expiry, revocation, organization scope, visible to the tenant, in both logs, role limits.
+- `adminDirectory.test.ts`: filters, sorting, CSV, detail pages, organization deletion, ending a session, email change, merge, permissions per role.
+- `overview.test.ts`: one fixture per attention kind, and the trends.
+- `security.test.ts`: sign-in events with reasons and addresses; the report's aggregates; the audit search, which is itself audited.
+- The registry suite passes.
+- Dashboard smoke test in English and Spanish against a local registry, including the announcement banner and the tenant support banner.
+
+#### Notes
+
+- Active users per day are users whose session was refreshed that day. Sign-in events only count from now on.
+- Reading failed jobs needs pg-boss's schema, which exists once any registry has run its job queue.
+
+### 2026-10-12 — Phase 9.9: keyring, admin roles, step-up, instance keys, settings history
+
+**Type:** security  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-26, INST-31, INST-32, INST-33, INST-34, INST-35
+
+#### What changed
+
+- **INST-26:**
+  - `HARMONIQ_ENCRYPTION_KEYS` keyring; sealed values record `kid`.
+  - Re-sealing: the `secrets.reseal` job, `POST /api/admin/encryption/reseal` and `harmoniq-admin reseal-secrets`.
+  - `GET /api/admin/encryption`, encryption counts in the health report, and the dashboard **Encryption** page.
+- **INST-31:**
+  - `InstanceAdmin.role` with four roles and `InstanceAdminInvitation`. One active owner always remains.
+  - `/api/me` returns the role and capabilities; the dashboard hides owner-only pages from other roles.
+- **INST-32:**
+  - Re-authentication within 10 minutes for destructive actions (`REAUTH_REQUIRED`); the dashboard asks for a code inline.
+  - Admin MFA requirement (`HARMONIQ_ADMIN_REQUIRE_MFA`), admin IP allowlist, and admin sessions capped at `auth.session.adminMaxHours`.
+- **INST-33:**
+  - Instance API keys (`hq_inst_`), managed under **Admin → API keys**.
+  - Terraform resources `harmoniq_instance_setting`, `harmoniq_workspace_plan` and `harmoniq_organization_plan`, using `GET /api/admin/{workspaces,orgs}/:slug/plan`.
+- **INST-34:** `plans`, `rateLimits`, `gc` and `bundles` settings, applied without a restart.
+- **INST-35:** versions, history and restore, YAML export and import (dry run first). In the dashboard: **Admin → All settings** and `/admin/settings/:key`.
+
+#### Testing
+
+- `keyring.test.ts`: legacy and new envelopes, rotation, unknown keys fail closed, idempotent re-seal.
+- `adminAccess.test.ts`:
+  - the role matrix over every admin route, and `/api/me`;
+  - step-up and admin session cap; MFA and IP allowlist;
+  - instance keys: scopes, expiry, revocation, refused on tenant routes, and plans and settings as Terraform uses them.
+- `settingsHistory.test.ts`: new settings on every replica, versions and restore, no secrets in history or exports, import dry run and apply.
+- Terraform acceptance tests against a dev registry.
+- Smoke test of the dashboard pages in English and Spanish, including the billing role's navigation.
+
+#### Notes
+
+- Instance admins are not managed by Terraform, because instance keys can't manage admins or keys.
+- Admins without MFA re-authenticate by signing in again.
+
+### 2026-10-11 — Admin lockout guard, recovery CLI, protected metrics
+
+**Type:** security  
+**PR / Branch:** `feat/tenant-admin-phase-9`  
+**Refs:** INST-23, INST-24, INST-25
+
+#### What changed
+
+- **INST-23:** `PUT /api/admin/settings/auth` refuses a value with which no instance admin could still sign in, or with which the admin saving it couldn't (`409`). Only instance-wide methods count: email and dev for any account, GitHub and instance OIDC for admins who have used them. Other admins it locks out are listed in `adminsLockedOut` and in the dashboard message, and counted in the audit event.
+- **INST-24:** `scripts/harmoniq-admin.ts` (`grant-admin`, `reset-setting`, `revoke-sessions`, `list-admins`) with `SYSTEM_DATABASE_URL`; each command is an `InstanceAuditEvent` by `system:harmoniq-admin`.
+- **INST-25:** `HARMONIQ_METRICS_TOKEN` makes `/metrics` require a bearer token, and production logs a warning without one. Workspace labels are opt-in (`HARMONIQ_METRICS_TENANT_LABELS`). The metrics plugin uses its own meter provider.
+
+#### Why
+
+[Gap analysis §8](../multi-tenancy-gap-analysis.md#8-system-instance-administration), SA-1 and SA-2.
+
+#### Testing
+
+`adminLockout.test.ts`, `adminRecovery.test.ts`, `metricsAccess.test.ts`; the INST-13 tests now keep a way in for the admin.
+
+### 2026-10-11 — System administration review and plan
+
+**Type:** docs  
+**PR / Branch:** —  
+**Refs:** INST-19–INST-39, ADR-013
+
+#### What changed
+
+- Reviewed the instance admin API and panel ([gap analysis §8](../multi-tenancy-gap-analysis.md#8-system-instance-administration)). Three risks were found: admins can lock everyone out through the sign-in settings, `/metrics` is public and names tenants, and the encryption key can't be rotated.
+- New requirements `INST-23`–`INST-39`; planned in Phase 9.1 (safety), 9.9 (security and automation) and 9.10 (dashboard and operations).
+
+#### Why
+
+The panel covers first boot and basic tenant moderation, but not the day-2 operation of a production instance.
+
+#### Testing
+
+Docs only.
+
+### 2026-10-11 — Status corrections
+
+**Type:** docs  
+**PR / Branch:** —  
+**Refs:** INST-09, BYOB-13, USG-02, TLC-03
+
+#### What changed
+
+- `INST-09` is partial: the admin workspace list has no storage bytes. That is planned as `USG-02` (Phase 9.6).
+- `BYOB-13` is partial: deleting a workspace removes its storage config but not the bundles in its bucket or its published manifests. That is planned as `TLC-03` (Phase 9.2).
+- Organization administration for instance admins (`INST-19`–`INST-22`) is planned in [tenant administration](./tenant-administration.md).
+
+#### Why
+
+Findings of the [multi-tenancy gap analysis](../multi-tenancy-gap-analysis.md).
+
+#### Testing
+
+Docs only.
 
 ### 2026-10-09 — Bring-your-own-bucket storage (M4.9)
 
