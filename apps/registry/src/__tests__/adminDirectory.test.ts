@@ -244,4 +244,34 @@ describe('Admin directory (INST-19, 21, 29, 30)', () => {
       })
     ).toMatchObject({ metadata: expect.objectContaining({ from: dup.email }) });
   });
+
+  it('lets every role read tenants; only operators and owners act on them (INST-19, 31)', async () => {
+    const org = await db().organization.create({
+      data: { slug: `dir-${run}-roles`, name: 'Roles' },
+    });
+    const as = async (role: string) => {
+      const user = await fx.user({ instanceAdmin: true });
+      await db().instanceAdmin.update({ where: { userId: user.id }, data: { role } });
+      return signAccessToken(
+        { userId: user.id, email: user.email, reauthAt: Date.now() },
+        app.config.jwtSecret
+      );
+    };
+    for (const role of ['instance_support', 'instance_billing', 'instance_operator']) {
+      const token = await as(role);
+      expect((await api('GET', `/api/admin/orgs/${org.slug}`, undefined, token)).statusCode).toBe(
+        200
+      );
+      expect(
+        (await api('GET', '/api/admin/users?filter=admins', undefined, token)).statusCode
+      ).toBe(200);
+      const suspend = await api(
+        'POST',
+        `/api/admin/orgs/${org.slug}/suspend`,
+        { reason: 'test' },
+        token
+      );
+      expect(suspend.statusCode).toBe(role === 'instance_operator' ? 200 : 403);
+    }
+  });
 });

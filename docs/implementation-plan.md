@@ -1074,7 +1074,7 @@ This document breaks the Harmoniq build into sequential phases (0–9). Each pha
 
 #### Test Suite
 
-- [ ] Org admin pages and API permissions per admin role
+- [x] Org admin pages and API permissions per admin role
 - [x] Support grant: read-only, expiry, revocation, visible to tenant, audited in both logs
 - [x] Overview attention items, one fixture per item type
 - [x] Jobs: failed job listed and retried, run-now limited to maintenance queues
